@@ -152,12 +152,15 @@
 
                 // Update UI
                 if (filtered.length > 0) {
-                    grid.innerHTML = filtered.map(createChefCardHTML).join('');
+                    grid.innerHTML = filtered.map((chef, i) => createChefCardHTML(chef, i)).join('');
                 } else {
                     grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--color-text-muted);">No artisans found matching your criteria.</div>`;
                 }
                 
                 countLabel.textContent = `${filtered.length} Artisans Curated For You`;
+                
+                // Trigger animation for newly rendered elements
+                if (typeof initScrollReveal === 'function') initScrollReveal();
             }
 
             // Bind Search Event

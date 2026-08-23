@@ -70,9 +70,10 @@ function updateCartBadge() {
 
 // --- UI RENDERING HELPERS ---
 
-function createChefCardHTML(chef) {
+function createChefCardHTML(chef, index = 1) {
+    const delay = (index % 5) + 1; // Generates delays 1-5
     return `
-        <a href="singlecook.html?id=${chef.id}" class="cook-card">
+        <a href="singlecook.html?id=${chef.id}" class="cook-card reveal-item delay-${delay}">
             ${chef.isVerified ? `<div class="badge-verified">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                 Verified Kitchen
@@ -131,3 +132,65 @@ function updateToggleIcon(theme, toggle) {
         toggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
     }
 }
+
+// --- SCROLL REVEAL ANIMATIONS ---
+function initScrollReveal() {
+    const observerOptions = {
+        root: null,
+        rootMargin: '0px',
+        threshold: 0.15
+    };
+
+    const observer = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('reveal-active');
+                // Optional: stop observing once revealed
+                // observer.unobserve(entry.target);
+            }
+        });
+    }, observerOptions);
+
+    const revealElements = document.querySelectorAll('.reveal-item, .reveal-left, .reveal-right, .reveal-scale');
+    revealElements.forEach(el => observer.observe(el));
+}
+
+// Call initScrollReveal after DOM load
+document.addEventListener('DOMContentLoaded', () => {
+    initScrollReveal();
+});
+
+// Since we load dynamic content (chefs/reviews), we should also call it after fetching data
+// Let's hook into the global fetch to re-trigger reveal for new elements, 
+// but an easier way is to just call it again after dynamic renders.
+const originalRenderChefCards = typeof createChefCardHTML !== 'undefined' ? true : false;
+// Note: for browsecook and index.html, they render asynchronously.
+// It's best to call initScrollReveal() after they finish rendering their grids.
+
+// Auto-add reveal classes to common UI elements to make the whole site animated
+function addGlobalAnimations() {
+    const selectors = [
+        '.section-title',
+        '.section-header p',
+        '.mood-pill',
+        '.testimonial-card',
+        '.bento-item', /* For the 'how it works' section */
+        '.footer .container > *'
+    ];
+    
+    selectors.forEach(sel => {
+        document.querySelectorAll(sel).forEach((el, index) => {
+            if (!el.classList.contains('reveal-item') && !el.classList.contains('reveal-left') && !el.classList.contains('reveal-right') && !el.classList.contains('reveal-scale')) {
+                el.classList.add('reveal-item');
+                el.classList.add(delay- + ((index % 5) + 1));
+            }
+        });
+    });
+}
+
+// Hook it into the initialization
+const originalInitScrollReveal = initScrollReveal;
+initScrollReveal = function() {
+    addGlobalAnimations();
+    originalInitScrollReveal();
+};

@@ -41,65 +41,78 @@
         </div>
     </nav>
 
-    <!-- Bento Hero Section -->
+    <!-- Modern Asymmetrical Bento Hero Section -->
     <header class="section" style="padding-top: 120px;">
         <div class="container">
-            <div class="bento-grid" style="margin-top: 0;">
+            <div class="modern-bento-grid">
                 
-                <!-- Main Hero Tile -->
-                <div class="bento-item bento-hero-main reveal-item delay-1">
-                    <div class="badge badge-accent mb-4" style="width: fit-content;">🌟 Authentic & Safe</div>
-                    <h1 class="hero-title">GHAR ER RANNA,<br><span class="text-primary-gradient">DOORSTEP E.</span></h1>
-                    <p class="hero-subtitle">Experience the finest home-cooked meals from verified culinary artisans in your neighborhood. Authentic. Fresh. Made with love.</p>
-                    
-                    <div class="flex gap-4 mb-8" style="max-width: 500px; align-items: center;">
-                        <form action="browsecook.html" class="search-pill" style="flex: 1;">
-                            <svg style="margin-left:12px; color:var(--color-primary);" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                            <input type="text" placeholder="Enter your area (e.g. Dhanmondi)" name="area">
-                            <button type="submit" class="btn btn-primary" style="padding: 10px 24px;">EXPLORE</button>
-                        </form>
-                        <a href="map.html" class="search-pill" style="padding: 14px 18px; border-radius: var(--radius-pill); cursor: pointer; color: var(--color-primary); box-shadow: 0 8px 30px rgba(45, 36, 36, 0.08);" title="Search on Map">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
-                        </a>
+                <!-- Main Hero Box (Spans large area) -->
+                <div class="bento-box hero-main reveal-item delay-1">
+                    <div class="hero-content">
+                        <div class="hero-badge">
+                            <span class="pulse-dot"></span> 100% Authentic Home Kitchens
+                        </div>
+                        <h1 class="hero-title-modern">
+                            CRAFTED AT <span class="gradient-text-animated">HOME.</span><br>
+                            DELIVERED TO YOU.
+                        </h1>
+                        <p class="hero-desc-modern">Experience the finest home-cooked meals from verified culinary artisans in your neighborhood. Authentic. Fresh. Made with love.</p>
+                        
+                        <div class="hero-search-modern">
+                            <form action="browsecook.html" style="display: flex; flex: 1; align-items: center;">
+                                <svg class="search-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                <input type="text" placeholder="Enter your area (e.g. Dhanmondi)" name="area" class="search-input-modern">
+                                <button type="submit" class="btn-search-modern">Find Food</button>
+                            </form>
+                        </div>
                     </div>
                     
-                    <div class="flex gap-4">
-                        <a href="becomecook.html" class="btn btn-glass">Become a Chef</a>
+                    <!-- Decorative Floating Elements inside Hero -->
+                    <div class="floating-badge badge-1">🌟 Top Rated</div>
+                    <div class="floating-badge badge-2">🌱 Eco-Friendly</div>
+                </div>
+                
+                <!-- Top Right: Featured Dish -->
+                <a href="browsecook.html?type=lunch" class="bento-box bento-img-tall reveal-item delay-2 group">
+                    <img src="https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800&q=80" alt="Exquisite Curry" class="bento-bg-img">
+                    <div class="bento-overlay-gradient"></div>
+                    <div class="bento-content-bottom">
+                        <div class="bento-tag">Featured</div>
+                        <h3 class="bento-img-title">Authentic<br>Mutton Curry</h3>
+                        <div class="bento-arrow">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                        </div>
+                    </div>
+                </a>
+                
+                <!-- Bottom Right 1: Stats/Trust -->
+                <div class="bento-box bento-stat reveal-item delay-3">
+                    <div class="stat-content">
+                        <div class="stat-number">50+</div>
+                        <div class="stat-label">Verified<br>Artisans</div>
+                        <div class="avatar-group mt-2">
+                            <img src="https://i.pravatar.cc/100?img=1" class="avatar-sm" alt="cook">
+                            <img src="https://i.pravatar.cc/100?img=5" class="avatar-sm" alt="cook">
+                            <img src="https://i.pravatar.cc/100?img=9" class="avatar-sm" alt="cook">
+                            <div class="avatar-sm avatar-more">+</div>
+                        </div>
                     </div>
                 </div>
                 
-                <!-- Bento Image Tall -->
-                <a href="browsecook.html?type=lunch" class="bento-item bento-img reveal-item delay-2 parallax-hover">
-                    <div class="bento-image-wrapper">
-                        <img src="https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800&q=80" alt="Exquisite Curry">
-                        <div class="parallax-steam"></div>
-                        <div class="bento-image-overlay">
-                            <div class="bento-label">AUTHENTIC<br><span style="color: #FFB700;">LUNCH</span></div>
+                <!-- Bottom Right 2: Explore Map -->
+                <a href="map.html" class="bento-box bento-map reveal-item delay-4 group">
+                    <div class="map-bg-pattern"></div>
+                    <div class="stat-content" style="position: relative; z-index: 2;">
+                        <div class="map-icon-wrapper">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
                         </div>
+                        <div class="stat-label mt-3" style="font-size: 18px; color: var(--color-primary);">Explore<br>Live Map</div>
+                    </div>
+                    <div class="bento-arrow arrow-map">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </div>
                 </a>
                 
-                <!-- Bento Image Small Top -->
-                <a href="browsecook.html?type=breakfast" class="bento-item bento-img-small-top reveal-item delay-3 parallax-hover">
-                    <div class="bento-image-wrapper">
-                        <img src="https://images.unsplash.com/photo-1574653853027-5382a3d23a15?w=600&q=80" alt="Fresh Paratha">
-                        <div class="parallax-steam"></div>
-                        <div class="bento-image-overlay">
-                            <div class="bento-label">MORNING<br>BITE</div>
-                        </div>
-                    </div>
-                </a>
-                
-                <!-- Bento Image Small Bottom -->
-                <a href="browsecook.html?type=dinner" class="bento-item bento-img-small-bottom reveal-item delay-4 parallax-hover">
-                    <div class="bento-image-wrapper">
-                        <img src="https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?w=600&q=80" alt="Rich Biryani">
-                        <div class="parallax-steam"></div>
-                        <div class="bento-image-overlay">
-                            <div class="bento-label">HEARTY<br>FEAST</div>
-                        </div>
-                    </div>
-                </a>
             </div>
         </div>
     </header>
@@ -285,7 +298,7 @@
             const chefGrid = document.getElementById('featured-chefs-grid');
             if(chefGrid && chefs.length > 0) {
                 // Show top 3 chefs
-                chefGrid.innerHTML = chefs.slice(0, 3).map(createChefCardHTML).join('');
+                chefGrid.innerHTML = chefs.slice(0, 3).map((chef, i) => createChefCardHTML(chef, i)).join('');
             }
 
             // Load Reviews
@@ -305,6 +318,9 @@
                     </div>
                 `).join('');
             }
+            
+            // Trigger animation for dynamic elements
+            if (typeof initScrollReveal === 'function') initScrollReveal();
         });
     </script>
 </body>
