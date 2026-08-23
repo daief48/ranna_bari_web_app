@@ -1045,6 +1045,8 @@ input, select {
     }
 }
 @media (max-width: 768px) {
+    .modern-bento-grid, .bento-grid { grid-template-columns: 1fr !important; }
+    .modern-bento-grid > div, .bento-grid > div { grid-column: span 1 !important; }
     .hero-title { font-size: 40px; }
     .profile-info-glass { flex-direction: column; text-align: center; }
     .profile-stats { justify-content: center; flex-wrap: wrap; }
@@ -1479,6 +1481,8 @@ input, select {
     .bento-map { grid-column: span 12; }
 }
 @media (max-width: 768px) {
+    .modern-bento-grid, .bento-grid { grid-template-columns: 1fr !important; }
+    .modern-bento-grid > div, .bento-grid > div { grid-column: span 1 !important; }
     .bento-img-tall, .bento-stat, .bento-map { grid-column: span 12; }
     .floating-badge { display: none; }
 }
@@ -1545,6 +1549,8 @@ input, select {
    ========================================================= */
 
 @media (max-width: 768px) {
+    .modern-bento-grid, .bento-grid { grid-template-columns: 1fr !important; }
+    .modern-bento-grid > div, .bento-grid > div { grid-column: span 1 !important; }
     /* Base & Layout */
     .container {
         padding: 0 16px;
@@ -1556,7 +1562,7 @@ input, select {
     }
 
     /* Navigation */
-    .nav-container {
+    .navbar .container {
         flex-direction: column;
         padding: 12px 16px;
         gap: 16px;
@@ -1674,13 +1680,46 @@ input, select {
 
 /* Small Mobile tweaks */
 @media (max-width: 480px) {
+    /* Override any inline grid columns on mobile */
     .modern-bento-grid, .bento-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr !important;
+    }
+    .modern-bento-grid > div, .bento-grid > div {
+        grid-column: span 1 !important;
     }
     .bento-img-title {
         font-size: 24px;
     }
     .stat-number {
         font-size: 32px;
+    }
+}
+
+/* =========================================================
+   ABSOLUTE FINAL RESPONSIVE OVERRIDES (CASCADING FIX)
+   ========================================================= */
+
+@media (max-width: 1024px) {
+    .modern-bento-grid .hero-main { grid-column: span 12 !important; }
+    .modern-bento-grid .bento-img-tall { grid-column: span 12 !important; }
+    .modern-bento-grid .bento-stat { grid-column: span 6 !important; }
+    .modern-bento-grid .bento-map { grid-column: span 6 !important; }
+}
+
+@media (max-width: 768px) {
+    .modern-bento-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .modern-bento-grid > div, .bento-grid > div {
+        grid-column: span 1 !important;
+    }
+    .hero-main {
+        padding: 32px 16px !important;
+    }
+    .hero-title, .hero-title-modern {
+        font-size: clamp(32px, 8vw, 42px) !important;
+    }
+    .trust-grid > div {
+        grid-column: span 1 !important;
     }
 }
