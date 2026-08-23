@@ -75,6 +75,14 @@
         [data-theme="dark"] .map-search-overlay input {
             color: var(--color-text);
         }
+
+        /* Dark Mode Map Filter */
+        [data-theme="dark"] .leaflet-layer,
+        [data-theme="dark"] .leaflet-control-zoom-in,
+        [data-theme="dark"] .leaflet-control-zoom-out,
+        [data-theme="dark"] .leaflet-control-attribution {
+            filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+        }
     </style>
 </head>
 <body>
@@ -113,8 +121,9 @@
 
     <!-- Leaflet JS for Map -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="js/app.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             var map = L.map('fullscreen-map').setView([23.8103, 90.4125], 12);
 
             L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
@@ -122,15 +131,6 @@
                 subdomains: 'abcd',
                 maxZoom: 20
             }).addTo(map);
-
-            var kitchens = [
-                { name: "Fatema B's Kitchen", loc: [23.7461, 90.3742], specialty: "Traditional Heritage", area: "Dhanmondi", url: "singlecook.html" },
-                { name: "Rohima's Seafood", loc: [23.8759, 90.3795], specialty: "Coastal Seafood", area: "Uttara", url: "singlecook.html" },
-                { name: "Shirin's Wellness", loc: [23.7937, 90.4066], specialty: "Wellness & Keto", area: "Banani", url: "singlecook.html" },
-                { name: "Rahman's Grill", loc: [23.7516, 90.3934], specialty: "Street Food", area: "Kawran Bazar", url: "singlecook.html" },
-                { name: "Nadia's Bakery", loc: [23.8151, 90.4255], specialty: "Sweet Tooth", area: "Bashundhara", url: "singlecook.html" },
-                { name: "Kamal's Vegan Bowl", loc: [23.7662, 90.4283], specialty: "Plant-Based", area: "Banasree", url: "singlecook.html" }
-            ];
 
             var customIcon = L.divIcon({
                 className: 'custom-map-marker',
@@ -140,15 +140,21 @@
                 popupAnchor: [0, -20]
             });
 
-            kitchens.forEach(function(k) {
-                var marker = L.marker(k.loc, {icon: customIcon}).addTo(map);
-                marker.bindPopup(`
-                    <div style="text-align: center; font-family: 'Inter', sans-serif; padding: 8px;">
-                        <h4 style="margin: 0 0 5px 0; color: var(--color-text); font-family: 'Outfit', sans-serif; font-size: 20px;">${k.name}</h4>
-                        <p style="margin: 0 0 15px 0; font-size: 14px; color: var(--color-text-muted);">${k.specialty} <br><br> 📍 <strong>${k.area}</strong></p>
-                        <a href="${k.url}" style="background: var(--color-primary); color: white; display: inline-block; padding: 10px 24px; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 30px; box-shadow: 0 4px 12px rgba(200, 75, 49, 0.3); transition: all 0.3s ease;">View Menu & Order</a>
-                    </div>
-                `, { minWidth: 200 });
+            // Fetch dynamic chefs data
+            const chefs = await fetchData(DB.chefs);
+
+            chefs.forEach(function(c) {
+                if (c.lat && c.lng) {
+                    var marker = L.marker([c.lat, c.lng], {icon: customIcon}).addTo(map);
+                    marker.bindPopup(`
+                        <div style="text-align: center; font-family: 'Inter', sans-serif; padding: 8px;">
+                            <img src="${c.avatar}" style="width: 50px; height: 50px; border-radius: 50%; margin-bottom: 8px; object-fit: cover;">
+                            <h4 style="margin: 0 0 5px 0; color: var(--color-text); font-family: 'Outfit', sans-serif; font-size: 20px;">${c.name}</h4>
+                            <p style="margin: 0 0 15px 0; font-size: 14px; color: var(--color-text-muted);">${c.specialty}</p>
+                            <a href="singlecook.html?id=${c.id}" style="background: var(--color-primary); color: white; display: inline-block; padding: 10px 24px; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 30px; box-shadow: 0 4px 12px rgba(200, 75, 49, 0.3); transition: all 0.3s ease;">View Menu & Order</a>
+                        </div>
+                    `, { minWidth: 200 });
+                }
             });
         });
     </script>
@@ -173,36 +179,6 @@
         </a>
     </nav>
 
-    <!-- App Logic -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const toggle = document.getElementById('themeToggle');
-            const html = document.documentElement;
-            
-            // Check for saved theme
-            const savedTheme = localStorage.getItem('theme');
-            if(savedTheme) {
-                html.setAttribute('data-theme', savedTheme);
-                updateToggleIcon(savedTheme);
-            }
-
-            toggle.addEventListener('click', () => {
-                const currentTheme = html.getAttribute('data-theme');
-                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                
-                html.setAttribute('data-theme', newTheme);
-                localStorage.setItem('theme', newTheme);
-                updateToggleIcon(newTheme);
-            });
-
-            function updateToggleIcon(theme) {
-                if (theme === 'dark') {
-                    toggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
-                } else {
-                    toggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
-                }
-            }
-        });
-    </script>
+    <!-- App Logic is now handled centrally -->
 </body>
 </html>
