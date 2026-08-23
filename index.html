@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghar er Ranna - Authentic Home Food Delivery</title>
+    <meta name="description" content="Connects local home cooks with customers seeking affordable, safe, homemade meals for breakfast, lunch, or dinner in Bangladesh and beyond.">
+    <meta name="robots" content="index, follow">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body style="padding-top: 40px;">
+    <!-- AI Personalized Greeting Bar (2026 Trend) -->
+    <div class="ai-greeting-bar" style="position: fixed; top: 0; left: 0; width: 100%; z-index: 200;">
+        ✨ Good Evening! AI suggests <strong>Trending Hot Dinners</strong> near Dhanmondi based on your preferences.
+    </div>
+
+    <div class="ambient-glow glow-top-right"></div>
+    
+    <!-- Navigation -->
+    <nav class="navbar" style="top: 56px;">
+        <div class="container">
+            <a href="index.html" class="nav-brand">
+                <span>🍛</span> RANNA<span class="text-primary-gradient">BARI</span>
+            </a>
+            <div class="nav-links">
+                <a href="browsecook.html" class="nav-link">Browse Cooks</a>
+                <div class="location-pill">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                    Location off
+                </div>
+                <a href="cart.html" class="nav-icon" style="position: relative;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+                    <span class="cart-badge">2</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Bento Hero Section -->
+    <header class="section" style="padding-top: 120px;">
+        <div class="container">
+            <div class="bento-grid" style="margin-top: 0;">
+                
+                <!-- Main Hero Tile -->
+                <div class="bento-item bento-hero-main">
+                    <div class="badge badge-accent mb-4" style="width: fit-content;">🌟 Authentic & Safe</div>
+                    <h1 class="hero-title">GHAR ER RANNA,<br><span class="text-primary-gradient">DOORSTEP E.</span></h1>
+                    <p class="hero-subtitle">Experience the finest home-cooked meals from verified culinary artisans in your neighborhood. Authentic. Fresh. Made with love.</p>
+                    
+                    <div class="flex gap-4 mb-8" style="max-width: 500px; align-items: center;">
+                        <form action="browsecook.html" class="search-pill" style="flex: 1;">
+                            <svg style="margin-left:12px; color:var(--color-primary);" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            <input type="text" placeholder="Enter your area (e.g. Dhanmondi)" name="area">
+                            <button type="submit" class="btn btn-primary" style="padding: 10px 24px;">EXPLORE</button>
+                        </form>
+                        <a href="map.html" class="search-pill" style="padding: 14px 18px; border-radius: var(--radius-pill); cursor: pointer; color: var(--color-primary); box-shadow: 0 8px 30px rgba(45, 36, 36, 0.08);" title="Search on Map">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+                        </a>
+                    </div>
+                    
+                    <div class="flex gap-4">
+                        <a href="becomecook.html" class="btn btn-glass">Become a Chef</a>
+                    </div>
+                </div>
+                
+                <!-- Bento Image Tall -->
+                <a href="browsecook.html?type=lunch" class="bento-item bento-img">
+                    <div class="bento-image-wrapper">
+                        <img src="https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800&q=80" alt="Exquisite Curry">
+                        <div class="bento-image-overlay">
+                            <div class="bento-label">AUTHENTIC<br><span style="color: #FFB700;">LUNCH</span></div>
+                        </div>
+                    </div>
+                </a>
+                
+                <!-- Bento Image Small Top -->
+                <a href="browsecook.html?type=breakfast" class="bento-item bento-img-small-top">
+                    <div class="bento-image-wrapper">
+                        <img src="https://images.unsplash.com/photo-1574653853027-5382a3d23a15?w=600&q=80" alt="Fresh Paratha">
+                        <div class="bento-image-overlay">
+                            <div class="bento-label">MORNING<br>BITE</div>
+                        </div>
+                    </div>
+                </a>
+                
+                <!-- Bento Image Small Bottom -->
+                <a href="browsecook.html?type=dinner" class="bento-item bento-img-small-bottom">
+                    <div class="bento-image-wrapper">
+                        <img src="https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?w=600&q=80" alt="Rich Biryani">
+                        <div class="bento-image-overlay">
+                            <div class="bento-label">HEARTY<br>FEAST</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Dietary & Mood Carousel (2026 Trend) -->
+    <section class="section" style="padding: 20px 0 60px 0; overflow: hidden;">
+        <div class="container">
+            <h3 style="font-family: var(--font-display); font-size: 20px; color: var(--color-text); margin-bottom: 16px;">What are you craving?</h3>
+            <div class="mood-carousel">
+                <a href="browsecook.html?filter=healthy" class="mood-pill">
+                    <span class="mood-pill-icon">🥑</span> Healthy & Keto
+                </a>
+                <a href="browsecook.html?filter=heritage" class="mood-pill">
+                    <span class="mood-pill-icon">🔥</span> Heritage Spices
+                </a>
+                <a href="browsecook.html?filter=comfort" class="mood-pill">
+                    <span class="mood-pill-icon">🍲</span> Comfort Stews
+                </a>
+                <a href="browsecook.html?filter=street" class="mood-pill">
+                    <span class="mood-pill-icon">🍢</span> Clean Street Food
+                </a>
+                <a href="browsecook.html?filter=sweet" class="mood-pill">
+                    <span class="mood-pill-icon">🍯</span> Sweet Tooth
+                </a>
+                <a href="browsecook.html?filter=seafood" class="mood-pill">
+                    <span class="mood-pill-icon">🦐</span> Coastal Catch
+                </a>
+                <a href="browsecook.html?filter=vegan" class="mood-pill">
+                    <span class="mood-pill-icon">🥗</span> Plant-Based
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="section" style="padding-top: 20px;">
+        <div class="container">
+            <div class="section-header" style="text-align: center; justify-content: center; flex-direction: column; align-items: center; margin-bottom: 64px;">
+                <h2 class="section-title">HOW IT <span class="text-primary-gradient">WORKS</span></h2>
+                <p style="color: var(--color-text-muted); font-size: 18px; margin-top: 8px;">From their kitchen to your table in 3 simple steps</p>
+            </div>
+            
+            <div class="bento-grid" style="margin-top: 0; grid-template-columns: repeat(3, 1fr); grid-template-rows: auto; gap: 32px;">
+                <div class="bento-item" style="padding: 48px; text-align: center; border-top: 4px solid var(--color-primary);">
+                    <div style="font-size: 48px; margin-bottom: 24px;">👩‍🍳</div>
+                    <h3 style="font-size: 24px; font-family: var(--font-display); font-weight: 700; margin-bottom: 16px;">1. Pick an Artisan</h3>
+                    <p style="color: var(--color-text-muted); font-size: 15px;">Browse curated menus from verified home cooks in your neighborhood.</p>
+                </div>
+                <div class="bento-item" style="padding: 48px; text-align: center; border-top: 4px solid var(--color-secondary);">
+                    <div style="font-size: 48px; margin-bottom: 24px;">🍲</div>
+                    <h3 style="font-size: 24px; font-family: var(--font-display); font-weight: 700; margin-bottom: 16px;">2. Freshly Prepared</h3>
+                    <p style="color: var(--color-text-muted); font-size: 15px;">Your meal is cooked to order using fresh, safe, and authentic ingredients.</p>
+                </div>
+                <div class="bento-item" style="padding: 48px; text-align: center; border-top: 4px solid var(--color-accent);">
+                    <div style="font-size: 48px; margin-bottom: 24px;">🛵</div>
+                    <h3 style="font-size: 24px; font-family: var(--font-display); font-weight: 700; margin-bottom: 16px;">3. Delivered Hot</h3>
+                    <p style="color: var(--color-text-muted); font-size: 15px;">Enjoy doorstep delivery right in time for breakfast, lunch, or dinner.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Top Cooks (Enhanced with Trust Badges) -->
+    <section class="section">
+        <div class="ambient-glow glow-bottom-left"></div>
+        <div class="container">
+            <div class="section-header">
+                <div>
+                    <h2 class="section-title">FEATURED <span class="text-primary-gradient">CHEFS</span></h2>
+                    <p style="color: var(--color-text-muted); font-size: 18px; margin-top: 8px;">The highest-rated culinary artists near you</p>
+                </div>
+                <a href="browsecook.html" class="btn btn-glass">VIEW ALL</a>
+            </div>
+            
+            <div class="cook-grid">
+                <!-- Cook 1 -->
+                <a href="singlecook.html" class="cook-card">
+                    <div class="badge-verified">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                        Verified Kitchen
+                    </div>
+                    <div class="cook-header">
+                        <img src="https://images.unsplash.com/photo-1594736797933-d0501ba2fe65?w=200&h=200&fit=crop" alt="Fatema Begum" class="cook-avatar">
+                        <div>
+                            <div class="cook-name">Fatema B.</div>
+                            <div class="cook-specialty">Traditional Heritage</div>
+                        </div>
+                    </div>
+                    <div class="cook-tags">
+                        <span class="tag">Breakfast</span>
+                        <span class="tag">Lunch</span>
+                        <span class="tag">Dinner</span>
+                    </div>
+                    <div class="cook-footer">
+                        <div class="cook-rating">⭐ 4.9 <small>(142)</small></div>
+                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+                    </div>
+                </a>
+
+                <!-- Cook 2 -->
+                <a href="singlecook.html" class="cook-card">
+                    <div class="badge-verified">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                        Verified Kitchen
+                    </div>
+                    <div class="cook-header">
+                        <img src="https://images.unsplash.com/photo-1607631568010-a87245c0daf8?w=200&h=200&fit=crop" alt="Rohima Akter" class="cook-avatar">
+                        <div>
+                            <div class="cook-name">Rohima A.</div>
+                            <div class="cook-specialty">Coastal Seafood</div>
+                        </div>
+                    </div>
+                    <div class="cook-tags">
+                        <span class="tag">Lunch</span>
+                        <span class="tag">Dinner</span>
+                    </div>
+                    <div class="cook-footer">
+                        <div class="cook-rating">⭐ 4.8 <small>(98)</small></div>
+                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+                    </div>
+                </a>
+
+                <!-- Cook 3 -->
+                <a href="singlecook.html" class="cook-card">
+                    <div class="badge-verified">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                        Verified Kitchen
+                    </div>
+                    <div class="cook-header">
+                        <img src="https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&h=200&fit=crop" alt="Shirin Sultana" class="cook-avatar">
+                        <div>
+                            <div class="cook-name">Shirin S.</div>
+                            <div class="cook-specialty">Wellness & Keto</div>
+                        </div>
+                    </div>
+                    <div class="cook-tags">
+                        <span class="tag">Breakfast</span>
+                        <span class="tag">Lunch</span>
+                    </div>
+                    <div class="cook-footer">
+                        <div class="cook-rating">⭐ 4.7 <small>(67)</small></div>
+                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+
+
+    <!-- Testimonials Section -->
+    <section class="section" style="background: rgba(45,36,36,0.02); margin-top: 50px;">
+        <div class="container">
+            <div class="section-header" style="text-align: center; justify-content: center; flex-direction: column; align-items: center; margin-bottom: 64px;">
+                <h2 class="section-title">WHAT <span class="text-primary-gradient">FOODIES</span> SAY</h2>
+                <p style="color: var(--color-text-muted); font-size: 18px; margin-top: 8px;">Real reviews from our community</p>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 32px;">
+                <div class="testimonial-card">
+                    <div class="flex gap-4 mb-4" style="color: var(--color-accent); font-size: 20px;">⭐⭐⭐⭐⭐</div>
+                    <p class="testimonial-text">"I missed my mother's cooking so much since moving to Dhaka. Fatema Auntie's Dal Bhat literally brought tears to my eyes. Incredible authentic taste!"</p>
+                    <div class="testimonial-author">
+                        <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" alt="User" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
+                        <div>
+                            <div style="font-weight: 700; color: var(--color-text);">Rahim Islam</div>
+                            <div style="font-size: 12px; color: var(--color-text-muted);">Ordered from Dhanmondi</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="testimonial-card">
+                    <div class="flex gap-4 mb-4" style="color: var(--color-accent); font-size: 20px;">⭐⭐⭐⭐⭐</div>
+                    <p class="testimonial-text">"The seafood curry was incredibly fresh. It feels so much safer and healthier knowing it's cooked in a clean home kitchen rather than a busy restaurant."</p>
+                    <div class="testimonial-author">
+                        <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop" alt="User" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
+                        <div>
+                            <div style="font-weight: 700; color: var(--color-text);">Samira Khan</div>
+                            <div style="font-size: 12px; color: var(--color-text-muted);">Ordered from Uttara</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- The RannaBari Standard (Trust Section - 2026 Trend) -->
+    <section class="section">
+        <div class="container">
+            <div class="section-header" style="margin-bottom: 32px;">
+                <h2 class="section-title">THE RANNABARI <span class="text-primary-gradient">STANDARD</span></h2>
+            </div>
+            <p style="color: var(--color-text-muted); font-size: 18px; margin-bottom: 48px; max-width: 600px;">
+                We take your safety and health seriously. Every home cook on our platform goes through a rigorous vetting process.
+            </p>
+
+            <div class="bento-grid" style="margin-top: 0; grid-template-columns: repeat(3, 1fr); grid-template-rows: auto; gap: 24px;">
+                <div class="bento-item" style="padding: 40px; border-top: 4px solid var(--color-secondary);">
+                    <div style="font-size: 32px; margin-bottom: 16px;">🔍</div>
+                    <h3 style="font-size: 20px; font-weight: 700; color: var(--color-text); margin-bottom: 12px;">Verified Kitchens</h3>
+                    <p style="color: var(--color-text-muted); font-size: 15px; line-height: 1.6;">Our team personally inspects every home kitchen to ensure it meets strict hygiene and cleanliness standards before approval.</p>
+                </div>
+                <div class="bento-item" style="padding: 40px; border-top: 4px solid var(--color-primary);">
+                    <div style="font-size: 32px; margin-bottom: 16px;">🌱</div>
+                    <h3 style="font-size: 20px; font-weight: 700; color: var(--color-text); margin-bottom: 12px;">Fresh Ingredients</h3>
+                    <p style="color: var(--color-text-muted); font-size: 15px; line-height: 1.6;">Chefs are committed to using locally sourced, fresh, and organic ingredients just like they would feed their own families.</p>
+                </div>
+                <div class="bento-item" style="padding: 40px; border-top: 4px solid var(--color-accent);">
+                    <div style="font-size: 32px; margin-bottom: 16px;">⭐</div>
+                    <h3 style="font-size: 20px; font-weight: 700; color: var(--color-text); margin-bottom: 12px;">Community Rated</h3>
+                    <p style="color: var(--color-text-muted); font-size: 15px; line-height: 1.6;">Consistent high quality is maintained through real-time ratings and feedback from foodies just like you.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="nav-brand" style="justify-content: center; margin-bottom: 24px; font-size: 20px;">
+                <span>🍛</span> RANNA<span class="text-primary-gradient">BARI</span>
+            </div>
+            <p style="color: var(--color-text-light); font-size: 14px;">© 2026 RannaBari. Shaping the future of localized gastronomy with authentic flavor.</p>
+        </div>
+    </footer>
+
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen Map - RannaBari</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+        /* Full height map layout */
+        html, body {
+            height: 100%;
+            margin: 0;
+            overflow: hidden; /* Prevent scrolling, let map handle it */
+        }
+        
+        #fullscreen-map {
+            width: 100%;
+            height: calc(100vh - 100px); /* Account for navbar space */
+            margin-top: 100px;
+            z-index: 1;
+        }
+
+        .map-search-overlay {
+            position: absolute;
+            top: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            width: 90%;
+            max-width: 500px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: var(--radius-pill);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            border: 1px solid rgba(200, 75, 49, 0.1);
+        }
+
+        .map-search-overlay input {
+            flex: 1;
+            border: none;
+            outline: none;
+            padding: 10px 16px;
+            font-size: 16px;
+            font-family: var(--font-body);
+            background: transparent;
+        }
+
+        .map-search-overlay button {
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: var(--radius-pill);
+            font-family: var(--font-display);
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(200, 75, 49, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .map-search-overlay button:hover {
+            transform: translateY(-2px);
+            background: var(--color-primary-hover);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" style="top: 24px;">
+        <div class="container">
+            <a href="index.html" class="nav-brand">
+                <span>🍛</span> RANNA<span class="text-primary-gradient">BARI</span>
+            </a>
+            <div class="nav-links">
+                <a href="browsecook.html" class="nav-link">Browse Cooks</a>
+                <div class="location-pill">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                    Location On
+                </div>
+                <a href="cart.html" class="nav-icon" style="position: relative;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+                    <span class="cart-badge">2</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Map Search Overlay -->
+    <div class="map-search-overlay">
+        <svg style="margin-left: 8px; color: var(--color-primary);" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" placeholder="Search areas or kitchens (e.g. Dhanmondi)">
+        <button type="button">SEARCH</button>
+    </div>
+
+    <!-- The Map Container -->
+    <div id="fullscreen-map"></div>
+
+    <!-- Leaflet JS for Map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var map = L.map('fullscreen-map').setView([23.8103, 90.4125], 12);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
+
+            var kitchens = [
+                { name: "Fatema B's Kitchen", loc: [23.7461, 90.3742], specialty: "Traditional Heritage", area: "Dhanmondi", url: "singlecook.html" },
+                { name: "Rohima's Seafood", loc: [23.8759, 90.3795], specialty: "Coastal Seafood", area: "Uttara", url: "singlecook.html" },
+                { name: "Shirin's Wellness", loc: [23.7937, 90.4066], specialty: "Wellness & Keto", area: "Banani", url: "singlecook.html" },
+                { name: "Rahman's Grill", loc: [23.7516, 90.3934], specialty: "Street Food", area: "Kawran Bazar", url: "singlecook.html" },
+                { name: "Nadia's Bakery", loc: [23.8151, 90.4255], specialty: "Sweet Tooth", area: "Bashundhara", url: "singlecook.html" },
+                { name: "Kamal's Vegan Bowl", loc: [23.7662, 90.4283], specialty: "Plant-Based", area: "Banasree", url: "singlecook.html" }
+            ];
+
+            var customIcon = L.divIcon({
+                className: 'custom-map-marker',
+                html: '<div style="background: var(--color-primary); width: 40px; height: 40px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; color: white;">👩‍🍳</div>',
+                iconSize: [40, 40],
+                iconAnchor: [20, 20],
+                popupAnchor: [0, -20]
+            });
+
+            kitchens.forEach(function(k) {
+                var marker = L.marker(k.loc, {icon: customIcon}).addTo(map);
+                marker.bindPopup(`
+                    <div style="text-align: center; font-family: 'Inter', sans-serif; padding: 8px;">
+                        <h4 style="margin: 0 0 5px 0; color: var(--color-text); font-family: 'Outfit', sans-serif; font-size: 20px;">${k.name}</h4>
+                        <p style="margin: 0 0 15px 0; font-size: 14px; color: var(--color-text-muted);">${k.specialty} <br><br> 📍 <strong>${k.area}</strong></p>
+                        <a href="${k.url}" style="background: var(--color-primary); color: white; display: inline-block; padding: 10px 24px; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 30px; box-shadow: 0 4px 12px rgba(200, 75, 49, 0.3); transition: all 0.3s ease;">View Menu & Order</a>
+                    </div>
+                `, { minWidth: 200 });
+            });
+        });
+    </script>
+</body>
+</html>

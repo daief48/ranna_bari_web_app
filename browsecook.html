@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse Chefs - RannaBari</title>
+    <meta name="description" content="Discover the finest local culinary artisans.">
+    <meta name="robots" content="index, follow">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="ambient-glow glow-top-right"></div>
+    
+    <!-- Navigation (Liquid Glass Light) -->
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-brand">
+                <span>🍛</span> RANNA<span class="text-primary-gradient">BARI</span>
+            </a>
+            <div class="nav-links">
+                <a href="browsecook.html" class="nav-link active">Browse Cooks</a>
+                <div class="location-pill">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                    Location off
+                </div>
+                <a href="cart.html" class="nav-icon" style="position: relative;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+                    <span class="cart-badge">2</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Browse Content -->
+    <main class="section" style="padding-top: 160px;">
+        <div class="container">
+            <div class="section-header" style="flex-direction: column; align-items: flex-start; margin-bottom: 32px;">
+                <h1 class="section-title">DISCOVER <span class="text-primary-gradient">ARTISANS</span></h1>
+                <p style="color: var(--color-text-muted); font-size: 18px; margin-top: 8px;">Find the perfect meal curated by local chefs.</p>
+            </div>
+            
+            <div class="filter-bar" style="align-items: center;">
+                <div class="search-pill" style="flex: 1; min-width: 300px;">
+                    <svg style="margin-left:12px; color:var(--color-text-muted);" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input type="text" placeholder="Search cuisines, chefs, or areas...">
+                </div>
+                <div class="flex gap-4" style="overflow-x: auto;">
+                    <button class="filter-pill active">ALL</button>
+                    <button class="filter-pill">MORNING</button>
+                    <button class="filter-pill">LUNCH</button>
+                    <button class="filter-pill">EVENING</button>
+                </div>
+                <div class="search-pill">
+                    <select style="border: none; background: transparent; padding: 0 16px; font-weight: 600; cursor: pointer; color: var(--color-text);">
+                        <option value="All" style="background:#FFFFFF;">All Areas</option>
+                        <option value="Dhanmondi" style="background:#FFFFFF;">Dhanmondi</option>
+                        <option value="Mirpur" style="background:#FFFFFF;">Mirpur</option>
+                        <option value="Uttara" style="background:#FFFFFF;">Uttara</option>
+                    </select>
+                </div>
+                <a href="map.html" class="search-pill" style="padding: 10px; border-radius: var(--radius-pill); cursor: pointer; color: var(--color-primary); box-shadow: 0 4px 15px rgba(200, 75, 49, 0.15); text-decoration: none; display: flex; justify-content: center; align-items: center;" title="View on Map">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+                </a>
+            </div>
+            
+            <div style="color: var(--color-text-muted); font-size: 14px; font-weight: 700; letter-spacing: 1px; margin-bottom: 32px; text-transform: uppercase;">6 Artisans Curated For You</div>
+            
+            <div class="cook-grid">
+                <!-- Cook 1 -->
+                <a href="singlecook.html" class="cook-card">
+                    <div class="cook-header">
+                        <img src="https://images.unsplash.com/photo-1594736797933-d0501ba2fe65?w=200&h=200&fit=crop" alt="Fatema Begum" class="cook-avatar">
+                        <div>
+                            <div class="cook-name">Fatema B.</div>
+                            <div class="cook-specialty">Traditional Heritage</div>
+                        </div>
+                    </div>
+                    <div class="cook-tags">
+                        <span class="tag">Breakfast</span>
+                        <span class="tag">Lunch</span>
+                        <span class="tag">Dinner</span>
+                    </div>
+                    <div class="cook-footer">
+                        <div class="cook-rating">⭐ 4.9 <small>(142)</small></div>
+                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+                    </div>
+                </a>
+
+                <!-- Cook 2 -->
+                <a href="singlecook.html" class="cook-card">
+                    <div class="cook-header">
+                        <img src="https://images.unsplash.com/photo-1607631568010-a87245c0daf8?w=200&h=200&fit=crop" alt="Rohima Akter" class="cook-avatar">
+                        <div>
+                            <div class="cook-name">Rohima A.</div>
+                            <div class="cook-specialty">Coastal Seafood</div>
+                        </div>
+                    </div>
+                    <div class="cook-tags">
+                        <span class="tag">Lunch</span>
+                        <span class="tag">Dinner</span>
+                    </div>
+                    <div class="cook-footer">
+                        <div class="cook-rating">⭐ 4.8 <small>(98)</small></div>
+                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+                    </div>
+                </a>
+
+                <!-- Cook 3 -->
+                <a href="singlecook.html" class="cook-card">
+                    <div class="cook-header">
+                        <img src="https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&h=200&fit=crop" alt="Shirin Sultana" class="cook-avatar">
+                        <div>
+                            <div class="cook-name">Shirin S.</div>
+                            <div class="cook-specialty">Wellness & Keto</div>
+                        </div>
+                    </div>
+                    <div class="cook-tags">
+                        <span class="tag">Breakfast</span>
+                        <span class="tag">Lunch</span>
+                    </div>
+                    <div class="cook-footer">
+                        <div class="cook-rating">⭐ 4.7 <small>(67)</small></div>
+                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+                    </div>
+                </a>
+                
+                <!-- Cook 4 -->
+                <a href="singlecook.html" class="cook-card">
+                    <div class="cook-header">
+                        <img src="https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?w=200&h=200&fit=crop" alt="Nazma Khanom" class="cook-avatar">
+                        <div>
+                            <div class="cook-name">Nazma K.</div>
+                            <div class="cook-specialty">Mughal Cuisine</div>
+                        </div>
+                    </div>
+                    <div class="cook-tags">
+                        <span class="tag">Lunch</span>
+                        <span class="tag">Dinner</span>
+                    </div>
+                    <div class="cook-footer">
+                        <div class="cook-rating">⭐ 4.9 <small>(203)</small></div>
+                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+                    </div>
+                </a>
+
+                <!-- Cook 5 -->
+                <a href="singlecook.html" class="cook-card">
+                    <div class="cook-header">
+                        <img src="https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=200&h=200&fit=crop" alt="Kohinoor Parvin" class="cook-avatar">
+                        <div>
+                            <div class="cook-name">Kohinoor P.</div>
+                            <div class="cook-specialty">Artisan Sweets</div>
+                        </div>
+                    </div>
+                    <div class="cook-tags">
+                        <span class="tag">Breakfast</span>
+                        <span class="tag">Dinner</span>
+                    </div>
+                    <div class="cook-footer">
+                        <div class="cook-rating">⭐ 4.8 <small>(115)</small></div>
+                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+                    </div>
+                </a>
+
+                <!-- Cook 6 -->
+                <a href="singlecook.html" class="cook-card">
+                    <div class="cook-header">
+                        <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop" alt="Rupa Das" class="cook-avatar">
+                        <div>
+                            <div class="cook-name">Rupa D.</div>
+                            <div class="cook-specialty">Street Food Soul</div>
+                        </div>
+                    </div>
+                    <div class="cook-tags">
+                        <span class="tag">Breakfast</span>
+                        <span class="tag">Lunch</span>
+                        <span class="tag">Dinner</span>
+                    </div>
+                    <div class="cook-footer">
+                        <div class="cook-rating">⭐ 4.6 <small>(84)</small></div>
+                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="nav-brand" style="justify-content: center; margin-bottom: 24px; font-size: 20px;">
+                <span>🍛</span> RANNA<span class="text-primary-gradient">BARI</span>
+            </div>
+            <p style="color: var(--color-text-light); font-size: 14px;">© 2026 RannaBari. Shaping the future of localized gastronomy.</p>
+        </div>
+    </footer>
+</body>
+</html>

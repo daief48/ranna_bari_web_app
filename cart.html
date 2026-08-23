@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Cart - RannaBari</title>
+    <meta name="description" content="Review your authentic home-cooked meals before checkout.">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="ambient-glow glow-top-right"></div>
+    <div class="ambient-glow glow-bottom-left" style="top: 10%; left: 10%;"></div>
+    
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-brand">
+                <span>🍛</span> RANNA<span class="text-primary-gradient">BARI</span>
+            </a>
+            <div class="nav-links">
+                <a href="browsecook.html" class="nav-link">Browse Cooks</a>
+                <div class="location-pill">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                    Dhanmondi
+                </div>
+                <a href="cart.html" class="nav-icon active" style="position: relative;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+                    <span class="cart-badge">2</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="section" style="padding-top: 140px; min-height: 80vh;">
+        <div class="container">
+            <h1 class="section-title mb-8" style="font-size: 40px;">YOUR <span class="text-primary-gradient">CART</span></h1>
+            
+            <div class="cart-layout">
+                <!-- Cart Items List -->
+                <div class="cart-items">
+                    <div class="cart-header mb-4">
+                        <div class="badge badge-accent">FROM: FATEMA BEGUM</div>
+                    </div>
+                    
+                    <!-- Item 1 -->
+                    <div class="cart-item">
+                        <img src="https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?w=100&h=100&fit=crop" alt="Deshi Chicken Curry" class="cart-item-img">
+                        <div class="cart-item-details">
+                            <h3 class="cart-item-title">Deshi Chicken Curry</h3>
+                            <p class="cart-item-desc">Extra spicy, less oil</p>
+                            <div class="cart-item-price">৳130</div>
+                        </div>
+                        <div class="cart-item-qty">
+                            <button class="qty-btn">-</button>
+                            <span class="qty-val">2</span>
+                            <button class="qty-btn">+</button>
+                        </div>
+                        <button class="cart-item-remove">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    </div>
+
+                    <!-- Item 2 -->
+                    <div class="cart-item">
+                        <img src="https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=100&h=100&fit=crop" alt="Heritage Dal Bhat" class="cart-item-img">
+                        <div class="cart-item-details">
+                            <h3 class="cart-item-title">Heritage Dal Bhat</h3>
+                            <p class="cart-item-desc">Includes fresh seasonal sabji</p>
+                            <div class="cart-item-price">৳80</div>
+                        </div>
+                        <div class="cart-item-qty">
+                            <button class="qty-btn">-</button>
+                            <span class="qty-val">1</span>
+                            <button class="qty-btn">+</button>
+                        </div>
+                        <button class="cart-item-remove">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    </div>
+                    
+                    <div class="mt-8">
+                        <a href="browsecook.html" style="color: var(--color-primary); font-weight: 600; text-decoration: underline;">← Add more items</a>
+                    </div>
+                </div>
+
+                <!-- Checkout Summary -->
+                <div class="cart-summary">
+                    <h3 style="font-family: var(--font-display); font-size: 24px; font-weight: 700; margin-bottom: 24px;">Order Summary</h3>
+                    
+                    <div class="summary-row">
+                        <span>Subtotal</span>
+                        <span>৳340</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Delivery Fee</span>
+                        <span>৳40</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Platform Fee</span>
+                        <span>৳10</span>
+                    </div>
+                    
+                    <div class="summary-row summary-total mt-4 pt-4" style="border-top: 1px solid rgba(45,36,36,0.1);">
+                        <span>Total</span>
+                        <span class="text-primary-gradient">৳390</span>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 24px; margin-bottom: 24px;">
+                        <input type="text" class="form-input" style="padding: 12px 16px; font-size: 14px;" placeholder="Add delivery instructions (optional)">
+                    </div>
+                    
+                    <button class="btn btn-primary" style="width: 100%;" onclick="alert('Checkout Process Triggered')">PROCEED TO CHECKOUT</button>
+                    
+                    <p style="text-align: center; font-size: 12px; color: var(--color-text-muted); margin-top: 16px;">
+                        Secure checkout. Guaranteed fresh delivery.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="nav-brand" style="justify-content: center; margin-bottom: 24px; font-size: 20px;">
+                <span>🍛</span> RANNA<span class="text-primary-gradient">BARI</span>
+            </div>
+            <p style="color: var(--color-text-light); font-size: 14px;">© 2026 RannaBari. Shaping the future of localized gastronomy with authentic flavor.</p>
+        </div>
+    </footer>
+</body>
+</html>
