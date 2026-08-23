@@ -14,6 +14,8 @@
         ✨ Good Evening! AI suggests <strong>Trending Hot Dinners</strong> near Dhanmondi based on your preferences.
     </div>
 
+    <!-- Kinetic Background -->
+    <div class="kinetic-bg"></div>
     <div class="ambient-glow glow-top-right"></div>
     
     <!-- Navigation -->
@@ -32,6 +34,9 @@
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
                     <span class="cart-badge">2</span>
                 </a>
+                <button class="theme-toggle" id="themeToggle" title="Toggle Midnight Dining" style="margin-left: 8px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                </button>
             </div>
         </div>
     </nav>
@@ -42,7 +47,7 @@
             <div class="bento-grid" style="margin-top: 0;">
                 
                 <!-- Main Hero Tile -->
-                <div class="bento-item bento-hero-main">
+                <div class="bento-item bento-hero-main reveal-item delay-1">
                     <div class="badge badge-accent mb-4" style="width: fit-content;">🌟 Authentic & Safe</div>
                     <h1 class="hero-title">GHAR ER RANNA,<br><span class="text-primary-gradient">DOORSTEP E.</span></h1>
                     <p class="hero-subtitle">Experience the finest home-cooked meals from verified culinary artisans in your neighborhood. Authentic. Fresh. Made with love.</p>
@@ -64,9 +69,10 @@
                 </div>
                 
                 <!-- Bento Image Tall -->
-                <a href="browsecook.html?type=lunch" class="bento-item bento-img">
+                <a href="browsecook.html?type=lunch" class="bento-item bento-img reveal-item delay-2 parallax-hover">
                     <div class="bento-image-wrapper">
                         <img src="https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800&q=80" alt="Exquisite Curry">
+                        <div class="parallax-steam"></div>
                         <div class="bento-image-overlay">
                             <div class="bento-label">AUTHENTIC<br><span style="color: #FFB700;">LUNCH</span></div>
                         </div>
@@ -74,9 +80,10 @@
                 </a>
                 
                 <!-- Bento Image Small Top -->
-                <a href="browsecook.html?type=breakfast" class="bento-item bento-img-small-top">
+                <a href="browsecook.html?type=breakfast" class="bento-item bento-img-small-top reveal-item delay-3 parallax-hover">
                     <div class="bento-image-wrapper">
                         <img src="https://images.unsplash.com/photo-1574653853027-5382a3d23a15?w=600&q=80" alt="Fresh Paratha">
+                        <div class="parallax-steam"></div>
                         <div class="bento-image-overlay">
                             <div class="bento-label">MORNING<br>BITE</div>
                         </div>
@@ -84,9 +91,10 @@
                 </a>
                 
                 <!-- Bento Image Small Bottom -->
-                <a href="browsecook.html?type=dinner" class="bento-item bento-img-small-bottom">
+                <a href="browsecook.html?type=dinner" class="bento-item bento-img-small-bottom reveal-item delay-4 parallax-hover">
                     <div class="bento-image-wrapper">
                         <img src="https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?w=600&q=80" alt="Rich Biryani">
+                        <div class="parallax-steam"></div>
                         <div class="bento-image-overlay">
                             <div class="bento-label">HEARTY<br>FEAST</div>
                         </div>
@@ -184,6 +192,7 @@
                         <span class="tag">Breakfast</span>
                         <span class="tag">Lunch</span>
                         <span class="tag">Dinner</span>
+                        <div class="badge-eco">🌱 Eco-Packaging</div>
                     </div>
                     <div class="cook-footer">
                         <div class="cook-rating">⭐ 4.9 <small>(142)</small></div>
@@ -207,6 +216,7 @@
                     <div class="cook-tags">
                         <span class="tag">Lunch</span>
                         <span class="tag">Dinner</span>
+                        <div class="badge-eco">🌊 Responsibly Sourced</div>
                     </div>
                     <div class="cook-footer">
                         <div class="cook-rating">⭐ 4.8 <small>(98)</small></div>
@@ -230,6 +240,7 @@
                     <div class="cook-tags">
                         <span class="tag">Breakfast</span>
                         <span class="tag">Lunch</span>
+                        <div class="badge-eco">🌿 Organic Veggies</div>
                     </div>
                     <div class="cook-footer">
                         <div class="cook-rating">⭐ 4.7 <small>(67)</small></div>
@@ -308,7 +319,7 @@
         </div>
     </section>
 
-    <footer class="footer">
+    <footer class="footer" style="padding-bottom: 120px;">
         <div class="container">
             <div class="nav-brand" style="justify-content: center; margin-bottom: 24px; font-size: 20px;">
                 <span>🍛</span> RANNA<span class="text-primary-gradient">BARI</span>
@@ -317,5 +328,56 @@
         </div>
     </footer>
 
+    <!-- Floating Bottom App Bar (Mobile First/App-like UX) -->
+    <nav class="bottom-app-bar">
+        <a href="index.html" class="app-bar-item active">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            Home
+        </a>
+        <a href="browsecook.html" class="app-bar-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            Browse
+        </a>
+        <a href="map.html" class="app-bar-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+            Map
+        </a>
+        <a href="singlecook.html" class="app-bar-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            Profile
+        </a>
+    </nav>
+
+    <!-- App Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggle = document.getElementById('themeToggle');
+            const html = document.documentElement;
+            
+            // Check for saved theme
+            const savedTheme = localStorage.getItem('theme');
+            if(savedTheme) {
+                html.setAttribute('data-theme', savedTheme);
+                updateToggleIcon(savedTheme);
+            }
+
+            toggle.addEventListener('click', () => {
+                const currentTheme = html.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                
+                html.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                updateToggleIcon(newTheme);
+            });
+
+            function updateToggleIcon(theme) {
+                if (theme === 'dark') {
+                    toggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
+                } else {
+                    toggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+                }
+            }
+        });
+    </script>
 </body>
 </html>
