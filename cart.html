@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Kinetic Background -->
+    <div class="kinetic-bg"></div>
     <div class="ambient-glow glow-top-right"></div>
     <div class="ambient-glow glow-bottom-left" style="top: 10%; left: 10%;"></div>
     
@@ -28,6 +30,9 @@
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
                     <span class="cart-badge">2</span>
                 </a>
+                <button class="theme-toggle" id="themeToggle" title="Toggle Midnight Dining" style="margin-left: 8px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                </button>
             </div>
         </div>
     </nav>
@@ -38,7 +43,17 @@
             
             <div class="cart-layout">
                 <!-- Cart Items List -->
-                <div class="cart-items">
+                <div class="cart-items reveal-item delay-1">
+                    
+                    <div class="ai-suggestion-block">
+                        <div class="ai-suggestion-icon">✨</div>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 4px 0; font-family: var(--font-display); color: var(--color-text);">AI Pairing Suggestion</h4>
+                            <p style="margin: 0; font-size: 14px; color: var(--color-text-muted);">Based on your spicy chicken curry, we recommend a cool Mint Lemonade for ৳40.</p>
+                        </div>
+                        <button class="btn btn-outline" style="padding: 6px 12px; font-size: 12px; background:var(--color-bg);">ADD</button>
+                    </div>
+
                     <div class="cart-header mb-4">
                         <div class="badge badge-accent">FROM: FATEMA BEGUM</div>
                     </div>
@@ -85,7 +100,7 @@
                 </div>
 
                 <!-- Checkout Summary -->
-                <div class="cart-summary">
+                <div class="cart-summary reveal-item delay-2">
                     <h3 style="font-family: var(--font-display); font-size: 24px; font-weight: 700; margin-bottom: 24px;">Order Summary</h3>
                     
                     <div class="summary-row">
@@ -110,7 +125,9 @@
                         <input type="text" class="form-input" style="padding: 12px 16px; font-size: 14px;" placeholder="Add delivery instructions (optional)">
                     </div>
                     
-                    <button class="btn btn-primary" style="width: 100%;" onclick="alert('Checkout Process Triggered')">PROCEED TO CHECKOUT</button>
+                    <div class="sticky-checkout">
+                        <button class="btn btn-primary" style="width: 100%;" onclick="alert('Checkout Process Triggered')">PROCEED TO CHECKOUT</button>
+                    </div>
                     
                     <p style="text-align: center; font-size: 12px; color: var(--color-text-muted); margin-top: 16px;">
                         Secure checkout. Guaranteed fresh delivery.
@@ -120,7 +137,7 @@
         </div>
     </main>
 
-    <footer class="footer">
+    <footer class="footer" style="padding-bottom: 120px;">
         <div class="container">
             <div class="nav-brand" style="justify-content: center; margin-bottom: 24px; font-size: 20px;">
                 <span>🍛</span> RANNA<span class="text-primary-gradient">BARI</span>
@@ -128,5 +145,57 @@
             <p style="color: var(--color-text-light); font-size: 14px;">© 2026 RannaBari. Shaping the future of localized gastronomy with authentic flavor.</p>
         </div>
     </footer>
+
+    <!-- Floating Bottom App Bar (Mobile First/App-like UX) -->
+    <nav class="bottom-app-bar">
+        <a href="index.html" class="app-bar-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            Home
+        </a>
+        <a href="browsecook.html" class="app-bar-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            Browse
+        </a>
+        <a href="map.html" class="app-bar-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+            Map
+        </a>
+        <a href="singlecook.html" class="app-bar-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            Profile
+        </a>
+    </nav>
+
+    <!-- App Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggle = document.getElementById('themeToggle');
+            const html = document.documentElement;
+            
+            // Check for saved theme
+            const savedTheme = localStorage.getItem('theme');
+            if(savedTheme) {
+                html.setAttribute('data-theme', savedTheme);
+                updateToggleIcon(savedTheme);
+            }
+
+            toggle.addEventListener('click', () => {
+                const currentTheme = html.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                
+                html.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                updateToggleIcon(newTheme);
+            });
+
+            function updateToggleIcon(theme) {
+                if (theme === 'dark') {
+                    toggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
+                } else {
+                    toggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+                }
+            }
+        });
+    </script>
 </body>
 </html>

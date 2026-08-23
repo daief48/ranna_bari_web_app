@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Kinetic Background -->
+    <div class="kinetic-bg"></div>
     <div class="ambient-glow glow-top-right"></div>
     <div class="ambient-glow glow-bottom-left" style="top: 20%; left: 10%;"></div>
     
@@ -28,12 +30,15 @@
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
                     <span class="cart-badge">2</span>
                 </a>
+                <button class="theme-toggle" id="themeToggle" title="Toggle Midnight Dining" style="margin-left: 8px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                </button>
             </div>
         </div>
     </nav>
 
     <!-- Hero Content -->
-    <header class="section" style="padding-top: 160px; padding-bottom: 60px;">
+    <header class="section reveal-item delay-1" style="padding-top: 160px; padding-bottom: 60px;">
         <div class="container text-center">
             <h1 class="hero-title" style="font-size: clamp(40px, 5vw, 64px); margin-bottom: 24px;">
                 ELEVATE YOUR KITCHEN.<br>
@@ -47,7 +52,7 @@
 
     <main class="section" style="padding-top: 0;">
         <div class="container-sm">
-            <div class="form-bento">
+            <div class="form-bento reveal-item delay-2">
                 <div class="flex justify-between align-center mb-8">
                     <div>
                         <h2 style="font-size: 32px; font-weight: 900; color: var(--color-text);">Onboarding</h2>
@@ -57,14 +62,14 @@
                 </div>
                 
                 <form action="#" method="POST">
-                    <div class="form-group">
-                        <label class="form-label">Full Legal Name</label>
-                        <input type="text" class="form-input" placeholder="As it appears on your ID" required>
+                    <div class="form-group-modern">
+                        <input type="text" class="form-input-modern" placeholder="As it appears on your ID" required>
+                        <label class="form-label-modern">Full Legal Name</label>
                     </div>
                     
-                    <div class="form-group">
-                        <label class="form-label">Secure Phone Number</label>
-                        <input type="tel" class="form-input" placeholder="+880 1XXXXXXXXX" required>
+                    <div class="form-group-modern">
+                        <input type="tel" class="form-input-modern" placeholder="+880 1XXXXXXXXX" required>
+                        <label class="form-label-modern">Secure Phone Number</label>
                     </div>
                     
                     <div class="form-group">
@@ -78,12 +83,10 @@
                         </select>
                     </div>
                     
-                    <div class="form-group">
-                        <label class="form-label">National ID (Encrypted)</label>
-                        <div style="position: relative;">
-                            <svg style="position:absolute; right:20px; top:20px; color:var(--color-text-muted);" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                            <input type="text" class="form-input" placeholder="Enter NID for secure verification" required>
-                        </div>
+                    <div class="form-group-modern">
+                        <svg style="position:absolute; right:20px; top:20px; color:var(--color-text-muted); z-index: 10;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        <input type="text" class="form-input-modern" placeholder="Enter NID for secure verification" required>
+                        <label class="form-label-modern">National ID (Encrypted)</label>
                     </div>
                     
                     <div class="flex justify-between align-center" style="margin-top: 48px; padding-top: 32px; border-top: 1px solid rgba(45,36,36,0.1);">
@@ -93,33 +96,85 @@
                 </form>
             </div>
             
-            <div class="bento-grid" style="margin-top: 64px; grid-template-columns: repeat(3, 1fr); grid-template-rows: auto; gap: 24px;">
-                <div class="bento-item" style="padding: 32px; text-align: center;">
+            <div class="bento-grid reveal-item delay-3" style="margin-top: 64px; grid-template-columns: repeat(3, 1fr); grid-template-rows: auto; gap: 24px;">
+                <div class="bento-item reveal-item delay-3" style="padding: 32px; text-align: center;">
                     <div style="font-size: 32px; margin-bottom: 16px;">💎</div>
                     <h3 style="font-size: 18px; margin-bottom: 8px; color: var(--color-text);">Keep 85%</h3>
                     <p style="color: var(--color-text-muted); font-size: 14px;">Industry-leading payouts processed weekly directly to your bank or bKash.</p>
                 </div>
-                <div class="bento-item" style="padding: 32px; text-align: center;">
-                    <div style="font-size: 32px; margin-bottom: 16px;">🛡️</div>
-                    <h3 style="font-size: 18px; margin-bottom: 8px; color: var(--color-text);">Total Security</h3>
-                    <p style="color: var(--color-text-muted); font-size: 14px;">Advanced AI verification ensures you only deal with authentic, verified customers.</p>
-                </div>
-                <div class="bento-item" style="padding: 32px; text-align: center;">
-                    <div style="font-size: 32px; margin-bottom: 16px;">⚡</div>
+                <div class="bento-item reveal-item delay-4" style="padding: 32px; text-align: center;">
+                    <div style="font-size: 32px; margin-bottom: 16px;">🤝</div>
                     <h3 style="font-size: 18px; margin-bottom: 8px; color: var(--color-text);">Full Control</h3>
-                    <p style="color: var(--color-text-muted); font-size: 14px;">Toggle your availability instantly. Cook when you want, pause when you don't.</p>
+                    <p style="color: var(--color-text-muted); font-size: 14px;">Set your own schedule. Accept orders when you want, pause when you don't.</p>
+                </div>
+                <div class="bento-item reveal-item delay-4" style="padding: 32px; text-align: center;">
+                    <div style="font-size: 32px; margin-bottom: 16px;">📦</div>
+                    <h3 style="font-size: 18px; margin-bottom: 8px; color: var(--color-text);">Eco Packaging</h3>
+                    <p style="color: var(--color-text-muted); font-size: 14px;">We provide heavily discounted, sustainable packaging to all our verified partners.</p>
                 </div>
             </div>
         </div>
     </main>
 
-    <footer class="footer">
+    <footer class="footer" style="padding-bottom: 120px;">
         <div class="container">
             <div class="nav-brand" style="justify-content: center; margin-bottom: 24px; font-size: 20px;">
                 <span>🍛</span> RANNA<span class="text-primary-gradient">BARI</span>
             </div>
-            <p style="color: var(--color-text-light); font-size: 14px;">© 2026 RannaBari. Shaping the future of localized gastronomy.</p>
+            <p style="color: var(--color-text-light); font-size: 14px;">© 2026 RannaBari. Shaping the future of localized gastronomy with authentic flavor.</p>
         </div>
     </footer>
+
+    <!-- Floating Bottom App Bar (Mobile First/App-like UX) -->
+    <nav class="bottom-app-bar">
+        <a href="index.html" class="app-bar-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            Home
+        </a>
+        <a href="browsecook.html" class="app-bar-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            Browse
+        </a>
+        <a href="map.html" class="app-bar-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+            Map
+        </a>
+        <a href="singlecook.html" class="app-bar-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            Profile
+        </a>
+    </nav>
+
+    <!-- App Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggle = document.getElementById('themeToggle');
+            const html = document.documentElement;
+            
+            // Check for saved theme
+            const savedTheme = localStorage.getItem('theme');
+            if(savedTheme) {
+                html.setAttribute('data-theme', savedTheme);
+                updateToggleIcon(savedTheme);
+            }
+
+            toggle.addEventListener('click', () => {
+                const currentTheme = html.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                
+                html.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                updateToggleIcon(newTheme);
+            });
+
+            function updateToggleIcon(theme) {
+                if (theme === 'dark') {
+                    toggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
+                } else {
+                    toggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+                }
+            }
+        });
+    </script>
 </body>
 </html>
