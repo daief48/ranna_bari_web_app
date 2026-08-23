@@ -174,7 +174,7 @@ function addGlobalAnimations() {
         '.section-header p',
         '.mood-pill',
         '.testimonial-card',
-        '.bento-item', /* For the 'how it works' section */
+        '.bento-item', '.bento-box', /* For the 'how it works' section */
         '.footer .container > *'
     ];
     

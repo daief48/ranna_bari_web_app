@@ -1539,3 +1539,148 @@ input, select {
     opacity: 1;
     transform: scale(1);
 }
+
+/* =========================================================
+   GLOBAL MOBILE RESPONSIVENESS (max-width: 768px)
+   ========================================================= */
+
+@media (max-width: 768px) {
+    /* Base & Layout */
+    .container {
+        padding: 0 16px;
+    }
+    
+    .section {
+        padding-top: 60px;
+        padding-bottom: 60px;
+    }
+
+    /* Navigation */
+    .nav-container {
+        flex-direction: column;
+        padding: 12px 16px;
+        gap: 16px;
+    }
+    .nav-links {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    
+    /* Hero Typography */
+    .hero-title, .hero-title-modern {
+        font-size: clamp(32px, 8vw, 48px);
+        line-height: 1.1;
+    }
+    .hero-desc-modern, .hero-subtitle {
+        font-size: 15px;
+        max-width: 100%;
+    }
+    .hero-main {
+        padding: 32px 24px;
+    }
+
+    /* Search Pills & Forms */
+    .search-pill {
+        flex-direction: column;
+        width: 100%;
+        gap: 8px;
+    }
+    .search-pill input {
+        width: 100%;
+        text-align: center;
+    }
+    .btn-search-modern, .search-pill button {
+        width: 100%;
+    }
+    .hero-search-modern {
+        flex-direction: column;
+        background: transparent;
+        box-shadow: none;
+        padding: 0;
+    }
+    .hero-search-modern form {
+        flex-direction: column;
+        width: 100%;
+        gap: 12px;
+    }
+    .search-input-modern {
+        background: var(--color-surface);
+        padding: 16px;
+        border-radius: var(--radius-pill);
+        text-align: center;
+    }
+
+    /* Mood Carousel (make it horizontally scrollable) */
+    .mood-carousel {
+        display: flex;
+        overflow-x: auto;
+        padding-bottom: 16px;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+    }
+    .mood-pill {
+        scroll-snap-align: start;
+        flex-shrink: 0;
+    }
+    
+    /* Flex Containers */
+    .flex.gap-4 {
+        flex-direction: column;
+        width: 100%;
+    }
+    .flex.gap-4 > * {
+        width: 100%;
+        text-align: center;
+    }
+
+    /* Filters (Browse Page) */
+    .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .filter-pill {
+        justify-content: center;
+    }
+    .filter-scroll {
+        overflow-x: auto;
+        padding-bottom: 8px;
+        justify-content: flex-start;
+    }
+
+    /* Single Cook Page Adjustments */
+    .cook-profile-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    .cook-profile-avatar {
+        width: 100px;
+        height: 100px;
+        margin: 0 auto;
+    }
+
+    /* Footer */
+    .footer .justify-between {
+        flex-direction: column;
+        align-items: center;
+        gap: 24px;
+        text-align: center;
+    }
+    .footer-links {
+        justify-content: center;
+    }
+}
+
+/* Small Mobile tweaks */
+@media (max-width: 480px) {
+    .modern-bento-grid, .bento-grid {
+        grid-template-columns: 1fr;
+    }
+    .bento-img-title {
+        font-size: 24px;
+    }
+    .stat-number {
+        font-size: 32px;
+    }
+}
