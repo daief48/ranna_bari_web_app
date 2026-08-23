@@ -47,20 +47,22 @@
             <div class="filter-bar" style="align-items: center;">
                 <div class="search-pill" style="flex: 1; min-width: 300px;">
                     <svg style="margin-left:12px; color:var(--color-text-muted);" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                    <input type="text" placeholder="Search cuisines, chefs, or areas...">
+                    <input type="text" id="searchInput" placeholder="Search cuisines, chefs, or areas...">
                 </div>
-                <div class="flex gap-4" style="overflow-x: auto;">
-                    <button class="filter-pill active">ALL</button>
-                    <button class="filter-pill">MORNING</button>
-                    <button class="filter-pill">LUNCH</button>
-                    <button class="filter-pill">EVENING</button>
+                <div class="flex gap-4" style="overflow-x: auto;" id="categoryFilters">
+                    <button class="filter-pill active" data-filter="all">ALL</button>
+                    <button class="filter-pill" data-filter="breakfast">MORNING</button>
+                    <button class="filter-pill" data-filter="lunch">LUNCH</button>
+                    <button class="filter-pill" data-filter="dinner">EVENING</button>
+                    <button class="filter-pill" data-filter="healthy">HEALTHY</button>
                 </div>
                 <div class="search-pill">
-                    <select style="border: none; background: transparent; padding: 0 16px; font-weight: 600; cursor: pointer; color: var(--color-text);">
-                        <option value="All" style="background:#FFFFFF;">All Areas</option>
-                        <option value="Dhanmondi" style="background:#FFFFFF;">Dhanmondi</option>
-                        <option value="Mirpur" style="background:#FFFFFF;">Mirpur</option>
-                        <option value="Uttara" style="background:#FFFFFF;">Uttara</option>
+                    <select id="areaFilter" style="border: none; background: transparent; padding: 0 16px; font-weight: 600; cursor: pointer; color: var(--color-text); outline: none;">
+                        <option value="all">All Areas</option>
+                        <option value="dhanmondi">Dhanmondi</option>
+                        <option value="mirpur">Mirpur</option>
+                        <option value="uttara">Uttara</option>
+                        <option value="banani">Banani</option>
                     </select>
                 </div>
                 <a href="map.html" class="search-pill" style="padding: 10px; border-radius: var(--radius-pill); cursor: pointer; color: var(--color-primary); box-shadow: 0 4px 15px rgba(200, 75, 49, 0.15); text-decoration: none; display: flex; justify-content: center; align-items: center;" title="View on Map">
@@ -68,124 +70,10 @@
                 </a>
             </div>
             
-            <div style="color: var(--color-text-muted); font-size: 14px; font-weight: 700; letter-spacing: 1px; margin-bottom: 32px; text-transform: uppercase;">6 Artisans Curated For You</div>
+            <div id="resultsCount" style="color: var(--color-text-muted); font-size: 14px; font-weight: 700; letter-spacing: 1px; margin-bottom: 32px; text-transform: uppercase;">Loading Artisans...</div>
             
-            <div class="cook-grid">
-                <!-- Cook 1 -->
-                <a href="singlecook.html" class="cook-card reveal-item delay-1">
-                    <div class="cook-header">
-                        <img src="https://images.unsplash.com/photo-1594736797933-d0501ba2fe65?w=200&h=200&fit=crop" alt="Fatema Begum" class="cook-avatar">
-                        <div>
-                            <div class="cook-name">Fatema B.</div>
-                            <div class="cook-specialty">Traditional Heritage</div>
-                        </div>
-                    </div>
-                    <div class="cook-tags">
-                        <span class="tag">Breakfast</span>
-                        <span class="tag">Lunch</span>
-                        <span class="tag">Dinner</span>
-                    </div>
-                    <div class="cook-footer">
-                        <div class="cook-rating">⭐ 4.9 <small>(142)</small></div>
-                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-                    </div>
-                </a>
-
-                <!-- Cook 2 -->
-                <a href="singlecook.html" class="cook-card reveal-item delay-2">
-                    <div class="cook-header">
-                        <img src="https://images.unsplash.com/photo-1607631568010-a87245c0daf8?w=200&h=200&fit=crop" alt="Rohima Akter" class="cook-avatar">
-                        <div>
-                            <div class="cook-name">Rohima A.</div>
-                            <div class="cook-specialty">Coastal Seafood</div>
-                        </div>
-                    </div>
-                    <div class="cook-tags">
-                        <span class="tag">Lunch</span>
-                        <span class="tag">Dinner</span>
-                    </div>
-                    <div class="cook-footer">
-                        <div class="cook-rating">⭐ 4.8 <small>(98)</small></div>
-                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-                    </div>
-                </a>
-
-                <!-- Cook 3 -->
-                <a href="singlecook.html" class="cook-card reveal-item delay-3">
-                    <div class="cook-header">
-                        <img src="https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&h=200&fit=crop" alt="Shirin Sultana" class="cook-avatar">
-                        <div>
-                            <div class="cook-name">Shirin S.</div>
-                            <div class="cook-specialty">Wellness & Keto</div>
-                        </div>
-                    </div>
-                    <div class="cook-tags">
-                        <span class="tag">Breakfast</span>
-                        <span class="tag">Lunch</span>
-                    </div>
-                    <div class="cook-footer">
-                        <div class="cook-rating">⭐ 4.7 <small>(67)</small></div>
-                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-                    </div>
-                </a>
-                
-                <!-- Cook 4 -->
-                <a href="singlecook.html" class="cook-card reveal-item delay-4">
-                    <div class="cook-header">
-                        <img src="https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?w=200&h=200&fit=crop" alt="Nazma Khanom" class="cook-avatar">
-                        <div>
-                            <div class="cook-name">Nazma K.</div>
-                            <div class="cook-specialty">Mughal Cuisine</div>
-                        </div>
-                    </div>
-                    <div class="cook-tags">
-                        <span class="tag">Lunch</span>
-                        <span class="tag">Dinner</span>
-                    </div>
-                    <div class="cook-footer">
-                        <div class="cook-rating">⭐ 4.9 <small>(203)</small></div>
-                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-                    </div>
-                </a>
-
-                <!-- Cook 5 -->
-                <a href="singlecook.html" class="cook-card reveal-item delay-1">
-                    <div class="cook-header">
-                        <img src="https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=200&h=200&fit=crop" alt="Kohinoor Parvin" class="cook-avatar">
-                        <div>
-                            <div class="cook-name">Kohinoor P.</div>
-                            <div class="cook-specialty">Artisan Sweets</div>
-                        </div>
-                    </div>
-                    <div class="cook-tags">
-                        <span class="tag">Breakfast</span>
-                        <span class="tag">Dinner</span>
-                    </div>
-                    <div class="cook-footer">
-                        <div class="cook-rating">⭐ 4.8 <small>(115)</small></div>
-                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-                    </div>
-                </a>
-
-                <!-- Cook 6 -->
-                <a href="singlecook.html" class="cook-card reveal-item delay-2">
-                    <div class="cook-header">
-                        <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop" alt="Rupa Das" class="cook-avatar">
-                        <div>
-                            <div class="cook-name">Rupa D.</div>
-                            <div class="cook-specialty">Street Food Soul</div>
-                        </div>
-                    </div>
-                    <div class="cook-tags">
-                        <span class="tag">Breakfast</span>
-                        <span class="tag">Lunch</span>
-                        <span class="tag">Dinner</span>
-                    </div>
-                    <div class="cook-footer">
-                        <div class="cook-rating">⭐ 4.6 <small>(84)</small></div>
-                        <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-                    </div>
-                </a>
+            <div class="cook-grid" id="browse-chefs-grid">
+                <!-- Dynamically populated from js/app.js -->
             </div>
         </div>
     </main>
@@ -219,35 +107,80 @@
         </a>
     </nav>
 
-    <!-- App Logic -->
+    <script src="js/app.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const toggle = document.getElementById('themeToggle');
-            const html = document.documentElement;
+        document.addEventListener('DOMContentLoaded', async () => {
+            let allChefs = await fetchData(DB.chefs);
             
-            // Check for saved theme
-            const savedTheme = localStorage.getItem('theme');
-            if(savedTheme) {
-                html.setAttribute('data-theme', savedTheme);
-                updateToggleIcon(savedTheme);
-            }
-
-            toggle.addEventListener('click', () => {
-                const currentTheme = html.getAttribute('data-theme');
-                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                
-                html.setAttribute('data-theme', newTheme);
-                localStorage.setItem('theme', newTheme);
-                updateToggleIcon(newTheme);
+            const grid = document.getElementById('browse-chefs-grid');
+            const countLabel = document.getElementById('resultsCount');
+            const searchInput = document.getElementById('searchInput');
+            const categoryBtns = document.querySelectorAll('#categoryFilters .filter-pill');
+            
+            let currentFilter = new URLSearchParams(window.location.search).get('filter') || 'all';
+            let currentSearch = '';
+            
+            // Initial active state for filter buttons based on URL
+            categoryBtns.forEach(btn => {
+                if (btn.dataset.filter === currentFilter) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
             });
 
-            function updateToggleIcon(theme) {
-                if (theme === 'dark') {
-                    toggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
+            function render() {
+                // Apply filters and search
+                let filtered = allChefs.filter(chef => {
+                    // Category filter
+                    let matchesCategory = true;
+                    if (currentFilter !== 'all') {
+                        matchesCategory = chef.tags.includes(currentFilter);
+                    }
+                    
+                    // Search filter
+                    let matchesSearch = true;
+                    if (currentSearch.trim() !== '') {
+                        const s = currentSearch.toLowerCase();
+                        matchesSearch = chef.name.toLowerCase().includes(s) || 
+                                        chef.specialty.toLowerCase().includes(s) ||
+                                        chef.tags.some(t => t.toLowerCase().includes(s));
+                    }
+                    
+                    return matchesCategory && matchesSearch;
+                });
+
+                // Update UI
+                if (filtered.length > 0) {
+                    grid.innerHTML = filtered.map(createChefCardHTML).join('');
                 } else {
-                    toggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+                    grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--color-text-muted);">No artisans found matching your criteria.</div>`;
                 }
+                
+                countLabel.textContent = `${filtered.length} Artisans Curated For You`;
             }
+
+            // Bind Search Event
+            searchInput.addEventListener('input', (e) => {
+                currentSearch = e.target.value;
+                render();
+            });
+
+            // Bind Filter Click Events
+            categoryBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    // Remove active from all
+                    categoryBtns.forEach(b => b.classList.remove('active'));
+                    // Add active to clicked
+                    e.target.classList.add('active');
+                    
+                    currentFilter = e.target.dataset.filter;
+                    render();
+                });
+            });
+
+            // Initial render
+            render();
         });
     </script>
 </body>

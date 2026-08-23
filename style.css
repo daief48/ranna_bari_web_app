@@ -455,8 +455,26 @@ input, select {
     font-size: 16px;
     font-weight: 500;
     color: var(--color-text);
+    background: transparent;
 }
 .search-pill input::placeholder { color: var(--color-text-light); font-weight: 400; }
+
+[data-theme="dark"] .search-pill {
+    background: rgba(30, 30, 30, 0.95);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .search-pill:focus-within {
+    border-color: rgba(255, 90, 54, 0.5);
+    background: rgba(40, 40, 40, 0.95);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(255, 90, 54, 0.2);
+}
+
+[data-theme="dark"] .search-pill select option {
+    background: #1a1a1a !important;
+    color: #FDF8F5 !important;
+}
 
 /* Badges / Tags */
 .badge {
