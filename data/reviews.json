@@ -1,0 +1,23 @@
+[
+    {
+        "id": 1,
+        "name": "Sarah Khan",
+        "avatar": "https://i.pravatar.cc/100?img=1",
+        "rating": 5,
+        "text": "The hilsa curry from Fatema B. was exactly how my mom used to make it. Highly recommended!"
+    },
+    {
+        "id": 2,
+        "name": "Rafiq H.",
+        "avatar": "https://i.pravatar.cc/100?img=11",
+        "rating": 4,
+        "text": "Love the healthy keto options from Shirin. It makes sticking to my diet so much easier while working from home."
+    },
+    {
+        "id": 3,
+        "name": "Nadia A.",
+        "avatar": "https://i.pravatar.cc/100?img=5",
+        "rating": 5,
+        "text": "Finally, clean street food! The fuchka was amazing and I didn't have to worry about hygiene."
+    }
+]
