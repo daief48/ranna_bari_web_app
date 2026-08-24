@@ -18,6 +18,7 @@ import {
 import { useTheme } from '../src/theme/ThemeProvider';
 import useResponsive from '../src/theme/useResponsive';
 import { font, radius, type } from '../src/theme/tokens';
+import { DEMO_COOK_ONBOARDING } from '../src/lib/demoData';
 
 const ZONES = [
   'Dhanmondi, Dhaka',
@@ -52,11 +53,11 @@ export default function BecomeCookScreen() {
   const r = useResponsive();
   const router = useRouter();
 
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [zone, setZone] = useState('');
+  const [name, setName] = useState(DEMO_COOK_ONBOARDING.name);
+  const [phone, setPhone] = useState(DEMO_COOK_ONBOARDING.phone);
+  const [zone, setZone] = useState(DEMO_COOK_ONBOARDING.zone);
   const [zoneOpen, setZoneOpen] = useState(false);
-  const [nid, setNid] = useState('');
+  const [nid, setNid] = useState(DEMO_COOK_ONBOARDING.nid);
   const [note, setNote] = useState('');
 
   const submit = () => {

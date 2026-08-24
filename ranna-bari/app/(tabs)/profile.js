@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -22,6 +22,7 @@ export default function ProfileScreen() {
   const { account, isSignedIn, signOut } = useAuth();
   const { count } = useCart();
   const { orders, activeOrders } = useOrders();
+  const [confirmOut, setConfirmOut] = useState(false);
 
   return (
     <Screen activeIcon="user" glow="both">
@@ -98,6 +99,20 @@ export default function ProfileScreen() {
                   >
                     {account.role === 'cook' ? 'Home cook' : 'Customer'}
                   </Text>
+                  {account.email || account.phone ? (
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        marginTop: 2,
+                        fontFamily: font.ui,
+                        fontSize: type.xs,
+                        opacity: 0.82,
+                        color: colors.onPrimary,
+                      }}
+                    >
+                      {account.email || account.phone}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
 
@@ -188,16 +203,66 @@ export default function ProfileScreen() {
             onPress={toggle}
           />
 
-          {isSignedIn ? (
-            <Row
-              icon="x"
-              variant="primary"
-              title="Sign out"
-              sub={account.email || account.phone || 'End this session'}
-              onPress={signOut}
-            />
-          ) : null}
         </View>
+
+        {/* ---- Log out ----
+            A real button rather than another row: it is the one destructive
+            action here, and it should not look like navigation. */}
+        {isSignedIn ? (
+          <View style={{ marginTop: 24 }}>
+            {confirmOut ? (
+              <View
+                style={{
+                  padding: 16,
+                  borderRadius: radius.md,
+                  backgroundColor: colors.primary50,
+                  borderWidth: 1,
+                  borderColor: colors.primary100,
+                  gap: 12,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: font.ui,
+                    fontSize: type.sm,
+                    lineHeight: 21,
+                    color: colors.text,
+                  }}
+                >
+                  Log out of {account.email || account.phone || 'this account'}?
+                  Your cart and past orders stay on this device.
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <Button
+                    variant="glass"
+                    label="Stay in"
+                    small
+                    onPress={() => setConfirmOut(false)}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    label="Log out"
+                    small
+                    onPress={() => {
+                      signOut();
+                      setConfirmOut(false);
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </View>
+            ) : (
+              <Button
+                variant="glass"
+                label="Log out"
+                icon="x"
+                iconPosition="left"
+                block
+                onPress={() => setConfirmOut(true)}
+              />
+            )}
+          </View>
+        ) : null}
       </Container>
     </Screen>
   );

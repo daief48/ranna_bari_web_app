@@ -23,6 +23,13 @@ import { useTheme } from '../src/theme/ThemeProvider';
 import useResponsive from '../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
+import {
+  DEMO_ADDRESS,
+  DEMO_CREDENTIALS,
+  DEMO_KITCHEN,
+  DEMO_SIGNUP,
+  demoAccount,
+} from '../src/lib/demoData';
 
 /* The aside imagery and copy follow the chosen path, so the screen keeps
    talking about the thing the visitor picked. */
@@ -79,29 +86,36 @@ export default function AuthScreen() {
   const [tab, setTab] = useState('signin');
 
   /* ---- sign in ---- */
-  const [siId, setSiId] = useState('');
-  const [siPw, setSiPw] = useState('');
+  const [siId, setSiId] = useState(DEMO_CREDENTIALS.id);
+  const [siPw, setSiPw] = useState(DEMO_CREDENTIALS.password);
   const [siNote, setSiNote] = useState('');
 
   /* ---- sign up ---- */
   const [step, setStep] = useState(1);
-  const [role, setRole] = useState(null);
+  const [role, setRole] = useState(DEMO_SIGNUP.role);
   const [roleNote, setRoleNote] = useState('');
   const [detailsNote, setDetailsNote] = useState('');
   const [locNote, setLocNote] = useState('');
 
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [pw, setPw] = useState('');
-  const [kitchen, setKitchen] = useState('');
-  const [specialty, setSpecialty] = useState('');
-  const [nid, setNid] = useState('');
-  const [terms, setTerms] = useState(false);
+  const [name, setName] = useState(DEMO_SIGNUP.name);
+  const [phone, setPhone] = useState(DEMO_SIGNUP.phone);
+  const [email, setEmail] = useState(DEMO_SIGNUP.email);
+  const [pw, setPw] = useState(DEMO_SIGNUP.password);
+  const [kitchen, setKitchen] = useState(DEMO_KITCHEN.kitchen);
+  const [specialty, setSpecialty] = useState(DEMO_KITCHEN.specialty);
+  const [nid, setNid] = useState(DEMO_KITCHEN.nid);
+  const [terms, setTerms] = useState(DEMO_SIGNUP.terms);
 
-  const [place, setPlace] = useState(null);
-  const [detail, setDetail] = useState('');
-  const [addressLabel, setAddressLabel] = useState('Home');
+  /* Seeded rather than null, so "Create account" is live the moment step 3
+     opens instead of waiting on the debounced reverse geocode. Dragging the
+     map replaces this with the real pin. */
+  const [place, setPlace] = useState({
+    lat: DEMO_ADDRESS.lat,
+    lng: DEMO_ADDRESS.lng,
+    address: DEMO_ADDRESS.area,
+  });
+  const [detail, setDetail] = useState(DEMO_ADDRESS.detail);
+  const [addressLabel, setAddressLabel] = useState(DEMO_ADDRESS.label);
   const [radiusKm, setRadiusKm] = useState(3);
 
   const aside = ASIDE[tab === 'signup' && role ? role : 'none'];
@@ -190,12 +204,7 @@ export default function AuthScreen() {
       return;
     }
     setSiNote('');
-    await signIn({
-      role: 'user',
-      name: siId.includes('@') ? siId.split('@')[0] : 'RannaBari member',
-      email: siId.includes('@') ? siId.trim() : '',
-      phone: siId.includes('@') ? '' : siId.trim(),
-    });
+    await signIn(demoAccount(siId));
     router.replace('/profile');
   };
 
@@ -556,6 +565,38 @@ function SignInView({ siId, setSiId, siPw, setSiPw, note, onSubmit, onSwitch }) 
 
       <View style={[cardStyle(colors), shadow.md]}>
         <FormNote text={note} />
+
+        {/* The fields arrive filled with a working demo account, so the
+            primary button is live on the first tap. Say so, rather than
+            letting it look like a browser autofilled someone's password. */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: 9,
+            padding: 12,
+            marginBottom: 16,
+            borderRadius: radius.sm,
+            backgroundColor: colors.sage50,
+          }}
+        >
+          <Icon name="sparkles" size={16} color={colors.sage} />
+          <Text
+            style={{
+              flex: 1,
+              fontFamily: font.ui,
+              fontSize: 12.5,
+              lineHeight: 19,
+              color: colors.textMuted,
+            }}
+          >
+            Demo account is pre-filled — just tap{' '}
+            <Text style={{ fontFamily: font.uiBold, color: colors.text }}>
+              Sign in
+            </Text>
+            .
+          </Text>
+        </View>
 
         <FloatLabelInput
           label="Email or phone"

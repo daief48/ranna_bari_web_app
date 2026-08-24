@@ -8,6 +8,7 @@ import Brand from './Brand';
 import Icon from './Icon';
 import { useTheme } from '../theme/ThemeProvider';
 import { useCart } from '../store/CartContext';
+import { useAuth } from '../store/AuthContext';
 import { font, radius } from '../theme/tokens';
 
 /** Height of the bar itself, from `.navbar .container { height: 58px }`. */
@@ -21,7 +22,7 @@ export function useNavbarOffset() {
   return insets.top + NAVBAR_TOP + NAVBAR_HEIGHT + 24;
 }
 
-function NavIcon({ name, onPress, active, badge, accessibilityLabel }) {
+function NavIcon({ name, onPress, active, badge, dot, accessibilityLabel }) {
   const { colors } = useTheme();
 
   return (
@@ -43,6 +44,22 @@ function NavIcon({ name, onPress, active, badge, accessibilityLabel }) {
         size={21}
         color={active ? colors.primary : colors.text}
       />
+
+      {dot ? (
+        <View
+          style={{
+            position: 'absolute',
+            top: 7,
+            right: 7,
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: colors.sage,
+            borderWidth: 1.5,
+            borderColor: colors.canvas,
+          }}
+        />
+      ) : null}
 
       {badge > 0 ? (
         <View
@@ -90,6 +107,7 @@ export default function Navbar({ activeIcon }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { count } = useCart();
+  const { isSignedIn } = useAuth();
 
   return (
     <View
@@ -148,8 +166,9 @@ export default function Navbar({ activeIcon }) {
             <NavIcon
               name="user"
               active={activeIcon === 'user'}
-              accessibilityLabel="Sign in or join"
-              onPress={() => router.push('/auth')}
+              dot={isSignedIn}
+              accessibilityLabel={isSignedIn ? 'Your profile' : 'Sign in or join'}
+              onPress={() => router.push(isSignedIn ? '/profile' : '/auth')}
             />
             <NavIcon
               name={isDark ? 'sun' : 'moon'}
