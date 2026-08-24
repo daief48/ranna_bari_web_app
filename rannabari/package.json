@@ -1,8 +1,6 @@
 {
-  "name": "expo-template-blank",
-  "description": "The Blank project template includes the minimum dependencies to run and an empty root component.",
-  "license": "0BSD",
-  "version": "57.0.18",
+  "name": "rannabari",
+  "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
     "expo": "~57.0.16",
@@ -15,5 +13,6 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"
-  }
+  },
+  "private": true
 }
