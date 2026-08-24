@@ -38,11 +38,12 @@ function BrowseStack() {
   );
 }
 
-// Map stack (just map for now)
+// Map stack (map → chef detail)
 function MapStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MapMain" component={MapScreen} />
+      <Stack.Screen name="Chef" component={ChefScreen} />
     </Stack.Navigator>
   );
 }
