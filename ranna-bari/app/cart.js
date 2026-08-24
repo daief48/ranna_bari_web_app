@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 
@@ -63,15 +63,14 @@ export default function CartScreen() {
     return Array.from(byChef.entries());
   }, [items]);
 
-  const checkout = () => {
-    Alert.alert(
-      'Checkout',
-      `Your order of ৳${total} is ready to place.${
-        instructions ? `\n\nNote for the cook: ${instructions}` : ''
-      }`,
-      [{ text: 'OK' }],
-    );
-  };
+  /* Carry the instructions forward rather than asking for them again on the
+     next screen -- the field exists here because the web build had no
+     checkout page to put it on. */
+  const checkout = () =>
+    router.push({
+      pathname: '/checkout',
+      params: instructions.trim() ? { note: instructions.trim() } : {},
+    });
 
   return (
     <Screen activeIcon="cart">
@@ -385,17 +384,26 @@ export default function CartScreen() {
 
                 <Button label="Proceed to checkout" block onPress={checkout} />
 
-                <Text
+                <View
                   style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 7,
                     marginTop: 16,
-                    textAlign: 'center',
-                    fontFamily: font.ui,
-                    fontSize: type.xs,
-                    color: colors.textMuted,
                   }}
                 >
-                  Secure checkout. Guaranteed fresh delivery.
-                </Text>
+                  <Icon name="banknote" size={15} color={colors.sage} />
+                  <Text
+                    style={{
+                      fontFamily: font.ui,
+                      fontSize: type.xs,
+                      color: colors.textMuted,
+                    }}
+                  >
+                    Cash on delivery. Pay the rider at your door.
+                  </Text>
+                </View>
               </View>
             </Reveal>
           </>

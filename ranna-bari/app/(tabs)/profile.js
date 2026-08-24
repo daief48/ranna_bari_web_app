@@ -14,12 +14,14 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
 import { useCart } from '../../src/store/CartContext';
+import { useOrders } from '../../src/store/OrdersContext';
 
 export default function ProfileScreen() {
   const { colors, shadow, isDark, toggle } = useTheme();
   const router = useRouter();
   const { account, isSignedIn, signOut } = useAuth();
   const { count } = useCart();
+  const { orders, activeOrders } = useOrders();
 
   return (
     <Screen activeIcon="user" glow="both">
@@ -145,8 +147,21 @@ export default function ProfileScreen() {
 
         <View style={{ gap: 12, marginTop: 16 }}>
           <Row
-            icon="cart"
+            icon="receipt"
             variant="primary"
+            title="Your orders"
+            sub={
+              activeOrders.length
+                ? `${activeOrders.length} in progress`
+                : orders.length
+                  ? `${orders.length} past order${orders.length === 1 ? '' : 's'}`
+                  : 'Nothing ordered yet'
+            }
+            onPress={() => router.push('/orders')}
+          />
+          <Row
+            icon="cart"
+            variant="saffron"
             title="Your cart"
             sub={count ? `${count} item${count === 1 ? '' : 's'} waiting` : 'Empty right now'}
             onPress={() => router.push('/cart')}

@@ -26,6 +26,7 @@ import NotoSansBengali_700Bold from '@expo-google-fonts/noto-sans-bengali/700Bol
 import { ThemeProvider, useTheme } from '../src/theme/ThemeProvider';
 import { CartProvider } from '../src/store/CartContext';
 import { AuthProvider } from '../src/store/AuthContext';
+import { OrdersProvider } from '../src/store/OrdersContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -51,6 +52,11 @@ function Root() {
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
         <Stack.Screen name="chef/[id]" />
         <Stack.Screen name="cart" />
+        <Stack.Screen name="checkout" />
+        <Stack.Screen name="orders" />
+        {/* Replacing the cart with the receipt is a one-way step: the back
+            gesture should not walk into a checkout whose cart is now empty. */}
+        <Stack.Screen name="order/[id]" options={{ animation: 'fade' }} />
         <Stack.Screen name="auth" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="become-cook" />
       </Stack>
@@ -95,9 +101,11 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <AuthProvider>
-            <CartProvider>
-              <Root />
-            </CartProvider>
+            <OrdersProvider>
+              <CartProvider>
+                <Root />
+              </CartProvider>
+            </OrdersProvider>
           </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>

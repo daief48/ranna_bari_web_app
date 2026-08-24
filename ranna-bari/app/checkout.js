@@ -1,0 +1,570 @@
+import React, { useMemo, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+
+import Screen, { Container } from '../src/components/Screen';
+import Icon from '../src/components/Icon';
+import Reveal from '../src/components/Reveal';
+import Button from '../src/components/Button';
+import FloatLabelInput, { FormNote } from '../src/components/FloatLabelInput';
+import SectionHeader from '../src/components/SectionHeader';
+import { IconTile } from '../src/components/Surfaces';
+import { Body, GradientText, Heading, Price } from '../src/components/Typography';
+import { useTheme } from '../src/theme/ThemeProvider';
+import { font, radius, tracking, type } from '../src/theme/tokens';
+import { useCart } from '../src/store/CartContext';
+import { useAuth } from '../src/store/AuthContext';
+import { PAYMENT_METHODS, useOrders } from '../src/store/OrdersContext';
+
+const LABELS = [
+  ['Home', 'home'],
+  ['Work', 'box'],
+  ['Other', 'pin'],
+];
+
+export default function CheckoutScreen() {
+  const { colors, shadow } = useTheme();
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const { account } = useAuth();
+  const { placeOrder } = useOrders();
+  const {
+    items,
+    subtotal,
+    deliveryFee,
+    platformFee,
+    total,
+    clear,
+  } = useCart();
+
+  /* Prefill from the account the signup flow saved -- the pin it dropped is
+     the whole point of that step, so re-typing the address here would be
+     asking twice for the same thing. */
+  const [name, setName] = useState(account?.name ?? '');
+  const [phone, setPhone] = useState(account?.phone ?? '');
+  const [line, setLine] = useState(account?.addressDetail ?? '');
+  const [area, setArea] = useState(account?.area ?? '');
+  const [label, setLabel] = useState(account?.addressLabel ?? 'Home');
+  const [instructions, setInstructions] = useState(
+    typeof params.note === 'string' ? params.note : '',
+  );
+  const [method, setMethod] = useState('cod');
+  const [note, setNote] = useState('');
+  const [placing, setPlacing] = useState(false);
+
+  const chefName = items[0]?.chefName ?? '';
+  const itemCount = useMemo(
+    () => items.reduce((s, i) => s + i.qty, 0),
+    [items],
+  );
+
+  const submit = () => {
+    if (!name.trim() || !phone.trim() || !line.trim()) {
+      setNote('We need a name, a phone number and a street address to deliver.');
+      return;
+    }
+    if (phone.replace(/\D/g, '').length < 10) {
+      setNote('That phone number looks too short for the rider to call.');
+      return;
+    }
+    setNote('');
+    setPlacing(true);
+
+    const order = placeOrder({
+      paymentMethod: method,
+      items,
+      subtotal,
+      deliveryFee,
+      platformFee,
+      total,
+      contact: { name: name.trim(), phone: phone.trim() },
+      address: {
+        label,
+        line: line.trim(),
+        area: area.trim(),
+        lat: account?.lat ?? null,
+        lng: account?.lng ?? null,
+        instructions: instructions.trim(),
+      },
+    });
+
+    // The cart is emptied only after the order exists, so a failure here
+    // could never lose the basket.
+    clear();
+    router.replace(`/order/${order.id}`);
+  };
+
+  if (!items.length) {
+    return (
+      <Screen activeIcon="cart">
+        <Container style={{ alignItems: 'center', gap: 18, paddingTop: 40 }}>
+          <IconTile name="cart" large />
+          <Heading size={20}>Your cart is empty</Heading>
+          <Body muted size={15} style={{ textAlign: 'center' }}>
+            Add a dish before checking out.
+          </Body>
+          <Button
+            label="Browse artisans"
+            icon="arrowRight"
+            onPress={() => router.replace('/browse')}
+          />
+        </Container>
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen activeIcon="cart" glow="both">
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Container>
+          <SectionHeader
+            lead="SECURE"
+            accent="CHECKOUT"
+            subtitle={
+              chefName
+                ? `${itemCount} item${itemCount === 1 ? '' : 's'} from ${chefName}`
+                : `${itemCount} item${itemCount === 1 ? '' : 's'}`
+            }
+            style={{ marginBottom: 24 }}
+          />
+
+          <FormNote text={note} />
+
+          {/* ---- 1 · Deliver to ---- */}
+          <Reveal delay={1}>
+            <View style={[card(colors), shadow.sm]}>
+              <StepHeading n="1" icon="pin" title="Deliver to" />
+
+              <FloatLabelInput
+                label="Full name"
+                value={name}
+                onChangeText={setName}
+                placeholder="Who should the rider ask for?"
+                autoComplete="name"
+              />
+              <FloatLabelInput
+                label="Phone"
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="+880 1XXXXXXXXX"
+                keyboardType="phone-pad"
+                autoComplete="tel"
+              />
+              <FloatLabelInput
+                label="House / road / flat"
+                value={line}
+                onChangeText={setLine}
+                placeholder="House 12, Road 7, Flat 4B"
+              />
+              <FloatLabelInput
+                label="Area"
+                value={area}
+                onChangeText={setArea}
+                placeholder="Dhanmondi, Dhaka"
+              />
+
+              <Text
+                style={{
+                  fontFamily: font.uiSemi,
+                  fontSize: type.micro,
+                  letterSpacing: type.micro * tracking.label,
+                  textTransform: 'uppercase',
+                  color: colors.textMuted,
+                  marginBottom: 10,
+                }}
+              >
+                Save this address as
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {LABELS.map(([l, icon]) => {
+                  const on = label === l;
+                  return (
+                    <Pressable
+                      key={l}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
+                      onPress={() => setLabel(l)}
+                      style={[
+                        {
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 7,
+                          paddingVertical: 9,
+                          paddingHorizontal: 15,
+                          borderRadius: radius.pill,
+                          borderWidth: 1,
+                          borderColor: on ? 'transparent' : colors.line,
+                          backgroundColor: on ? colors.primary : colors.sunken,
+                        },
+                        on ? shadow.primary : null,
+                      ]}
+                    >
+                      <Icon
+                        name={icon}
+                        size={15}
+                        color={on ? '#FFFFFF' : colors.textMuted}
+                      />
+                      <Text
+                        style={{
+                          fontFamily: font.uiSemi,
+                          fontSize: 13,
+                          color: on ? '#FFFFFF' : colors.textMuted,
+                        }}
+                      >
+                        {l}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <View style={{ marginTop: 20 }}>
+                <FloatLabelInput
+                  label="Delivery instructions"
+                  value={instructions}
+                  onChangeText={setInstructions}
+                  placeholder="Gate code, landmark, ring twice…"
+                  style={{ marginBottom: 0 }}
+                />
+              </View>
+            </View>
+          </Reveal>
+
+          {/* ---- 2 · Payment ---- */}
+          <Reveal delay={2}>
+            <View style={[card(colors), shadow.sm, { marginTop: 16 }]}>
+              <StepHeading n="2" icon="banknote" title="How you'll pay" />
+
+              <View style={{ gap: 12 }}>
+                {PAYMENT_METHODS.map((m) => {
+                  const on = method === m.key;
+                  return (
+                    <Pressable
+                      key={m.key}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on, disabled: !m.available }}
+                      disabled={!m.available}
+                      onPress={() => setMethod(m.key)}
+                      style={[
+                        {
+                          flexDirection: 'row',
+                          alignItems: 'flex-start',
+                          gap: 14,
+                          padding: 16,
+                          borderRadius: radius.md,
+                          borderWidth: 1.5,
+                          borderColor: on ? colors.primary : colors.line,
+                          backgroundColor: on ? colors.surfaceSolid : colors.sunken,
+                          opacity: m.available ? 1 : 0.55,
+                        },
+                        on ? shadow.md : null,
+                      ]}
+                    >
+                      <IconTile
+                        name={m.icon}
+                        variant={on ? 'primary' : 'sage'}
+                        style={{ width: 44, height: 44, borderRadius: 14 }}
+                      />
+
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: 8,
+                            marginBottom: 4,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontFamily: font.displayBold,
+                              fontSize: 17,
+                              letterSpacing: -0.2,
+                              color: colors.text,
+                            }}
+                          >
+                            {m.title}
+                          </Text>
+                          {!m.available ? (
+                            <View
+                              style={{
+                                paddingVertical: 3,
+                                paddingHorizontal: 9,
+                                borderRadius: radius.pill,
+                                backgroundColor: colors.saffron50,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  fontFamily: font.uiBold,
+                                  fontSize: 9.5,
+                                  letterSpacing: 0.7,
+                                  textTransform: 'uppercase',
+                                  color: colors.saffron,
+                                }}
+                              >
+                                Soon
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        <Text
+                          style={{
+                            fontFamily: font.ui,
+                            fontSize: 13,
+                            lineHeight: 20,
+                            color: colors.textMuted,
+                          }}
+                        >
+                          {m.desc}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 11,
+                          marginTop: 2,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderWidth: 1.5,
+                          borderColor: on ? 'transparent' : colors.line,
+                          backgroundColor: on ? colors.primary : 'transparent',
+                        }}
+                      >
+                        {on ? (
+                          <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} />
+                        ) : null}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {method === 'cod' ? (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    marginTop: 16,
+                    padding: 14,
+                    borderRadius: radius.md,
+                    backgroundColor: colors.saffron50,
+                    borderWidth: 1,
+                    borderColor: colors.saffron100,
+                  }}
+                >
+                  <Icon name="alertCircle" size={17} color={colors.saffron} />
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontFamily: font.ui,
+                      fontSize: 13,
+                      lineHeight: 20,
+                      color: colors.textMuted,
+                    }}
+                  >
+                    Have{' '}
+                    <Text style={{ fontFamily: font.uiBold, color: colors.text }}>
+                      ৳{total}
+                    </Text>{' '}
+                    in cash ready. Riders carry limited change, so exact notes
+                    help.
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </Reveal>
+
+          {/* ---- 3 · Summary ---- */}
+          <Reveal delay={3}>
+            <View style={[card(colors), shadow.sm, { marginTop: 16 }]}>
+              <StepHeading n="3" icon="receipt" title="Order summary" />
+
+              <View style={{ gap: 12, marginBottom: 20 }}>
+                {items.map((i) => (
+                  <View
+                    key={i.id}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                  >
+                    <Image
+                      source={{ uri: i.image }}
+                      contentFit="cover"
+                      transition={150}
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 13,
+                        backgroundColor: colors.sunken,
+                      }}
+                    />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          fontFamily: font.uiSemi,
+                          fontSize: type.sm + 1,
+                          color: colors.text,
+                        }}
+                      >
+                        {i.name}
+                      </Text>
+                      <Text
+                        style={{
+                          fontFamily: font.ui,
+                          fontSize: type.xs,
+                          color: colors.textMuted,
+                        }}
+                      >
+                        ৳{i.price} × {i.qty}
+                      </Text>
+                    </View>
+                    <Text
+                      style={{
+                        fontFamily: font.uiSemi,
+                        fontSize: type.sm + 1,
+                        color: colors.text,
+                        fontVariant: ['tabular-nums'],
+                      }}
+                    >
+                      ৳{i.price * i.qty}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              <Row label="Subtotal" value={subtotal} />
+              <Row label="Delivery Fee" value={deliveryFee} />
+              <Row label="Platform Fee" value={platformFee} />
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: 16,
+                  paddingTop: 16,
+                  borderTopWidth: 1,
+                  borderTopColor: colors.line,
+                }}
+              >
+                <Price size={23}>Pay on delivery</Price>
+                <GradientText
+                  style={{
+                    fontFamily: font.uiBold,
+                    fontSize: 23,
+                    letterSpacing: -0.46,
+                  }}
+                >
+                  ৳{total}
+                </GradientText>
+              </View>
+            </View>
+          </Reveal>
+
+          <View style={{ marginTop: 24, gap: 12 }}>
+            <Button
+              label={placing ? 'Placing…' : `Place order · ৳${total}`}
+              icon="arrowRight"
+              block
+              disabled={placing}
+              onPress={submit}
+            />
+            <Text
+              style={{
+                textAlign: 'center',
+                fontFamily: font.ui,
+                fontSize: type.xs,
+                lineHeight: 19,
+                color: colors.textMuted,
+              }}
+            >
+              No card needed. You pay the rider in cash at your door.
+            </Text>
+          </View>
+        </Container>
+      </KeyboardAvoidingView>
+    </Screen>
+  );
+}
+
+const card = (colors) => ({
+  paddingVertical: 24,
+  paddingHorizontal: 20,
+  borderRadius: radius.lg,
+  backgroundColor: colors.surfaceSolid,
+  borderWidth: 1,
+  borderColor: colors.line,
+});
+
+/** The numbered heading each checkout card opens with. */
+function StepHeading({ n, icon, title }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 20,
+      }}
+    >
+      <View
+        style={{
+          width: 26,
+          height: 26,
+          borderRadius: 13,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.primary50,
+        }}
+      >
+        <Text
+          style={{
+            fontFamily: font.uiBold,
+            fontSize: 12,
+            color: colors.primary,
+            fontVariant: ['tabular-nums'],
+          }}
+        >
+          {n}
+        </Text>
+      </View>
+      <Heading size={19} style={{ flex: 1 }}>
+        {title}
+      </Heading>
+      <Icon name={icon} size={19} color={colors.textLight} />
+    </View>
+  );
+}
+
+function Row({ label, value }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+      }}
+    >
+      <Text style={{ fontFamily: font.ui, fontSize: type.sm, color: colors.textMuted }}>
+        {label}
+      </Text>
+      <Text
+        style={{
+          fontFamily: font.uiMedium,
+          fontSize: type.sm,
+          color: colors.textMuted,
+          fontVariant: ['tabular-nums'],
+        }}
+      >
+        ৳{value}
+      </Text>
+    </View>
+  );
+}
