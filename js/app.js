@@ -182,7 +182,7 @@ function addGlobalAnimations() {
         document.querySelectorAll(sel).forEach((el, index) => {
             if (!el.classList.contains('reveal-item') && !el.classList.contains('reveal-left') && !el.classList.contains('reveal-right') && !el.classList.contains('reveal-scale')) {
                 el.classList.add('reveal-item');
-                el.classList.add(delay- + ((index % 5) + 1));
+                el.classList.add('delay-' + ((index % 5) + 1));
             }
         });
     });

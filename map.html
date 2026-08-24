@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Kitchen Map - RannaBari</title>
     <link rel="stylesheet" href="style.css">
     <!-- Leaflet CSS for Map -->
@@ -82,6 +82,48 @@
         [data-theme="dark"] .leaflet-control-zoom-out,
         [data-theme="dark"] .leaflet-control-attribution {
             filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+        }
+
+        /* Keep the map clear of the bottom app bar on short viewports */
+        #fullscreen-map {
+            height: calc(100dvh - 100px);
+        }
+
+        @media (max-width: 768px) {
+            /* The navbar is 58px tall and sits 10px from the top on phones */
+            #fullscreen-map {
+                margin-top: 78px;
+                height: calc(100vh - 78px);
+                height: calc(100dvh - 78px);
+            }
+
+            .map-search-overlay {
+                top: 80px;
+                width: calc(100% - 20px);
+                padding: 6px 8px;
+                border-radius: var(--radius-md);
+            }
+            .map-search-overlay > svg { display: none; }
+            .map-search-overlay input {
+                padding: 10px 12px;
+                font-size: 16px; /* stops iOS zooming in on focus */
+                min-width: 0;
+            }
+            .map-search-overlay button {
+                padding: 10px 16px;
+                font-size: 13px;
+                flex-shrink: 0;
+            }
+
+            /* Push Leaflet's zoom / attribution clear of the search overlay
+               and the floating app bar */
+            .leaflet-top { top: 78px; }
+            .leaflet-bottom { bottom: 90px; }
+        }
+
+        @media (max-width: 480px) {
+            .map-search-overlay button { padding: 10px 12px; font-size: 12px; }
+            .map-search-overlay input { padding: 10px 8px; }
         }
     </style>
 </head>
