@@ -1,0 +1,162 @@
+[
+    {
+        "id": 1,
+        "chefId": 1,
+        "name": "Sarah Khan",
+        "avatar": "https://i.pravatar.cc/100?img=1",
+        "area": "Dhanmondi",
+        "date": "2026-08-14",
+        "rating": 5,
+        "text": "The hilsa curry from Fatema B. was exactly how my mom used to make it. Highly recommended!"
+    },
+    {
+        "id": 2,
+        "chefId": 3,
+        "name": "Rafiq H.",
+        "avatar": "https://i.pravatar.cc/100?img=11",
+        "area": "Dhanmondi",
+        "date": "2026-08-11",
+        "rating": 4,
+        "text": "Love the healthy keto options from Shirin. It makes sticking to my diet so much easier while working from home."
+    },
+    {
+        "id": 3,
+        "chefId": 5,
+        "name": "Nadia A.",
+        "avatar": "https://i.pravatar.cc/100?img=5",
+        "area": "Dhanmondi",
+        "date": "2026-08-09",
+        "rating": 5,
+        "text": "Finally, clean street food! The fuchka was amazing and I didn't have to worry about hygiene."
+    },
+    {
+        "id": 4,
+        "chefId": 7,
+        "name": "Imtiaz Ahmed",
+        "avatar": "https://i.pravatar.cc/100?img=13",
+        "area": "Old Dhaka",
+        "date": "2026-08-18",
+        "rating": 5,
+        "text": "I grew up on Nazira Bazar kacchi and I am hard to please. Tanvir's is the real thing. The mutton fell apart."
+    },
+    {
+        "id": 5,
+        "chefId": 8,
+        "name": "Tahmina R.",
+        "avatar": "https://i.pravatar.cc/100?img=9",
+        "area": "Mirpur",
+        "date": "2026-08-16",
+        "rating": 5,
+        "text": "Ordered bhapa pitha in the middle of August and it tasted like a winter morning at my nanu's house."
+    },
+    {
+        "id": 6,
+        "chefId": 11,
+        "name": "Shakib Hossain",
+        "avatar": "https://i.pravatar.cc/100?img=15",
+        "area": "Uttara",
+        "date": "2026-08-19",
+        "rating": 5,
+        "text": "Paratha and dim bhaji at my door at 7am sharp, every single morning this month. Never once late."
+    },
+    {
+        "id": 7,
+        "chefId": 20,
+        "name": "Faria Chowdhury",
+        "avatar": "https://i.pravatar.cc/100?img=20",
+        "area": "Motijheel",
+        "date": "2026-08-12",
+        "rating": 4,
+        "text": "The weekly lunch plan has saved me from another year of canteen food. Portions are generous for the price."
+    },
+    {
+        "id": 8,
+        "chefId": 10,
+        "name": "Anika Tabassum",
+        "avatar": "https://i.pravatar.cc/100?img=25",
+        "area": "Mirpur",
+        "date": "2026-08-17",
+        "rating": 5,
+        "text": "Seven bhortas for 280 taka and every one of them was distinct. As a vegetarian I usually get one sad option."
+    },
+    {
+        "id": 9,
+        "chefId": 6,
+        "name": "Mahmudul Karim",
+        "avatar": "https://i.pravatar.cc/100?img=33",
+        "area": "Mohammadpur",
+        "date": "2026-08-15",
+        "rating": 5,
+        "text": "Ordered the family tray for my daughter's birthday. Fourteen people, not a grain left. The borhani was perfect."
+    },
+    {
+        "id": 10,
+        "chefId": 16,
+        "name": "Dr. Salma Begum",
+        "avatar": "https://i.pravatar.cc/100?img=31",
+        "area": "Gulshan",
+        "date": "2026-08-10",
+        "rating": 5,
+        "text": "I recommend Momena to my own patients now. Carb counts on every box and my sugar readings have held steady."
+    },
+    {
+        "id": 11,
+        "chefId": 14,
+        "name": "Rezwana Islam",
+        "avatar": "https://i.pravatar.cc/100?img=45",
+        "area": "Banani",
+        "date": "2026-08-13",
+        "rating": 5,
+        "text": "Laila's brownies are dangerous. The custom cake for my husband's birthday looked better than the bakery ones."
+    },
+    {
+        "id": 12,
+        "chefId": 12,
+        "name": "Arman Sheikh",
+        "avatar": "https://i.pravatar.cc/100?img=52",
+        "area": "Uttara",
+        "date": "2026-08-08",
+        "rating": 4,
+        "text": "You can taste that it is real charcoal. Kebabs arrived still warm. Would have liked more salad in the box."
+    },
+    {
+        "id": 13,
+        "chefId": 18,
+        "name": "Sadia Noor",
+        "avatar": "https://i.pravatar.cc/100?img=41",
+        "area": "Bashundhara",
+        "date": "2026-08-07",
+        "rating": 5,
+        "text": "Ordered the iftar platter through all of Ramadan. Always before azan, never once soggy. The haleem is excellent."
+    },
+    {
+        "id": 14,
+        "chefId": 19,
+        "name": "Pritom Das",
+        "avatar": "https://i.pravatar.cc/100?img=59",
+        "area": "Bashundhara",
+        "date": "2026-08-06",
+        "rating": 5,
+        "text": "Sujon messaged me to say koi was not good that morning and offered pabda instead. That kind of honesty is rare."
+    },
+    {
+        "id": 15,
+        "chefId": 13,
+        "name": "Rumana Haque",
+        "avatar": "https://i.pravatar.cc/100?img=47",
+        "area": "Uttara",
+        "date": "2026-08-05",
+        "rating": 5,
+        "text": "Been in Dhaka eleven years and never found proper shatkora beef until now. Tasted like going home to Sylhet."
+    },
+    {
+        "id": 16,
+        "chefId": 9,
+        "name": "Nafis Iqbal",
+        "avatar": "https://i.pravatar.cc/100?img=68",
+        "area": "Mirpur",
+        "date": "2026-08-04",
+        "rating": 4,
+        "text": "Proper mezbani heat, no compromise for Dhaka tastes. Order the rice with it, you will need it."
+    }
+]
