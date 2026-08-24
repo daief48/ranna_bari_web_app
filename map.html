@@ -79,12 +79,215 @@
             color: var(--color-text);
         }
 
-        /* Dark Mode Map Filter */
-        [data-theme="dark"] .leaflet-layer,
-        [data-theme="dark"] .leaflet-control-zoom-in,
-        [data-theme="dark"] .leaflet-control-zoom-out,
+        /* Dark mode now swaps to MapTiler's real dark basemap instead of
+           inverting the light one -- invert() turned parks pink and made
+           every label glow. Only the Leaflet chrome needs theming here. */
+        [data-theme="dark"] .leaflet-control-zoom a {
+            background: var(--clr-raised);
+            color: var(--color-text);
+            border-color: var(--clr-line);
+        }
         [data-theme="dark"] .leaflet-control-attribution {
-            filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+            background: rgba(22, 16, 14, 0.82);
+            color: var(--color-text-muted);
+        }
+        [data-theme="dark"] .leaflet-control-attribution a { color: var(--clr-primary-600); }
+
+        /* ---------- Locate button ---------- */
+        .map-locate-btn {
+            position: absolute;
+            top: 186px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            padding: 11px 20px 11px 16px;
+            border: 1px solid var(--clr-line);
+            border-radius: var(--radius-pill);
+            background: var(--color-surface-solid);
+            color: var(--color-text);
+            font-family: var(--font-ui);
+            font-size: 13.5px;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            cursor: pointer;
+            box-shadow: var(--shadow-md);
+            transition: transform var(--transition-fast), box-shadow var(--transition-base),
+                        background var(--transition-base), color var(--transition-base);
+        }
+        .map-locate-btn:hover {
+            transform: translateX(-50%) translateY(-2px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--clr-primary-200);
+            color: var(--color-primary);
+        }
+        .map-locate-btn .ico { width: 17px; height: 17px; color: var(--color-primary); }
+        .map-locate-btn[data-state="locating"] { pointer-events: none; }
+        .map-locate-btn[data-state="locating"] .ico { animation: locateSpin 1s linear infinite; }
+        .map-locate-btn[data-state="active"] {
+            background: linear-gradient(140deg, var(--clr-primary) 0%, var(--clr-primary-600) 100%);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: var(--shadow-primary);
+        }
+        .map-locate-btn[data-state="active"] .ico { color: #fff; }
+        @keyframes locateSpin { to { transform: rotate(360deg); } }
+
+        /* ---------- "You are here" marker ---------- */
+        .me-marker {
+            width: 20px; height: 20px; border-radius: 50%;
+            background: #2F7DF6;
+            border: 3px solid #fff;
+            box-shadow: 0 0 0 2px rgba(47, 125, 246, 0.35), 0 3px 10px rgba(0, 0, 0, 0.35);
+        }
+        .me-marker::after {
+            content: ''; position: absolute; inset: -9px;
+            border-radius: 50%; border: 2px solid rgba(47, 125, 246, 0.5);
+            animation: mePulse 2.2s ease-out infinite;
+        }
+        @keyframes mePulse {
+            0%   { transform: scale(0.55); opacity: 0.9; }
+            100% { transform: scale(1.5);  opacity: 0; }
+        }
+
+        /* ---------- Nearest-cooks panel ---------- */
+        .nearby-panel {
+            position: absolute;
+            z-index: 1001;
+            left: 24px;
+            top: 186px;
+            width: 336px;
+            max-height: calc(100dvh - 260px);
+            display: flex;
+            flex-direction: column;
+            background: var(--color-surface-solid);
+            border: 1px solid var(--clr-line);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+        }
+        .nearby-panel[hidden] { display: none; }
+
+        .nearby-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 16px 12px;
+            border-bottom: 1px solid var(--clr-line-2);
+        }
+        .nearby-title {
+            flex: 1;
+            min-width: 0;
+            font-family: var(--font-ui);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: var(--tracking-label);
+            text-transform: uppercase;
+            color: var(--color-text-muted);
+        }
+        .nearby-close {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 30px; height: 30px; border-radius: 10px;
+            color: var(--color-text-muted); flex-shrink: 0;
+        }
+        .nearby-close:hover { background: var(--clr-primary-50); color: var(--color-primary); }
+        .nearby-close .ico { width: 16px; height: 16px; }
+
+        /* The panel caps its height, but a flex child defaults to
+           min-height:auto and refuses to shrink below its content -- so the
+           list grew to full height and the panel just clipped it with nothing
+           scrollable. Both levels need to shrink and pass the cap down. */
+        #nearbyBody {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .nearby-list {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain; /* don't chain the scroll to the map */
+            padding: 8px;
+        }
+        .nearby-list::-webkit-scrollbar { width: 6px; }
+        .nearby-list::-webkit-scrollbar-thumb {
+            background: var(--clr-line);
+            border-radius: 999px;
+        }
+
+        .nearby-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 10px;
+            border-radius: var(--radius-sm);
+            text-align: left;
+            cursor: pointer;
+            transition: background var(--transition-fast);
+        }
+        .nearby-item:hover { background: var(--clr-primary-50); }
+        .nearby-item img {
+            width: 44px; height: 44px; border-radius: 13px;
+            object-fit: cover; flex-shrink: 0;
+            border: 1px solid var(--clr-line);
+        }
+        /* name/sub are spans, so they need to be blocks to stack */
+        .nearby-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+        .nearby-name {
+            display: block;
+            font-family: var(--font-display);
+            font-size: 1rem; font-weight: 700; letter-spacing: -0.01em;
+            color: var(--color-text);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .nearby-sub {
+            display: block;
+            font-family: var(--font-ui);
+            font-size: 12px; color: var(--color-text-muted);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .nearby-dist {
+            flex-shrink: 0;
+            font-family: var(--font-ui);
+            font-size: 12px; font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            color: var(--color-primary);
+            background: var(--clr-primary-50);
+            border-radius: var(--radius-pill);
+            padding: 5px 10px;
+        }
+
+        .nearby-msg {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 16px;
+            font-family: var(--font-ui);
+            font-size: 13.5px; line-height: 1.5;
+            color: var(--color-text-muted);
+        }
+        .nearby-msg .ico { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; color: var(--clr-saffron); }
+        .nearby-msg.is-error .ico { color: var(--color-primary); }
+        .nearby-retry {
+            display: block; margin-top: 8px;
+            font-weight: 600; color: var(--color-primary);
+            text-decoration: underline; cursor: pointer;
+        }
+
+        /* On phones the panel becomes a bottom sheet above the app bar */
+        @media (max-width: 768px) {
+            .map-locate-btn { top: 142px; font-size: 13px; padding: 10px 18px 10px 14px; }
+            .nearby-panel {
+                left: 10px; right: 10px; top: auto;
+                width: auto;
+                bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+                max-height: 46dvh;
+                border-radius: var(--radius-md);
+            }
         }
 
         /* Keep the map clear of the bottom app bar on short viewports */
@@ -184,6 +387,23 @@
         <button type="button">SEARCH</button>
     </div>
 
+    <!-- Find the closest kitchens to the visitor's device location -->
+    <button type="button" class="map-locate-btn" id="locateBtn" data-state="idle">
+        <svg class="ico" aria-hidden="true"><use href="#i-locate"/></svg>
+        <span id="locateLabel">Nearest cooks</span>
+    </button>
+
+    <!-- Results panel: a card on desktop, a bottom sheet on phones -->
+    <section class="nearby-panel" id="nearbyPanel" hidden aria-live="polite">
+        <div class="nearby-head">
+            <span class="nearby-title" id="nearbyTitle">Nearest to you</span>
+            <button type="button" class="nearby-close" id="nearbyClose" aria-label="Close nearest cooks">
+                <svg class="ico" aria-hidden="true"><use href="#i-x"/></svg>
+            </button>
+        </div>
+        <div id="nearbyBody"></div>
+    </section>
+
     <!-- The Map Container -->
     <div id="fullscreen-map"></div>
 
@@ -191,14 +411,38 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="js/app.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', async function() {
-            var map = L.map('fullscreen-map').setView([23.8103, 90.4125], 12);
+        // MapTiler client key. This is a browser key -- it ships in the page by
+        // design and is meant to be protected by an origin allowlist, not by
+        // secrecy. Lock it to your domains in the MapTiler dashboard.
+        const MAPTILER_KEY = 'SxjK1zJHWJ8lvm7cplMH';
+        const TILE_STYLE = { light: 'streets-v2', dark: 'streets-v2-dark' };
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                subdomains: 'abcd',
-                maxZoom: 20
+        function tileUrl(style) {
+            return 'https://api.maptiler.com/maps/' + style + '/{z}/{x}/{y}.png?key=' + MAPTILER_KEY;
+        }
+        function currentTileStyle() {
+            return document.documentElement.getAttribute('data-theme') === 'dark'
+                ? TILE_STYLE.dark : TILE_STYLE.light;
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            var map = L.map('fullscreen-map', { zoomControl: true }).setView([23.8103, 90.4125], 12);
+
+            // MapTiler serves 512px tiles, so Leaflet needs the zoom offset or
+            // every label renders at half scale.
+            var tiles = L.tileLayer(tileUrl(currentTileStyle()), {
+                tileSize: 512,
+                zoomOffset: -1,
+                minZoom: 1,
+                maxZoom: 20,
+                crossOrigin: true,
+                attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank" rel="noopener">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">&copy; OpenStreetMap contributors</a>'
             }).addTo(map);
+
+            // Swap to the real dark basemap when the theme toggle flips.
+            new MutationObserver(function () {
+                tiles.setUrl(tileUrl(currentTileStyle()));
+            }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
             var customIcon = L.divIcon({
                 className: 'custom-map-marker',
@@ -210,10 +454,12 @@
 
             // Fetch dynamic chefs data
             const chefs = await fetchData(DB.chefs);
+            const markers = {}; // chef id -> Leaflet marker, for the nearby list
 
             chefs.forEach(function(c) {
                 if (c.lat && c.lng) {
                     var marker = L.marker([c.lat, c.lng], {icon: customIcon}).addTo(map);
+                    markers[c.id] = marker;
                     marker.bindPopup(`
                         <div style="text-align: center; font-family: 'Inter', sans-serif; padding: 8px;">
                             <img src="${c.avatar}" style="width: 50px; height: 50px; border-radius: 50%; margin-bottom: 8px; object-fit: cover;">
@@ -223,6 +469,180 @@
                         </div>
                     `, { minWidth: 200 });
                 }
+            });
+
+            /* ==============================================================
+               NEAREST COOKS
+               Ask for the device location, rank every kitchen by great-circle
+               distance from it, and list the closest ones.
+               ============================================================== */
+
+            const locateBtn   = document.getElementById('locateBtn');
+            const locateLabel = document.getElementById('locateLabel');
+            const panel       = document.getElementById('nearbyPanel');
+            const panelBody   = document.getElementById('nearbyBody');
+            const panelTitle  = document.getElementById('nearbyTitle');
+            const NEAREST_COUNT = 5;
+
+            let meMarker = null, meCircle = null;
+
+            // Haversine great-circle distance in kilometres.
+            function distanceKm(a, b) {
+                const R = 6371, rad = d => d * Math.PI / 180;
+                const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+                const h = Math.sin(dLat / 2) ** 2 +
+                          Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+                return 2 * R * Math.asin(Math.sqrt(h));
+            }
+
+            function formatDistance(km) {
+                if (km < 1) return Math.round(km * 1000) + ' m';
+                if (km < 10) return km.toFixed(1) + ' km';
+                return Math.round(km) + ' km';
+            }
+
+            function setButton(state, label) {
+                locateBtn.dataset.state = state;
+                locateLabel.textContent = label;
+            }
+
+            function openPanel(html, title) {
+                if (title) panelTitle.textContent = title;
+                panelBody.innerHTML = html;
+                panel.hidden = false;
+            }
+
+            function showMessage(text, isError) {
+                openPanel(
+                    '<div class="nearby-msg' + (isError ? ' is-error' : '') + '">' +
+                        '<svg class="ico" aria-hidden="true"><use href="#i-alertCircle"/></svg>' +
+                        '<div>' + text +
+                            (isError ? '<span class="nearby-retry" id="nearbyRetry">Try again</span>' : '') +
+                        '</div>' +
+                    '</div>',
+                    isError ? 'Location unavailable' : 'Nearest to you'
+                );
+                const retry = document.getElementById('nearbyRetry');
+                if (retry) retry.addEventListener('click', requestLocation);
+            }
+
+            function renderNearest(me) {
+                const ranked = chefs
+                    .filter(c => typeof c.lat === 'number' && typeof c.lng === 'number')
+                    .map(c => ({ chef: c, km: distanceKm(me, { lat: c.lat, lng: c.lng }) }))
+                    .sort((a, b) => a.km - b.km);
+
+                if (!ranked.length) {
+                    showMessage('No kitchens have a location on file yet.', false);
+                    return;
+                }
+
+                const top = ranked.slice(0, NEAREST_COUNT);
+                openPanel(
+                    '<div class="nearby-list">' + top.map(r => `
+                        <div class="nearby-item" role="button" tabindex="0" data-id="${r.chef.id}">
+                            <img src="${r.chef.avatar}" alt="" loading="lazy">
+                            <span class="nearby-meta">
+                                <span class="nearby-name">${r.chef.name}</span>
+                                <span class="nearby-sub">${r.chef.specialty}</span>
+                            </span>
+                            <span class="nearby-dist">${formatDistance(r.km)}</span>
+                        </div>`).join('') + '</div>',
+                    top.length + ' nearest to you'
+                );
+
+                // Tapping a row flies to that kitchen and opens its popup.
+                panelBody.querySelectorAll('.nearby-item').forEach(el => {
+                    const focus = () => {
+                        const m = markers[el.dataset.id];
+                        if (!m) return;
+                        map.flyTo(m.getLatLng(), 15, { duration: 0.6 });
+                        m.openPopup();
+                    };
+                    el.addEventListener('click', focus);
+                    el.addEventListener('keydown', e => {
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focus(); }
+                    });
+                });
+
+                // Frame the visitor plus the closest kitchens.
+                const bounds = L.latLngBounds([[me.lat, me.lng]].concat(
+                    top.map(r => [r.chef.lat, r.chef.lng])
+                ));
+                map.fitBounds(bounds, { padding: [70, 70], maxZoom: 15 });
+            }
+
+            function dropMeMarker(lat, lng, accuracy) {
+                if (meMarker) map.removeLayer(meMarker);
+                if (meCircle) map.removeLayer(meCircle);
+
+                meMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'me-marker-wrap',
+                        html: '<div class="me-marker"></div>',
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    }),
+                    zIndexOffset: 1000,
+                    keyboard: false
+                }).addTo(map).bindPopup('You are here');
+
+                // Only draw the accuracy ring when the fix is genuinely vague;
+                // a 20 m ring is just noise under the marker.
+                if (accuracy && accuracy > 60) {
+                    meCircle = L.circle([lat, lng], {
+                        radius: accuracy,
+                        color: '#2F7DF6', weight: 1,
+                        fillColor: '#2F7DF6', fillOpacity: 0.1
+                    }).addTo(map);
+                }
+            }
+
+            function requestLocation() {
+                if (!('geolocation' in navigator)) {
+                    setButton('idle', 'Nearest cooks');
+                    showMessage('This browser does not support location lookup.', true);
+                    return;
+                }
+                // getCurrentPosition silently never fires on insecure origins.
+                if (!window.isSecureContext) {
+                    setButton('idle', 'Nearest cooks');
+                    showMessage('Location needs a secure connection. Open this site over https (or on localhost).', true);
+                    return;
+                }
+
+                setButton('locating', 'Locating…');
+                openPanel(
+                    '<div class="nearby-msg">' +
+                        '<svg class="ico" aria-hidden="true"><use href="#i-locate"/></svg>' +
+                        '<div>Getting your location…</div>' +
+                    '</div>',
+                    'Nearest to you'
+                );
+
+                navigator.geolocation.getCurrentPosition(
+                    pos => {
+                        const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+                        setButton('active', 'Near me');
+                        dropMeMarker(lat, lng, accuracy);
+                        renderNearest({ lat, lng });
+                    },
+                    err => {
+                        setButton('idle', 'Nearest cooks');
+                        const messages = {
+                            1: 'Location permission was blocked. Allow it in your browser’s site settings, then try again.',
+                            2: 'Your location could not be determined right now.',
+                            3: 'Finding your location took too long.'
+                        };
+                        showMessage(messages[err.code] || 'Could not get your location.', true);
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+                );
+            }
+
+            locateBtn.addEventListener('click', requestLocation);
+            document.getElementById('nearbyClose').addEventListener('click', () => {
+                panel.hidden = true;
             });
         });
     </script>
