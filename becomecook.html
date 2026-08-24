@@ -7,6 +7,7 @@
     <meta name="description" content="Turn your kitchen into your business. Join RannaBari as a home cook.">
     <meta name="robots" content="index, follow">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="auth.css">
 </head>
 <body>
 <!-- ICON SPRITE: generated, do not edit by hand -->
@@ -67,20 +68,25 @@
                     <div style="font-family: var(--font-display); font-size: 48px; font-weight: 900; color: rgba(45,36,36,0.05);">01</div>
                 </div>
                 
-                <form action="#" method="POST">
-                    <div class="form-group-modern">
-                        <input type="text" class="form-input-modern" placeholder="As it appears on your ID" required>
-                        <label class="form-label-modern">Full Legal Name</label>
+                <form id="cookStartForm" novalidate>
+                    <div class="auth-note is-error" id="startNote" hidden>
+                        <svg class="ico" aria-hidden="true"><use href="#i-alertCircle"/></svg>
+                        <span></span>
                     </div>
-                    
+
                     <div class="form-group-modern">
-                        <input type="tel" class="form-input-modern" placeholder="+880 1XXXXXXXXX" required>
-                        <label class="form-label-modern">Secure Phone Number</label>
+                        <input type="text" id="bcName" class="form-input-modern" placeholder="As it appears on your ID" required>
+                        <label class="form-label-modern" for="bcName">Full Legal Name</label>
                     </div>
-                    
+
+                    <div class="form-group-modern">
+                        <input type="tel" id="bcPhone" class="form-input-modern" placeholder="+880 1XXXXXXXXX" required>
+                        <label class="form-label-modern" for="bcPhone">Secure Phone Number</label>
+                    </div>
+
                     <div class="form-group">
-                        <label class="form-label">Primary Cooking Location</label>
-                        <select class="form-input">
+                        <label class="form-label" for="bcZone">Primary Cooking Location</label>
+                        <select class="form-input" id="bcZone">
                             <option value="" disabled selected>Select your zone</option>
                             <option value="Dhanmondi">Dhanmondi, Dhaka</option>
                             <option value="Mirpur">Mirpur, Dhaka</option>
@@ -88,16 +94,16 @@
                             <option value="Uttara">Uttara, Dhaka</option>
                         </select>
                     </div>
-                    
+
                     <div class="form-group-modern">
                         <svg class="ico" aria-hidden="true" style="position:absolute; right:20px; top:22px; color:var(--color-text-muted); z-index: 10;"><use href="#i-lock"/></svg>
-                        <input type="text" class="form-input-modern" placeholder="Enter NID for secure verification" required>
-                        <label class="form-label-modern">National ID (Encrypted)</label>
+                        <input type="text" id="bcNid" class="form-input-modern" placeholder="Enter NID for secure verification" required>
+                        <label class="form-label-modern" for="bcNid">National ID (Encrypted)</label>
                     </div>
-                    
+
                     <div class="flex justify-between align-center" style="margin-top: 48px; padding-top: 32px; border-top: 1px solid rgba(45,36,36,0.1);">
                         <a href="index.html" style="color: var(--color-text-muted); font-weight: 700; letter-spacing: 1px;">CANCEL</a>
-                        <button type="button" class="btn btn-primary" onclick="alert('Proceeding to Step 2...')">CONTINUE <svg class="ico ico-sm" aria-hidden="true"><use href="#i-arrowRight"/></svg></button>
+                        <button type="submit" class="btn btn-primary">CONTINUE <svg class="ico ico-sm" aria-hidden="true"><use href="#i-arrowRight"/></svg></button>
                     </div>
                 </form>
             </div>
@@ -152,5 +158,6 @@
     </nav>
 
     <script src="js/app.js"></script>
+    <script src="js/becomecook.js"></script>
 </body>
 </html>

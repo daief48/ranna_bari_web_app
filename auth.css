@@ -157,12 +157,31 @@
     background: var(--color-bg);
 }
 
+/* Same max-width as the card below it, so the back link and the theme
+   toggle line up with the card edges instead of the column edges. */
 .auth-panel-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: clamp(20px, 4vh, 40px);
+    width: 100%;
+    max-width: 540px;
+    margin: 0 auto clamp(20px, 4vh, 40px);
+}
+
+/* The site's toggle is a bare glyph on a light background. Here it is the
+   only thing opposite the back pill, so give it the same chrome. */
+.auth-panel-top .theme-toggle {
+    width: 42px;
+    height: 42px;
+    border: 1px solid var(--clr-line);
+    background: var(--color-surface-solid);
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+.auth-panel-top .theme-toggle:hover {
+    border-color: var(--clr-primary-200);
+    color: var(--color-primary);
 }
 
 .auth-back {
@@ -352,9 +371,12 @@
 /* ---------------------------------------------------------
    Role cards — the fork in the flow: cook or eat
    --------------------------------------------------------- */
+/* auto-fit, not a breakpoint: the card is capped at 540px, so these
+   grids collapse when the CARD runs out of room -- which is the actual
+   constraint -- rather than when the viewport crosses some number. */
 .role-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 14px;
 }
 /* Sunken, not surface-solid: in dark mode surface-solid is the same
@@ -445,7 +467,7 @@
    --------------------------------------------------------- */
 .auth-row {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
     gap: 14px;
 }
 .auth-card .form-group-modern { margin-bottom: 16px; }
@@ -980,7 +1002,7 @@
 
 .social-row {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 12px;
 }
 .btn-social {
@@ -1146,6 +1168,42 @@
 /* ---------------------------------------------------------
    Responsive
    --------------------------------------------------------- */
+/* Breakpoints match style.css -- 1024 / 768 / 480 -- so a phone crosses
+   the auth layout and the site chrome at the same widths. */
+
+/* ---------- Short desktop window ----------
+   The aside is 100dvh with overflow:hidden, so on a laptop running a
+   short window (or with devtools docked) the stats row was being
+   clipped off the bottom. Tighten the rhythm instead of hiding it. */
+@media (min-width: 1025px) and (max-height: 760px) {
+    .auth-aside { padding: 28px 36px; gap: 18px; }
+    .auth-eyebrow { margin-bottom: 14px; padding: 6px 12px; }
+    .auth-aside h2 {
+        font-size: clamp(1.5rem, 0.8rem + 2.6vh, 2.3rem);
+        margin-bottom: 12px;
+    }
+    .auth-aside-copy p { font-size: 14.5px; line-height: 1.55; }
+    .auth-stat { padding: 12px 14px; }
+    .auth-stat b { font-size: 21px; }
+
+    .auth-panel { padding-top: 20px; padding-bottom: 40px; }
+    .auth-panel-top { margin-bottom: 20px; }
+}
+
+/* Very short: the paragraph is the first thing that can go */
+@media (min-width: 1025px) and (max-height: 620px) {
+    .auth-aside-copy p { display: none; }
+    .auth-aside h2 { margin-bottom: 0; }
+}
+
+/* ---------- Large desktop: let the card breathe ---------- */
+@media (min-width: 1600px) {
+    .auth-panel-inner,
+    .auth-panel-top { max-width: 580px; }
+    .auth-aside { padding: 56px 64px; }
+}
+
+/* ---------- 1024: the aside stops being a column ---------- */
 @media (max-width: 1024px) {
     .auth-shell { grid-template-columns: 1fr; }
     .auth-aside {
@@ -1153,28 +1211,63 @@
         height: auto;
         min-height: 0;
         padding: 26px 24px 30px;
-        gap: 24px;
+        gap: 20px;
     }
     .auth-aside-copy { max-width: none; }
+    .auth-aside h2 { font-size: clamp(1.8rem, 1.2rem + 2.4vw, 2.4rem); }
     .auth-panel { padding: 24px 20px 56px; }
 }
 
-@media (max-width: 620px) {
-    .auth-aside { padding: 20px 18px 24px; }
-    .auth-aside h2 { font-size: 1.7rem; }
-    .auth-aside-copy p { font-size: 14px; }
-    .auth-stat { padding: 12px 13px; }
-    .auth-stat b { font-size: 21px; }
-
-    .auth-card {
-        padding: 20px 16px;
-        border-radius: var(--radius-md);
+/* ---------- 768: phone ---------- */
+@media (max-width: 768px) {
+    /* The banner has to stay short or the form never reaches the fold.
+       The supporting paragraph is desktop-only -- on a phone the role
+       cards a few hundred pixels below make the same argument, better. */
+    .auth-aside {
+        gap: 16px;
+        padding: 22px var(--page-gutter, 16px) 26px;
+        padding-left: max(var(--page-gutter, 16px), env(safe-area-inset-left));
+        padding-right: max(var(--page-gutter, 16px), env(safe-area-inset-right));
     }
-    .role-grid, .auth-row, .social-row { grid-template-columns: 1fr; }
-    .step-label { display: none; }
-    .step-rail { gap: 6px; }
+    .auth-aside-copy p { display: none; }
+    .auth-aside h2 { font-size: 1.65rem; margin-bottom: 0; }
+    .auth-eyebrow { margin-bottom: 14px; padding: 6px 12px; font-size: 11px; }
+    .auth-aside .nav-brand { font-size: 19px; }
+    .auth-aside .nav-brand span { font-size: 22px; }
 
-    .loc-map { height: 250px; }
+    .auth-stats { gap: 8px; }
+    .auth-stat { min-width: 0; padding: 10px 12px; }
+    .auth-stat b { font-size: 19px; }
+    .auth-stat span { font-size: 10px; letter-spacing: 0.06em; }
+
+    .auth-panel {
+        padding: 20px var(--page-gutter, 16px) 48px;
+        padding-left: max(var(--page-gutter, 16px), env(safe-area-inset-left));
+        padding-right: max(var(--page-gutter, 16px), env(safe-area-inset-right));
+        padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+    }
+    .auth-panel-top { margin-bottom: 18px; }
+    /* Top-aligned on a phone: vertical centring just pushes the form down. */
+    .auth-panel-inner { margin: 0 auto; }
+
+    .auth-head { margin-bottom: 20px; }
+    .auth-head h1 { font-size: 1.85rem; }
+    .auth-head p { font-size: 14.5px; }
+
+    .auth-card { padding: 20px 16px; border-radius: var(--radius-md); }
+    .auth-step-head { margin-bottom: 18px; }
+
+    .role-card { padding: 18px 16px; }
+    .role-card .icon-tile { width: 48px; height: 48px; border-radius: 15px; margin-bottom: 12px; }
+    .role-card .icon-tile .ico { width: 23px; height: 23px; }
+
+    .step-label { display: none; }
+    .step-rail { gap: 6px; margin-bottom: 20px; }
+
+    /* dvh, so the map never swallows a short viewport */
+    .loc-map { height: clamp(220px, 38dvh, 280px); }
+    .loc-results { max-height: 200px; }
+
     /* 16px is the floor that stops iOS zooming the viewport on focus */
     .loc-search input,
     .auth-card .form-input-modern { font-size: 16px; }
@@ -1182,6 +1275,125 @@
     .auth-actions { flex-direction: column-reverse; align-items: stretch; }
     .auth-actions .btn,
     .auth-actions .btn-ghost { width: 100%; justify-content: center; }
+}
+
+/* ---------- 480: compact phone ---------- */
+@media (max-width: 480px) {
+    /* Wordmark and one line of promise. The form is the point. */
+    .auth-aside { gap: 14px; padding-top: 18px; padding-bottom: 22px; }
+    .auth-aside h2 { font-size: 1.4rem; }
+    .auth-aside .nav-brand { font-size: 17px; }
+    .auth-aside .nav-brand span { font-size: 20px; }
+    .auth-stats { display: none; }
+
+    .auth-panel { padding-top: 16px; }
+    .auth-head h1 { font-size: 1.6rem; }
+    .auth-switch { margin-bottom: 20px; }
+    .auth-switch button { padding: 11px 8px; font-size: 13px; }
+
+    .auth-card { padding: 18px 14px; }
+    .auth-step-head h2 { font-size: 1.3rem; }
+
+    .loc-map { height: clamp(200px, 34dvh, 250px); }
+    .loc-search { gap: 6px; padding: 8px 8px 8px 12px; }
+    .loc-search > .ico { display: none; }  /* the placeholder already says search */
+    .loc-search button { padding: 9px 13px; font-size: 11px; }
+    .loc-results { left: 6px; right: 6px; max-height: 172px; }
+
+    /* Bengali place names are long: give them two lines instead of an
+       ellipsis that cuts after about four characters. */
+    .loc-readout { gap: 10px; padding: 12px 14px; }
+    .loc-address {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        -webkit-box-orient: vertical;
+        white-space: normal;
+        overflow: hidden;
+    }
+    .loc-badge { padding: 5px 9px; font-size: 10px; }
+    .loc-locate { padding: 9px 13px 9px 11px; font-size: 12.5px; }
+
+    /* Label above value once the row can no longer hold both */
+    .done-summary { padding: 2px 14px; }
+    .done-summary > div {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 3px;
+        padding: 11px 0;
+    }
+    .done-summary strong { max-width: 100%; text-align: left; }
+
+    .done-mark { width: 66px; height: 66px; margin-bottom: 20px; }
+    .done-mark .ico { width: 30px; height: 30px; }
+    .auth-done h2 { font-size: 1.45rem; }
+    .auth-done > p { font-size: 14px; }
+
+    .auth-divider { margin: 20px 0; font-size: 11px; }
+    .auth-legal { font-size: 11.5px; }
+}
+
+/* ---------- Landscape phone: short, not narrow ----------
+   Width alone would leave the banner tall enough to hide the form
+   entirely on a 390px-high viewport, so lay it out as one strip. */
+@media (max-width: 1024px) and (orientation: landscape) and (max-height: 520px) {
+    .auth-aside {
+        flex-direction: row;
+        align-items: center;
+        gap: 18px;
+        padding-top: 14px;
+        padding-bottom: 14px;
+    }
+    .auth-aside .nav-brand { flex-shrink: 0; }
+    .auth-aside-copy { flex: 1; min-width: 0; }
+    .auth-eyebrow { display: none; }
+    .auth-aside h2 { font-size: 1.2rem; margin-bottom: 0; }
+    .auth-aside-copy p { display: none; }
+    .auth-stats { display: none; }
+
+    .loc-map { height: 200px; }
+}
+
+/* ---------- Coarse pointers ---------- */
+@media (hover: none) {
+    /* Hover styles latch on after a tap and never clear */
+    .role-card:hover,
+    .btn-social:hover,
+    .loc-locate:hover,
+    .auth-back:hover,
+    .chip:hover {
+        transform: none;
+        box-shadow: none;
+    }
+    .role-card:hover { border-color: var(--clr-line); background: var(--clr-sunken); }
+    .role-card.is-selected:hover {
+        border-color: var(--color-primary);
+        background: var(--color-surface-solid);
+        box-shadow: 0 0 0 4px var(--clr-primary-50), var(--shadow-md);
+    }
+    .btn-social:hover { background: var(--clr-sunken); }
+
+    /* Give taps a cheap acknowledgement instead */
+    .role-card:active,
+    .chip:active,
+    .btn-social:active,
+    .loc-results button:active { transform: scale(0.98); }
+}
+
+@media (pointer: coarse) {
+    /* 44px is the smallest target a thumb hits reliably */
+    .auth-switch button { min-height: 44px; }
+    .auth-back { min-height: 42px; }
+    .btn-ghost { min-height: 46px; }
+    .chip { min-height: 42px; }
+    .pw-toggle { width: 42px; height: 42px; right: 8px; }
+    .auth-check .box { width: 22px; height: 22px; }
+    .loc-search button { min-height: 40px; }
+    .loc-locate { min-height: 42px; }
+    .loc-results button { min-height: 46px; }
+    .range { height: 8px; }
+    .range::-webkit-slider-thumb { width: 26px; height: 26px; }
+    .range::-moz-range-thumb { width: 26px; height: 26px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

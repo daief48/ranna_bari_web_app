@@ -328,6 +328,7 @@
        ========================================================= */
     var map = null, tiles = null, radiusCircle = null, meMarker = null;
     var reverseTimer = null, searchTimer = null;
+    var startCenter = DHAKA;   // becomecook.html can hand over a zone centre
 
     var locMap     = $('#locMap');
     var locAddress = $('#locAddress');
@@ -361,8 +362,14 @@
 
         map = L.map($('#locCanvas'), {
             zoomControl: true,
-            attributionControl: true
-        }).setView([DHAKA.lat, DHAKA.lng], 13);
+            attributionControl: true,
+            // The map sits mid-page. A wheel over it should scroll past it,
+            // not zoom it -- until you click in and say otherwise.
+            scrollWheelZoom: false
+        }).setView([startCenter.lat, startCenter.lng], startCenter === DHAKA ? 13 : 15);
+
+        map.on('click', function () { map.scrollWheelZoom.enable(); });
+        locMap.addEventListener('mouseleave', function () { map.scrollWheelZoom.disable(); });
 
         // MapTiler serves 512px tiles, so Leaflet needs the zoom offset
         // or every label renders at half scale.
@@ -565,12 +572,14 @@
 
         $('#doneTitle').textContent = cook ? 'Your kitchen is on the map.' : "You're in.";
         $('#doneText').textContent = cook
-            ? 'We are verifying your NID now — usually under 24 hours. Meanwhile, start building your menu.'
+            ? 'We are verifying your NID now — usually under 24 hours. You will get a text the moment your kitchen goes live.'
             : 'We found kitchens near your pin. Go see what is cooking tonight.';
 
+        // Home, always. Sending a cook back to becomecook.html looped them
+        // into the onboarding form they just finished.
         var cta = $('#doneCta');
-        cta.href = cook ? 'becomecook.html' : 'browsecook.html';
-        cta.childNodes[0].nodeValue = cook ? 'BUILD MY MENU ' : 'SEE KITCHENS NEAR ME ';
+        cta.href = 'index.html';
+        cta.childNodes[0].nodeValue = 'GO TO HOME ';
 
         goStep(4);
     });
@@ -602,6 +611,29 @@
             var card = $('.role-card[data-role="' + role + '"]');
             if (card) card.click();
         }
+
+        // becomecook.html collects name / phone / NID / zone before sending
+        // the cook here, so carry those over rather than asking twice.
+        var handoff = null;
+        try {
+            handoff = JSON.parse(sessionStorage.getItem('rannabari_cook_start'));
+            sessionStorage.removeItem('rannabari_cook_start');
+        } catch (err) { handoff = null; }
+
+        if (handoff) {
+            if (handoff.name)  $('#suName').value  = handoff.name;
+            if (handoff.phone) $('#suPhone').value = handoff.phone;
+            if (handoff.nid)   $('#suNid').value   = handoff.nid;
+            if (handoff.center && typeof handoff.center.lat === 'number') {
+                startCenter = handoff.center;
+            }
+            if (handoff.zone) locQuery.value = handoff.zone + ', Dhaka';
+        }
+
+        // Skip straight to the step the referrer asked for, but only once a
+        // role is actually set -- step 2 renders differently for each.
+        var step = Number(q.get('step'));
+        if (state.role && step >= 2 && step <= 3) goStep(step);
     })();
 
     paintAside();
