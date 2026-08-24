@@ -2,13 +2,19 @@
     {
         "id": 1,
         "name": "Fatema B.",
-        "avatar": "https://images.unsplash.com/photo-1594736797933-d0501ba2fe65?w=200&h=200&fit=crop",
+        "avatar": "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=200&h=200&fit=crop",
         "coverImage": "https://images.unsplash.com/photo-1600891964092-4316c288032e?w=1200&h=400&fit=crop",
         "specialty": "Traditional Heritage",
         "description": "I cook with recipes passed down from my grandmother, focusing on authentic Bengali flavors.",
         "rating": 4.9,
         "reviewCount": 142,
-        "tags": ["breakfast", "lunch", "dinner", "heritage", "spicy"],
+        "tags": [
+            "breakfast",
+            "lunch",
+            "dinner",
+            "heritage",
+            "spicy"
+        ],
         "ecoBadge": "Eco-Packaging",
         "isVerified": true,
         "area": "Dhanmondi",
@@ -18,13 +24,17 @@
     {
         "id": 2,
         "name": "Rohima A.",
-        "avatar": "https://images.unsplash.com/photo-1607631568010-a87245c0daf8?w=200&h=200&fit=crop",
+        "avatar": "https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?w=200&h=200&fit=crop",
         "coverImage": "https://images.unsplash.com/photo-1518779578993-ec3579fee39f?w=1200&h=400&fit=crop",
         "specialty": "Coastal Seafood",
         "description": "Fresh fish from the local market, prepared with authentic coastal spices.",
         "rating": 4.8,
         "reviewCount": 98,
-        "tags": ["lunch", "dinner", "seafood"],
+        "tags": [
+            "lunch",
+            "dinner",
+            "seafood"
+        ],
         "ecoBadge": "Responsibly Sourced",
         "isVerified": true,
         "area": "Dhanmondi",
@@ -40,7 +50,12 @@
         "description": "Healthy, guilt-free meals customized for your specific diet.",
         "rating": 4.7,
         "reviewCount": 67,
-        "tags": ["breakfast", "lunch", "healthy", "vegan"],
+        "tags": [
+            "breakfast",
+            "lunch",
+            "healthy",
+            "vegan"
+        ],
         "ecoBadge": "Organic Veggies",
         "isVerified": true,
         "area": "Dhanmondi",
@@ -56,12 +71,16 @@
         "description": "Rich, slow-cooked curries and stews to warm your heart.",
         "rating": 4.6,
         "reviewCount": 85,
-        "tags": ["dinner", "comfort", "meat"],
+        "tags": [
+            "dinner",
+            "comfort",
+            "meat"
+        ],
         "ecoBadge": null,
         "isVerified": false,
         "area": "Dhanmondi",
         "lat": 23.7381,
-        "lng": 90.3700
+        "lng": 90.37
     },
     {
         "id": 5,
@@ -72,12 +91,16 @@
         "description": "Hygienic and safe homemade versions of popular street foods.",
         "rating": 4.9,
         "reviewCount": 210,
-        "tags": ["snacks", "street", "spicy"],
+        "tags": [
+            "snacks",
+            "street",
+            "spicy"
+        ],
         "ecoBadge": "Safe Packaging",
         "isVerified": true,
         "area": "Dhanmondi",
         "lat": 23.7481,
-        "lng": 90.3850
+        "lng": 90.385
     },
     {
         "id": 6,
@@ -88,7 +111,13 @@
         "description": "One pot, four hours, no shortcuts. I only cook rice dishes and I cook them properly.",
         "rating": 4.9,
         "reviewCount": 186,
-        "tags": ["lunch", "dinner", "biryani", "spicy", "meat"],
+        "tags": [
+            "lunch",
+            "dinner",
+            "biryani",
+            "spicy",
+            "meat"
+        ],
         "ecoBadge": "Eco-Packaging",
         "isVerified": true,
         "area": "Mohammadpur",
@@ -98,13 +127,19 @@
     {
         "id": 7,
         "name": "Tanvir R.",
-        "avatar": "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=200&h=200&fit=crop",
+        "avatar": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop",
         "coverImage": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=1200&h=400&fit=crop",
         "specialty": "Old Dhaka Kacchi",
         "description": "Third generation in Lalbagh. The mutton marinates overnight and the rice never touches water twice.",
         "rating": 4.8,
         "reviewCount": 231,
-        "tags": ["lunch", "dinner", "biryani", "heritage", "meat"],
+        "tags": [
+            "lunch",
+            "dinner",
+            "biryani",
+            "heritage",
+            "meat"
+        ],
         "ecoBadge": null,
         "isVerified": true,
         "area": "Old Dhaka",
@@ -120,7 +155,12 @@
         "description": "Winter pitha all year round, plus the payesh my daughters ask for every birthday.",
         "rating": 4.9,
         "reviewCount": 154,
-        "tags": ["breakfast", "snacks", "sweet", "heritage"],
+        "tags": [
+            "breakfast",
+            "snacks",
+            "sweet",
+            "heritage"
+        ],
         "ecoBadge": "Eco-Packaging",
         "isVerified": true,
         "area": "Mirpur",
@@ -136,7 +176,13 @@
         "description": "Proper mezbani beef, cooked the way it is served back home. Order a day ahead for large trays.",
         "rating": 4.7,
         "reviewCount": 119,
-        "tags": ["lunch", "dinner", "meat", "spicy", "heritage"],
+        "tags": [
+            "lunch",
+            "dinner",
+            "meat",
+            "spicy",
+            "heritage"
+        ],
         "ecoBadge": null,
         "isVerified": true,
         "area": "Mirpur",
@@ -152,7 +198,13 @@
         "description": "Fourteen kinds of bhorta, all vegetarian, all made the morning you order them.",
         "rating": 4.8,
         "reviewCount": 143,
-        "tags": ["lunch", "dinner", "healthy", "vegetarian", "spicy"],
+        "tags": [
+            "lunch",
+            "dinner",
+            "healthy",
+            "vegetarian",
+            "spicy"
+        ],
         "ecoBadge": "Organic Veggies",
         "isVerified": true,
         "area": "Mirpur",
@@ -168,7 +220,11 @@
         "description": "Hot paratha and bhaji at your door by seven. School tiffin boxes packed the night before.",
         "rating": 4.7,
         "reviewCount": 172,
-        "tags": ["breakfast", "snacks", "budget"],
+        "tags": [
+            "breakfast",
+            "snacks",
+            "budget"
+        ],
         "ecoBadge": "Safe Packaging",
         "isVerified": true,
         "area": "Uttara",
@@ -178,13 +234,18 @@
     {
         "id": 12,
         "name": "Imran S.",
-        "avatar": "https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?w=200&h=200&fit=crop",
+        "avatar": "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=200&h=200&fit=crop",
         "coverImage": "https://images.unsplash.com/photo-1533777324565-a040eb52facd?w=1200&h=400&fit=crop",
         "specialty": "Grill & Kebab",
         "description": "Charcoal only, never gas. Seekh, shami and boti kebabs off the skewer straight into the box.",
         "rating": 4.6,
         "reviewCount": 94,
-        "tags": ["dinner", "grill", "meat", "spicy"],
+        "tags": [
+            "dinner",
+            "grill",
+            "meat",
+            "spicy"
+        ],
         "ecoBadge": null,
         "isVerified": false,
         "area": "Uttara",
@@ -200,7 +261,13 @@
         "description": "Shatkora beef, hatkora chicken and the sour fish curry my grandmother made in Beanibazar.",
         "rating": 4.8,
         "reviewCount": 88,
-        "tags": ["lunch", "dinner", "sylheti", "heritage", "meat"],
+        "tags": [
+            "lunch",
+            "dinner",
+            "sylheti",
+            "heritage",
+            "meat"
+        ],
         "ecoBadge": "Eco-Packaging",
         "isVerified": true,
         "area": "Uttara",
@@ -216,7 +283,12 @@
         "description": "Small-batch bakes from a home oven. Custom cakes need three days notice.",
         "rating": 4.9,
         "reviewCount": 205,
-        "tags": ["breakfast", "snacks", "sweet", "bakery"],
+        "tags": [
+            "breakfast",
+            "snacks",
+            "sweet",
+            "bakery"
+        ],
         "ecoBadge": "Eco-Packaging",
         "isVerified": true,
         "area": "Banani",
@@ -232,7 +304,12 @@
         "description": "Learned the wok in Bangkok, cooking it now out of my Banani kitchen. Heat levels on request.",
         "rating": 4.5,
         "reviewCount": 76,
-        "tags": ["lunch", "dinner", "asian", "spicy"],
+        "tags": [
+            "lunch",
+            "dinner",
+            "asian",
+            "spicy"
+        ],
         "ecoBadge": null,
         "isVerified": false,
         "area": "Banani",
@@ -242,13 +319,19 @@
     {
         "id": 16,
         "name": "Momena B.",
-        "avatar": "https://images.unsplash.com/photo-1521119989659-a83eee488004?w=200&h=200&fit=crop",
+        "avatar": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop",
         "coverImage": "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=1200&h=400&fit=crop",
         "specialty": "Diabetic-Friendly",
         "description": "Low-GI Bengali cooking. Every dish carries its carb count, worked out with a dietitian.",
         "rating": 4.8,
         "reviewCount": 61,
-        "tags": ["lunch", "dinner", "healthy", "diabetic", "vegetarian"],
+        "tags": [
+            "lunch",
+            "dinner",
+            "healthy",
+            "diabetic",
+            "vegetarian"
+        ],
         "ecoBadge": "Organic Veggies",
         "isVerified": true,
         "area": "Gulshan",
@@ -258,13 +341,18 @@
     {
         "id": 17,
         "name": "Arif C.",
-        "avatar": "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?w=200&h=200&fit=crop",
+        "avatar": "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=200&h=200&fit=crop",
         "coverImage": "https://images.unsplash.com/photo-1512152272829-e3139592d56f?w=1200&h=400&fit=crop",
         "specialty": "Fusion Rice Bowls",
         "description": "Deshi flavours in a one-bowl format built for a thirty minute lunch break.",
         "rating": 4.6,
         "reviewCount": 112,
-        "tags": ["lunch", "fusion", "office", "healthy"],
+        "tags": [
+            "lunch",
+            "fusion",
+            "office",
+            "healthy"
+        ],
         "ecoBadge": "Safe Packaging",
         "isVerified": true,
         "area": "Gulshan",
@@ -280,7 +368,12 @@
         "description": "Piyaju, beguni, haleem and jilapi. Ramadan pre-orders open a week before the first roza.",
         "rating": 4.9,
         "reviewCount": 248,
-        "tags": ["snacks", "iftar", "street", "spicy"],
+        "tags": [
+            "snacks",
+            "iftar",
+            "street",
+            "spicy"
+        ],
         "ecoBadge": "Eco-Packaging",
         "isVerified": true,
         "area": "Bashundhara",
@@ -296,7 +389,12 @@
         "description": "Whatever came off the boat that morning: rui, koi, pabda, chingri. I cook what is actually fresh.",
         "rating": 4.7,
         "reviewCount": 103,
-        "tags": ["lunch", "dinner", "seafood", "heritage"],
+        "tags": [
+            "lunch",
+            "dinner",
+            "seafood",
+            "heritage"
+        ],
         "ecoBadge": "Responsibly Sourced",
         "isVerified": true,
         "area": "Bashundhara",
@@ -312,7 +410,12 @@
         "description": "Monthly subscription lunches for the Motijheel crowd. Rice, one curry, one veg, one bhorta.",
         "rating": 4.5,
         "reviewCount": 190,
-        "tags": ["lunch", "office", "budget", "comfort"],
+        "tags": [
+            "lunch",
+            "office",
+            "budget",
+            "comfort"
+        ],
         "ecoBadge": "Safe Packaging",
         "isVerified": true,
         "area": "Motijheel",

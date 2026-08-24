@@ -88,7 +88,7 @@
             border-color: var(--clr-line);
         }
         [data-theme="dark"] .leaflet-control-attribution {
-            background: rgba(22, 16, 14, 0.82);
+            background: rgba(var(--rgb-raised), 0.82);
             color: var(--color-text-muted);
         }
         [data-theme="dark"] .leaflet-control-attribution a { color: var(--clr-primary-600); }
@@ -138,7 +138,7 @@
         /* ---------- "You are here" marker ---------- */
         .me-marker {
             width: 20px; height: 20px; border-radius: 50%;
-            background: #2F7DF6;
+            background: var(--clr-geo);
             border: 3px solid #fff;
             box-shadow: 0 0 0 2px rgba(47, 125, 246, 0.35), 0 3px 10px rgba(0, 0, 0, 0.35);
         }
@@ -468,7 +468,7 @@
                             <img src="${c.avatar}" style="width: 50px; height: 50px; border-radius: 50%; margin-bottom: 8px; object-fit: cover;">
                             <h4 style="margin: 0 0 5px 0; color: var(--color-text); font-family: 'Outfit', sans-serif; font-size: 20px;">${c.name}</h4>
                             <p style="margin: 0 0 15px 0; font-size: 14px; color: var(--color-text-muted);">${c.specialty}</p>
-                            <a href="singlecook.html?id=${c.id}" style="background: var(--color-primary); color: white; display: inline-block; padding: 10px 24px; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 30px; box-shadow: 0 4px 12px rgba(200, 75, 49, 0.3); transition: all 0.3s ease;">View Menu & Order</a>
+                            <a href="singlecook.html?id=${c.id}" style="background: var(--color-primary); color: white; display: inline-block; padding: 10px 24px; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 30px; box-shadow: 0 4px 12px rgba(var(--rgb-primary), 0.3); transition: all 0.3s ease;">View Menu & Order</a>
                         </div>
                     `, { minWidth: 200 });
                 }
@@ -595,8 +595,8 @@
                 if (accuracy && accuracy > 60) {
                     meCircle = L.circle([lat, lng], {
                         radius: accuracy,
-                        color: '#2F7DF6', weight: 1,
-                        fillColor: '#2F7DF6', fillOpacity: 0.1
+                        color: 'var(--clr-geo)', weight: 1,
+                        fillColor: 'var(--clr-geo)', fillOpacity: 0.1
                     }).addTo(map);
                 }
             }

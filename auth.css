@@ -34,8 +34,18 @@
     justify-content: space-between;
     gap: 32px;
     padding: 44px 48px;
-    color: #FFF6F1;
-    background: var(--clr-ink);
+    color: var(--clr-on-dark);
+    background: rgb(var(--rgb-scrim));
+
+    /* This panel is a dark photo scrim in BOTH themes, so the theme tokens
+       are re-pointed here for everything inside it. Custom properties
+       cascade, so one override fixes the veil, the italic accent and the
+       eyebrow icon at once -- otherwise dark mode flips ink to washi white
+       and bleaches the scrim, and light mode's deep gold goes unreadable. */
+    --rgb-ink: var(--rgb-scrim);
+    --rgb-primary: 199, 56, 26;
+    --clr-primary-200: #F0A88F;
+    --clr-saffron: #E8BE5A;
 }
 
 .auth-aside-img {
@@ -58,15 +68,15 @@
     inset: 0;
     z-index: -1;
     background:
-        radial-gradient(120% 80% at 82% 0%, rgba(192, 68, 42, 0.42) 0%, transparent 62%),
-        linear-gradient(165deg, rgba(37, 26, 22, 0.74) 0%, rgba(131, 40, 24, 0.5) 48%, rgba(20, 13, 11, 0.92) 100%);
+        radial-gradient(120% 80% at 82% 0%, rgba(var(--rgb-primary), 0.42) 0%, transparent 62%),
+        linear-gradient(165deg, rgba(var(--rgb-ink), 0.74) 0%, rgba(var(--rgb-primary), 0.5) 48%, rgba(var(--rgb-scrim), 0.92) 100%);
 }
 
-.auth-aside .nav-brand { color: #FFF6F1; }
+.auth-aside .nav-brand { color: var(--clr-on-dark); }
 .auth-aside .nav-brand .brand-mark {
     background: rgba(255, 255, 255, 0.14);
     border-color: rgba(255, 255, 255, 0.22);
-    color: #FFF6F1;
+    color: var(--clr-on-dark);
 }
 .auth-aside .text-primary-gradient {
     background: none;
@@ -103,7 +113,7 @@
     font-weight: 800;
     line-height: 1.06;
     letter-spacing: -0.025em;
-    color: #FFF6F1;
+    color: var(--clr-on-dark);
     margin-bottom: 16px;
 }
 .auth-aside h2 em {
@@ -827,7 +837,7 @@
     width: 16px;
     height: 5px;
     border-radius: 50%;
-    background: rgba(37, 26, 22, 0.32);
+    background: rgba(var(--rgb-ink), 0.32);
     transform: translateX(-50%);
     transition: transform 0.28s var(--ease-spring), opacity 0.28s var(--ease-out);
 }
@@ -1090,8 +1100,8 @@
     display: grid;
     place-items: center;
     color: #fff;
-    background: linear-gradient(145deg, var(--clr-sage) 0%, #35503A 100%);
-    box-shadow: 0 14px 34px -12px rgba(70, 102, 75, 0.6);
+    background: linear-gradient(145deg, var(--clr-sage) 0%, color-mix(in srgb, var(--clr-sage) 62%, #000) 100%);
+    box-shadow: 0 14px 34px -12px rgba(var(--rgb-sage), 0.6);
     animation: donePop 0.5s var(--ease-spring) both;
 }
 .done-mark .ico { width: 36px; height: 36px; stroke-width: 2.4; }
@@ -1176,7 +1186,7 @@
 }
 .loc-map .leaflet-control-zoom { margin: 12px 0 0 12px; }
 [data-theme="dark"] .loc-map .leaflet-control-attribution {
-    background: rgba(22, 16, 14, 0.8);
+    background: rgba(var(--rgb-raised), 0.8);
     color: var(--color-text-muted);
 }
 [data-theme="dark"] .loc-map .leaflet-control-attribution a { color: var(--clr-primary-600); }

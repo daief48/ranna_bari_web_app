@@ -528,7 +528,7 @@
             if (meMarker) map.removeLayer(meMarker);
             meMarker = L.circleMarker([lat, lng], {
                 radius: 7, color: '#fff', weight: 3,
-                fillColor: '#2F7DF6', fillOpacity: 1
+                fillColor: 'var(--clr-geo)', fillOpacity: 1
             }).addTo(map);
 
             map.flyTo([lat, lng], 16, { duration: 1 });
