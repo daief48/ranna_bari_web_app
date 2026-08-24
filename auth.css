@@ -480,6 +480,17 @@
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px var(--clr-primary-50);
 }
+/* Repaint Chrome's autofill blue to match this card's sunken field colour.
+   style.css handles the label lift; only the fill colour differs here. */
+.auth-card .form-input-modern:-webkit-autofill,
+.auth-card .form-input-modern:-webkit-autofill:hover,
+.auth-card .form-input-modern:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px var(--clr-sunken) inset;
+}
+.auth-card .form-input-modern:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 3px var(--clr-primary-50),
+                        0 0 0 1000px var(--color-surface-solid) inset;
+}
 /* A select is never empty, so :placeholder-shown never fires and the
    floating label would sit on top of the value. Pin it up instead. */
 .auth-card select.form-input-modern {

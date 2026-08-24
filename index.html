@@ -217,7 +217,9 @@
                 <p style="color: var(--color-text-muted); font-size: 18px; margin-top: 8px;">Real reviews from our community</p>
             </div>
             
-            <div class="testimonial-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 32px;">
+            <!-- The cards below are the pre-render fallback; app.js replaces
+                 them with data/reviews.json once it loads. -->
+            <div class="testimonial-grid" id="testimonials-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 32px;">
                 <div class="testimonial-card">
                     <div class="rating-stars mb-4" aria-label="5 out of 5"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg></div>
                     <p class="testimonial-text">"I missed my mother's cooking so much since moving to Dhaka. Fatema Auntie's Dal Bhat literally brought tears to my eyes. Incredible authentic taste!"</p>
@@ -342,7 +344,8 @@
             const reviews = await fetchData(DB.reviews);
             const reviewsContainer = document.getElementById('testimonials-container');
             if(reviewsContainer && reviews.length > 0) {
-                reviewsContainer.innerHTML = reviews.map(r => `
+                // Six keeps the section to two tidy rows -- the file holds more.
+                reviewsContainer.innerHTML = reviews.slice(0, 6).map(r => `
                     <div class="testimonial-card">
                         <div class="rating-stars mb-4" aria-label="${r.rating} out of 5">${icon('star').repeat(r.rating)}</div>
                         <p class="testimonial-text">"${r.text}"</p>
