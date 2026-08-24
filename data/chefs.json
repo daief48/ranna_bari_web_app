@@ -9,7 +9,7 @@
         "rating": 4.9,
         "reviewCount": 142,
         "tags": ["breakfast", "lunch", "dinner", "heritage", "spicy"],
-        "ecoBadge": "🌱 Eco-Packaging",
+        "ecoBadge": "Eco-Packaging",
         "isVerified": true,
         "lat": 23.7461,
         "lng": 90.3742
@@ -24,7 +24,7 @@
         "rating": 4.8,
         "reviewCount": 98,
         "tags": ["lunch", "dinner", "seafood"],
-        "ecoBadge": "🌊 Responsibly Sourced",
+        "ecoBadge": "Responsibly Sourced",
         "isVerified": true,
         "lat": 23.7511,
         "lng": 90.3802
@@ -39,7 +39,7 @@
         "rating": 4.7,
         "reviewCount": 67,
         "tags": ["breakfast", "lunch", "healthy", "vegan"],
-        "ecoBadge": "🌿 Organic Veggies",
+        "ecoBadge": "Organic Veggies",
         "isVerified": true,
         "lat": 23.7401,
         "lng": 90.3642
@@ -69,7 +69,7 @@
         "rating": 4.9,
         "reviewCount": 210,
         "tags": ["snacks", "street", "spicy"],
-        "ecoBadge": "🥡 Safe Packaging",
+        "ecoBadge": "Safe Packaging",
         "isVerified": true,
         "lat": 23.7481,
         "lng": 90.3850

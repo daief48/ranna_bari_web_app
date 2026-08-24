@@ -18,11 +18,30 @@ async function fetchData(url) {
     }
 }
 
+// --- SAFE STORAGE ---
+// localStorage throws outright in some contexts (Safari private mode, blocked
+// site data, restricted iframes). These ran at the top level of this file, so
+// one throw took down the theme toggle, cart badge and chef rendering on every
+// page. Every access is guarded and degrades to in-memory only.
+const store = {
+    get(key) {
+        try { return localStorage.getItem(key); } catch (e) { return null; }
+    },
+    set(key, value) {
+        try { localStorage.setItem(key, value); return true; } catch (e) { return false; }
+    },
+    getJSON(key, fallback) {
+        try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
+        catch (e) { return fallback; }
+    }
+};
+
 // --- CART STATE MANAGEMENT ---
-let cart = JSON.parse(localStorage.getItem('rannabari_cart')) || [];
+let cart = store.getJSON('rannabari_cart', []);
+if (!Array.isArray(cart)) cart = [];
 
 function saveCart() {
-    localStorage.setItem('rannabari_cart', JSON.stringify(cart));
+    store.set('rannabari_cart', JSON.stringify(cart));
     updateCartBadge();
 }
 
@@ -70,12 +89,17 @@ function updateCartBadge() {
 
 // --- UI RENDERING HELPERS ---
 
+// Reference a symbol from the inline sprite at the top of every page.
+function icon(name, cls = 'ico') {
+    return `<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+}
+
 function createChefCardHTML(chef, index = 1) {
     const delay = (index % 5) + 1; // Generates delays 1-5
     return `
         <a href="singlecook.html?id=${chef.id}" class="cook-card reveal-item delay-${delay}">
             ${chef.isVerified ? `<div class="badge-verified">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                ${icon('shieldCheck')}
                 Verified Kitchen
             </div>` : ''}
             <div class="cook-header">
@@ -87,11 +111,11 @@ function createChefCardHTML(chef, index = 1) {
             </div>
             <div class="cook-tags">
                 ${chef.tags.slice(0, 3).map(tag => `<span class="tag">${tag}</span>`).join('')}
-                ${chef.ecoBadge ? `<div class="badge-eco" style="font-size: 11px; padding: 6px 12px; border-radius: var(--radius-pill); background: rgba(78,108,80,0.1); color: var(--color-secondary); font-weight: 600;">${chef.ecoBadge}</div>` : ''}
+                ${chef.ecoBadge ? `<div class="badge-eco">${icon('leaf')}${chef.ecoBadge}</div>` : ''}
             </div>
             <div class="cook-footer">
-                <div class="cook-rating">⭐ ${chef.rating} <small>(${chef.reviewCount})</small></div>
-                <div class="cook-action">VIEW MENU <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+                <div class="cook-rating">${icon('star')} ${chef.rating} <small>(${chef.reviewCount})</small></div>
+                <div class="cook-action">View menu ${icon('arrowRight', 'ico ico-sm')}</div>
             </div>
         </a>
     `;
@@ -109,7 +133,7 @@ function initTheme() {
     if(!toggle) return;
     const html = document.documentElement;
     
-    const savedTheme = localStorage.getItem('theme');
+    const savedTheme = store.get('theme');
     if(savedTheme) {
         html.setAttribute('data-theme', savedTheme);
         updateToggleIcon(savedTheme, toggle);
@@ -120,17 +144,14 @@ function initTheme() {
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         
         html.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
+        store.set('theme', newTheme);
         updateToggleIcon(newTheme, toggle);
     });
 }
 
 function updateToggleIcon(theme, toggle) {
-    if (theme === 'dark') {
-        toggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
-    } else {
-        toggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
-    }
+    toggle.innerHTML = icon(theme === 'dark' ? 'sun' : 'moon');
+    toggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
 }
 
 // --- SCROLL REVEAL ANIMATIONS ---
