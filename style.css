@@ -1,62 +1,139 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@300;500;700;900&display=swap');
+/* Fraunces (expressive optical-size serif) carries the display voice --
+   artisanal, handmade, specific. Inter keeps every control and body run
+   neutral and legible. Serif for storytelling, sans for the interface. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..900&family=Inter:wght@300..700&display=swap');
 
 :root {
-    /* Rustic Spice & Hearth Palette (Light/Warm) */
-    --color-bg: #FFFFFF; /* Pure White Mode */
-    --color-bg-alt: #FDF8F5; /* Warm Cream */
-    --color-surface: rgba(255, 255, 255, 0.8);
-    --color-surface-hover: rgba(255, 255, 255, 0.98);
-    
-    --color-primary: #C84B31; /* Deep Terracotta / Chili Red */
-    --color-primary-hover: #A53A23;
-    --color-secondary: #4E6C50; /* Olive / Sage Green */
-    --color-accent: #E8B84B; /* Warm gold for ratings/stars */
-    
-    --color-text: #2D2424; /* Deep Espresso Brown */
-    --color-text-muted: #7D6E6E;
-    --color-text-light: #A69B9B;
-    
-    /* Liquid Glass Borders (Light Theme) */
-    --glass-border: 1px solid rgba(45, 36, 36, 0.08);
-    --glass-border-glow: 1px solid rgba(200, 75, 49, 0.3);
-    
-    /* Typography */
-    --font-display: 'Outfit', sans-serif;
-    --font-body: 'Inter', sans-serif;
-    
-    /* Effects */
-    --shadow-glow: 0 8px 30px rgba(45, 36, 36, 0.06);
-    --shadow-glow-strong: 0 12px 40px rgba(200, 75, 49, 0.15);
-    --glass-blur: blur(24px);
-    
-    --radius-sm: 12px;
-    --radius-md: 24px;
-    --radius-lg: 32px;
+    /* ============ BRAND SCALES ============ */
+    /* Chili terracotta -- deepened from #C84B31 so white text clears AA */
+    --clr-primary-50:  #FDF2EE;
+    --clr-primary-100: #F9DED5;
+    --clr-primary-200: #F0B9A8;
+    --clr-primary-300: #E08D74;
+    --clr-primary:     #C0442A;
+    --clr-primary-600: #A4351D;
+    --clr-primary-700: #832818;
+
+    --clr-sage:      #46664B;
+    --clr-sage-50:   #EDF2ED;
+    --clr-sage-100:  #D8E3D9;
+
+    --clr-saffron:    #DB9B2C;
+    --clr-saffron-50: #FCF4E4;
+    --clr-saffron-100:#F6E4BF;
+
+    /* Warm ink, never neutral grey -- greys look cold next to food */
+    --clr-ink:   #251A16;
+    --clr-ink-2: #6D5B54;
+    --clr-ink-3: #A0908A;
+
+    --clr-canvas:  #FFFCFA;
+    --clr-raised:  #FFFFFF;
+    --clr-sunken:  #FAF4F0;
+    --clr-line:    rgba(37, 26, 22, 0.09);
+    --clr-line-2:  rgba(37, 26, 22, 0.055);
+
+    /* ============ SEMANTIC ALIASES (legacy names kept) ============ */
+    --color-bg: var(--clr-canvas);
+    --color-bg-alt: var(--clr-sunken);
+    --color-surface: rgba(255, 255, 255, 0.78);
+    --color-surface-solid: var(--clr-raised);
+    --color-surface-hover: #FFFFFF;
+
+    --color-primary: var(--clr-primary);
+    --color-primary-hover: var(--clr-primary-600);
+    --color-primary-soft: var(--clr-primary-50);
+    --color-secondary: var(--clr-sage);
+    --color-accent: var(--clr-saffron);
+
+    --color-text: var(--clr-ink);
+    --color-text-muted: var(--clr-ink-2);
+    --color-text-light: var(--clr-ink-3);
+
+    --glass-border: 1px solid var(--clr-line);
+    --glass-border-glow: 1px solid rgba(192, 68, 42, 0.28);
+
+    /* ============ TYPOGRAPHY ============ */
+    --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+    --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-body: var(--font-ui);
+
+    /* Fluid type scale */
+    --fs-display: clamp(2.6rem, 1.4rem + 4.4vw, 5rem);
+    --fs-h1: clamp(2.1rem, 1.4rem + 2.6vw, 3.4rem);
+    --fs-h2: clamp(1.75rem, 1.3rem + 1.7vw, 2.65rem);
+    --fs-h3: clamp(1.15rem, 1rem + 0.6vw, 1.45rem);
+    --fs-body: 1rem;
+    --fs-sm: 0.875rem;
+    --fs-xs: 0.75rem;
+
+    /* Uppercase micro-labels */
+    --tracking-label: 0.09em;
+
+    /* ============ DEPTH ============ */
+    /* Warm-tinted, multi-layer -- flat black shadows read as cheap */
+    --shadow-xs: 0 1px 2px rgba(37, 26, 22, 0.05);
+    --shadow-sm: 0 2px 4px rgba(37, 26, 22, 0.04), 0 1px 2px rgba(37, 26, 22, 0.03);
+    --shadow-md: 0 10px 24px -8px rgba(37, 26, 22, 0.12), 0 2px 6px -2px rgba(37, 26, 22, 0.05);
+    --shadow-lg: 0 26px 50px -14px rgba(37, 26, 22, 0.18), 0 8px 18px -10px rgba(37, 26, 22, 0.09);
+    --shadow-primary: 0 10px 26px -8px rgba(192, 68, 42, 0.42);
+    --shadow-primary-lg: 0 18px 40px -12px rgba(192, 68, 42, 0.5);
+
+    /* legacy aliases */
+    --shadow-glow: var(--shadow-md);
+    --shadow-glow-strong: var(--shadow-lg);
+
+    --glass-blur: blur(20px) saturate(1.4);
+
+    --radius-xs: 8px;
+    --radius-sm: 14px;
+    --radius-md: 22px;
+    --radius-lg: 30px;
+    --radius-xl: 38px;
     --radius-pill: 9999px;
-    
-    --transition-fast: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    --transition-base: 0.4s ease;
-    --transition-slow: 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+    --transition-fast: 0.18s var(--ease-out);
+    --transition-base: 0.32s var(--ease-out);
+    --transition-slow: 0.7s var(--ease-out);
 }
 
 [data-theme="dark"] {
-    --color-bg: #121212;
-    --color-bg-alt: #1A1A1A;
-    --color-surface: rgba(30, 30, 30, 0.7);
-    --color-surface-hover: rgba(45, 45, 45, 0.95);
-    
-    --color-primary: #FF5A36;
-    --color-primary-hover: #FF7B5E;
-    --color-secondary: #5C7A5E;
-    --color-text: #FDF8F5;
-    --color-text-muted: #A69B9B;
-    --color-text-light: #7D6E6E;
-    
-    --glass-border: 1px solid rgba(255, 255, 255, 0.08);
-    --glass-border-glow: 1px solid rgba(255, 90, 54, 0.3);
-    
-    --shadow-glow: 0 8px 30px rgba(0, 0, 0, 0.5);
-    --shadow-glow-strong: 0 12px 40px rgba(255, 90, 54, 0.2);
+    /* Warm near-black. Neutral #121212 makes food photography look grey. */
+    --clr-canvas: #16100E;
+    --clr-raised: #211917;
+    --clr-sunken: #100B0A;
+    --clr-line:   rgba(255, 244, 238, 0.10);
+    --clr-line-2: rgba(255, 244, 238, 0.06);
+
+    --clr-ink:   #F7EDE7;
+    --clr-ink-2: #B5A49D;
+    --clr-ink-3: #7D6C66;
+
+    --clr-primary:     #F26744;
+    --clr-primary-600: #FF8460;
+    --clr-primary-50:  rgba(242, 103, 68, 0.13);
+    --clr-primary-100: rgba(242, 103, 68, 0.2);
+
+    --clr-sage:       #7FA083;
+    --clr-sage-50:    rgba(127, 160, 131, 0.14);
+    --clr-saffron:    #EDB554;
+    --clr-saffron-50: rgba(237, 181, 84, 0.14);
+
+    --color-surface: rgba(33, 25, 23, 0.72);
+    --color-surface-solid: var(--clr-raised);
+    --color-surface-hover: #2A211E;
+    --color-primary-hover: var(--clr-primary-600);
+
+    --glass-border-glow: 1px solid rgba(242, 103, 68, 0.35);
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.45);
+    --shadow-md: 0 12px 28px -10px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 28px 56px -16px rgba(0, 0, 0, 0.8), 0 8px 20px -12px rgba(0, 0, 0, 0.5);
+    --shadow-primary: 0 10px 26px -8px rgba(242, 103, 68, 0.4);
+    --shadow-primary-lg: 0 18px 40px -12px rgba(242, 103, 68, 0.45);
 }
 
 /* Reset & Base */
@@ -1563,6 +1640,11 @@ input, select {
 /* Hook for the fixed-navbar top offset (see the phone breakpoint) */
 .page-top { position: relative; }
 
+/* The red "RannaBari Standard" panel sets color:white on itself, but the
+   base `h1..h6 { color: var(--color-text) }` rule beats an inherited value,
+   so its heading came out dark brown on red. */
+.trust-panel h2 { color: #FFFFFF; }
+
 
 /* =========================================================
    RESPONSIVE SYSTEM
@@ -1575,7 +1657,20 @@ html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
 }
-body { overflow-x: clip; }
+
+/* position:relative is load-bearing, not cosmetic.
+   The .ambient-glow / .kinetic-bg decorations are position:absolute direct
+   children of <body>. Without this they resolve against the initial
+   containing block, so .glow-top-right (right:-200px) hangs 200px past the
+   right edge. On mobile Chrome that overflow EXPANDS the containing block to
+   viewport+200, and every percentage width on a fixed element then resolves
+   against the wrong number -- the navbar and bottom app bar end up ~570px
+   wide on a 390px screen and run off the side of the display.
+   Anchoring them to <body> lets body's overflow-x:clip contain them. */
+body {
+    position: relative;
+    overflow-x: clip;
+}
 
 img, svg, video, canvas { max-width: 100%; }
 
@@ -1621,6 +1716,30 @@ h1, h2, h3, h4, p, a, span, li { overflow-wrap: break-word; }
 
     .cart-layout { grid-template-columns: 1.6fr 1fr; gap: 32px; }
     .form-bento { padding: 48px 40px; }
+
+    /* Below ~1024 the four filter controls no longer fit on one line and the
+       flex-wrap fallback strands the map button on a row by itself. Two
+       deliberate rows instead: controls on top, chips underneath. */
+    .filter-bar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        grid-template-areas:
+            "search area map"
+            "chips  chips chips";
+        gap: 12px;
+        align-items: center !important;
+    }
+    .filter-search { grid-area: search; min-width: 0 !important; }
+    .filter-area   { grid-area: area; }
+    .filter-map    { grid-area: map; }
+    .filter-chips {
+        grid-area: chips;
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+    .filter-chips::-webkit-scrollbar { display: none; }
 }
 
 
@@ -1636,7 +1755,8 @@ h1, h2, h3, h4, p, a, span, li { overflow-wrap: break-word; }
 @media (max-width: 768px) {
 
     /* --- Base layout --- */
-    .container, .container-sm { padding: 0 16px; }
+    :root { --page-gutter: 16px; }
+    .container, .container-sm { padding: 0 var(--page-gutter); }
     .section { padding: 56px 0; }
 
     .section-title { font-size: 32px; letter-spacing: -0.5px; }
@@ -1648,8 +1768,15 @@ h1, h2, h3, h4, p, a, span, li { overflow-wrap: break-word; }
     }
     .section-header p { font-size: 15px !important; margin-top: 6px !important; }
 
-    /* Ambient blobs are decorative: shrink so they never drive layout */
-    .ambient-glow { width: 320px; height: 320px; }
+    /* Ambient blobs are decorative: shrink them and pull them fully inside the
+       horizontal bounds. Any horizontal overflow here re-expands the mobile
+       containing block and breaks every percentage-width fixed element. */
+    .ambient-glow { width: 260px; height: 260px; filter: blur(50px); }
+    .glow-top-right   { top: -110px; right: 0; }
+    .glow-bottom-left { bottom: -110px; left: 0; }
+
+    /* Same reason: index.html's inline decorative blob sits at right:-10% */
+    .deco-blob { right: 0 !important; width: 200px !important; height: 200px !important; }
 
     /* --- Navigation: compact single row.
            Primary navigation lives in the bottom app bar on phones. --- */
@@ -1764,43 +1891,109 @@ h1, h2, h3, h4, p, a, span, li { overflow-wrap: break-word; }
     .cook-footer { padding-top: 18px; }
     .badge-verified { right: 16px; font-size: 10px; padding: 4px 10px; }
 
-    /* --- Browse page: filter bar --- */
+    /* --- Browse page: filter bar ------------------------------------------
+       Grid instead of a column stack, so the area picker and the map shortcut
+       share a row (both are "where", and it stops the map icon sitting alone
+       on its own line), and the chips get a full-bleed row of their own.
+
+           ┌───────────────────────────┐
+           │  search                   │
+           ├──────────────────┬────────┤
+           │  area            │  map   │
+           ├──────────────────┴────────┤
+           │  chips → → →              │
+           └───────────────────────────┘
+
+       The outer card chrome is dropped here: pills inside a pill-shaped card
+       reads as clutter on a narrow screen and costs ~32px of width. Each
+       control carries its own surface instead. */
     .filter-bar {
-        flex-direction: column;
-        /* !important: browsecook.html sets align-items:center inline, which
-           would stop the stacked controls from filling the width */
-        align-items: stretch !important;
-        border-radius: var(--radius-md);
-        padding: 12px;
-        gap: 12px;
-        margin-bottom: 28px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "search search"
+            "area   map"
+            "chips  chips";
+        gap: 10px;
+        align-items: center !important;
+        padding: 0;
+        margin-bottom: 24px;
+        background: none;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
+
+    .filter-search { grid-area: search; }
+    .filter-area   { grid-area: area; }
+    .filter-map    { grid-area: map; }
+    .filter-chips  { grid-area: chips; }
+
     .filter-bar .search-pill {
         min-width: 0 !important;
-        width: 100%;
-        padding: 6px;
+        width: auto;
+        height: 52px;
+        padding: 0 6px 0 0;
+        border-radius: var(--radius-pill);
     }
-    .filter-bar select { width: 100%; font-size: 16px; }
+    .filter-search input { padding: 0 12px; min-width: 0; }
+    .filter-area select {
+        width: 100%;
+        padding: 0 8px !important;
+        font-size: 16px !important;
+    }
 
-    /* Category chips scroll sideways instead of stacking */
-    #categoryFilters {
+    /* Solid accent button: this is the page's one visual call to action */
+    .filter-map {
+        width: 52px !important;
+        height: 52px;
+        padding: 0 !important;
+        background: var(--color-primary) !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        box-shadow: 0 6px 18px rgba(200, 75, 49, 0.32) !important;
+    }
+
+    /* Chips bleed past the container to the screen edges, so a part-cut chip
+       plus the fade is an honest "there is more, scroll me" signal instead of
+       a word that looks accidentally truncated. */
+    .filter-chips {
+        width: auto;
+        min-width: 0;
+        max-width: none;
         flex-direction: row !important;
         flex-wrap: nowrap;
         gap: 8px !important;
         overflow-x: auto;
+        overflow-y: hidden;
         scrollbar-width: none;
         -webkit-overflow-scrolling: touch;
-        padding-bottom: 2px;
+        scroll-snap-type: x proximity;
+        scroll-padding-left: var(--page-gutter);
+        margin: 0 calc(-1 * var(--page-gutter));
+        padding: 2px var(--page-gutter) 4px var(--page-gutter);
+        -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%);
+        mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%);
     }
-    #categoryFilters::-webkit-scrollbar { display: none; }
-    .filter-pill { flex: 0 0 auto; padding: 10px 18px; font-size: 13px; }
+    .filter-chips::-webkit-scrollbar { display: none; }
 
-    /* Map shortcut stays an icon button rather than stretching full width */
-    .filter-bar > a.search-pill {
-        align-self: flex-start;
-        width: 48px;
-        height: 48px;
+    .filter-pill {
         flex: 0 0 auto;
+        scroll-snap-align: start;
+        padding: 11px 18px;
+        font-size: 13px;
+        letter-spacing: 0.5px;
+        background: var(--color-surface);
+        border: var(--glass-border);
+        color: var(--color-text-muted);
+        box-shadow: 0 2px 8px rgba(45, 36, 36, 0.04);
+    }
+    .filter-pill.active {
+        background: var(--color-primary);
+        border-color: var(--color-primary);
+        color: #FFFFFF;
     }
 
     /* --- Single cook: hero image and info card stack instead of overlaying --- */
@@ -1947,7 +2140,8 @@ h1, h2, h3, h4, p, a, span, li { overflow-wrap: break-word; }
 
 /* ---------- Small phones: max-width 480px ---------- */
 @media (max-width: 480px) {
-    .container, .container-sm { padding: 0 14px; }
+    :root { --page-gutter: 14px; }
+    .container, .container-sm { padding: 0 var(--page-gutter); }
 
     .section-title { font-size: 27px; }
     .nav-brand { font-size: 15px; gap: 6px; }
