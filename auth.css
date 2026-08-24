@@ -611,6 +611,9 @@
     flex: 1;
     min-width: 0;
 }
+/* Let the sentence wrap, but never mid-link -- "Privacy / Policy" split
+   across two lines reads as two separate documents. */
+.auth-check-text a { white-space: nowrap; }
 .auth-check input:checked ~ .box {
     background: var(--color-primary);
     border-color: transparent;
