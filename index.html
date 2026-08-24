@@ -209,40 +209,48 @@
 
 
 
-    <!-- Testimonials Section -->
-    <section class="section" style="background: rgba(45,36,36,0.02); margin-top: 50px;">
+    <!-- Testimonials Slider -->
+    <section class="section tm-section" style="margin-top: 50px;" aria-labelledby="tmHeading">
         <div class="container">
-            <div class="section-header" style="text-align: center; justify-content: center; flex-direction: column; align-items: center; margin-bottom: 64px;">
-                <h2 class="section-title">WHAT <span class="text-primary-gradient">FOODIES</span> SAY</h2>
-                <p style="color: var(--color-text-muted); font-size: 18px; margin-top: 8px;">Real reviews from our community</p>
+            <div class="tm-head">
+                <div>
+                    <h2 class="section-title" id="tmHeading">WHAT <span class="text-primary-gradient">FOODIES</span> SAY</h2>
+                    <p class="tm-sub">Real orders, real kitchens, real neighbours.</p>
+                </div>
+                <!-- Filled from the chef data once it loads -->
+                <div class="tm-score" id="tmScore" hidden></div>
             </div>
-            
-            <!-- The cards below are the pre-render fallback; app.js replaces
-                 them with data/reviews.json once it loads. -->
-            <div class="testimonial-grid" id="testimonials-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 32px;">
-                <div class="testimonial-card">
-                    <div class="rating-stars mb-4" aria-label="5 out of 5"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg></div>
-                    <p class="testimonial-text">"I missed my mother's cooking so much since moving to Dhaka. Fatema Auntie's Dal Bhat literally brought tears to my eyes. Incredible authentic taste!"</p>
-                    <div class="testimonial-author">
-                        <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" alt="User" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
-                        <div>
-                            <div style="font-weight: 700; color: var(--color-text);">Rahim Islam</div>
-                            <div style="font-size: 12px; color: var(--color-text-muted);">Ordered from Dhanmondi</div>
+
+            <div class="tm-shell">
+                <!-- tabindex makes the scroller keyboard-reachable, which is
+                     what gives arrow-key scrolling for free.
+                     The card below is the pre-render fallback; testimonials.js
+                     replaces it with data/reviews.json once that loads. -->
+                <div class="tm-track" id="tmTrack" tabindex="0"
+                     role="group" aria-roledescription="carousel" aria-label="What foodies say">
+                    <article class="tm-card">
+                        <span class="tm-quote" aria-hidden="true">&rdquo;</span>
+                        <div class="rating-stars" aria-label="5 out of 5"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg></div>
+                        <p class="tm-text">I missed my mother's cooking so much since moving to Dhaka. Fatema Auntie's dal bhat literally brought tears to my eyes.</p>
+                        <div class="tm-author">
+                            <img class="tm-avatar" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" alt="" width="46" height="46">
+                            <span class="tm-who">
+                                <span class="tm-name">Rahim Islam</span>
+                                <span class="tm-meta">Ordered from <b>Fatema B.</b> &middot; Dhanmondi</span>
+                            </span>
                         </div>
-                    </div>
+                    </article>
                 </div>
-                
-                <div class="testimonial-card">
-                    <div class="rating-stars mb-4" aria-label="5 out of 5"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg></div>
-                    <p class="testimonial-text">"The seafood curry was incredibly fresh. It feels so much safer and healthier knowing it's cooked in a clean home kitchen rather than a busy restaurant."</p>
-                    <div class="testimonial-author">
-                        <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop" alt="User" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
-                        <div>
-                            <div style="font-weight: 700; color: var(--color-text);">Samira Khan</div>
-                            <div style="font-size: 12px; color: var(--color-text-muted);">Ordered from Uttara</div>
-                        </div>
-                    </div>
-                </div>
+            </div>
+
+            <div class="tm-controls">
+                <button type="button" class="tm-btn" id="tmPrev" aria-label="Previous review">
+                    <svg class="ico" aria-hidden="true"><use href="#i-arrowLeft"/></svg>
+                </button>
+                <div class="tm-dots" id="tmDots" role="tablist" aria-label="Choose a review"></div>
+                <button type="button" class="tm-btn" id="tmNext" aria-label="Next review">
+                    <svg class="ico" aria-hidden="true"><use href="#i-arrowRight"/></svg>
+                </button>
             </div>
         </div>
     </section>
@@ -330,6 +338,7 @@
     </nav>
 
     <script src="js/app.js"></script>
+    <script src="js/testimonials.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             // Load Top Chefs
@@ -340,26 +349,8 @@
                 chefGrid.innerHTML = chefs.slice(0, 3).map((chef, i) => createChefCardHTML(chef, i)).join('');
             }
 
-            // Load Reviews
-            const reviews = await fetchData(DB.reviews);
-            const reviewsContainer = document.getElementById('testimonials-container');
-            if(reviewsContainer && reviews.length > 0) {
-                // Six keeps the section to two tidy rows -- the file holds more.
-                reviewsContainer.innerHTML = reviews.slice(0, 6).map(r => `
-                    <div class="testimonial-card">
-                        <div class="rating-stars mb-4" aria-label="${r.rating} out of 5">${icon('star').repeat(r.rating)}</div>
-                        <p class="testimonial-text">"${r.text}"</p>
-                        <div class="testimonial-author">
-                            <img src="${r.avatar}" alt="${r.name}" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover;">
-                            <div>
-                                <div style="font-weight: 700; color: var(--color-text);">${r.name}</div>
-                                <div style="font-size: 12px; color: var(--color-text-muted);">Verified order</div>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-            }
-            
+            // Reviews are rendered by js/testimonials.js (slider)
+
             // Trigger animation for dynamic elements
             if (typeof initScrollReveal === 'function') initScrollReveal();
         });

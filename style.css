@@ -3102,3 +3102,312 @@ h1, h2, h3, h4, p, a, span, li { overflow-wrap: break-word; }
         transition: none !important;
     }
 }
+
+
+/* =========================================================
+   TESTIMONIALS SLIDER
+   A native scroll-snap track -- no carousel library. The
+   scroller IS the source of truth: buttons and dots just call
+   scrollTo, and the active dot is derived from scrollLeft, so
+   touch swipe, trackpad, keyboard and the controls can never
+   disagree about which slide is showing.
+   ========================================================= */
+
+.tm-section {
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(80% 60% at 50% 0%, var(--clr-primary-50) 0%, transparent 70%),
+        var(--clr-sunken);
+}
+
+.tm-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 24px;
+    margin-bottom: 40px;
+}
+.tm-head .section-title { margin: 0; }
+.tm-sub {
+    margin-top: 8px;
+    font-size: 17px;
+    color: var(--color-text-muted);
+}
+
+/* Aggregate score chip -- the social proof the section is for */
+.tm-score {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-solid);
+    border: 1px solid var(--clr-line);
+    box-shadow: var(--shadow-sm);
+}
+.tm-score[hidden] { display: none; }
+.tm-score-num {
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--color-text);
+}
+.tm-score-meta { display: flex; flex-direction: column; gap: 3px; }
+.tm-score-meta .rating-stars .ico { width: 14px; height: 14px; }
+.tm-score-meta span {
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
+/* ---------- Track ---------- */
+.tm-shell { position: relative; }
+
+.tm-track {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: clamp(272px, 78vw, 384px);
+    gap: 24px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    /* Bleed to the container edges so a card can peek in from the side,
+       then pad it back so the first card still lines up with the title. */
+    padding: 6px var(--tm-edge, 4px) 30px;
+    margin-inline: calc(-1 * var(--tm-edge, 4px));
+    scroll-padding-inline-start: var(--tm-edge, 4px);
+    scrollbar-width: none;
+}
+.tm-track::-webkit-scrollbar { display: none; }
+.tm-track:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 4px;
+    border-radius: var(--radius-md);
+}
+
+/* ---------- Card ---------- */
+.tm-card {
+    scroll-snap-align: start;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 30px 28px 26px;
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-solid);
+    border: 1px solid var(--clr-line);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--transition-base), border-color var(--transition-base), transform var(--transition-base);
+}
+.tm-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--clr-primary-200);
+    box-shadow: var(--shadow-lg);
+}
+
+/* Oversized quote glyph, clipped by the card */
+.tm-quote {
+    position: absolute;
+    top: 8px;
+    right: 20px;
+    font-family: var(--font-display);
+    font-size: 104px;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--clr-primary-50);
+    pointer-events: none;
+    user-select: none;
+}
+[data-theme="dark"] .tm-quote { color: rgba(242, 103, 68, 0.12); }
+
+.tm-card .rating-stars { margin-bottom: 16px; }
+
+.tm-text {
+    position: relative;
+    flex: 1;
+    margin-bottom: 24px;
+    font-family: var(--font-display);
+    font-size: 1.0625rem;
+    font-weight: 400;
+    font-variation-settings: "opsz" 36;
+    line-height: 1.55;
+    letter-spacing: -0.012em;
+    color: var(--color-text);
+}
+
+.tm-author {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding-top: 18px;
+    border-top: 1px solid var(--clr-line-2);
+}
+.tm-avatar {
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--clr-raised);
+    box-shadow: var(--shadow-xs);
+}
+.tm-who { min-width: 0; }
+.tm-name {
+    display: block;
+    font-family: var(--font-ui);
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.tm-meta {
+    display: block;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.tm-meta b { font-weight: 600; color: var(--color-primary); }
+
+/* ---------- Controls ---------- */
+.tm-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    margin-top: 8px;
+}
+
+.tm-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 1px solid var(--clr-line);
+    background: var(--color-surface-solid);
+    color: var(--color-text);
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-fast);
+}
+.tm-btn:hover:not(:disabled) {
+    background: var(--color-primary);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: var(--shadow-primary);
+    transform: translateY(-2px);
+}
+.tm-btn:disabled { opacity: 0.35; cursor: default; }
+.tm-btn .ico { width: 19px; height: 19px; }
+
+.tm-dots {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.tm-dot {
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: var(--clr-line);
+    cursor: pointer;
+    transition: width var(--transition-base), background var(--transition-base);
+}
+.tm-dot:hover { background: var(--clr-primary-200); }
+/* The active dot stretches into a pill rather than just changing colour */
+.tm-dot[aria-selected="true"] {
+    width: 26px;
+    background: var(--color-primary);
+}
+
+/* ---------- Scroll-driven entrance ----------
+   Progressive enhancement: where view() timelines exist the cards ease in
+   as they scroll into the track. Everywhere else they are simply visible,
+   because the keyframes only apply inside this @supports block. */
+@supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+        .tm-card {
+            animation: tmCardIn linear both;
+            animation-timeline: view(inline);
+            animation-range: entry 0% entry 70%;
+        }
+        @keyframes tmCardIn {
+            from { opacity: 0.3; transform: scale(0.93); }
+            to   { opacity: 1; transform: none; }
+        }
+        /* Hover lift would fight the timeline transform */
+        .tm-card:hover { transform: none; }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tm-track { scroll-behavior: auto; }
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 768px) {
+    .tm-head {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 18px;
+        margin-bottom: 28px;
+    }
+    .tm-sub { font-size: 15px; }
+    .tm-score { padding: 12px 16px; gap: 12px; }
+    .tm-score-num { font-size: 26px; }
+
+    .tm-track {
+        gap: 14px;
+        padding-bottom: 24px;
+        /* Full-bleed on phones so the next card peeks past the gutter */
+        --tm-edge: var(--page-gutter, 16px);
+    }
+    .tm-card { padding: 24px 20px 20px; }
+    .tm-quote { font-size: 84px; }
+    .tm-controls { gap: 14px; margin-top: 4px; }
+    .tm-btn { width: 42px; height: 42px; }
+}
+
+@media (max-width: 480px) {
+    .tm-track { grid-auto-columns: 84vw; }
+    .tm-text { font-size: 1rem; }
+    /* Dots would wrap to three rows at this width; arrows carry the job */
+    .tm-dots { display: none; }
+}
+
+@media (hover: none) {
+    .tm-card:hover {
+        transform: none;
+        border-color: var(--clr-line);
+        box-shadow: var(--shadow-sm);
+    }
+    .tm-btn:hover:not(:disabled) {
+        background: var(--color-surface-solid);
+        color: var(--color-text);
+        border-color: var(--clr-line);
+        box-shadow: var(--shadow-sm);
+        transform: none;
+    }
+}
+
+@media (pointer: coarse) {
+    .tm-btn { width: 46px; height: 46px; }
+    .tm-dot { height: 10px; min-width: 10px; }
+    .tm-dot[aria-selected="true"] { width: 28px; }
+}
