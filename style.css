@@ -1723,3 +1723,60 @@ input, select {
         grid-column: span 1 !important;
     }
 }
+
+/* =========================================================
+   COMPREHENSIVE GLOBAL MOBILE OVERRIDES (Subpage fixes)
+   ========================================================= */
+
+@media (max-width: 768px) {
+    /* 1. Index Page Fixes */
+    .process-grid > .bento-box {
+        transform: none !important;
+    }
+
+    /* 2. Single Cook Page Fixes */
+    .profile-info-glass {
+        flex-direction: column !important;
+        align-items: center !important;
+        text-align: center !important;
+    }
+    .profile-info-glass .flex.align-center {
+        justify-content: center !important;
+    }
+    .profile-stats {
+        justify-content: center !important;
+        flex-wrap: wrap !important;
+    }
+    .menu-item {
+        flex-direction: column !important;
+        text-align: center !important;
+    }
+    .menu-item .menu-img {
+        width: 100% !important;
+        height: 150px !important;
+    }
+    .menu-item .menu-details .flex {
+        justify-content: center !important;
+        flex-wrap: wrap !important;
+    }
+
+    /* 3. Cart Page Fixes */
+    .cart-layout {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    .cart-item {
+        flex-direction: column !important;
+        align-items: center !important;
+        text-align: center !important;
+        gap: 12px !important;
+    }
+    .cart-item-details {
+        margin-right: 0 !important;
+    }
+    .cart-item-remove {
+        position: absolute !important;
+        top: 16px !important;
+        right: 16px !important;
+    }
+}
