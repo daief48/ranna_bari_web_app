@@ -604,6 +604,13 @@
     transition: all var(--transition-fast);
 }
 .auth-check .box .ico { width: 12px; height: 12px; stroke-width: 3.2; }
+/* One flex item, so the sentence wraps as prose. Left bare, each text run
+   and each <a> becomes its own anonymous flex item and wraps on its own --
+   "I agree to the / Terms / and the / Privacy Policy" in four columns. */
+.auth-check-text {
+    flex: 1;
+    min-width: 0;
+}
 .auth-check input:checked ~ .box {
     background: var(--color-primary);
     border-color: transparent;
