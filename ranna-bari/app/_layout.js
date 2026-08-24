@@ -59,6 +59,7 @@ function Root() {
         <Stack.Screen name="order/[id]" options={{ animation: 'fade' }} />
         <Stack.Screen name="auth" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="become-cook" />
+        <Stack.Screen name="edit-profile" />
       </Stack>
     </>
   );

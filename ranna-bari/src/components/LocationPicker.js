@@ -31,7 +31,7 @@ import {
  * @param {object} props
  * @param {(v: {lat:number, lng:number, address:string}) => void} props.onChange
  */
-export default function LocationPicker({ onChange, height = 250 }) {
+export default function LocationPicker({ onChange, height = 250, center }) {
   const { colors, shadow, mode } = useTheme();
   const webRef = useRef(null);
   const reverseTimer = useRef(null);
@@ -46,9 +46,12 @@ export default function LocationPicker({ onChange, height = 250 }) {
   const [searching, setSearching] = useState(false);
   const [locState, setLocState] = useState('idle');
 
+  // Frozen on first render: rebuilding the document mid-edit would reload
+  // the map and throw away wherever the pin had been dragged to.
+  const [start] = useState(() => ({ ...DEFAULT_CENTER, ...(center ?? {}) }));
   const html = useMemo(
-    () => buildPickerHtml({ theme: mode, colors, center: DEFAULT_CENTER }),
-    [mode, colors],
+    () => buildPickerHtml({ theme: mode, colors, center: start }),
+    [mode, colors, start],
   );
 
   const send = useCallback((msg) => {

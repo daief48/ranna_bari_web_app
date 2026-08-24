@@ -1,5 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  Text,
+  View,
+} from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -24,7 +31,24 @@ const LABELS = [
   ['Other', 'pin'],
 ];
 
+/** Waits for the stored account before seeding the form -- see edit-profile. */
 export default function CheckoutScreen() {
+  const { colors } = useTheme();
+  const { hydrated } = useAuth();
+
+  if (!hydrated) {
+    return (
+      <Screen activeIcon="cart">
+        <Container style={{ alignItems: 'center', paddingTop: 60 }}>
+          <ActivityIndicator color={colors.primary} />
+        </Container>
+      </Screen>
+    );
+  }
+  return <CheckoutForm />;
+}
+
+function CheckoutForm() {
   const { colors, shadow } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams();

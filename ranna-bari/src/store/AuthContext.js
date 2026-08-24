@@ -42,14 +42,38 @@ export function AuthProvider({ children }) {
     return next;
   }, []);
 
+  /**
+   * Merge a partial profile over the stored account. Used by the profile
+   * editor, which owns every field signup and sign-in collected.
+   */
+  const updateAccount = useCallback(async (patch) => {
+    let next = null;
+    setAccount((prev) => {
+      if (!prev) return prev;
+      next = { ...prev, ...patch, updatedAt: new Date().toISOString() };
+      return next;
+    });
+    // setAccount's updater runs synchronously here, so `next` is populated
+    // by the time this line is reached.
+    if (next) await AsyncStorage.setItem(KEY, JSON.stringify(next)).catch(() => {});
+    return next;
+  }, []);
+
   const signOut = useCallback(async () => {
     setAccount(null);
     await AsyncStorage.removeItem(KEY).catch(() => {});
   }, []);
 
   const value = useMemo(
-    () => ({ account, isSignedIn: !!account, signIn, signOut, hydrated }),
-    [account, signIn, signOut, hydrated],
+    () => ({
+      account,
+      isSignedIn: !!account,
+      signIn,
+      signOut,
+      updateAccount,
+      hydrated,
+    }),
+    [account, signIn, signOut, updateAccount, hydrated],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

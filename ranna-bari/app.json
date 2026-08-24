@@ -43,6 +43,13 @@
         {
           "locationWhenInUsePermission": "RannaBari uses your location to show home kitchens near you."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "RannaBari uses your photos so you can set a profile picture.",
+          "cameraPermission": "RannaBari uses your camera so you can take a profile picture."
+        }
       ]
     ],
     "experiments": {
