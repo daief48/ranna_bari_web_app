@@ -19,6 +19,7 @@ import {
   stepIndex,
   useOrders,
 } from '../../src/store/OrdersContext';
+import { useLang } from '../../src/i18n/LanguageContext';
 
 export default function OrderScreen() {
   const { id } = useLocalSearchParams();
@@ -26,6 +27,7 @@ export default function OrderScreen() {
   const router = useRouter();
   const { getOrder, cancelOrder, hydrated } = useOrders();
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const { t, n, lang } = useLang();
 
   const order = useMemo(() => getOrder(String(id)), [getOrder, id]);
 
@@ -35,14 +37,14 @@ export default function OrderScreen() {
         <Container style={{ alignItems: 'center', gap: 16, paddingTop: 40 }}>
           <Icon name="alertCircle" size={32} color={colors.primary} />
           <Heading size={20}>
-            {hydrated ? 'Order not found' : 'Loading your order…'}
+            {hydrated ? t('Order not found') : t('Loading your order…')}
           </Heading>
           {hydrated ? (
             <>
               <Body muted size={15} style={{ textAlign: 'center' }}>
-                We could not find an order with the code {String(id)}.
+                {t('We could not find an order with the code {code}.', { code: String(id) })}
               </Body>
-              <Button label="Your orders" onPress={() => router.replace('/orders')} />
+              <Button label={t('Your orders')} onPress={() => router.replace('/orders')} />
             </>
           ) : null}
         </Container>
@@ -105,21 +107,21 @@ export default function OrderScreen() {
 
           <Heading size={23} style={{ marginBottom: 8, textAlign: 'center' }}>
             {rejected
-              ? 'The kitchen could not take this'
+              ? t('The kitchen could not take this')
               : cancelled
-                ? 'Order cancelled'
+                ? t('Order cancelled')
                 : delivered
-                  ? 'Delivered.'
-                  : 'Order placed.'}
+                  ? t('Delivered.')
+                  : t('Order placed.')}
           </Heading>
           <Body muted size={14} style={{ textAlign: 'center' }}>
             {rejected
-              ? `${order.chefName || 'The kitchen'} turned this one down. Nothing was charged — cash orders are only paid on delivery.`
+              ? t('{kitchen} turned this one down. Nothing was charged — cash orders are only paid on delivery.', { kitchen: order.chefName || t('The kitchen') })
               : cancelled
-                ? 'Nothing was charged — cash orders are only paid on delivery.'
+                ? t('Nothing was charged — cash orders are only paid on delivery.')
                 : delivered
-                  ? `${order.chefName || 'The kitchen'} cooked this one. Hope it was good.`
-                  : `${order.chefName || 'The kitchen'} has your order. You pay when it arrives.`}
+                  ? t('{kitchen} cooked this one. Hope it was good.', { kitchen: order.chefName || t('The kitchen') })
+                  : t('{kitchen} has your order. You pay when it arrives.', { kitchen: order.chefName || t('The kitchen') })}
           </Body>
 
           <View
@@ -189,7 +191,7 @@ export default function OrderScreen() {
                     marginBottom: 4,
                   }}
                 >
-                  Cash on delivery
+                  {t('Cash on delivery')}
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
                   <GradientText
@@ -199,7 +201,7 @@ export default function OrderScreen() {
                       letterSpacing: -0.48,
                     }}
                   >
-                    ৳{order.total}
+                    ৳{n(order.total)}
                   </GradientText>
                   <Text
                     style={{
@@ -210,7 +212,7 @@ export default function OrderScreen() {
                   >
                     {/* Once the food has landed the money has changed hands.
                         Still telling someone to have it "ready" is stale. */}
-                    {delivered ? 'paid to the rider' : 'ready for the rider'}
+                    {delivered ? t('paid to the rider') : t('ready for the rider')}
                   </Text>
                 </View>
               </View>
@@ -221,13 +223,13 @@ export default function OrderScreen() {
         {/* ---- Status timeline ---- */}
         <Reveal delay={2}>
           <View style={[card(colors), shadow.sm]}>
-            <CardHeading icon="route" title={stopped ? 'What happened' : 'Order status'} />
+            <CardHeading icon="route" title={stopped ? t('What happened') : t('Order status')} />
 
             {stopped ? (
               <Body muted size={14}>
                 {rejected
-                  ? `${order.chefName || 'The kitchen'} could not take this order on ${formatOrderDate(order.rejectedAt ?? order.createdAt)}.${order.rejectReason ? ` ${order.rejectReason}.` : ''}`
-                  : `You cancelled this order on ${formatOrderDate(order.cancelledAt ?? order.createdAt)}.`}
+                  ? t('{kitchen} could not take this order on {date}.', { kitchen: order.chefName || t('The kitchen'), date: formatOrderDate(order.rejectedAt ?? order.createdAt, lang) }) + (order.rejectReason ? ' ' + t(order.rejectReason) + '.' : '')
+                  : t('You cancelled this order on {date}.', { date: formatOrderDate(order.cancelledAt ?? order.createdAt, lang) })}
               </Body>
             ) : (
               <View>
@@ -294,7 +296,7 @@ export default function OrderScreen() {
                               done || active ? colors.text : colors.textLight,
                           }}
                         >
-                          {step.label}
+                          {t(step.label)}
                         </Text>
                         {/* Each step carries the moment it actually happened.
                             Before the kitchen could move an order along there
@@ -342,8 +344,8 @@ export default function OrderScreen() {
                     }}
                   >
                     {delivered
-                      ? 'This order is complete.'
-                      : 'The kitchen moves this along as they cook. You will see it update here.'}
+                      ? t('This order is complete.')
+                      : t('The kitchen moves this along as they cook. You will see it update here.')}
                   </Text>
                 </View>
               </View>
@@ -408,9 +410,9 @@ export default function OrderScreen() {
               ))}
             </View>
 
-            <Row label="Subtotal" value={order.subtotal} />
-            <Row label="Delivery Fee" value={order.deliveryFee} />
-            <Row label="Platform Fee" value={order.platformFee} />
+            <Row label={t('Subtotal')} value={n(order.subtotal)} />
+            <Row label={t('Delivery Fee')} value={n(order.deliveryFee)} />
+            <Row label={t('Platform Fee')} value={n(order.platformFee)} />
 
             <View
               style={{
@@ -424,7 +426,7 @@ export default function OrderScreen() {
               }}
             >
               <Price size={22}>{isCod ? 'Due in cash' : 'Total'}</Price>
-              <Price size={22}>৳{order.total}</Price>
+              <Price size={22}>৳{n(order.total)}</Price>
             </View>
           </View>
         </Reveal>
@@ -432,7 +434,7 @@ export default function OrderScreen() {
         {/* ---- Delivery details ---- */}
         <Reveal delay={4}>
           <View style={[card(colors), shadow.sm, { marginTop: 16 }]}>
-            <CardHeading icon="navigation" title="Delivering to" />
+            <CardHeading icon="navigation" title={t('Delivering to')} />
 
             <Detail icon="user" text={order.contact.name} />
             <Detail icon="phone" text={order.contact.phone} />
@@ -452,7 +454,7 @@ export default function OrderScreen() {
         {/* ---- Actions ---- */}
         <View style={{ marginTop: 24, gap: 12 }}>
           <Button
-            label="Browse more kitchens"
+            label={t('Browse more kitchens')}
             icon="arrowRight"
             block
             onPress={() => router.replace('/browse')}
@@ -478,19 +480,18 @@ export default function OrderScreen() {
                     color: colors.text,
                   }}
                 >
-                  Cancel this order? The kitchen may already have started
-                  cooking.
+                  {t('Cancel this order? The kitchen may already have started cooking.')}
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <Button
                     variant="glass"
-                    label="Keep it"
+                    label={t('Keep it')}
                     small
                     onPress={() => setConfirmCancel(false)}
                     style={{ flex: 1 }}
                   />
                   <Button
-                    label="Cancel order"
+                    label={t('Cancel order')}
                     small
                     onPress={() => {
                       cancelOrder(order.id);
@@ -514,7 +515,7 @@ export default function OrderScreen() {
                     textDecorationLine: 'underline',
                   }}
                 >
-                  Cancel this order
+                  {t('Cancel this order')}
                 </Text>
               </Pressable>
             )
@@ -531,7 +532,7 @@ export default function OrderScreen() {
                   color: colors.primary,
                 }}
               >
-                See all your orders
+                {t('See all your orders')}
               </Text>
             </Pressable>
           )}

@@ -19,6 +19,7 @@ import {
   formatOrderDate,
   useOrders,
 } from '../../../src/store/OrdersContext';
+import { useLang } from '../../../src/i18n/LanguageContext';
 
 const DAY = 86_400_000;
 
@@ -31,12 +32,13 @@ function dayStart(back = 0) {
 
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-const taka = (n) => `৳${n.toLocaleString('en-US')}`;
+const taka = (v, num) => `৳${num(v.toLocaleString('en-US'))}`;
 
 export default function CookEarnings() {
   const { colors, shadow } = useTheme();
   const { kitchen } = useKitchen();
   const { ordersForKitchen } = useOrders();
+  const { t, n: num, lang } = useLang();
 
   /* Only a delivered order is money. Anything still moving is a promise, and
      a payout screen that counts promises is lying to the cook. */
@@ -71,8 +73,8 @@ export default function CookEarnings() {
     });
 
     for (const o of paid) {
-      const t = new Date(o.deliveredAt ?? o.createdAt).getTime();
-      const idx = buckets.findIndex((b) => t >= b.start && t < b.start + DAY);
+      const at = new Date(o.deliveredAt ?? o.createdAt).getTime();
+      const idx = buckets.findIndex((b) => at >= b.start && at < b.start + DAY);
       if (idx >= 0) buckets[idx].amount += cookPayout(o);
     }
     return buckets;
@@ -85,9 +87,9 @@ export default function CookEarnings() {
     <CookScreen>
       <Container>
         <SectionHeader
-          lead="YOUR"
-          accent="EARNINGS"
-          subtitle={`You keep ${Math.round(COOK_PAYOUT_RATE * 100)}% of every dish you sell.`}
+          lead={t('YOUR')}
+          accent={t('EARNINGS')}
+          subtitle={t('You keep {pct}% of every dish you sell.', { pct: num(Math.round(COOK_PAYOUT_RATE * 100)) })}
         />
 
         {/* ---- Payable ---- */}
@@ -105,7 +107,7 @@ export default function CookEarnings() {
                 color: 'rgba(255, 255, 255, 0.86)',
               }}
             >
-              Payable to you
+              {t('Payable to you')}
             </Text>
             <Text
               numberOfLines={1}
@@ -120,7 +122,7 @@ export default function CookEarnings() {
                 fontVariant: ['tabular-nums'],
               }}
             >
-              {taka(totals.net)}
+              {taka(totals.net, num)}
             </Text>
             <Text
               style={{
@@ -130,7 +132,7 @@ export default function CookEarnings() {
                 color: 'rgba(255, 255, 255, 0.9)',
               }}
             >
-              From {totals.orders} delivered order{totals.orders === 1 ? '' : 's'}
+              {t(totals.orders === 1 ? 'From {n} delivered order' : 'From {n} delivered orders', { n: num(totals.orders) })}
             </Text>
 
             {/* The arithmetic in full. A payout number without the deduction
@@ -146,13 +148,13 @@ export default function CookEarnings() {
                 gap: 9,
               }}
             >
-              <SplitRow label="Food sales" value={taka(totals.gross)} />
+              <SplitRow label={t('Food sales')} value={taka(totals.gross, num)} />
               <SplitRow
-                label={`Platform share (${Math.round((1 - COOK_PAYOUT_RATE) * 100)}%)`}
-                value={`− ${taka(totals.fee)}`}
+                label={t('Platform share ({pct}%)', { pct: num(Math.round((1 - COOK_PAYOUT_RATE) * 100)) })}
+                value={`− ${taka(totals.fee, num)}`}
               />
               <View style={{ height: 1, backgroundColor: 'rgba(255, 255, 255, 0.22)' }} />
-              <SplitRow label="Your payout" value={taka(totals.net)} strong />
+              <SplitRow label={t('Your payout')} value={taka(totals.net, num)} strong />
             </View>
 
             <View
@@ -173,7 +175,7 @@ export default function CookEarnings() {
                   color: 'rgba(255, 255, 255, 0.88)',
                 }}
               >
-                Payouts run every Sunday to your bank or bKash.
+                {t('Payouts run every Sunday to your bank or bKash.')}
               </Text>
             </View>
           </LinearGradient>
@@ -182,11 +184,11 @@ export default function CookEarnings() {
         {/* ---- Two numbers ---- */}
         <Reveal delay={2}>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-            <StatTile icon="activity" value={taka(totals.weekNet)} label="Last 7 days" />
+            <StatTile icon="activity" value={taka(totals.weekNet, num)} label={t('Last 7 days')} />
             <StatTile
               icon="receipt"
-              value={taka(totals.average)}
-              label="Per order"
+              value={taka(totals.average, num)}
+              label={t('Per order')}
               variant="saffron"
             />
           </View>
@@ -197,8 +199,8 @@ export default function CookEarnings() {
           <View style={{ marginTop: 28 }}>
             <RowHeading
               icon="activity"
-              title="This week"
-              action={totals.weekOrders ? `${totals.weekOrders} orders` : null}
+              title={t('This week')}
+              action={totals.weekOrders ? t('{n} orders', { n: num(totals.weekOrders) }) : null}
             />
 
             <BentoBox style={{ padding: 20 }}>
@@ -228,7 +230,7 @@ export default function CookEarnings() {
                           fontVariant: ['tabular-nums'],
                         }}
                       >
-                        {b.amount >= 1000 ? `${(b.amount / 1000).toFixed(1)}k` : b.amount}
+                        {b.amount >= 1000 ? `${num((b.amount / 1000).toFixed(1))}k` : num(b.amount)}
                       </Text>
                       <View
                         style={{
@@ -249,7 +251,7 @@ export default function CookEarnings() {
                           color: today ? colors.sage : colors.textLight,
                         }}
                       >
-                        {b.label}
+                        {t(b.label)}
                       </Text>
                     </View>
                   );
@@ -261,17 +263,16 @@ export default function CookEarnings() {
 
         {/* ---- Where it came from ---- */}
         <View style={{ marginTop: 28 }}>
-          <RowHeading icon="banknote" title="Recent payouts" />
+          <RowHeading icon="banknote" title={t('Recent payouts')} />
 
           {!recent.length ? (
             <BentoBox style={{ padding: 28, alignItems: 'center', gap: 14 }}>
               <IconTile name="banknote" variant="sage" large />
               <Heading size={18} style={{ textAlign: 'center' }}>
-                Nothing delivered yet
+                {t('Nothing delivered yet')}
               </Heading>
               <Body muted size={14} style={{ textAlign: 'center' }}>
-                An order counts toward your payout the moment you mark it
-                delivered.
+                {t('An order counts toward your payout the moment you mark it delivered.')}
               </Body>
             </BentoBox>
           ) : (
@@ -317,10 +318,10 @@ export default function CookEarnings() {
                           color: colors.textMuted,
                         }}
                       >
-                        {formatOrderDate(o.deliveredAt ?? o.createdAt)}
+                        {formatOrderDate(o.deliveredAt ?? o.createdAt, lang)}
                       </Text>
                     </View>
-                    <Price size={17}>৳{cookPayout(o)}</Price>
+                    <Price size={17}>৳{num(cookPayout(o))}</Price>
                   </View>
                 </Reveal>
               ))}

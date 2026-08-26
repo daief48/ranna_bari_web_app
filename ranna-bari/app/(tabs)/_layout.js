@@ -8,11 +8,18 @@ import * as Haptics from 'expo-haptics';
 import Icon from '../../src/components/Icon';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useAuth } from '../../src/store/AuthContext';
+import { useCart } from '../../src/store/CartContext';
+import { useLang } from '../../src/i18n/LanguageContext';
 import { font, radius } from '../../src/theme/tokens';
 
+/**
+ * Cart sits in the middle rather than at an edge: it is the highest-intent
+ * destination here and the centre of the bar is the easiest reach on a phone.
+ */
 const TABS = [
   { name: 'index', icon: 'home', label: 'Home' },
   { name: 'browse', icon: 'search', label: 'Browse' },
+  { name: 'cart', icon: 'cart', label: 'Cart' },
   { name: 'map', icon: 'map', label: 'Map' },
   { name: 'profile', icon: 'user', label: 'Profile' },
 ];
@@ -29,6 +36,8 @@ const TABS = [
 function AppBar({ state, descriptors, navigation }) {
   const { colors, shadow, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { count } = useCart();
+  const { t, n: num } = useLang();
 
   return (
     <View
@@ -66,6 +75,8 @@ function AppBar({ state, descriptors, navigation }) {
 
             const focused = state.index === i;
             const { options } = descriptors[route.key];
+            // The cart is the only tab whose contents change behind your back.
+            const badge = meta.name === 'cart' ? count : 0;
 
             const onPress = () => {
               const event = navigation.emit({
@@ -84,7 +95,11 @@ function AppBar({ state, descriptors, navigation }) {
                 key={route.key}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: focused }}
-                accessibilityLabel={options.title ?? meta.label}
+                accessibilityLabel={
+                  badge
+                    ? `${t(options.title ?? meta.label)}, ${t(badge === 1 ? '{n} item' : '{n} items', { n: num(badge) })}`
+                    : t(options.title ?? meta.label)
+                }
                 onPress={onPress}
                 style={({ pressed }) => ({
                   flex: 1,
@@ -96,21 +111,55 @@ function AppBar({ state, descriptors, navigation }) {
                   transform: [{ scale: pressed ? 0.97 : 1 }],
                 })}
               >
-                <Icon
-                  name={meta.icon}
-                  size={21}
-                  color={focused ? colors.primary : colors.textMuted}
-                  strokeWidth={focused ? 2.1 : 1.75}
-                />
+                {/* Five tabs instead of four, so the icon and label each give
+                    up a point to keep the labels off each other. */}
+                <View>
+                  <Icon
+                    name={meta.icon}
+                    size={20}
+                    color={focused ? colors.primary : colors.textMuted}
+                    strokeWidth={focused ? 2.1 : 1.75}
+                  />
+                  {badge > 0 ? (
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: -5,
+                        right: -9,
+                        minWidth: 16,
+                        height: 16,
+                        paddingHorizontal: 4,
+                        borderRadius: 8,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: colors.primary,
+                        borderWidth: 1.5,
+                        borderColor: colors.canvas,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontFamily: font.uiBold,
+                          fontSize: 9,
+                          lineHeight: 11,
+                          color: '#FFFFFF',
+                        }}
+                      >
+                        {num(badge)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
                 <Text
+                  numberOfLines={1}
                   style={{
                     fontFamily: font.uiSemi,
-                    fontSize: 10,
-                    letterSpacing: 0.15,
+                    fontSize: 9,
+                    letterSpacing: 0.1,
                     color: focused ? colors.primary : colors.textMuted,
                   }}
                 >
-                  {meta.label}
+                  {t(meta.label)}
                 </Text>
               </Pressable>
             );
@@ -136,6 +185,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="browse" options={{ title: 'Browse' }} />
+      <Tabs.Screen name="cart" options={{ title: 'Cart' }} />
       <Tabs.Screen name="map" options={{ title: 'Map' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>

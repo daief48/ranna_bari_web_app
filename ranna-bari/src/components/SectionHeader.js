@@ -3,6 +3,7 @@ import { View } from 'react-native';
 
 import { Body, GradientText, SectionTitle } from './Typography';
 import useResponsive from '../theme/useResponsive';
+import { useLang } from '../i18n/LanguageContext';
 import { font, type } from '../theme/tokens';
 
 /**
@@ -23,6 +24,10 @@ export default function SectionHeader({
   style,
 }) {
   const r = useResponsive();
+  /* This is the one component that builds a font style without reading the
+     theme, so it has to subscribe to the language itself or its title would
+     keep the old typeface after a switch. */
+  useLang();
   const size = small ? type.h2sm : r.sectionTitle;
   const titleStyle = {
     fontFamily: font.displayExtra,

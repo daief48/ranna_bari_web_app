@@ -18,6 +18,7 @@ import Icon from '../../src/components/Icon';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useChefs } from '../../src/data';
+import { useLang } from '../../src/i18n/LanguageContext';
 import {
   buildMapHtml,
   distanceKm,
@@ -28,6 +29,7 @@ const NEAREST_COUNT = 5;
 
 export default function MapScreen() {
   const chefs = useChefs();
+  const { t, n } = useLang();
   const { colors, shadow, mode } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -71,7 +73,7 @@ export default function MapScreen() {
       } else if (msg.type === 'openChef') {
         router.push(`/chef/${msg.id}`);
       } else if (msg.type === 'error') {
-        setPanel({ kind: 'error', title: 'Map unavailable', text: msg.message });
+        setPanel({ kind: 'error', title: 'Map unavailable', text: msg.message, raw: true });
       }
     },
     [router],
@@ -126,7 +128,7 @@ export default function MapScreen() {
       setLocState('active');
       setPanel({
         kind: 'list',
-        title: `${top.length} nearest to you`,
+        title: 'Nearest to you',
         items: top,
       });
 
@@ -165,7 +167,7 @@ export default function MapScreen() {
       setPanel({
         kind: 'error',
         title: 'No match',
-        text: `Nothing found for "${query.trim()}". Try an area like Dhanmondi, or a specialty.`,
+        text: 'Nothing found. Try a nearby landmark.',
       });
     }
   }, [query, send, chefs]);
@@ -207,7 +209,7 @@ export default function MapScreen() {
               color: colors.textMuted,
             }}
           >
-            Loading kitchens
+            {t('Loading kitchens')}
           </Text>
         </View>
       ) : null}
@@ -237,7 +239,7 @@ export default function MapScreen() {
           onChangeText={setQuery}
           onSubmitEditing={runSearch}
           returnKeyType="search"
-          placeholder="Search areas or kitchens (e.g. Dhanmondi)"
+          placeholder={t('Search areas or kitchens (e.g. Dhanmondi)')}
           placeholderTextColor={colors.textLight}
           style={{
             flex: 1,
@@ -251,7 +253,7 @@ export default function MapScreen() {
         />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Search the map"
+          accessibilityLabel={t('Search')}
           onPress={runSearch}
           style={({ pressed }) => [
             {
@@ -273,7 +275,7 @@ export default function MapScreen() {
               color: '#FFFFFF',
             }}
           >
-            Search
+            {t('Search')}
           </Text>
         </Pressable>
       </View>
@@ -281,7 +283,7 @@ export default function MapScreen() {
       {/* ---- Locate button ---- */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Find the kitchens nearest to you"
+        accessibilityLabel={t('Nearest to you')}
         disabled={locState === 'locating'}
         onPress={requestLocation}
         style={({ pressed }) => [
@@ -325,7 +327,7 @@ export default function MapScreen() {
             ? 'Locating…'
             : locState === 'active'
               ? 'Near me'
-              : 'Nearest cooks'}
+              : t('Nearest to you')}
         </Text>
       </Pressable>
 
@@ -372,7 +374,7 @@ export default function MapScreen() {
                 color: colors.textMuted,
               }}
             >
-              {panel.title}
+              {t(panel.title)}
             </Text>
             <Pressable
               accessibilityRole="button"
@@ -495,8 +497,10 @@ export default function MapScreen() {
                   }}
                 >
                   {panel.kind === 'loading'
-                    ? 'Getting your location…'
-                    : panel.text}
+                    ? t('Searching…')
+                    : panel.raw
+                      ? panel.text
+                      : t(panel.text)}
                 </Text>
 
                 {panel.kind === 'error' ? (
@@ -509,7 +513,7 @@ export default function MapScreen() {
                         textDecorationLine: 'underline',
                       }}
                     >
-                      Try again
+                      {t('Try again')}
                     </Text>
                   </Pressable>
                 ) : null}

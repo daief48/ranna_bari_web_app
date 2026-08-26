@@ -151,7 +151,28 @@ export const radius = {
 export const GUTTER = 16;
 export const GUTTER_SM = 14;
 
-export const font = {
+/* ---------------- script-aware typography ---------------- */
+
+/**
+ * Neither Fraunces nor Inter draws a single Bengali glyph, so switching the
+ * app to Bengali without switching the faces would hand every heading to
+ * whatever the OS happens to fall back to -- a different voice on every
+ * device, and tofu where there is no fallback at all.
+ *
+ * Rather than thread a font map through several hundred style objects, the
+ * `font` and `tracking` exports below are getters over a script that the
+ * language provider sets. Every call site already reads them during render
+ * (nothing is captured in a module-level StyleSheet), so a language change
+ * re-renders the tree and the new faces are picked up on the same pass.
+ */
+let activeScript = 'latin';
+
+/** Called by the language provider. Not for screens. */
+export function setTypeScript(script) {
+  activeScript = script === 'bengali' ? 'bengali' : 'latin';
+}
+
+const LATIN = {
   display: 'Fraunces_700Bold',
   displayRegular: 'Fraunces_400Regular',
   displaySemi: 'Fraunces_600SemiBold',
@@ -170,10 +191,52 @@ export const font = {
   bengaliBold: 'NotoSansBengali_700Bold',
 };
 
-/** `--tracking-label: 0.09em` at the sizes it is actually used. */
+/**
+ * Bengali has no italic tradition, so the one italic face maps to the
+ * heaviest upright rather than to a synthesised slant.
+ */
+const BENGALI = {
+  display: 'NotoSansBengali_700Bold',
+  displayRegular: 'NotoSansBengali_400Regular',
+  displaySemi: 'NotoSansBengali_600SemiBold',
+  displayBold: 'NotoSansBengali_700Bold',
+  displayExtra: 'NotoSansBengali_800ExtraBold',
+  displayBlack: 'NotoSansBengali_800ExtraBold',
+  displayItalic: 'NotoSansBengali_800ExtraBold',
+
+  ui: 'NotoSansBengali_400Regular',
+  uiMedium: 'NotoSansBengali_500Medium',
+  uiSemi: 'NotoSansBengali_600SemiBold',
+  uiBold: 'NotoSansBengali_700Bold',
+  uiLight: 'NotoSansBengali_400Regular',
+
+  bengali: 'NotoSansBengali_500Medium',
+  bengaliBold: 'NotoSansBengali_700Bold',
+};
+
+export const font = {};
+for (const key of Object.keys(LATIN)) {
+  Object.defineProperty(font, key, {
+    enumerable: true,
+    get: () => (activeScript === 'bengali' ? BENGALI[key] : LATIN[key]),
+  });
+}
+
+/**
+ * `--tracking-label: 0.09em` at the sizes it is actually used.
+ *
+ * Both values fall to zero in Bengali. Letter-spacing pulls a Bengali word
+ * apart at its conjunct clusters and detaches the matra -- the horizontal
+ * bar that is supposed to run unbroken across the whole word -- so tracking
+ * that reads as refinement in Latin reads as broken text here.
+ */
 export const tracking = {
-  label: 0.09,
-  tight: -0.012,
+  get label() {
+    return activeScript === 'bengali' ? 0 : 0.09;
+  },
+  get tight() {
+    return activeScript === 'bengali' ? 0 : -0.012;
+  },
 };
 
 /**

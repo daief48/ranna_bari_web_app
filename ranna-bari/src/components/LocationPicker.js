@@ -12,6 +12,7 @@ import * as Location from 'expo-location';
 import Icon from './Icon';
 import MapCanvas from './MapCanvas';
 import { useTheme } from '../theme/ThemeProvider';
+import { useLang } from '../i18n/LanguageContext';
 import { font, radius, tracking, type } from '../theme/tokens';
 import {
   DEFAULT_CENTER,
@@ -33,6 +34,7 @@ import {
  */
 export default function LocationPicker({ onChange, height = 250, center }) {
   const { colors, shadow, mode } = useTheme();
+  const { t } = useLang();
   const webRef = useRef(null);
   const reverseTimer = useRef(null);
   const searchTimer = useRef(null);
@@ -85,7 +87,7 @@ export default function LocationPicker({ onChange, height = 250, center }) {
           return;
         }
 
-        const label = found || 'Pinned location';
+        const label = found || '';
         setAddress(label);
         setPending(false);
         onChange?.({ lat, lng, address: found });
@@ -201,7 +203,7 @@ export default function LocationPicker({ onChange, height = 250, center }) {
           />
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Find this place"
+            accessibilityLabel={t('Find')}
             onPress={() => {
               clearTimeout(searchTimer.current);
               runSearch(query);
@@ -223,7 +225,7 @@ export default function LocationPicker({ onChange, height = 250, center }) {
                 color: '#FFFFFF',
               }}
             >
-              Find
+              {t('Find')}
             </Text>
           </Pressable>
         </View>
@@ -281,7 +283,7 @@ export default function LocationPicker({ onChange, height = 250, center }) {
                 color: locState === 'active' ? '#FFFFFF' : colors.text,
               }}
             >
-              {locState === 'locating' ? 'Finding you…' : 'Use my location'}
+              {locState === 'locating' ? t('Searching…') : t('Use my location')}
             </Text>
           </Pressable>
         </View>
@@ -353,7 +355,7 @@ export default function LocationPicker({ onChange, height = 250, center }) {
                 color: pending ? colors.saffron : colors.sage,
               }}
             >
-              {pending ? 'Pending' : 'Pinned'}
+              {pending ? t('Searching…') : t('Pinned')}
             </Text>
           </View>
         </View>
@@ -376,7 +378,7 @@ export default function LocationPicker({ onChange, height = 250, center }) {
           ]}
         >
           {searching ? (
-            <Text style={msgStyle(colors)}>Searching…</Text>
+            <Text style={msgStyle(colors)}>{t('Searching…')}</Text>
           ) : results === null ? (
             <Text style={msgStyle(colors)}>
               Search is unavailable right now — drag the map instead.

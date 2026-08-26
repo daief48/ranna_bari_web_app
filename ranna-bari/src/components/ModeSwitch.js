@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import Icon from './Icon';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAuth } from '../store/AuthContext';
+import { useLang } from '../i18n/LanguageContext';
 import { font, radius } from '../theme/tokens';
 
 /**
@@ -27,12 +28,17 @@ export default function ModeSwitch({ compact = false, style }) {
   const { colors, shadow } = useTheme();
   const router = useRouter();
   const { isCook, isCookMode, setViewMode } = useAuth();
+  const { t } = useLang();
 
   if (!isCook) return null;
 
-  // Sage is the cook panel and vermilion is the shop, everywhere in the app.
+  /* Sage is the cook panel and vermilion is the shop, everywhere in the app.
+     The shop side is `utensils`, not a cart: the cook panel has no cart of
+     its own, and a cart glyph up here read as "open my basket" rather than
+     "go be a customer". It pairs with the chef's hat the same way the profile
+     editor's own wording does -- I cook / I eat. */
   const to = isCookMode
-    ? { label: 'Shop', icon: 'cart', fg: colors.primary, bg: colors.primary50, edge: colors.primary100, mode: 'customer', href: '/' }
+    ? { label: 'Shop', icon: 'utensils', fg: colors.primary, bg: colors.primary50, edge: colors.primary100, mode: 'customer', href: '/' }
     : { label: 'Kitchen', icon: 'chefHat', fg: colors.sage, bg: colors.sage50, edge: colors.sage100, mode: 'cook', href: '/cook' };
 
   const onPress = async () => {
@@ -80,7 +86,7 @@ export default function ModeSwitch({ compact = false, style }) {
             color: to.fg,
           }}
         >
-          {to.label}
+          {t(to.label)}
         </Text>
       )}
     </Pressable>
@@ -95,6 +101,7 @@ export function ModeSwitchRow({ style }) {
   const { colors, shadow } = useTheme();
   const router = useRouter();
   const { isCook, isCookMode, setViewMode } = useAuth();
+  const { t } = useLang();
 
   if (!isCook) return null;
 
@@ -102,7 +109,7 @@ export function ModeSwitchRow({ style }) {
     ? {
         title: 'Switch to ordering',
         sub: 'Browse and order from other kitchens',
-        icon: 'cart',
+        icon: 'utensils',
         fg: colors.primary,
         bg: colors.primary50,
         edge: colors.primary100,
@@ -123,7 +130,7 @@ export function ModeSwitchRow({ style }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${to.title}. ${to.sub}`}
+      accessibilityLabel={`${t(to.title)}. ${t(to.sub)}`}
       onPress={async () => {
         Haptics.selectionAsync().catch(() => {});
         await setViewMode(to.mode);
@@ -170,13 +177,13 @@ export function ModeSwitchRow({ style }) {
             color: colors.text,
           }}
         >
-          {to.title}
+          {t(to.title)}
         </Text>
         <Text
           numberOfLines={1}
           style={{ fontFamily: font.ui, fontSize: 14, color: colors.textMuted }}
         >
-          {to.sub}
+          {t(to.sub)}
         </Text>
       </View>
 

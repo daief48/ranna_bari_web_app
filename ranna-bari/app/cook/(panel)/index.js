@@ -22,6 +22,7 @@ import {
   timeAgo,
   useOrders,
 } from '../../../src/store/OrdersContext';
+import { useLang } from '../../../src/i18n/LanguageContext';
 
 const isToday = (iso) => {
   const d = new Date(iso);
@@ -38,6 +39,7 @@ export default function CookDashboard() {
   const router = useRouter();
   const { kitchen, toggleOpen, liveDishes } = useKitchen();
   const { ordersForKitchen, advanceOrder } = useOrders();
+  const { t, n } = useLang();
 
   const mine = ordersForKitchen(kitchen?.id);
 
@@ -75,7 +77,7 @@ export default function CookDashboard() {
       <CookScreen>
         <Container style={{ alignItems: 'center', gap: 18, paddingTop: 40 }}>
           <IconTile name="chefHat" variant="sage" large />
-          <Heading size={20}>Setting up your kitchen…</Heading>
+          <Heading size={20}>{t('Setting up your kitchen…')}</Heading>
         </Container>
       </CookScreen>
     );
@@ -87,12 +89,12 @@ export default function CookDashboard() {
     <CookScreen>
       <Container>
         <SectionHeader
-          lead="YOUR"
-          accent="KITCHEN"
+          lead={t('YOUR')}
+          accent={t('KITCHEN')}
           subtitle={
             open
-              ? `${kitchen.name} is taking orders.`
-              : `${kitchen.name} is closed. Nothing can be ordered.`
+              ? t('{name} is taking orders.', { name: kitchen.name })
+              : t('{name} is closed. Nothing can be ordered.', { name: kitchen.name })
           }
         />
 
@@ -106,8 +108,8 @@ export default function CookDashboard() {
             accessibilityState={{ checked: open }}
             accessibilityLabel={
               open
-                ? 'Kitchen is open and taking orders. Tap to stop.'
-                : 'Kitchen is closed. Tap to start taking orders.'
+                ? t('Open for orders')
+                : t('Tap to start taking orders')
             }
             onPress={() => {
               Haptics.selectionAsync().catch(() => {});
@@ -164,7 +166,7 @@ export default function CookDashboard() {
                       color: open ? '#FFFFFF' : colors.text,
                     }}
                   >
-                    {open ? 'Open for orders' : 'Closed'}
+                    {open ? t('Open for orders') : t('Closed')}
                   </Text>
                   <Text
                     style={{
@@ -176,8 +178,8 @@ export default function CookDashboard() {
                     }}
                   >
                     {open
-                      ? `${liveDishes.length} dish${liveDishes.length === 1 ? '' : 'es'} listed right now`
-                      : 'Tap to start taking orders'}
+                      ? t(liveDishes.length === 1 ? '{n} dish listed right now' : '{n} dishes listed right now', { n: n(liveDishes.length) })
+                      : t('Tap to start taking orders')}
                   </Text>
                 </View>
 
@@ -211,11 +213,11 @@ export default function CookDashboard() {
         {/* ---- Today ---- */}
         <Reveal delay={2}>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-            <StatTile icon="receipt" value={stats.today} label="Orders today" />
+            <StatTile icon="receipt" value={n(stats.today)} label={t('Orders today')} />
             <StatTile
               icon="banknote"
-              value={`৳${stats.earned}`}
-              label="Earned today"
+              value={`৳${n(stats.earned)}`}
+              label={t('Earned today')}
               variant="saffron"
             />
           </View>
@@ -229,8 +231,8 @@ export default function CookDashboard() {
             <View style={{ marginTop: 28 }}>
               <RowHeading
                 icon="alertCircle"
-                title={`${stats.waiting} waiting on you`}
-                action="See all"
+                title={t('{n} waiting on you', { n: n(stats.waiting) })}
+                action={t('See all')}
                 onAction={() => router.push('/cook/orders')}
               />
 
@@ -239,7 +241,7 @@ export default function CookDashboard() {
                   <BentoBox key={order.id} style={{ padding: 16 }}>
                     <Pressable
                       accessibilityRole="link"
-                      accessibilityLabel={`Order ${order.id} from ${order.contact?.name ?? 'a customer'}`}
+                      accessibilityLabel={`${t('Order')} ${order.id}`}
                       onPress={() => router.push(`/cook/order/${order.id}`)}
                     >
                       <View
@@ -267,7 +269,7 @@ export default function CookDashboard() {
                               color: colors.primary,
                             }}
                           >
-                            New
+                            {t('New')}
                           </Text>
                         </View>
                         <Text
@@ -277,10 +279,10 @@ export default function CookDashboard() {
                             color: colors.textMuted,
                           }}
                         >
-                          {timeAgo(order.createdAt)}
+                          {timeAgo(order.createdAt, t, n)}
                         </Text>
                         <View style={{ flex: 1 }} />
-                        <Price size={16}>৳{cookPayout(order)}</Price>
+                        <Price size={16}>৳{n(cookPayout(order))}</Price>
                       </View>
 
                       <Text
@@ -292,7 +294,7 @@ export default function CookDashboard() {
                           color: colors.text,
                         }}
                       >
-                        {order.contact?.name ?? 'A customer'}
+                        {order.contact?.name ?? t('A customer')}
                       </Text>
                       <Text
                         numberOfLines={2}
@@ -304,20 +306,20 @@ export default function CookDashboard() {
                           color: colors.textMuted,
                         }}
                       >
-                        {order.items.map((it) => `${it.qty}× ${it.name}`).join(', ')}
+                        {order.items.map((it) => `${n(it.qty)}× ${it.name}`).join(', ')}
                       </Text>
                     </Pressable>
 
                     <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                       <Button
                         variant="glass"
-                        label="Open"
+                        label={t('Open')}
                         small
                         style={{ flex: 1 }}
                         onPress={() => router.push(`/cook/order/${order.id}`)}
                       />
                       <Button
-                        label="Accept"
+                        label={t('Accept')}
                         icon="check"
                         small
                         style={{ flex: 1 }}
@@ -340,8 +342,8 @@ export default function CookDashboard() {
             <View style={{ marginTop: 28 }}>
               <RowHeading
                 icon="pot"
-                title={`${inFlight.length} in the pass`}
-                action="See all"
+                title={t('{n} in the pass', { n: n(inFlight.length) })}
+                action={t('See all')}
                 onAction={() => router.push('/cook/orders')}
               />
               <View style={{ gap: 10 }}>
@@ -349,7 +351,7 @@ export default function CookDashboard() {
                   <Pressable
                     key={order.id}
                     accessibilityRole="link"
-                    accessibilityLabel={`Order ${order.id}, ${order.status.replace(/_/g, ' ')}`}
+                    accessibilityLabel={`${t('Order')} ${order.id}`}
                     onPress={() => router.push(`/cook/order/${order.id}`)}
                     style={({ pressed }) => [
                       {
@@ -390,11 +392,11 @@ export default function CookDashboard() {
                         }}
                       >
                         {order.status === 'on_the_way'
-                          ? 'Out for delivery'
+                          ? t('Out for delivery')
                           : order.status === 'cooking'
-                            ? 'Cooking now'
-                            : 'Accepted'}{' '}
-                        · {timeAgo(order.createdAt)}
+                            ? t('Cooking now')
+                            : t('Accepted')}{' '}
+                        · {timeAgo(order.createdAt, t, n)}
                       </Text>
                     </View>
                     <Icon
@@ -418,12 +420,12 @@ export default function CookDashboard() {
             >
               <IconTile name="pot" variant="sage" large />
               <Heading size={19} style={{ textAlign: 'center' }}>
-                {open ? 'No orders right now' : 'Your kitchen is closed'}
+                {open ? t('No orders right now') : t('Your kitchen is closed')}
               </Heading>
               <Body muted size={14} style={{ textAlign: 'center' }}>
                 {open
-                  ? 'You are listed and taking orders. This fills up as they come in.'
-                  : 'Open the kitchen above and your dishes go live on the map.'}
+                  ? t('You are listed and taking orders. This fills up as they come in.')
+                  : t('Open the kitchen above and your dishes go live on the map.')}
               </Body>
             </BentoBox>
           </Reveal>
@@ -434,14 +436,14 @@ export default function CookDashboard() {
           <View style={{ gap: 12, marginTop: 28 }}>
             <ActionRow
               icon="plus"
-              title="Add a dish"
-              sub="List something new on your menu"
+              title={t('Add a dish')}
+              sub={t('List something new on your menu')}
               onPress={() => router.push('/cook/dish/new')}
             />
             <ActionRow
               icon="utensils"
-              title="Your menu"
-              sub={`${kitchen.dishes.length} dish${kitchen.dishes.length === 1 ? '' : 'es'}, ${liveDishes.length} available`}
+              title={t('Your menu')}
+              sub={t('{dishes} dishes, {live} available', { dishes: n(kitchen.dishes.length), live: n(liveDishes.length) })}
               onPress={() => router.push('/cook/menu')}
             />
           </View>

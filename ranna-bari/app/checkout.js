@@ -24,6 +24,7 @@ import { useCart } from '../src/store/CartContext';
 import { useAuth } from '../src/store/AuthContext';
 import { PAYMENT_METHODS, useOrders } from '../src/store/OrdersContext';
 import { DEMO_CHECKOUT } from '../src/lib/demoData';
+import { useLang } from '../src/i18n/LanguageContext';
 
 const LABELS = [
   ['Home', 'home'],
@@ -38,7 +39,7 @@ export default function CheckoutScreen() {
 
   if (!hydrated) {
     return (
-      <Screen activeIcon="cart">
+      <Screen>
         <Container style={{ alignItems: 'center', paddingTop: 60 }}>
           <ActivityIndicator color={colors.primary} />
         </Container>
@@ -50,6 +51,7 @@ export default function CheckoutScreen() {
 
 function CheckoutForm() {
   const { colors, shadow } = useTheme();
+  const { t, n } = useLang();
   const router = useRouter();
   const params = useLocalSearchParams();
   const { account } = useAuth();
@@ -86,11 +88,11 @@ function CheckoutForm() {
 
   const submit = () => {
     if (!name.trim() || !phone.trim() || !line.trim()) {
-      setNote('We need a name, a phone number and a street address to deliver.');
+      setNote(t('We need a name, a phone number and a street address to deliver.'));
       return;
     }
     if (phone.replace(/\D/g, '').length < 10) {
-      setNote('That phone number looks too short for the rider to call.');
+      setNote(t('That phone number looks too short for the rider to call.'));
       return;
     }
     setNote('');
@@ -127,15 +129,15 @@ function CheckoutForm() {
 
   if (!items.length) {
     return (
-      <Screen activeIcon="cart">
+      <Screen>
         <Container style={{ alignItems: 'center', gap: 18, paddingTop: 40 }}>
           <IconTile name="cart" large />
-          <Heading size={20}>Your cart is empty</Heading>
+          <Heading size={20}>{t('Your cart is empty')}</Heading>
           <Body muted size={15} style={{ textAlign: 'center' }}>
-            Add a dish before checking out.
+            {t('Add a dish before checking out.')}
           </Body>
           <Button
-            label="Browse artisans"
+            label={t('Browse artisans')}
             icon="arrowRight"
             onPress={() => router.replace('/browse')}
           />
@@ -145,16 +147,16 @@ function CheckoutForm() {
   }
 
   return (
-    <Screen activeIcon="cart" glow="both">
+    <Screen glow="both">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Container>
           <SectionHeader
-            lead="SECURE"
-            accent="CHECKOUT"
+            lead={t('SECURE')}
+            accent={t('CHECKOUT')}
             subtitle={
               chefName
-                ? `${itemCount} item${itemCount === 1 ? '' : 's'} from ${chefName}`
-                : `${itemCount} item${itemCount === 1 ? '' : 's'}`
+                ? `${t(itemCount === 1 ? '{n} item' : '{n} items', { n: n(itemCount) })} — ${chefName}`
+                : t(itemCount === 1 ? '{n} item' : '{n} items', { n: n(itemCount) })
             }
             style={{ marginBottom: 24 }}
           />
@@ -164,17 +166,17 @@ function CheckoutForm() {
           {/* ---- 1 · Deliver to ---- */}
           <Reveal delay={1}>
             <View style={[card(colors), shadow.sm]}>
-              <StepHeading n="1" icon="pin" title="Deliver to" />
+              <StepHeading n="1" icon="pin" title={t('Deliver to')} />
 
               <FloatLabelInput
-                label="Full name"
+                label={t('Full name')}
                 value={name}
                 onChangeText={setName}
-                placeholder="Who should the rider ask for?"
+                placeholder={t('Who should the rider ask for?')}
                 autoComplete="name"
               />
               <FloatLabelInput
-                label="Phone"
+                label={t('Phone')}
                 value={phone}
                 onChangeText={setPhone}
                 placeholder="+880 1XXXXXXXXX"
@@ -182,16 +184,16 @@ function CheckoutForm() {
                 autoComplete="tel"
               />
               <FloatLabelInput
-                label="House / road / flat"
+                label={t('House / road / flat')}
                 value={line}
                 onChangeText={setLine}
-                placeholder="House 12, Road 7, Flat 4B"
+                placeholder={t('House 12, Road 7, Flat 4B')}
               />
               <FloatLabelInput
-                label="Area"
+                label={t('Area')}
                 value={area}
                 onChangeText={setArea}
-                placeholder="Dhanmondi, Dhaka"
+                placeholder={t('Dhanmondi, Dhaka')}
               />
 
               <Text
@@ -204,7 +206,7 @@ function CheckoutForm() {
                   marginBottom: 10,
                 }}
               >
-                Save this address as
+                {t('Save this address as')}
               </Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {LABELS.map(([l, icon]) => {
@@ -242,7 +244,7 @@ function CheckoutForm() {
                           color: on ? '#FFFFFF' : colors.textMuted,
                         }}
                       >
-                        {l}
+                        {t(l)}
                       </Text>
                     </Pressable>
                   );
@@ -251,10 +253,10 @@ function CheckoutForm() {
 
               <View style={{ marginTop: 20 }}>
                 <FloatLabelInput
-                  label="Delivery instructions"
+                  label={t('Delivery instructions')}
                   value={instructions}
                   onChangeText={setInstructions}
-                  placeholder="Gate code, landmark, ring twice…"
+                  placeholder={t('Gate code, landmark, ring twice…')}
                   style={{ marginBottom: 0 }}
                 />
               </View>
@@ -264,7 +266,7 @@ function CheckoutForm() {
           {/* ---- 2 · Payment ---- */}
           <Reveal delay={2}>
             <View style={[card(colors), shadow.sm, { marginTop: 16 }]}>
-              <StepHeading n="2" icon="banknote" title="How you'll pay" />
+              <StepHeading n="2" icon="banknote" title={t("How you'll pay")} />
 
               <View style={{ gap: 12 }}>
                 {PAYMENT_METHODS.map((m) => {
@@ -315,7 +317,7 @@ function CheckoutForm() {
                               color: colors.text,
                             }}
                           >
-                            {m.title}
+                            {t(m.title)}
                           </Text>
                           {!m.available ? (
                             <View
@@ -335,7 +337,7 @@ function CheckoutForm() {
                                   color: colors.saffron,
                                 }}
                               >
-                                Soon
+                                {t('Soon')}
                               </Text>
                             </View>
                           ) : null}
@@ -348,7 +350,7 @@ function CheckoutForm() {
                             color: colors.textMuted,
                           }}
                         >
-                          {m.desc}
+                          {t(m.desc)}
                         </Text>
                       </View>
 
@@ -398,12 +400,7 @@ function CheckoutForm() {
                       color: colors.textMuted,
                     }}
                   >
-                    Have{' '}
-                    <Text style={{ fontFamily: font.uiBold, color: colors.text }}>
-                      ৳{total}
-                    </Text>{' '}
-                    in cash ready. Riders carry limited change, so exact notes
-                    help.
+                    {t('Keep ৳{total} in cash ready. Riders carry limited change, so exact notes help.', { total: n(total) })}
                   </Text>
                 </View>
               ) : null}
@@ -413,7 +410,7 @@ function CheckoutForm() {
           {/* ---- 3 · Summary ---- */}
           <Reveal delay={3}>
             <View style={[card(colors), shadow.sm, { marginTop: 16 }]}>
-              <StepHeading n="3" icon="receipt" title="Order summary" />
+              <StepHeading n="3" icon="receipt" title={t('Order summary')} />
 
               <View style={{ gap: 12, marginBottom: 20 }}>
                 {items.map((i) => (
@@ -450,7 +447,7 @@ function CheckoutForm() {
                           color: colors.textMuted,
                         }}
                       >
-                        ৳{i.price} × {i.qty}
+                        ৳{n(i.price)} × {n(i.qty)}
                       </Text>
                     </View>
                     <Text
@@ -461,15 +458,15 @@ function CheckoutForm() {
                         fontVariant: ['tabular-nums'],
                       }}
                     >
-                      ৳{i.price * i.qty}
+                      ৳{n(i.price * i.qty)}
                     </Text>
                   </View>
                 ))}
               </View>
 
-              <Row label="Subtotal" value={subtotal} />
-              <Row label="Delivery Fee" value={deliveryFee} />
-              <Row label="Platform Fee" value={platformFee} />
+              <Row label={t('Subtotal')} value={n(subtotal)} />
+              <Row label={t('Delivery Fee')} value={n(deliveryFee)} />
+              <Row label={t('Platform Fee')} value={n(platformFee)} />
 
               <View
                 style={{
@@ -482,7 +479,7 @@ function CheckoutForm() {
                   borderTopColor: colors.line,
                 }}
               >
-                <Price size={23}>Pay on delivery</Price>
+                <Price size={23}>{t('Pay on delivery')}</Price>
                 <GradientText
                   style={{
                     fontFamily: font.uiBold,
@@ -490,7 +487,7 @@ function CheckoutForm() {
                     letterSpacing: -0.46,
                   }}
                 >
-                  ৳{total}
+                  ৳{n(total)}
                 </GradientText>
               </View>
             </View>
@@ -498,7 +495,7 @@ function CheckoutForm() {
 
           <View style={{ marginTop: 24, gap: 12 }}>
             <Button
-              label={placing ? 'Placing…' : `Place order · ৳${total}`}
+              label={placing ? t('Placing…') : t('Place order · ৳{total}', { total: n(total) })}
               icon="arrowRight"
               block
               disabled={placing}
@@ -513,7 +510,7 @@ function CheckoutForm() {
                 color: colors.textMuted,
               }}
             >
-              No card needed. You pay the rider in cash at your door.
+              {t('No card needed. You pay the rider in cash at your door.')}
             </Text>
           </View>
         </Container>

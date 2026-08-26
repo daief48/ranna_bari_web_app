@@ -24,6 +24,7 @@ import {
   timeAgo,
   useOrders,
 } from '../../../src/store/OrdersContext';
+import { useLang } from '../../../src/i18n/LanguageContext';
 
 /**
  * The board is cut by what the cook has to do next, not by the raw status:
@@ -43,6 +44,7 @@ export default function CookOrders() {
   const { kitchen } = useKitchen();
   const { ordersForKitchen } = useOrders();
   const [lane, setLane] = useState('new');
+  const { t, n } = useLang();
 
   const mine = ordersForKitchen(kitchen?.id);
 
@@ -68,12 +70,12 @@ export default function CookOrders() {
     <CookScreen>
       <Container>
         <SectionHeader
-          lead="ORDER"
-          accent="BOARD"
+          lead={t('ORDER')}
+          accent={t('BOARD')}
           subtitle={
             counts.new
-              ? `${counts.new} order${counts.new === 1 ? '' : 's'} waiting to be accepted.`
-              : 'Everything that comes through your kitchen.'
+              ? t(counts.new === 1 ? '{n} order waiting to be accepted.' : '{n} orders waiting to be accepted.', { n: n(counts.new) })
+              : t('Everything that comes through your kitchen.')
           }
         />
       </Container>
@@ -86,14 +88,14 @@ export default function CookOrders() {
       >
         {LANES.map((l) => {
           const active = lane === l.key;
-          const n = counts[l.key];
+          const count = counts[l.key];
 
           return (
             <Pressable
               key={l.key}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
-              accessibilityLabel={`${l.label}, ${n} order${n === 1 ? '' : 's'}`}
+              accessibilityLabel={`${t(l.label)}, ${t(count === 1 ? '{n} order so far' : '{n} orders', { n: n(count) })}`}
               onPress={() => setLane(l.key)}
               style={({ pressed }) => ({
                 flexDirection: 'row',
@@ -117,9 +119,9 @@ export default function CookOrders() {
                   color: active ? '#FFFFFF' : colors.textMuted,
                 }}
               >
-                {l.label}
+                {t(l.label)}
               </Text>
-              {n > 0 ? (
+              {count > 0 ? (
                 <View
                   style={{
                     minWidth: 19,
@@ -145,7 +147,7 @@ export default function CookOrders() {
                           : colors.textMuted,
                     }}
                   >
-                    {n}
+                    {n(count)}
                   </Text>
                 </View>
               ) : null}
@@ -164,17 +166,17 @@ export default function CookOrders() {
             />
             <Heading size={19} style={{ textAlign: 'center' }}>
               {lane === 'new'
-                ? 'No new orders'
+                ? t('No new orders')
                 : lane === 'history'
-                  ? 'Nothing finished yet'
-                  : `Nothing ${lane === 'cooking' ? 'on the stove' : 'out for delivery'}`}
+                  ? t('Nothing finished yet')
+                  : t(lane === 'cooking' ? 'Nothing on the stove' : 'Nothing out for delivery')}
             </Heading>
             <Body muted size={14} style={{ textAlign: 'center' }}>
               {lane === 'new'
                 ? kitchen?.isOpen
-                  ? 'Your kitchen is open. New orders land here first.'
-                  : 'Your kitchen is closed, so nothing can come in.'
-                : 'Orders move through here as you work them.'}
+                  ? t('Your kitchen is open. New orders land here first.')
+                  : t('Your kitchen is closed, so nothing can come in.')
+                : t('Orders move through here as you work them.')}
             </Body>
           </View>
         ) : (
@@ -203,6 +205,7 @@ export default function CookOrders() {
  */
 function OrderCard({ order, onOpen }) {
   const { colors, shadow } = useTheme();
+  const { t, n } = useLang();
   const r = useResponsive();
   const { advanceOrder } = useOrders();
 
@@ -227,7 +230,7 @@ function OrderCard({ order, onOpen }) {
     >
       <Pressable
         accessibilityRole="link"
-        accessibilityLabel={`Order ${order.id} from ${order.contact?.name ?? 'a customer'}, ${meta.label}`}
+        accessibilityLabel={`${t('Order')} ${order.id}, ${t(meta.label)}`}
         onPress={onOpen}
         style={({ pressed }) => ({
           padding: 18,
@@ -246,7 +249,7 @@ function OrderCard({ order, onOpen }) {
           <Text
             style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
           >
-            {timeAgo(order.createdAt)}
+            {timeAgo(order.createdAt, t, n)}
           </Text>
           <View style={{ flex: 1 }} />
           <Text
@@ -293,18 +296,18 @@ function OrderCard({ order, onOpen }) {
                 color: colors.text,
               }}
             >
-              {order.contact?.name ?? 'A customer'}
+              {order.contact?.name ?? t('A customer')}
             </Text>
             <Text
               numberOfLines={1}
               style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
             >
-              {count} item{count === 1 ? '' : 's'} · {order.address?.area ?? ''}
+              {t(count === 1 ? '{n} item' : '{n} items', { n: n(count) })} · {order.address?.area ?? ''}
             </Text>
           </View>
 
           <View style={{ alignItems: 'flex-end' }}>
-            <Price size={17}>৳{cookPayout(order)}</Price>
+            <Price size={17}>৳{n(cookPayout(order))}</Price>
             <Text
               style={{
                 fontFamily: font.uiSemi,
@@ -314,7 +317,7 @@ function OrderCard({ order, onOpen }) {
                 color: colors.textLight,
               }}
             >
-              Your cut
+              {t('Your cut')}
             </Text>
           </View>
         </View>
@@ -331,7 +334,7 @@ function OrderCard({ order, onOpen }) {
             color: colors.textMuted,
           }}
         >
-          {order.items.map((it) => `${it.qty}× ${it.name}`).join(', ')}
+          {order.items.map((it) => `${n(it.qty)}× ${it.name}`).join(', ')}
         </Text>
       </Pressable>
 
@@ -349,7 +352,7 @@ function OrderCard({ order, onOpen }) {
           {order.status === 'placed' ? (
             <Button
               variant="glass"
-              label="Reject"
+              label={t('Reject')}
               small
               block={stacked}
               style={stacked ? null : { flex: 1 }}
@@ -357,7 +360,7 @@ function OrderCard({ order, onOpen }) {
             />
           ) : null}
           <Button
-            label={meta.action}
+            label={t(meta.action)}
             icon="arrowRight"
             small
             block={stacked}
@@ -390,7 +393,7 @@ function OrderCard({ order, onOpen }) {
               color: colors.textLight,
             }}
           >
-            {order.rejectReason}
+            {t(order.rejectReason)}
           </Text>
         </View>
       ) : null}

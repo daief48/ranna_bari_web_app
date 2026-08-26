@@ -17,6 +17,7 @@ import { useAuth } from '../../src/store/AuthContext';
 import { useCart } from '../../src/store/CartContext';
 import { useOrders } from '../../src/store/OrdersContext';
 import { useKitchen } from '../../src/store/KitchenContext';
+import { useLang } from '../../src/i18n/LanguageContext';
 
 export default function ProfileScreen() {
   const { colors, shadow, isDark, toggle } = useTheme();
@@ -25,19 +26,20 @@ export default function ProfileScreen() {
   const { count } = useCart();
   const { orders, activeOrders } = useOrders();
   const [confirmOut, setConfirmOut] = useState(false);
+  const { t, n } = useLang();
 
   return (
-    <Screen activeIcon="user" glow="both">
+    <Screen glow="both">
       <Container>
         <SectionHeader
-          lead="YOUR"
-          accent="PROFILE"
+          lead={t('YOUR')}
+          accent={t('PROFILE')}
           subtitle={
             isCook
-              ? 'You are browsing as a customer. Your kitchen is one tap away.'
+              ? t('You are browsing as a customer. Your kitchen is one tap away.')
               : isSignedIn
-                ? 'Your account, your kitchens, your orders.'
-                : 'Sign in to order, or open your own kitchen.'
+                ? t('Your account, your kitchens, your orders.')
+                : t('Sign in to order, or open your own kitchen.')
           }
         />
 
@@ -55,14 +57,13 @@ export default function ProfileScreen() {
             <BentoBox style={{ padding: 24, alignItems: 'center', gap: 16 }}>
               <IconTile name="user" large />
               <Heading size={20} style={{ textAlign: 'center' }}>
-                You&rsquo;re browsing as a guest
+                {t('You’re browsing as a guest')}
               </Heading>
               <Body muted size={15} style={{ textAlign: 'center' }}>
-                Create an account to save your address, track orders, and get
-                kitchens ranked by how close they are to your door.
+                {t('Create an account to save your address, track orders, and get kitchens ranked by how close they are to your door.')}
               </Body>
               <Button
-                label="Sign in or join"
+                label={t('Sign in or join')}
                 icon="arrowRight"
                 block
                 onPress={() => router.push('/auth')}
@@ -79,7 +80,7 @@ export default function ProfileScreen() {
         {isCook ? (
           <Reveal delay={2}>
             <View style={{ marginTop: 24 }}>
-              <GroupLabel icon="chefHat" text="Your kitchen" />
+              <GroupLabel icon="chefHat" text={t('Your kitchen')} />
               <KitchenCard
                 onOpen={async () => {
                   await setViewMode('cook');
@@ -94,34 +95,34 @@ export default function ProfileScreen() {
           </Reveal>
         ) : null}
 
-        {isCook ? <GroupLabel icon="cart" text="As a customer" style={{ marginTop: 28 }} /> : null}
+        {isCook ? <GroupLabel icon="utensils" text={t('As a customer')} style={{ marginTop: 28 }} /> : null}
 
         <View style={{ gap: 12, marginTop: isCook ? 0 : 16 }}>
           <Row
             icon="receipt"
             variant="primary"
-            title="Your orders"
+            title={t('Your orders')}
             sub={
               activeOrders.length
-                ? `${activeOrders.length} in progress`
+                ? t('{n} in progress', { n: n(activeOrders.length) })
                 : orders.length
-                  ? `${orders.length} past order${orders.length === 1 ? '' : 's'}`
-                  : 'Nothing ordered yet'
+                  ? t(orders.length === 1 ? '{n} past order' : '{n} past orders', { n: n(orders.length) })
+                  : t('Nothing ordered yet')
             }
             onPress={() => router.push('/orders')}
           />
           <Row
             icon="cart"
             variant="saffron"
-            title="Your cart"
-            sub={count ? `${count} item${count === 1 ? '' : 's'} waiting` : 'Empty right now'}
+            title={t('Your cart')}
+            sub={count ? t(count === 1 ? '{n} item waiting' : '{n} items waiting', { n: n(count) }) : t('Empty right now')}
             onPress={() => router.push('/cart')}
           />
           <Row
             icon="map"
             variant="saffron"
-            title="Kitchen map"
-            sub="See who is cooking near you"
+            title={t('Kitchen map')}
+            sub={t('See who is cooking near you')}
             onPress={() => router.push('/map')}
           />
           {/* Guests only.
@@ -135,27 +136,27 @@ export default function ProfileScreen() {
             <Row
               icon="chefHat"
               variant="sage"
-              title="Become a cook"
-              sub="Turn your kitchen into a business"
+              title={t('Become a cook')}
+              sub={t('Turn your kitchen into a business')}
               onPress={() => router.push('/become-cook')}
             />
           ) : null}
         </View>
 
-        {isCook ? <GroupLabel icon="sliders" text="Account" style={{ marginTop: 28 }} /> : null}
+        {isCook ? <GroupLabel icon="sliders" text={t('Account')} style={{ marginTop: 28 }} /> : null}
 
         <View style={{ gap: 12, marginTop: isCook ? 0 : 12 }}>
           {isSignedIn ? (
             <Row
               icon="user"
               variant="sage"
-              title="Edit profile"
+              title={t('Edit profile')}
               /* This is where a customer turns cook now, so the row has to
                  say so -- it is no longer a separate entry in the list. */
               sub={
                 isCook
-                  ? 'Photo, contact details and address'
-                  : 'Details, address, or open your own kitchen'
+                  ? t('Photo, contact details and address')
+                  : t('Details, address, or open your own kitchen')
               }
               onPress={() => router.push('/edit-profile')}
             />
@@ -163,8 +164,8 @@ export default function ProfileScreen() {
           <Row
             icon={isDark ? 'sun' : 'moon'}
             variant="primary"
-            title={isDark ? 'Light mode' : 'Midnight dining'}
-            sub={isDark ? 'Washi paper and shari rice' : 'Nori over sumi ink'}
+            title={isDark ? t('Light mode') : t('Midnight dining')}
+            sub={isDark ? t('Washi paper and shari rice') : t('Nori over sumi ink')}
             onPress={toggle}
           />
         </View>
@@ -193,19 +194,18 @@ export default function ProfileScreen() {
                     color: colors.text,
                   }}
                 >
-                  Log out of {account.email || account.phone || 'this account'}?
-                  Your cart and past orders stay on this device.
+                  {t('Log out of {who}? Your cart and past orders stay on this device.', { who: account.email || account.phone || t('this account') })}
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <Button
                     variant="glass"
-                    label="Stay in"
+                    label={t('Stay in')}
                     small
                     onPress={() => setConfirmOut(false)}
                     style={{ flex: 1 }}
                   />
                   <Button
-                    label="Log out"
+                    label={t('Log out')}
                     small
                     onPress={() => {
                       signOut();
@@ -218,7 +218,7 @@ export default function ProfileScreen() {
             ) : (
               <Button
                 variant="glass"
-                label="Log out"
+                label={t('Log out')}
                 icon="x"
                 iconPosition="left"
                 block
@@ -269,6 +269,7 @@ function GroupLabel({ icon, text, style }) {
  */
 function KitchenCard({ onOpen, goTo }) {
   const { colors, shadow } = useTheme();
+  const { t, n } = useLang();
   const { kitchen, liveDishes } = useKitchen();
   const { ordersForKitchen } = useOrders();
 
@@ -296,9 +297,9 @@ function KitchenCard({ onOpen, goTo }) {
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Open ${kitchen.name}. ${
-          open ? 'Open for orders' : 'Closed'
-        }, ${waiting} waiting.`}
+        accessibilityLabel={`${kitchen.name}. ${
+          open ? t('Open for orders') : t('Closed')
+        }. ${t('{n} waiting on you', { n: n(waiting) })}`}
         onPress={onOpen}
         style={({ pressed }) => ({
           padding: 16,
@@ -342,8 +343,8 @@ function KitchenCard({ onOpen, goTo }) {
                 }}
               >
                 {open
-                  ? `Open · ${liveDishes.length} dish${liveDishes.length === 1 ? '' : 'es'} live`
-                  : 'Closed · not taking orders'}
+                  ? t(liveDishes.length === 1 ? 'Open · {n} dish live' : 'Open · {n} dishes live', { n: n(liveDishes.length) })
+                  : t('Closed · not taking orders')}
               </Text>
             </View>
           </View>
@@ -377,8 +378,8 @@ function KitchenCard({ onOpen, goTo }) {
               }}
             >
               {waiting
-                ? `${waiting} order${waiting === 1 ? '' : 's'} waiting to be accepted`
-                : `${cooking} order${cooking === 1 ? '' : 's'} in the pass`}
+                ? t(waiting === 1 ? '{n} order waiting to be accepted' : '{n} orders waiting to be accepted', { n: n(waiting) })
+                : t(cooking === 1 ? '{n} order in the pass' : '{n} orders in the pass', { n: n(cooking) })}
             </Text>
           </View>
         ) : null}
@@ -403,7 +404,7 @@ function KitchenCard({ onOpen, goTo }) {
             <Pressable
               accessibilityRole="link"
               accessibilityLabel={
-                q.badge ? `${q.label}, ${q.badge} waiting` : q.label
+                q.badge ? `${t(q.label)}, ${t('{n} waiting on you', { n: n(q.badge) })}` : t(q.label)
               }
               onPress={() => goTo(q.href)}
               style={({ pressed }) => ({
@@ -439,7 +440,7 @@ function KitchenCard({ onOpen, goTo }) {
                         color: '#FFFFFF',
                       }}
                     >
-                      {q.badge}
+                      {n(q.badge)}
                     </Text>
                   </View>
                 ) : null}
@@ -453,7 +454,7 @@ function KitchenCard({ onOpen, goTo }) {
                   color: colors.textMuted,
                 }}
               >
-                {q.label}
+                {t(q.label)}
               </Text>
             </Pressable>
           </React.Fragment>
@@ -476,9 +477,10 @@ function KitchenCard({ onOpen, goTo }) {
  */
 function AccountCard({ account, orders, activeOrders, onEdit }) {
   const { colors, shadow } = useTheme();
+  const { t, n } = useLang();
 
   const isCook = account.role === 'cook';
-  const title = account.kitchen || account.name || 'RannaBari member';
+  const title = account.kitchen || account.name || t('RannaBari member');
   const address = [account.area, account.addressDetail]
     .filter(Boolean)
     .join(' · ');
@@ -586,7 +588,7 @@ function AccountCard({ account, orders, activeOrders, onEdit }) {
                   color: colors.onPrimary,
                 }}
               >
-                {isCook ? 'Home cook' : 'Customer'}
+                {isCook ? t('Home cook') : t('Customer')}
               </Text>
             </View>
           </View>
@@ -666,14 +668,14 @@ function AccountCard({ account, orders, activeOrders, onEdit }) {
           overflow: 'hidden',
         }}
       >
-        <Stat value={orders.length} label="Orders" />
+        <Stat value={n(orders.length)} label={t('Orders')} />
         <View style={{ width: 1, backgroundColor: 'rgba(255, 255, 255, 0.2)' }} />
-        <Stat value={activeOrders.length} label="In progress" />
+        <Stat value={n(activeOrders.length)} label={t('In progress')} />
       </View>
 
       <Pressable
         accessibilityRole="link"
-        accessibilityLabel="Edit your profile"
+        accessibilityLabel={t('Edit profile')}
         onPress={onEdit}
         style={({ pressed }) => ({
           flexDirection: 'row',
@@ -701,7 +703,7 @@ function AccountCard({ account, orders, activeOrders, onEdit }) {
             color: colors.onPrimary,
           }}
         >
-          Edit profile
+          {t('Edit profile')}
         </Text>
       </Pressable>
     </LinearGradient>

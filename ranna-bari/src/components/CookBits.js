@@ -4,6 +4,7 @@ import { Pressable, Text, View } from 'react-native';
 import Icon from './Icon';
 import { useTheme } from '../theme/ThemeProvider';
 import { ORDER_STEPS, stepIndex } from '../store/OrdersContext';
+import { useLang } from '../i18n/LanguageContext';
 import { font, radius, tracking, type } from '../theme/tokens';
 
 /**
@@ -93,6 +94,7 @@ export function statusMeta(status, colors) {
 /** The status chip, sized to sit on a card header row. */
 export function StatusPill({ status, style }) {
   const { colors } = useTheme();
+  const { t } = useLang();
   const meta = statusMeta(status, colors);
 
   return (
@@ -120,7 +122,7 @@ export function StatusPill({ status, style }) {
           color: meta.fg,
         }}
       >
-        {meta.label}
+        {t(meta.label)}
       </Text>
     </View>
   );

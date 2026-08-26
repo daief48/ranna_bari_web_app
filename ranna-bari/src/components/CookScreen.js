@@ -7,12 +7,14 @@ import * as Haptics from 'expo-haptics';
 import Brand from './Brand';
 import Icon from './Icon';
 import ModeSwitch from './ModeSwitch';
+import LanguageSwitch from './LanguageSwitch';
 import FilmGrain from './FilmGrain';
 import { AmbientGlow, KineticBackground } from './Backdrop';
 import { NAVBAR_HEIGHT, NAVBAR_TOP } from './Navbar';
 import { APP_BAR_CLEARANCE } from './Screen';
 import { useTheme } from '../theme/ThemeProvider';
 import { useKitchen } from '../store/KitchenContext';
+import { useLang } from '../i18n/LanguageContext';
 import { font, radius } from '../theme/tokens';
 
 /**
@@ -30,6 +32,7 @@ export function CookNavbar() {
   const { colors, shadow, isDark, toggle } = useTheme();
   const insets = useSafeAreaInsets();
   const { kitchen, toggleOpen } = useKitchen();
+  const { t } = useLang();
 
   const open = !!kitchen?.isOpen;
 
@@ -77,7 +80,7 @@ export function CookNavbar() {
               accessibilityRole="switch"
               accessibilityState={{ checked: open }}
               accessibilityLabel={
-                open ? 'Kitchen is open. Tap to close.' : 'Kitchen is closed. Tap to open.'
+                open ? t('Open for orders') : t('Tap to start taking orders')
               }
               onPress={() => {
                 Haptics.selectionAsync().catch(() => {});
@@ -113,12 +116,13 @@ export function CookNavbar() {
                   color: open ? colors.sage : colors.textMuted,
                 }}
               >
-                {open ? 'Open' : 'Closed'}
+                {open ? t('Open') : t('Closed')}
               </Text>
             </Pressable>
 
             {/* The way back to the shop, reachable from every cook screen. */}
             <ModeSwitch compact />
+            <LanguageSwitch />
 
             <Pressable
               accessibilityRole="button"

@@ -7,9 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Brand from './Brand';
 import Icon from './Icon';
 import ModeSwitch from './ModeSwitch';
+import LanguageSwitch from './LanguageSwitch';
 import { useTheme } from '../theme/ThemeProvider';
-import { useCart } from '../store/CartContext';
-import { useAuth } from '../store/AuthContext';
 import { font, radius } from '../theme/tokens';
 
 /** Height of the bar itself, from `.navbar .container { height: 58px }`. */
@@ -23,7 +22,7 @@ export function useNavbarOffset() {
   return insets.top + NAVBAR_TOP + NAVBAR_HEIGHT + 24;
 }
 
-function NavIcon({ name, onPress, active, badge, dot, accessibilityLabel }) {
+function NavIcon({ name, onPress, active, badge, accessibilityLabel }) {
   const { colors } = useTheme();
 
   return (
@@ -45,22 +44,6 @@ function NavIcon({ name, onPress, active, badge, dot, accessibilityLabel }) {
         size={21}
         color={active ? colors.primary : colors.text}
       />
-
-      {dot ? (
-        <View
-          style={{
-            position: 'absolute',
-            top: 7,
-            right: 7,
-            width: 8,
-            height: 8,
-            borderRadius: 4,
-            backgroundColor: colors.sage,
-            borderWidth: 1.5,
-            borderColor: colors.canvas,
-          }}
-        />
-      ) : null}
 
       {badge > 0 ? (
         <View
@@ -103,12 +86,10 @@ function NavIcon({ name, onPress, active, badge, dot, accessibilityLabel }) {
  * the CSS (the bottom app bar carries navigation), so only the icon cluster
  * survives here.
  */
-export default function Navbar({ activeIcon }) {
+export default function Navbar() {
   const { colors, shadow, isDark, toggle } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { count } = useCart();
-  const { isSignedIn, isCook } = useAuth();
 
   return (
     <View
@@ -153,28 +134,18 @@ export default function Navbar({ activeIcon }) {
             accessibilityRole="link"
             accessibilityLabel="RannaBari home"
           >
-            {/* A cook carries a fourth control up here, so the wordmark gives
-                up its space to it and the mark stands in alone. */}
-            <Brand size={20} markSize={34} markOnly={isCook} />
+            <Brand size={20} markSize={34} />
           </Pressable>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 0 }}>
             {/* Only a cook has somewhere else to be. */}
-            <ModeSwitch style={{ marginRight: 4 }} />
-            <NavIcon
-              name="cart"
-              badge={count}
-              active={activeIcon === 'cart'}
-              accessibilityLabel={`Cart, ${count} items`}
-              onPress={() => router.push('/cart')}
-            />
-            <NavIcon
-              name="user"
-              active={activeIcon === 'user'}
-              dot={isSignedIn}
-              accessibilityLabel={isSignedIn ? 'Your profile' : 'Sign in or join'}
-              onPress={() => router.push(isSignedIn ? '/profile' : '/auth')}
-            />
+            <ModeSwitch style={{ marginRight: 3 }} />
+            <LanguageSwitch style={{ marginRight: 3 }} />
+            {/* Neither cart nor profile lives up here any more: the bottom app
+                bar carries both, and a second copy at the far end of the phone
+                only made the bar wider. Screens outside the tab group have no
+                bottom bar, so those carry their own cart affordance instead --
+                see the summary bar on a kitchen page. */}
             <NavIcon
               name={isDark ? 'sun' : 'moon'}
               accessibilityLabel={

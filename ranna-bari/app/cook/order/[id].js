@@ -24,6 +24,7 @@ import {
   timeAgo,
   useOrders,
 } from '../../../src/store/OrdersContext';
+import { useLang } from '../../../src/i18n/LanguageContext';
 
 /** The four reasons a kitchen actually turns an order down. */
 const REJECT_REASONS = [
@@ -39,6 +40,7 @@ export default function CookOrderScreen() {
   const router = useRouter();
   const { getOrder, advanceOrder, rejectOrder, hydrated } = useOrders();
   const [rejecting, setRejecting] = useState(false);
+  const { t, n, lang } = useLang();
 
   const order = getOrder(String(id));
 
@@ -47,10 +49,10 @@ export default function CookOrderScreen() {
       <CookScreen>
         <Container style={{ alignItems: 'center', gap: 16, paddingTop: 40 }}>
           <Icon name="alertCircle" size={32} color={colors.sage} />
-          <Heading size={20}>{hydrated ? 'Order not found' : 'Loading…'}</Heading>
+          <Heading size={20}>{hydrated ? t('Order not found') : t('Loading…')}</Heading>
           {hydrated ? (
             <Button
-              label="Back to the board"
+              label={t('Back to the board')}
               onPress={() => router.replace('/cook/orders')}
             />
           ) : null}
@@ -95,7 +97,7 @@ export default function CookOrderScreen() {
               color: colors.textMuted,
             }}
           >
-            Order board
+            {t('Order board')}
           </Text>
         </Pressable>
 
@@ -113,7 +115,7 @@ export default function CookOrderScreen() {
             <Text
               style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
             >
-              {timeAgo(order.createdAt)}
+              {timeAgo(order.createdAt, t, n)}
             </Text>
           </View>
 
@@ -130,7 +132,7 @@ export default function CookOrderScreen() {
             {order.id}
           </Text>
           <Body muted size={14} style={{ marginTop: 4 }}>
-            {formatOrderDate(order.createdAt)}
+            {formatOrderDate(order.createdAt, lang)}
           </Body>
         </Reveal>
 
@@ -139,7 +141,7 @@ export default function CookOrderScreen() {
             and the number before anything about the food. */}
         <Reveal delay={2}>
           <View style={{ marginTop: 28 }}>
-            <RowHeading icon="user" title="Customer" />
+            <RowHeading icon="user" title={t('Customer')} />
 
             <View
               style={[
@@ -176,7 +178,7 @@ export default function CookOrderScreen() {
                       color: colors.text,
                     }}
                   >
-                    {order.contact?.name ?? 'A customer'}
+                    {order.contact?.name ?? t('A customer')}
                   </Text>
                   <Text
                     numberOfLines={1}
@@ -194,7 +196,7 @@ export default function CookOrderScreen() {
                 {order.contact?.phone ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Call ${order.contact.name}`}
+                    accessibilityLabel={`${t('Call')} ${order.contact.name}`}
                     onPress={call}
                     style={({ pressed }) => ({
                       width: 44,
@@ -280,7 +282,7 @@ export default function CookOrderScreen() {
         {/* ---- The ticket ---- */}
         <Reveal delay={3}>
           <View style={{ marginTop: 28 }}>
-            <RowHeading icon="pot" title="To cook" />
+            <RowHeading icon="pot" title={t('To cook')} />
 
             <View
               style={[
@@ -337,7 +339,7 @@ export default function CookOrderScreen() {
                         fontVariant: ['tabular-nums'],
                       }}
                     >
-                      {it.qty}×
+                      {n(it.qty)}×
                     </Text>
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
@@ -353,7 +355,7 @@ export default function CookOrderScreen() {
                       {it.name}
                     </Text>
                   </View>
-                  <Price size={15}>৳{it.price * it.qty}</Price>
+                  <Price size={15}>৳{n(it.price * it.qty)}</Price>
                 </View>
               ))}
 
@@ -367,13 +369,13 @@ export default function CookOrderScreen() {
                   backgroundColor: colors.sunken,
                 }}
               >
-                <Line label="Food total" value={`৳${order.subtotal}`} />
+                <Line label={t('Food total')} value={`৳${n(order.subtotal)}`} />
                 <Line
-                  label={`Platform share (${Math.round((1 - COOK_PAYOUT_RATE) * 100)}%)`}
-                  value={`− ৳${order.subtotal - cookPayout(order)}`}
+                  label={t('Platform share ({pct}%)', { pct: n(Math.round((1 - COOK_PAYOUT_RATE) * 100)) })}
+                  value={`− ৳${n(order.subtotal - cookPayout(order))}`}
                 />
                 <View style={{ height: 1, backgroundColor: colors.line }} />
-                <Line label="You receive" value={`৳${cookPayout(order)}`} strong />
+                <Line label={t('You receive')} value={`৳${n(cookPayout(order))}`} strong />
 
                 {order.paymentMethod === 'cod' ? (
                   <View
@@ -394,8 +396,7 @@ export default function CookOrderScreen() {
                         color: colors.textMuted,
                       }}
                     >
-                      Cash on delivery — the rider collects ৳{order.total} at the
-                      door, including delivery and platform fees.
+                      {t('Cash on delivery — the rider collects ৳{total} at the door, including delivery and platform fees.', { total: n(order.total) })}
                     </Text>
                   </View>
                 ) : null}
@@ -407,7 +408,7 @@ export default function CookOrderScreen() {
         {/* ---- Where it is ---- */}
         <Reveal delay={4}>
           <View style={{ marginTop: 28 }}>
-            <RowHeading icon="route" title="Progress" />
+            <RowHeading icon="route" title={t('Progress')} />
 
             {closed ? (
               <View
@@ -432,8 +433,8 @@ export default function CookOrderScreen() {
                     }}
                   >
                     {order.status === 'rejected'
-                      ? 'You turned this order down'
-                      : 'The customer cancelled this order'}
+                      ? t('You turned this order down')
+                      : t('The customer cancelled this order')}
                   </Text>
                   {order.rejectReason ? (
                     <Text
@@ -445,7 +446,7 @@ export default function CookOrderScreen() {
                         color: colors.textMuted,
                       }}
                     >
-                      {order.rejectReason}
+                      {t(order.rejectReason)}
                     </Text>
                   ) : null}
                 </View>
@@ -507,7 +508,7 @@ export default function CookOrderScreen() {
                             color: active || done ? colors.text : colors.textLight,
                           }}
                         >
-                          {step.label}
+                          {t(step.label)}
                         </Text>
                         {stamps[step.key] ? (
                           <Text
@@ -518,7 +519,7 @@ export default function CookOrderScreen() {
                               color: colors.textMuted,
                             }}
                           >
-                            {formatOrderDate(stamps[step.key])}
+                            {formatOrderDate(stamps[step.key], lang)}
                           </Text>
                         ) : null}
                       </View>
@@ -534,7 +535,7 @@ export default function CookOrderScreen() {
         {next ? (
           <View style={{ marginTop: 12, gap: 12 }}>
             <Button
-              label={meta.action}
+              label={t(meta.action)}
               icon="arrowRight"
               block
               onPress={() => {
@@ -562,10 +563,10 @@ export default function CookOrderScreen() {
                       color: colors.text,
                     }}
                   >
-                    Why are you turning this down?
+                    {t('Why are you turning this down?')}
                   </Text>
                   <Body muted size={13}>
-                    The customer sees your reason, so pick the true one.
+                    {t('The customer sees your reason, so pick the true one.')}
                   </Body>
 
                   {REJECT_REASONS.map((reason) => (
@@ -597,7 +598,7 @@ export default function CookOrderScreen() {
                           color: colors.text,
                         }}
                       >
-                        {reason}
+                        {t(reason)}
                       </Text>
                       <Icon name="chevronRight" size={15} color={colors.textLight} />
                     </Pressable>
@@ -605,7 +606,7 @@ export default function CookOrderScreen() {
 
                   <Button
                     variant="ghost"
-                    label="Never mind"
+                    label={t('Never mind')}
                     small
                     block
                     onPress={() => setRejecting(false)}
@@ -614,7 +615,7 @@ export default function CookOrderScreen() {
               ) : (
                 <Button
                   variant="glass"
-                  label="Reject this order"
+                  label={t('Reject this order')}
                   icon="x"
                   iconPosition="left"
                   block

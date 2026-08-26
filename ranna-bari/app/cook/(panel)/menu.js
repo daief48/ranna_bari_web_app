@@ -15,11 +15,13 @@ import { Body, Heading, Price } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
+import { useLang } from '../../../src/i18n/LanguageContext';
 
 export default function CookMenu() {
   const { colors } = useTheme();
   const router = useRouter();
   const { kitchen, liveDishes, toggleDish } = useKitchen();
+  const { t, n } = useLang();
 
   const dishes = kitchen?.dishes ?? [];
 
@@ -27,18 +29,18 @@ export default function CookMenu() {
     <CookScreen>
       <Container>
         <SectionHeader
-          lead="YOUR"
-          accent="MENU"
+          lead={t('YOUR')}
+          accent={t('MENU')}
           subtitle={
             dishes.length
-              ? `${liveDishes.length} of ${dishes.length} available to order right now.`
-              : 'Nothing listed yet. Add your first dish.'
+              ? t('{live} of {total} available to order right now.', { live: n(liveDishes.length), total: n(dishes.length) })
+              : t('Nothing listed yet. Add your first dish.')
           }
         />
 
         <Reveal delay={1}>
           <Button
-            label="Add a dish"
+            label={t('Add a dish')}
             icon="plus"
             iconPosition="left"
             block
@@ -73,8 +75,7 @@ export default function CookMenu() {
                   color: colors.text,
                 }}
               >
-                Your kitchen is closed, so none of this is orderable. Open it
-                from the bar above.
+                {t('Your kitchen is closed, so none of this is orderable. Open it from the bar above.')}
               </Text>
             </View>
           </Reveal>
@@ -83,10 +84,9 @@ export default function CookMenu() {
         {!dishes.length ? (
           <View style={{ alignItems: 'center', gap: 16, paddingVertical: 44 }}>
             <IconTile name="utensils" variant="sage" large />
-            <Heading size={19}>An empty menu</Heading>
+            <Heading size={19}>{t('An empty menu')}</Heading>
             <Body muted size={14} style={{ textAlign: 'center' }}>
-              A kitchen with nothing listed cannot take an order. Add a dish
-              and it goes live the moment you open.
+              {t('A kitchen with nothing listed cannot take an order. Add a dish and it goes live the moment you open.')}
             </Body>
           </View>
         ) : (
@@ -119,6 +119,7 @@ export default function CookMenu() {
  */
 function DishRow({ dish, onOpen, onToggle }) {
   const { colors, shadow } = useTheme();
+  const { t, n } = useLang();
   const on = dish.available;
 
   return (
@@ -138,7 +139,7 @@ function DishRow({ dish, onOpen, onToggle }) {
     >
       <Pressable
         accessibilityRole="link"
-        accessibilityLabel={`Edit ${dish.name}, ৳${dish.price}`}
+        accessibilityLabel={`${t('Edit dish')}: ${dish.name}, ৳${n(dish.price)}`}
         onPress={onOpen}
         style={({ pressed }) => ({
           flexDirection: 'row',
@@ -186,8 +187,8 @@ function DishRow({ dish, onOpen, onToggle }) {
           <View
             style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 7 }}
           >
-            <Price size={16}>৳{dish.price}</Price>
-            {dish.tags?.[0] ? <Tag label={dish.tags[0]} /> : null}
+            <Price size={16}>৳{n(dish.price)}</Price>
+            {dish.tags?.[0] ? <Tag label={t(dish.tags[0])} /> : null}
           </View>
         </View>
 
@@ -199,8 +200,8 @@ function DishRow({ dish, onOpen, onToggle }) {
         accessibilityState={{ checked: on }}
         accessibilityLabel={
           on
-            ? `${dish.name} is available. Tap to mark sold out.`
-            : `${dish.name} is sold out. Tap to make it available.`
+            ? `${dish.name} — ${t('Available today')}`
+            : `${dish.name} — ${t('Sold out')}`
         }
         onPress={onToggle}
         style={({ pressed }) => ({
@@ -222,7 +223,7 @@ function DishRow({ dish, onOpen, onToggle }) {
             color: on ? colors.sage : colors.textMuted,
           }}
         >
-          {on ? 'Available today' : 'Sold out'}
+          {on ? t('Available today') : t('Sold out')}
         </Text>
 
         <View

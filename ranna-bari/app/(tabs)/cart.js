@@ -3,17 +3,18 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 
-import Screen, { Container } from '../src/components/Screen';
-import Icon from '../src/components/Icon';
-import Reveal from '../src/components/Reveal';
-import Button from '../src/components/Button';
-import { Badge } from '../src/components/Surfaces';
-import { Body, GradientText, Heading, Price, SectionTitle } from '../src/components/Typography';
-import { useTheme } from '../src/theme/ThemeProvider';
-import useResponsive from '../src/theme/useResponsive';
-import { font, radius, type } from '../src/theme/tokens';
-import { useCart } from '../src/store/CartContext';
-import { useMenus } from '../src/data';
+import Screen, { Container } from '../../src/components/Screen';
+import Icon from '../../src/components/Icon';
+import Reveal from '../../src/components/Reveal';
+import Button from '../../src/components/Button';
+import { Badge } from '../../src/components/Surfaces';
+import { Body, GradientText, Heading, Price, SectionTitle } from '../../src/components/Typography';
+import { useTheme } from '../../src/theme/ThemeProvider';
+import useResponsive from '../../src/theme/useResponsive';
+import { font, radius, tracking, type } from '../../src/theme/tokens';
+import { useCart } from '../../src/store/CartContext';
+import { useMenus } from '../../src/data';
+import { useLang } from '../../src/i18n/LanguageContext';
 
 /** A cheap, honest pairing: the least expensive dish from another kitchen. */
 function usePairing(items) {
@@ -50,6 +51,7 @@ export default function CartScreen() {
   } = useCart();
 
   const [instructions, setInstructions] = useState('');
+  const { t, n } = useLang();
   const pairing = usePairing(items);
 
   /* The cart badge on the navbar shows a single kitchen's order in the web
@@ -74,19 +76,19 @@ export default function CartScreen() {
     });
 
   return (
-    <Screen activeIcon="cart">
+    <Screen>
       <Container>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 32 }}>
-          <SectionTitle>YOUR </SectionTitle>
+          <SectionTitle>{t('YOUR')} </SectionTitle>
           <GradientText
             style={{
               fontFamily: font.displayExtra,
               fontSize: r.sectionTitle,
               lineHeight: r.sectionTitle * 1.08,
-              letterSpacing: r.sectionTitle * -0.012,
+              letterSpacing: r.sectionTitle * tracking.tight,
             }}
           >
-            CART
+            {t('CART')}
           </GradientText>
         </View>
 
@@ -104,12 +106,12 @@ export default function CartScreen() {
             >
               <Icon name="cart" size={30} color={colors.primary} />
             </View>
-            <Heading size={20}>Nothing here yet</Heading>
+            <Heading size={20}>{t('Nothing here yet')}</Heading>
             <Body muted size={15} style={{ textAlign: 'center' }}>
-              Pick a kitchen and the dishes you add will show up here.
+              {t('Pick a kitchen and the dishes you add will show up here.')}
             </Body>
             <Button
-              label="Browse artisans"
+              label={t('Browse artisans')}
               icon="arrowRight"
               onPress={() => router.replace('/browse')}
             />
@@ -143,7 +145,7 @@ export default function CartScreen() {
                         marginBottom: 4,
                       }}
                     >
-                      AI Pairing Suggestion
+                      {t('AI Pairing Suggestion')}
                     </Text>
                     <Text
                       style={{
@@ -153,12 +155,12 @@ export default function CartScreen() {
                         color: colors.textMuted,
                       }}
                     >
-                      Goes well with your order: {pairing.name} for ৳{pairing.price}.
+                      {t('Goes well with your order:')} {pairing.name} — ৳{n(pairing.price)}
                     </Text>
                   </View>
                   <Button
                     variant="glass"
-                    label="Add"
+                    label={t('Add')}
                     small
                     onPress={() =>
                       add(pairing, { id: items[0].chefId, name: items[0].chefName })
@@ -172,7 +174,7 @@ export default function CartScreen() {
             {groups.map(([chefName, rows], gi) => (
               <View key={chefName} style={{ marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', marginBottom: 16 }}>
-                  <Badge tone="accent" label={`From: ${chefName}`} />
+                  <Badge tone="accent" label={`${t('From:')} ${chefName}`} />
                 </View>
 
                 {rows.map((item, i) => (
@@ -257,7 +259,7 @@ export default function CartScreen() {
                       >
                         <QtyButton
                           icon="minus"
-                          label="Decrease quantity"
+                          label={t('Decrease quantity')}
                           onPress={() => updateQty(item.id, -1)}
                         />
                         <Text
@@ -270,11 +272,11 @@ export default function CartScreen() {
                             fontVariant: ['tabular-nums'],
                           }}
                         >
-                          {item.qty}
+                          {n(item.qty)}
                         </Text>
                         <QtyButton
                           icon="plus"
-                          label="Increase quantity"
+                          label={t('Increase quantity')}
                           onPress={() => updateQty(item.id, 1)}
                         />
                       </View>
@@ -312,7 +314,7 @@ export default function CartScreen() {
                   textDecorationLine: 'underline',
                 }}
               >
-                ← Add more items
+                ← {t('Add more items')}
               </Text>
             </Pressable>
 
@@ -333,12 +335,12 @@ export default function CartScreen() {
                 ]}
               >
                 <Heading size={22} style={{ marginBottom: 24 }}>
-                  Order Summary
+                  {t('Order Summary')}
                 </Heading>
 
-                <SummaryRow label="Subtotal" value={subtotal} />
-                <SummaryRow label="Delivery Fee" value={deliveryFee} />
-                <SummaryRow label="Platform Fee" value={platformFee} />
+                <SummaryRow label={t('Subtotal')} value={n(subtotal)} />
+                <SummaryRow label={t('Delivery Fee')} value={n(deliveryFee)} />
+                <SummaryRow label={t('Platform Fee')} value={n(platformFee)} />
 
                 <View
                   style={{
@@ -351,7 +353,7 @@ export default function CartScreen() {
                     borderTopColor: colors.line,
                   }}
                 >
-                  <Price size={23}>Total</Price>
+                  <Price size={23}>{t('Total')}</Price>
                   <GradientText
                     style={{
                       fontFamily: font.uiBold,
@@ -359,14 +361,14 @@ export default function CartScreen() {
                       letterSpacing: -0.46,
                     }}
                   >
-                    ৳{total}
+                    ৳{n(total)}
                   </GradientText>
                 </View>
 
                 <TextInput
                   value={instructions}
                   onChangeText={setInstructions}
-                  placeholder="Add delivery instructions (optional)"
+                  placeholder={t('Add delivery instructions (optional)')}
                   placeholderTextColor={colors.textLight}
                   style={{
                     marginTop: 24,
@@ -383,7 +385,7 @@ export default function CartScreen() {
                   }}
                 />
 
-                <Button label="Proceed to checkout" block onPress={checkout} />
+                <Button label={t('Proceed to checkout')} block onPress={checkout} />
 
                 <View
                   style={{
@@ -402,7 +404,7 @@ export default function CartScreen() {
                       color: colors.textMuted,
                     }}
                   >
-                    Cash on delivery. Pay the rider at your door.
+                    {t('Cash on delivery. Pay the rider at your door.')}
                   </Text>
                 </View>
               </View>

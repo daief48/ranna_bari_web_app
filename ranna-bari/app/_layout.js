@@ -20,14 +20,20 @@ import Inter_400Regular from '@expo-google-fonts/inter/400Regular/Inter_400Regul
 import Inter_500Medium from '@expo-google-fonts/inter/500Medium/Inter_500Medium.ttf';
 import Inter_600SemiBold from '@expo-google-fonts/inter/600SemiBold/Inter_600SemiBold.ttf';
 import Inter_700Bold from '@expo-google-fonts/inter/700Bold/Inter_700Bold.ttf';
+/* Bengali carries the whole interface when the language is switched, not just
+   the taka sign, so it needs the same range of weights the Latin faces do. */
+import NotoSansBengali_400Regular from '@expo-google-fonts/noto-sans-bengali/400Regular/NotoSansBengali_400Regular.ttf';
 import NotoSansBengali_500Medium from '@expo-google-fonts/noto-sans-bengali/500Medium/NotoSansBengali_500Medium.ttf';
+import NotoSansBengali_600SemiBold from '@expo-google-fonts/noto-sans-bengali/600SemiBold/NotoSansBengali_600SemiBold.ttf';
 import NotoSansBengali_700Bold from '@expo-google-fonts/noto-sans-bengali/700Bold/NotoSansBengali_700Bold.ttf';
+import NotoSansBengali_800ExtraBold from '@expo-google-fonts/noto-sans-bengali/800ExtraBold/NotoSansBengali_800ExtraBold.ttf';
 
 import { ThemeProvider, useTheme } from '../src/theme/ThemeProvider';
 import { CartProvider } from '../src/store/CartContext';
 import { AuthProvider, useAuth } from '../src/store/AuthContext';
 import { OrdersProvider, useOrders } from '../src/store/OrdersContext';
 import { KitchenProvider, useKitchen } from '../src/store/KitchenContext';
+import { LanguageProvider } from '../src/i18n/LanguageContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -85,7 +91,6 @@ function Root() {
             them -- switching modes replaces the whole app, so it fades. */}
         <Stack.Screen name="cook" options={{ animation: 'fade' }} />
         <Stack.Screen name="chef/[id]" />
-        <Stack.Screen name="cart" />
         <Stack.Screen name="checkout" />
         <Stack.Screen name="orders" />
         {/* Replacing the cart with the receipt is a one-way step: the back
@@ -113,8 +118,11 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    NotoSansBengali_400Regular,
     NotoSansBengali_500Medium,
+    NotoSansBengali_600SemiBold,
     NotoSansBengali_700Bold,
+    NotoSansBengali_800ExtraBold,
   });
 
   // A font that fails to decode must not leave the app behind the splash
@@ -134,6 +142,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayout}>
       <SafeAreaProvider>
+        <LanguageProvider>
         <ThemeProvider>
           <AuthProvider>
             <OrdersProvider>
@@ -146,6 +155,7 @@ export default function RootLayout() {
             </OrdersProvider>
           </AuthProvider>
         </ThemeProvider>
+        </LanguageProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

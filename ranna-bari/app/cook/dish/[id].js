@@ -24,6 +24,7 @@ import { Body, Heading } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
+import { useLang } from '../../../src/i18n/LanguageContext';
 
 /** The tag vocabulary the browse filters and mood pills already understand. */
 const TAGS = [
@@ -55,6 +56,7 @@ const PLACEHOLDER =
 export default function DishEditor() {
   const { id } = useLocalSearchParams();
   const { colors } = useTheme();
+  const { t } = useLang();
   const router = useRouter();
   const { kitchen, hydrated } = useKitchen();
 
@@ -76,11 +78,11 @@ export default function DishEditor() {
       <CookScreen>
         <Container style={{ alignItems: 'center', gap: 16, paddingTop: 40 }}>
           <Icon name="alertCircle" size={32} color={colors.sage} />
-          <Heading size={20}>Dish not found</Heading>
+          <Heading size={20}>{t('Dish not found')}</Heading>
           <Body muted size={15} style={{ textAlign: 'center' }}>
-            It may have been removed from your menu.
+            {t('It may have been removed from your menu.')}
           </Body>
-          <Button label="Back to menu" onPress={() => router.replace('/cook/menu')} />
+          <Button label={t('Back to menu')} onPress={() => router.replace('/cook/menu')} />
         </Container>
       </CookScreen>
     );
@@ -91,6 +93,7 @@ export default function DishEditor() {
 
 function DishForm({ isNew, existing }) {
   const { colors, shadow } = useTheme();
+  const { t } = useLang();
   const router = useRouter();
   const { addDish, updateDish, removeDish } = useKitchen();
 
@@ -105,7 +108,7 @@ function DishForm({ isNew, existing }) {
   const pickImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      setNote('RannaBari needs photo access to set a dish photo.');
+      setNote(t('RannaBari needs photo access to set a dish photo.'));
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -124,22 +127,22 @@ function DishForm({ isNew, existing }) {
   const save = () => {
     const value = Number(price);
     if (!name.trim()) {
-      setNote('Give the dish a name.');
+      setNote(t('Give the dish a name.'));
       return;
     }
     if (!Number.isFinite(value) || value <= 0) {
-      setNote('Set a price above zero, in taka.');
+      setNote(t('Set a price above zero, in taka.'));
       return;
     }
     if (!tags.length) {
-      setNote('Pick at least one tag so customers can find it.');
+      setNote(t('Pick at least one tag so customers can find it.'));
       return;
     }
     setNote('');
 
     const payload = {
       name: name.trim(),
-      description: description.trim() || 'Cooked to order.',
+      description: description.trim() || t('Cooked to order.'),
       price: Math.round(value),
       image,
       tags,
@@ -178,18 +181,18 @@ function DishForm({ isNew, existing }) {
                 color: colors.textMuted,
               }}
             >
-              Your menu
+              {t('Your menu')}
             </Text>
           </Pressable>
 
           <Reveal delay={1}>
             <Heading size={30} style={{ letterSpacing: -0.6 }}>
-              {isNew ? 'Add a dish' : 'Edit dish'}
+              {isNew ? t('Add a dish') : t('Edit dish')}
             </Heading>
             <Body muted size={15} style={{ marginTop: 4, marginBottom: 26 }}>
               {isNew
-                ? 'It goes live on your listing as soon as you save.'
-                : 'Changes reach customers immediately.'}
+                ? t('It goes live on your listing as soon as you save.')
+                : t('Changes reach customers immediately.')}
             </Body>
           </Reveal>
 
@@ -197,7 +200,7 @@ function DishForm({ isNew, existing }) {
           <Reveal delay={2}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Change the dish photo"
+              accessibilityLabel={t('Change photo')}
               onPress={pickImage}
               style={({ pressed }) => [
                 {
@@ -248,7 +251,7 @@ function DishForm({ isNew, existing }) {
                     color: colors.onDark,
                   }}
                 >
-                  {image !== PLACEHOLDER ? 'Change photo' : 'Add a photo'}
+                  {image !== PLACEHOLDER ? t('Change photo') : t('Add a photo')}
                 </Text>
               </View>
             </Pressable>
@@ -259,23 +262,23 @@ function DishForm({ isNew, existing }) {
             <FormNote text={note} />
 
             <FloatLabelInput
-              label="Dish name"
+              label={t('Dish name')}
               value={name}
               onChangeText={setName}
               placeholder="Shorshe Ilish"
             />
 
             <FloatLabelInput
-              label="Description"
+              label={t('Description')}
               value={description}
               onChangeText={setDescription}
-              placeholder="One line on what makes it yours"
+              placeholder={t('One line on what makes it yours')}
               multiline
               numberOfLines={3}
             />
 
             <FloatLabelInput
-              label="Price in taka"
+              label={t('Price in taka')}
               value={price}
               onChangeText={(v) => setPrice(v.replace(/[^0-9]/g, ''))}
               placeholder="450"
@@ -289,20 +292,20 @@ function DishForm({ isNew, existing }) {
               somebody searching for it. */}
           <Reveal delay={4}>
             <View style={{ marginTop: 8 }}>
-              <RowHeading icon="sparkles" title="Tags" />
+              <RowHeading icon="sparkles" title={t('Tags')} />
               <Body muted size={13} style={{ marginTop: -8, marginBottom: 14 }}>
-                Customers filter by these. Pick every one that fits.
+                {t('Customers filter by these. Pick every one that fits.')}
               </Body>
 
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {TAGS.map((t) => {
-                  const on = tags.includes(t);
+                {TAGS.map((tag) => {
+                  const on = tags.includes(tag);
                   return (
                     <Pressable
-                      key={t}
+                      key={tag}
                       accessibilityRole="button"
                       accessibilityState={{ selected: on }}
-                      onPress={() => toggleTag(t)}
+                      onPress={() => toggleTag(tag)}
                       style={({ pressed }) => ({
                         flexDirection: 'row',
                         alignItems: 'center',
@@ -328,7 +331,7 @@ function DishForm({ isNew, existing }) {
                           color: on ? '#FFFFFF' : colors.textMuted,
                         }}
                       >
-                        {t}
+                        {t(tag)}
                       </Text>
                     </Pressable>
                   );
@@ -340,7 +343,7 @@ function DishForm({ isNew, existing }) {
           {/* ---- Save ---- */}
           <View style={{ gap: 12, marginTop: 32 }}>
             <Button
-              label={isNew ? 'Add to menu' : 'Save changes'}
+              label={isNew ? t('Add to menu') : t('Save changes')}
               icon="check"
               block
               onPress={save}
@@ -359,19 +362,18 @@ function DishForm({ isNew, existing }) {
                   }}
                 >
                   <Body size={14}>
-                    Remove {existing.name} from your menu? Orders already placed
-                    for it are not affected.
+                    {t('Remove {name} from your menu? Orders already placed for it are not affected.', { name: existing.name })}
                   </Body>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <Button
                       variant="glass"
-                      label="Keep it"
+                      label={t('Keep it')}
                       small
                       style={{ flex: 1 }}
                       onPress={() => setConfirmDelete(false)}
                     />
                     <Button
-                      label="Remove"
+                      label={t('Remove')}
                       small
                       style={{ flex: 1 }}
                       onPress={() => {
@@ -384,7 +386,7 @@ function DishForm({ isNew, existing }) {
               ) : (
                 <Button
                   variant="ghost"
-                  label="Remove from menu"
+                  label={t('Remove from menu')}
                   icon="x"
                   iconPosition="left"
                   block

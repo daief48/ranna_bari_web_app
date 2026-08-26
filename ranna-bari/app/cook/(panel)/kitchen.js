@@ -20,13 +20,14 @@ import Reveal from '../../../src/components/Reveal';
 import Button from '../../../src/components/Button';
 import SectionHeader from '../../../src/components/SectionHeader';
 import FloatLabelInput, { FormNote } from '../../../src/components/FloatLabelInput';
-import { ActionRow, RowHeading } from '../../../src/components/CookBits';
+import { ActionRow } from '../../../src/components/CookBits';
 import { Body, Heading } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../../src/theme/tokens';
 import { SPECIALTIES, useKitchen } from '../../../src/store/KitchenContext';
 import { useAuth } from '../../../src/store/AuthContext';
 import { useOrders } from '../../../src/store/OrdersContext';
+import { useLang } from '../../../src/i18n/LanguageContext';
 
 /**
  * KitchenContext hydrates from AsyncStorage asynchronously, so `kitchen` is
@@ -37,6 +38,7 @@ import { useOrders } from '../../../src/store/OrdersContext';
  */
 export default function CookKitchen() {
   const { colors } = useTheme();
+  const { t } = useLang();
   const { kitchen, hydrated } = useKitchen();
 
   if (!hydrated || !kitchen) {
@@ -44,7 +46,7 @@ export default function CookKitchen() {
       <CookScreen>
         <Container style={{ alignItems: 'center', gap: 18, paddingTop: 60 }}>
           <ActivityIndicator color={colors.sage} />
-          <Heading size={20}>Setting up your kitchen…</Heading>
+          <Heading size={20}>{t('Setting up your kitchen…')}</Heading>
         </Container>
       </CookScreen>
     );
@@ -55,6 +57,7 @@ export default function CookKitchen() {
 
 function KitchenForm({ kitchen }) {
   const { colors, shadow } = useTheme();
+  const { t, n } = useLang();
   const router = useRouter();
   const { updateKitchen, liveDishes } = useKitchen();
   const { account, setViewMode, signOut } = useAuth();
@@ -68,6 +71,7 @@ function KitchenForm({ kitchen }) {
   const [note, setNote] = useState('');
   const [saved, setSaved] = useState(false);
   const [confirmOut, setConfirmOut] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const delivered = ordersForKitchen(kitchen.id).filter(
     (o) => o.status === 'delivered',
@@ -76,7 +80,7 @@ function KitchenForm({ kitchen }) {
   const pickImage = async (field) => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      setNote('RannaBari needs photo access to change your kitchen picture.');
+      setNote(t('RannaBari needs photo access to change your kitchen picture.'));
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -95,7 +99,7 @@ function KitchenForm({ kitchen }) {
 
   const save = () => {
     if (!name.trim()) {
-      setNote('Your kitchen needs a name for customers to find it.');
+      setNote(t('Your kitchen needs a name for customers to find it.'));
       return;
     }
     setNote('');
@@ -114,9 +118,9 @@ function KitchenForm({ kitchen }) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Container>
           <SectionHeader
-            lead="YOUR"
-            accent="KITCHEN"
-            subtitle="How customers see you, and what you deliver."
+            lead={t('YOUR')}
+            accent={t('KITCHEN')}
+            subtitle={t('How customers see you, and what you deliver.')}
           />
 
           {/* ---- The listing, as a customer sees it ---- */}
@@ -135,7 +139,7 @@ function KitchenForm({ kitchen }) {
             >
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Change your cover photo"
+                accessibilityLabel={t('Change cover')}
                 onPress={() => pickImage('coverImage')}
                 style={{ height: 110 }}
               >
@@ -179,7 +183,7 @@ function KitchenForm({ kitchen }) {
                       color: colors.onDark,
                     }}
                   >
-                    Change cover
+                    {t('Change cover')}
                   </Text>
                 </View>
               </Pressable>
@@ -195,7 +199,7 @@ function KitchenForm({ kitchen }) {
                 >
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Change your kitchen photo"
+                    accessibilityLabel={t('Change photo')}
                     onPress={() => pickImage('avatar')}
                   >
                     <Image
@@ -269,43 +273,122 @@ function KitchenForm({ kitchen }) {
                   }}
                 >
                   <MiniStat
-                    value={kitchen.reviewCount ? kitchen.rating.toFixed(1) : '—'}
-                    label="Rating"
+                    value={kitchen.reviewCount ? n(kitchen.rating.toFixed(1)) : '—'}
+                    label={t('Rating')}
                   />
                   <View style={{ width: 1, backgroundColor: colors.line2 }} />
-                  <MiniStat value={liveDishes.length} label="Live dishes" />
+                  <MiniStat value={n(liveDishes.length)} label={t('Live dishes')} />
                   <View style={{ width: 1, backgroundColor: colors.line2 }} />
-                  <MiniStat value={delivered} label="Delivered" />
+                  <MiniStat value={n(delivered)} label={t('Delivered')} />
                 </View>
               </View>
             </View>
           </Reveal>
 
-          {/* ---- Details ---- */}
+          {/* ---- Details ----
+              Folded away by default. Everything in here is set once and then
+              rarely touched, and left open it pushed the things a cook uses
+              daily -- the listing preview, the switch to ordering -- two
+              screens down. It opens itself if a save failed, so an error is
+              never hidden behind a closed panel. */}
           <Reveal delay={2}>
             <View style={{ marginTop: 28 }}>
-              <RowHeading icon="sliders" title="Kitchen details" />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: detailsOpen || !!note }}
+                accessibilityLabel={t('Kitchen details')}
+                onPress={() => {
+                  Haptics.selectionAsync().catch(() => {});
+                  setDetailsOpen((v) => !v);
+                }}
+                style={({ pressed }) => [
+                  {
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 16,
+                    padding: 16,
+                    borderRadius: radius.lg,
+                    backgroundColor: colors.surfaceSolid,
+                    borderWidth: 1,
+                    borderColor: pressed ? colors.sage100 : colors.line,
+                  },
+                  shadow.sm,
+                ]}
+              >
+                <View
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 15,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.sage50,
+                    borderWidth: 1,
+                    borderColor: colors.line2,
+                  }}
+                >
+                  <Icon name="sliders" size={22} color={colors.sage} />
+                </View>
 
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      fontFamily: font.displayBold,
+                      fontSize: 17,
+                      letterSpacing: -0.17,
+                      color: colors.text,
+                    }}
+                  >
+                    {t('Kitchen details')}
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      fontFamily: font.ui,
+                      fontSize: type.sm,
+                      color: colors.textMuted,
+                    }}
+                  >
+                    {t('Name, specialty, description and delivery radius')}
+                  </Text>
+                </View>
+
+                <Icon
+                  name={detailsOpen || note ? 'chevronDown' : 'chevronRight'}
+                  size={17}
+                  color={colors.textLight}
+                  strokeWidth={2}
+                />
+              </Pressable>
+            </View>
+          </Reveal>
+
+          {/* A failed save must not be swallowed by a folded panel. */}
+          <View
+            style={{ marginTop: 16, display: detailsOpen || note ? 'flex' : 'none' }}
+          >
+            <View>
               <FormNote text={note} />
               {saved && !note ? (
-                <FormNote text="Saved. Your listing is live." tone="info" />
+                <FormNote text={t('Saved. Your listing is live.')} tone="info" />
               ) : null}
 
               <FloatLabelInput
-                label="Kitchen name"
+                label={t('Kitchen name')}
                 value={name}
                 onChangeText={(v) => {
                   setName(v);
                   setSaved(false);
                 }}
-                placeholder="What customers see on the map"
+                placeholder={t('What customers see on the map')}
               />
 
               {/* A select is never empty, so its label rides high permanently. */}
               <View style={{ marginBottom: 20 }}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`What you cook best, currently ${specialty || 'not chosen'}`}
+                  accessibilityLabel={`${t('What you cook best, currently')} ${specialty ? t(specialty) : '—'}`}
                   onPress={() => setSpecialtyOpen((v) => !v)}
                   style={{
                     borderWidth: 1,
@@ -330,7 +413,7 @@ function KitchenForm({ kitchen }) {
                       color: specialtyOpen ? colors.sage : colors.textMuted,
                     }}
                   >
-                    What you cook best
+                    {t('What you cook best')}
                   </Text>
                   <Text
                     style={{
@@ -339,7 +422,7 @@ function KitchenForm({ kitchen }) {
                       color: specialty ? colors.text : colors.textLight,
                     }}
                   >
-                    {specialty || 'Choose a specialty'}
+                    {specialty ? t(specialty) : t('Choose a specialty')}
                   </Text>
                   <Icon
                     name="chevronDown"
@@ -383,7 +466,7 @@ function KitchenForm({ kitchen }) {
                             color: specialty === s ? colors.sage : colors.text,
                           }}
                         >
-                          {s}
+                          {t(s)}
                         </Text>
                       </Pressable>
                     ))}
@@ -392,13 +475,13 @@ function KitchenForm({ kitchen }) {
               </View>
 
               <FloatLabelInput
-                label="About your cooking"
+                label={t('About your cooking')}
                 value={description}
                 onChangeText={(v) => {
                   setDescription(v);
                   setSaved(false);
                 }}
-                placeholder="One or two lines customers read first"
+                placeholder={t('One or two lines customers read first')}
                 multiline
                 numberOfLines={3}
               />
@@ -412,28 +495,28 @@ function KitchenForm({ kitchen }) {
               />
 
               <Button
-                label={saved ? 'Saved' : 'Save changes'}
+                label={saved ? t('Saved') : t('Save changes')}
                 icon={saved ? 'check' : 'arrowRight'}
                 block
                 onPress={save}
                 style={{ marginTop: 20 }}
               />
             </View>
-          </Reveal>
+          </View>
 
           {/* ---- Elsewhere ---- */}
           <View style={{ gap: 12, marginTop: 32 }}>
             <ActionRow
               icon="eye"
-              title="Preview your listing"
-              sub="See exactly what a customer sees"
+              title={t('Preview your listing')}
+              sub={t('See exactly what a customer sees')}
               onPress={() => router.push(`/chef/${kitchen.id}`)}
             />
             <ActionRow
               icon="cart"
               tone="saffron"
-              title="Switch to ordering"
-              sub="Browse and order as a customer"
+              title={t('Switch to ordering')}
+              sub={t('Browse and order as a customer')}
               onPress={async () => {
                 await setViewMode('customer');
                 router.replace('/');
@@ -442,8 +525,8 @@ function KitchenForm({ kitchen }) {
             <ActionRow
               icon="user"
               tone="primary"
-              title="Account details"
-              sub={account?.email || account?.phone || 'Your contact and address'}
+              title={t('Account details')}
+              sub={account?.email || account?.phone || t('Your contact and address')}
               onPress={() => router.push('/edit-profile')}
             />
           </View>
@@ -462,19 +545,18 @@ function KitchenForm({ kitchen }) {
                 }}
               >
                 <Body size={14}>
-                  Log out of {account?.email || account?.phone || 'this account'}?
-                  Your menu and orders stay on this device.
+                  {t('Log out of {who}? Your menu and orders stay on this device.', { who: account?.email || account?.phone || t('this account') })}
                 </Body>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <Button
                     variant="glass"
-                    label="Stay in"
+                    label={t('Stay in')}
                     small
                     style={{ flex: 1 }}
                     onPress={() => setConfirmOut(false)}
                   />
                   <Button
-                    label="Log out"
+                    label={t('Log out')}
                     small
                     style={{ flex: 1 }}
                     onPress={async () => {
@@ -492,7 +574,7 @@ function KitchenForm({ kitchen }) {
             ) : (
               <Button
                 variant="glass"
-                label="Log out"
+                label={t('Log out')}
                 icon="x"
                 iconPosition="left"
                 block
@@ -540,6 +622,7 @@ function MiniStat({ value, label }) {
 /** A tap-anywhere track, no gesture lib — the same one the signup flow uses. */
 function RadiusSlider({ value, onChange }) {
   const { colors, shadow } = useTheme();
+  const { t, n } = useLang();
   const [width, setWidth] = useState(0);
 
   const MIN = 1;
@@ -573,7 +656,7 @@ function RadiusSlider({ value, onChange }) {
             color: colors.textMuted,
           }}
         >
-          Delivery radius
+          {t('Delivery radius')}
         </Text>
         <Text
           style={{
@@ -583,7 +666,7 @@ function RadiusSlider({ value, onChange }) {
             fontVariant: ['tabular-nums'],
           }}
         >
-          {value.toFixed(1)} km
+          {n(value.toFixed(1))} km
         </Text>
       </View>
 
@@ -595,7 +678,7 @@ function RadiusSlider({ value, onChange }) {
         onResponderMove={(e) => setFromX(e.nativeEvent.locationX)}
         style={{ paddingVertical: 12 }}
         accessibilityRole="adjustable"
-        accessibilityLabel="Delivery radius in kilometres"
+        accessibilityLabel={t('Delivery radius')}
         accessibilityValue={{ min: MIN, max: MAX, now: value }}
       >
         <View style={{ height: 6, borderRadius: 999, backgroundColor: colors.line }}>

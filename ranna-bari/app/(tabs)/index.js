@@ -27,6 +27,7 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { reviewSummary, reviews, useChefs } from '../../src/data';
+import { useLang } from '../../src/i18n/LanguageContext';
 
 /** The seven cravings from index.html's mood carousel, in source order. */
 const MOODS = [
@@ -96,6 +97,7 @@ export default function HomeScreen() {
   const r = useResponsive();
   const router = useRouter();
   const [area, setArea] = useState('');
+  const { t, n } = useLang();
 
   const summary = useMemo(() => reviewSummary(), []);
   const chefName = useMemo(() => {
@@ -153,7 +155,7 @@ export default function HomeScreen() {
                   color: colors.text,
                 }}
               >
-                100% Authentic Home Kitchens
+                {t('100% Authentic Home Kitchens')}
               </Text>
             </View>
 
@@ -161,15 +163,14 @@ export default function HomeScreen() {
                 first two words and the gradient word share one wrapping row. */}
             <View style={{ marginBottom: 20 }}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' }}>
-                <Display>CRAFTED AT </Display>
-                <GradientText style={displayStyle(r.heroTitle)}>HOME.</GradientText>
+                <Display>{t('CRAFTED AT')} </Display>
+                <GradientText style={displayStyle(r.heroTitle)}>{t('HOME.')}</GradientText>
               </View>
-              <Display>DELIVERED TO YOU.</Display>
+              <Display>{t('DELIVERED TO YOU.')}</Display>
             </View>
 
             <Body muted size={15} style={{ marginBottom: 28 }}>
-              Experience the finest home-cooked meals from verified culinary
-              artisans in your neighbourhood. Authentic. Fresh. Made with love.
+              {t('Experience the finest home-cooked meals from verified culinary artisans in your neighbourhood. Authentic. Fresh. Made with love.')}
             </Body>
 
             {/* .hero-search-modern stacks on phones: field over full-width button */}
@@ -191,7 +192,7 @@ export default function HomeScreen() {
                 onChangeText={setArea}
                 onSubmitEditing={search}
                 returnKeyType="search"
-                placeholder="Enter your area (e.g. Dhanmondi)"
+                placeholder={t('Enter your area (e.g. Dhanmondi)')}
                 placeholderTextColor={colors.textLight}
                 style={{
                   fontFamily: font.ui,
@@ -201,7 +202,7 @@ export default function HomeScreen() {
                   paddingHorizontal: 10,
                 }}
               />
-              <Button label="Find Food" onPress={search} block />
+              <Button label={t('Find Food')} onPress={search} block />
             </View>
           </BentoBox>
         </Reveal>
@@ -213,7 +214,7 @@ export default function HomeScreen() {
               router.push({ pathname: '/browse', params: { filter: 'lunch' } })
             }
             accessibilityRole="link"
-            accessibilityLabel="Featured: Authentic Mutton Curry"
+            accessibilityLabel={t('Featured')}
             style={{ minHeight: 260, justifyContent: 'flex-end' }}
           >
             <Image
@@ -258,7 +259,7 @@ export default function HomeScreen() {
                     color: colors.primary,
                   }}
                 >
-                  Featured
+                  {t('Featured')}
                 </Text>
               </View>
 
@@ -318,7 +319,7 @@ export default function HomeScreen() {
               50+
             </Text>
             <Label style={{ marginTop: 4, textAlign: 'center' }}>
-              {'Verified\nArtisans'}
+              {t('Verified Artisans')}
             </Label>
 
             <View style={{ flexDirection: 'row', marginTop: 8 }}>
@@ -364,7 +365,7 @@ export default function HomeScreen() {
           <BentoBox
             onPress={() => router.push('/map')}
             accessibilityRole="link"
-            accessibilityLabel="Explore the live kitchen map"
+            accessibilityLabel={t('Kitchen map')}
             style={{
               minHeight: 150,
               alignItems: 'center',
@@ -399,7 +400,7 @@ export default function HomeScreen() {
                 color: colors.primary,
               }}
             >
-              {'Explore\nLive Map'}
+              {t('Kitchen map')}
             </Text>
 
             <View
@@ -428,7 +429,7 @@ export default function HomeScreen() {
       <View style={{ paddingTop: 36, paddingBottom: 20 }}>
         <Container>
           <Heading size={20} style={{ marginBottom: 16 }}>
-            What are you craving?
+            {t('What are you craving?')}
           </Heading>
         </Container>
 
@@ -448,7 +449,7 @@ export default function HomeScreen() {
             <MoodPill
               key={m.filter}
               icon={m.icon}
-              label={m.label}
+              label={t(m.label)}
               onPress={() =>
                 router.push({ pathname: '/browse', params: { filter: m.filter } })
               }
@@ -461,9 +462,9 @@ export default function HomeScreen() {
       <Container style={{ paddingTop: 20, paddingBottom: 56 }}>
         <SectionHeader
           center
-          lead="HOW IT"
-          accent="WORKS"
-          subtitle="From their kitchen to your table in 3 simple steps"
+          lead={t('HOW IT')}
+          accent={t('WORKS')}
+          subtitle={t('From their kitchen to your table in 3 simple steps')}
         />
 
         <View style={{ gap: 16 }}>
@@ -500,10 +501,10 @@ export default function HomeScreen() {
                   style={{ marginBottom: 24 }}
                 />
                 <Heading size={19} style={{ marginBottom: 16, textAlign: 'center' }}>
-                  {s.title}
+                  {t(s.title)}
                 </Heading>
                 <Body muted size={15} style={{ textAlign: 'center' }}>
-                  {s.body}
+                  {t(s.body)}
                 </Body>
               </BentoBox>
             </Reveal>
@@ -514,13 +515,13 @@ export default function HomeScreen() {
       {/* ============ FEATURED CHEFS ============ */}
       <Container style={{ paddingBottom: 56 }}>
         <SectionHeader
-          lead="FEATURED"
-          accent="CHEFS"
-          subtitle="The highest-rated culinary artists near you"
+          lead={t('FEATURED')}
+          accent={t('CHEFS')}
+          subtitle={t('The highest-rated culinary artists near you')}
           right={
             <Button
               variant="glass"
-              label="View all"
+              label={t('View all')}
               onPress={() => router.push('/browse')}
             />
           }
@@ -537,10 +538,10 @@ export default function HomeScreen() {
       <View style={{ paddingVertical: 56, backgroundColor: colors.sunken }}>
         <Container>
           <SectionHeader
-            lead="WHAT"
-            accent="FOODIES"
-            trail="SAY"
-            subtitle="Real orders, real kitchens, real neighbours."
+            lead={t('WHAT')}
+            accent={t('FOODIES')}
+            trail={t('SAY')}
+            subtitle={t('Real orders, real kitchens, real neighbours.')}
             style={{ marginBottom: 28 }}
             right={
               <View
@@ -579,7 +580,7 @@ export default function HomeScreen() {
                       color: colors.textMuted,
                     }}
                   >
-                    {summary.count} verified reviews
+                    {n(summary.count)} {t('verified reviews')}
                   </Text>
                 </View>
               </View>
@@ -626,17 +627,15 @@ export default function HomeScreen() {
                 color: colors.onPrimary,
               }}
             >
-              We take your safety and health seriously. Every home cook on our
-              platform goes through a rigorous vetting process so you can eat
-              with complete peace of mind.
+              {t('We take your safety and health seriously. Every home cook on our platform goes through a rigorous vetting process so you can eat with complete peace of mind.')}
             </Text>
           </LinearGradient>
         </Reveal>
 
         {/* Below 480px the three trust points stop being icon-beside-text rows
             and become centred stacks. */}
-        {TRUST.map((t, i) => (
-          <Reveal key={t.title} delay={i + 2}>
+        {TRUST.map((item, i) => (
+          <Reveal key={item.title} delay={i + 2}>
             <BentoBox
               style={{
                 paddingVertical: 24,
@@ -645,13 +644,13 @@ export default function HomeScreen() {
                 gap: 16,
               }}
             >
-              <IconTile name={t.icon} variant={t.variant} />
+              <IconTile name={item.icon} variant={item.variant} />
               <View style={{ alignItems: 'center' }}>
                 <Heading size={17} style={{ marginBottom: 8, textAlign: 'center' }}>
-                  {t.title}
+                  {t(item.title)}
                 </Heading>
                 <Body muted size={14} style={{ textAlign: 'center' }}>
-                  {t.body}
+                  {t(item.body)}
                 </Body>
               </View>
             </BentoBox>
@@ -681,8 +680,7 @@ export default function HomeScreen() {
             color: colors.textLight,
           }}
         >
-          © 2026 RannaBari. Shaping the future of localized gastronomy with
-          authentic flavor.
+          {t('© 2026 RannaBari. Shaping the future of localized gastronomy with authentic flavor.')}
         </Text>
       </View>
     </Screen>

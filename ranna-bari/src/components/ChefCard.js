@@ -8,6 +8,7 @@ import Icon from './Icon';
 import Reveal from './Reveal';
 import { EcoBadge, Tag } from './Surfaces';
 import { useTheme } from '../theme/ThemeProvider';
+import { useLang } from '../i18n/LanguageContext';
 import { font, radius, tracking, type } from '../theme/tokens';
 
 /**
@@ -21,14 +22,15 @@ import { font, radius, tracking, type } from '../theme/tokens';
  */
 export default function ChefCard({ chef, index = 0 }) {
   const { colors, shadow } = useTheme();
+  const { t, n } = useLang();
   const router = useRouter();
 
   return (
     <Reveal delay={(index % 5) + 1} style={{ paddingTop: 12 }}>
       <Pressable
         accessibilityRole="link"
-        accessibilityLabel={`${chef.name}, ${chef.specialty}, ${
-          chef.reviewCount ? `rated ${chef.rating}` : 'not rated yet'
+        accessibilityLabel={`${chef.name}, ${t(chef.specialty)}, ${
+          chef.reviewCount ? `${t('Rating')} ${n(chef.rating)}` : t('New kitchen')
         }`}
         onPress={() => router.push(`/chef/${chef.id}`)}
         style={({ pressed }) => [
@@ -107,7 +109,7 @@ export default function ChefCard({ chef, index = 0 }) {
                 color: colors.primary,
               }}
             >
-              {chef.specialty}
+              {t(chef.specialty)}
             </Text>
           </View>
         </View>
@@ -120,10 +122,10 @@ export default function ChefCard({ chef, index = 0 }) {
             marginBottom: 20,
           }}
         >
-          {chef.tags.slice(0, 3).map((t) => (
-            <Tag key={t} label={t} />
+          {chef.tags.slice(0, 3).map((tag) => (
+            <Tag key={tag} label={t(tag)} />
           ))}
-          {chef.ecoBadge ? <EcoBadge label={chef.ecoBadge} /> : null}
+          {chef.ecoBadge ? <EcoBadge label={t(chef.ecoBadge)} /> : null}
         </View>
 
         <View
@@ -149,7 +151,7 @@ export default function ChefCard({ chef, index = 0 }) {
                   color: colors.text,
                 }}
               >
-                {chef.rating}
+                {n(chef.rating)}
               </Text>
               <Text
                 style={{
@@ -158,7 +160,7 @@ export default function ChefCard({ chef, index = 0 }) {
                   color: colors.textLight,
                 }}
               >
-                ({chef.reviewCount})
+                ({n(chef.reviewCount)})
               </Text>
             </View>
           ) : (
@@ -173,7 +175,7 @@ export default function ChefCard({ chef, index = 0 }) {
                   color: colors.sage,
                 }}
               >
-                New kitchen
+                {t('New kitchen')}
               </Text>
             </View>
           )}
@@ -188,7 +190,7 @@ export default function ChefCard({ chef, index = 0 }) {
                 color: colors.text,
               }}
             >
-              View menu
+              {t('View menu')}
             </Text>
             <Icon name="arrowRight" size={15} color={colors.text} strokeWidth={2} />
           </View>
@@ -225,7 +227,7 @@ export default function ChefCard({ chef, index = 0 }) {
               color: colors.sage,
             }}
           >
-            Verified Kitchen
+            {t('Verified Kitchen')}
           </Text>
         </View>
       ) : null}

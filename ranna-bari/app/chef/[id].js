@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../../src/components/Screen';
+import CartBar from '../../src/components/CartBar';
 import Icon from '../../src/components/Icon';
 import Reveal from '../../src/components/Reveal';
 import Button from '../../src/components/Button';
@@ -15,6 +16,7 @@ import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useChef, useMenu } from '../../src/data';
 import { useCart } from '../../src/store/CartContext';
+import { useLang } from '../../src/i18n/LanguageContext';
 
 export default function ChefScreen() {
   const { id } = useLocalSearchParams();
@@ -22,6 +24,7 @@ export default function ChefScreen() {
   const r = useResponsive();
   const router = useRouter();
   const { add } = useCart();
+  const { t, n } = useLang();
 
   const chef = useChef(id);
   const menu = useMenu(id);
@@ -31,11 +34,11 @@ export default function ChefScreen() {
       <Screen>
         <Container style={{ alignItems: 'center', gap: 16, paddingTop: 40 }}>
           <Icon name="alertCircle" size={32} color={colors.primary} />
-          <Heading size={20}>Kitchen not found</Heading>
+          <Heading size={20}>{t('Kitchen not found')}</Heading>
           <Body muted size={15} style={{ textAlign: 'center' }}>
-            That kitchen is no longer listed.
+            {t('That kitchen is no longer listed.')}
           </Body>
-          <Button label="Browse artisans" onPress={() => router.replace('/browse')} />
+          <Button label={t('Browse artisans')} onPress={() => router.replace('/browse')} />
         </Container>
       </Screen>
     );
@@ -43,9 +46,9 @@ export default function ChefScreen() {
 
   const stats = [
     // A kitchen with no reviews has no score to show, so it shows none.
-    { value: chef.reviewCount ? chef.rating : '—', label: 'Rating' },
-    { value: chef.reviewCount, label: 'Reviews' },
-    { value: menu.length, label: 'Dishes' },
+    { value: chef.reviewCount ? n(chef.rating) : '—', label: 'Rating' },
+    { value: n(chef.reviewCount), label: 'Reviews' },
+    { value: n(menu.length), label: 'Dishes' },
   ];
 
   /* Only a live kitchen carries an `isOpen` flag -- the seeded ones are
@@ -53,7 +56,7 @@ export default function ChefScreen() {
   const closed = chef.isOpen === false;
 
   return (
-    <Screen>
+    <Screen footer={<CartBar />}>
       <Container>
         <Pressable
           accessibilityRole="link"
@@ -76,7 +79,7 @@ export default function ChefScreen() {
               color: colors.primary,
             }}
           >
-            Return to artisans
+            {t('Return to artisans')}
           </Text>
         </Pressable>
 
@@ -149,7 +152,7 @@ export default function ChefScreen() {
                   {chef.name}
                 </Text>
                 {chef.rating >= 4.8 ? (
-                  <Badge tone="accent" label="Top Artisan" />
+                  <Badge tone="accent" label={t('Top Artisan')} />
                 ) : null}
               </View>
 
@@ -201,7 +204,7 @@ export default function ChefScreen() {
                         color: colors.textMuted,
                       }}
                     >
-                      {s.label}
+                      {t(s.label)}
                     </Text>
                   </View>
                 ))}
@@ -230,7 +233,7 @@ export default function ChefScreen() {
 
       {/* ---- MENU ---- */}
       <Container style={{ paddingTop: 56 }}>
-        <SectionHeader lead="CURATED" accent="MENU" />
+        <SectionHeader lead={t('CURATED')} accent={t('MENU')} />
 
         {/* A closed kitchen keeps its listing but cannot be ordered from, so
             say that once at the top rather than only on each greyed button. */}
@@ -258,8 +261,7 @@ export default function ChefScreen() {
                 color: colors.text,
               }}
             >
-              {chef.name} is not taking orders right now. The menu is here for
-              when they open again.
+              {t('{name} is not taking orders right now. The menu is here for when they open again.', { name: chef.name })}
             </Text>
           </View>
         ) : null}
@@ -317,10 +319,10 @@ export default function ChefScreen() {
                 {/* Below 480px the price and the CTA each get their own line. */}
                 <View style={{ gap: 12 }}>
                   <Price size={26} style={{ textAlign: 'center' }}>
-                    ৳{item.price}
+                    ৳{n(item.price)}
                   </Price>
                   <Button
-                    label={closed ? 'Kitchen closed' : 'Add to cart'}
+                    label={closed ? t('Kitchen closed') : t('Add to cart')}
                     icon={closed ? 'lock' : 'plus'}
                     iconPosition="left"
                     block
@@ -337,7 +339,7 @@ export default function ChefScreen() {
             <View style={{ alignItems: 'center', paddingVertical: 32, gap: 12 }}>
               <Icon name="pot" size={30} color={colors.textLight} />
               <Body muted size={15}>
-                This kitchen has not published a menu yet.
+                {t('This kitchen has not published a menu yet.')}
               </Body>
             </View>
           ) : null}

@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from 'react-native';
 
 import { makeShadows, palettes } from './tokens';
+import { useLang } from '../i18n/LanguageContext';
 
 const KEY = 'rannabari_theme';
 
@@ -47,6 +48,17 @@ export function ThemeProvider({ children }) {
     });
   }, [system]);
 
+  /* The language is a dependency even though no colour changes with it.
+     `font` resolves its family from the active script at read time, and a
+     component only re-reads it when it re-renders -- but switching language
+     re-renders nothing on its own, because the provider hands the same
+     `children` element back and React skips the subtree.
+     Practically every styled component in the app reads `useTheme()` for
+     colours, so making this value change with the language is what carries
+     the new typeface into all of them on a switch, without remounting the
+     tree and losing where the user was. */
+  const { lang } = useLang();
+
   const value = useMemo(() => {
     const colors = palettes[mode];
     return {
@@ -57,7 +69,7 @@ export function ThemeProvider({ children }) {
       toggle,
       hydrated,
     };
-  }, [mode, toggle, hydrated]);
+  }, [mode, toggle, hydrated, lang]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

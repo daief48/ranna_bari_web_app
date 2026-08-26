@@ -30,6 +30,7 @@ import {
   DEMO_SIGNUP,
   demoAccount,
 } from '../src/lib/demoData';
+import { useLang } from '../src/i18n/LanguageContext';
 
 /* The aside imagery and copy follow the chosen path, so the screen keeps
    talking about the thing the visitor picked. */
@@ -87,6 +88,7 @@ export default function AuthScreen() {
      a zone and an NID, then hands over. Reading them here is what keeps that
      from being a form the user fills in twice. */
   const params = useLocalSearchParams();
+  const { t } = useLang();
   const fromCookFunnel = params.role === 'cook';
   const param = (key, fallback) =>
     typeof params[key] === 'string' && params[key] ? params[key] : fallback;
@@ -140,7 +142,7 @@ export default function AuthScreen() {
 
     if (step === 1) {
       if (!role) {
-        setRoleNote('Pick one to continue.');
+        setRoleNote(t('Pick one to continue.'));
         return;
       }
       setRoleNote('');
@@ -162,19 +164,19 @@ export default function AuthScreen() {
       ];
 
       if (required.some(([v]) => !String(v).trim())) {
-        setDetailsNote('Fill in the highlighted fields to continue.');
+        setDetailsNote(t('Fill in the highlighted fields to continue.'));
         return;
       }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-        setDetailsNote('That email address does not look right.');
+        setDetailsNote(t('That email address does not look right.'));
         return;
       }
       if (pw.length < 8) {
-        setDetailsNote('Use at least 8 characters for your password.');
+        setDetailsNote(t('Use at least 8 characters for your password.'));
         return;
       }
       if (!terms) {
-        setDetailsNote('Please accept the Terms and Privacy Policy.');
+        setDetailsNote(t('Please accept the Terms and Privacy Policy.'));
         return;
       }
       setDetailsNote('');
@@ -185,7 +187,7 @@ export default function AuthScreen() {
 
   const submit = async () => {
     if (!place) {
-      setLocNote('Drop your pin on the map so we know where to find you.');
+      setLocNote(t('Drop your pin on the map so we know where to find you.'));
       return;
     }
     setLocNote('');
@@ -210,7 +212,7 @@ export default function AuthScreen() {
 
   const doSignIn = async () => {
     if (!siId.trim() || !siPw) {
-      setSiNote('Enter your email or phone and your password.');
+      setSiNote(t('Enter your email or phone and your password.'));
       return;
     }
     setSiNote('');
@@ -294,11 +296,11 @@ export default function AuthScreen() {
                   color: '#FFF6F1',
                 }}
               >
-                {aside.eyebrow}
+                {t(aside.eyebrow)}
               </Text>
             </View>
 
-            <AsideTitle title={aside.title} emphasis={aside.emphasis} />
+            <AsideTitle title={t(aside.title)} emphasis={t(aside.emphasis)} />
           </View>
 
           {/* =========================================================
@@ -340,7 +342,7 @@ export default function AuthScreen() {
                     color: colors.textMuted,
                   }}
                 >
-                  Back to RannaBari
+                  {t('Back to RannaBari')}
                 </Text>
               </Pressable>
 
@@ -383,8 +385,8 @@ export default function AuthScreen() {
               }}
             >
               {[
-                ['signin', 'Sign in'],
-                ['signup', 'Create account'],
+                ['signin', t('Sign in')],
+                ['signup', t('Create account')],
               ].map(([key, label]) => {
                 const on = tab === key;
                 return (
@@ -518,6 +520,13 @@ function AsideBrand() {
 }
 
 /** The headline, with the one italic word the CSS marks with <em>. */
+/**
+ * The one emphasised word is found by splitting the sentence on it, which
+ * only works while the emphasis is a literal substring of the title. Both
+ * are translated together and the Bengali pair is chosen to keep that true;
+ * if a future translation breaks it, split() returns the whole string and
+ * the line simply renders without the accent rather than losing text.
+ */
 function AsideTitle({ title, emphasis }) {
   const base = {
     fontFamily: font.displayExtra,
@@ -546,6 +555,7 @@ function AsideTitle({ title, emphasis }) {
    --------------------------------------------------------- */
 function SignInView({ siId, setSiId, siPw, setSiPw, note, onSubmit, onSwitch }) {
   const { colors, shadow } = useTheme();
+  const { t } = useLang();
   const [keepSignedIn, setKeepSignedIn] = useState(true);
 
   return (
@@ -561,7 +571,7 @@ function SignInView({ siId, setSiId, siPw, setSiPw, note, onSubmit, onSwitch }) 
             marginBottom: 8,
           }}
         >
-          Welcome back.
+          {t('Welcome back.')}
         </Text>
         <Text
           style={{
@@ -571,7 +581,7 @@ function SignInView({ siId, setSiId, siPw, setSiPw, note, onSubmit, onSwitch }) 
             color: colors.textMuted,
           }}
         >
-          Sign in to order dinner, or to open your kitchen for the day.
+          {t('Sign in to order dinner, or to open your kitchen for the day.')}
         </Text>
       </View>
 
@@ -602,19 +612,15 @@ function SignInView({ siId, setSiId, siPw, setSiPw, note, onSubmit, onSwitch }) 
               color: colors.textMuted,
             }}
           >
-            Demo account is pre-filled — just tap{' '}
-            <Text style={{ fontFamily: font.uiBold, color: colors.text }}>
-              Sign in
-            </Text>
-            .
+            {t('Demo account is pre-filled — just tap {button}.', { button: t('Sign in') })}
           </Text>
         </View>
 
         <FloatLabelInput
-          label="Email or phone"
+          label={t('Email or phone')}
           value={siId}
           onChangeText={setSiId}
-          placeholder="you@example.com or +880 1XXXXXXXXX"
+          placeholder={t('you@example.com or +880 1XXXXXXXXX')}
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="username"
@@ -622,10 +628,10 @@ function SignInView({ siId, setSiId, siPw, setSiPw, note, onSubmit, onSwitch }) 
         />
 
         <FloatLabelInput
-          label="Password"
+          label={t('Password')}
           value={siPw}
           onChangeText={setSiPw}
-          placeholder="Your password"
+          placeholder={t('Your password')}
           secureTextEntry
           autoComplete="current-password"
           style={{ marginBottom: 16 }}
@@ -645,7 +651,7 @@ function SignInView({ siId, setSiId, siPw, setSiPw, note, onSubmit, onSwitch }) 
           <Checkbox
             checked={keepSignedIn}
             onToggle={() => setKeepSignedIn((v) => !v)}
-            label="Keep me signed in"
+            label={t('Keep me signed in')}
           />
           <Text
             style={{
@@ -654,17 +660,17 @@ function SignInView({ siId, setSiId, siPw, setSiPw, note, onSubmit, onSwitch }) 
               color: colors.primary,
             }}
           >
-            Forgot password?
+            {t('Forgot password?')}
           </Text>
         </View>
 
-        <Button label="Sign in" icon="arrowRight" block onPress={onSubmit} />
+        <Button label={t('Sign in')} icon="arrowRight" block onPress={onSubmit} />
 
-        <Divider label="or continue with" />
+        <Divider label={t('or continue with')} />
 
         <View style={{ gap: 12 }}>
-          <SocialButton provider="google" label="Google" />
-          <SocialButton provider="phone" label="Phone OTP" />
+          <SocialButton provider="google" label={t('Google')} />
+          <SocialButton provider="phone" label={t('Phone OTP')} />
         </View>
       </View>
 
@@ -679,7 +685,7 @@ function SignInView({ siId, setSiId, siPw, setSiPw, note, onSubmit, onSwitch }) 
         <Text
           style={{ fontFamily: font.ui, fontSize: 14, color: colors.textMuted }}
         >
-          New to RannaBari?{' '}
+          {t('New to RannaBari?')}{' '}
         </Text>
         <Pressable onPress={onSwitch} accessibilityRole="button">
           <Text
@@ -689,7 +695,7 @@ function SignInView({ siId, setSiId, siPw, setSiPw, note, onSubmit, onSwitch }) 
               color: colors.primary,
             }}
           >
-            Create an account
+            {t('Create an account')}
           </Text>
         </Pressable>
       </View>
@@ -716,14 +722,15 @@ function SignUpView({
   onDone,
 }) {
   const { colors, shadow } = useTheme();
+  const { t } = useLang();
 
   const heads = {
     1: {
-      h1: 'Join RannaBari.',
-      sub: 'Three short steps. The last one puts you on the map — literally.',
+      h1: t('Join RannaBari.'),
+      sub: t('Three short steps. The last one puts you on the map — literally.'),
     },
-    2: { h1: 'Join RannaBari.', sub: 'Three short steps.' },
-    3: { h1: 'Join RannaBari.', sub: 'Almost there.' },
+    2: { h1: t('Join RannaBari.'), sub: t('Three short steps.') },
+    3: { h1: t('Join RannaBari.'), sub: t('Almost there.') },
     4: { h1: '', sub: '' },
   }[step];
 
@@ -764,7 +771,7 @@ function SignUpView({
         {step === 1 ? (
           <Animated.View entering={FadeInDown.duration(400)}>
             <StepHead
-              title="What brings you here?"
+              title={t('What brings you here?')}
               sub="You can always add the other side later from your profile."
             />
 
@@ -774,8 +781,8 @@ function SignUpView({
                 onPress={() => setRole('user')}
                 icon="utensils"
                 variant="primary"
-                title="I'm here to eat"
-                desc="Order home-cooked meals from kitchens on your street."
+                title={t("I'm here to eat")}
+                desc={t('Order home-cooked meals from kitchens on your street.')}
                 perks={['Free', 'Order in 2 taps']}
               />
               <RoleCard
@@ -783,9 +790,9 @@ function SignUpView({
                 onPress={() => setRole('cook')}
                 icon="chefHat"
                 variant="sage"
-                title="I'm here to cook"
-                desc="Turn your kitchen into a business. Cook, list, deliver."
-                perks={['Keep 85%', 'Your schedule']}
+                title={t("I'm here to cook")}
+                desc={t('Turn your kitchen into a business. Cook, list, deliver.')}
+                perks={[t('Keep 85%'), t('Your schedule')]}
               />
             </View>
 
@@ -806,7 +813,7 @@ function SignUpView({
         {step === 2 ? (
           <Animated.View entering={FadeInDown.duration(400)}>
             <StepHead
-              title={role === 'cook' ? 'Your kitchen details' : 'Your details'}
+              title={role === 'cook' ? t('Your kitchen details') : t('Your details')}
               sub={
                 role === 'cook'
                   ? 'This is what customers will see, plus one thing only we see.'
@@ -817,15 +824,15 @@ function SignUpView({
             <FormNote text={detailsNote} />
 
             <FloatLabelInput
-              label="Full name"
+              label={t('Full name')}
               value={fields.name}
               onChangeText={fields.setName}
-              placeholder="Full name"
+              placeholder={t('Full name')}
               autoComplete="name"
               style={{ marginBottom: 16 }}
             />
             <FloatLabelInput
-              label="Phone"
+              label={t('Phone')}
               value={fields.phone}
               onChangeText={fields.setPhone}
               placeholder="+880 1XXXXXXXXX"
@@ -834,20 +841,20 @@ function SignUpView({
               style={{ marginBottom: 16 }}
             />
             <FloatLabelInput
-              label="Email"
+              label={t('Email')}
               value={fields.email}
               onChangeText={fields.setEmail}
-              placeholder="you@example.com"
+              placeholder={t('you@example.com')}
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
               style={{ marginBottom: 16 }}
             />
             <FloatLabelInput
-              label="Password"
+              label={t('Password')}
               value={fields.pw}
               onChangeText={fields.setPw}
-              placeholder="At least 8 characters"
+              placeholder={t('At least 8 characters')}
               secureTextEntry
               autoComplete="new-password"
               style={{ marginBottom: 6 }}
@@ -858,10 +865,10 @@ function SignUpView({
             {role === 'cook' ? (
               <>
                 <FloatLabelInput
-                  label="Kitchen name"
+                  label={t('Kitchen name')}
                   value={fields.kitchen}
                   onChangeText={fields.setKitchen}
-                  placeholder="e.g. Fatema's Heritage Kitchen"
+                  placeholder={t("e.g. Fatema's Heritage Kitchen")}
                   style={{ marginBottom: 16 }}
                 />
 
@@ -871,10 +878,10 @@ function SignUpView({
                 />
 
                 <FloatLabelInput
-                  label="National ID"
+                  label={t('National ID')}
                   value={fields.nid}
                   onChangeText={fields.setNid}
-                  placeholder="10 or 17 digit NID"
+                  placeholder={t('10 or 17 digit NID')}
                   keyboardType="number-pad"
                   trailingIcon="lock"
                   style={{ marginBottom: 10 }}
@@ -890,7 +897,7 @@ function SignUpView({
             <Checkbox
               checked={fields.terms}
               onToggle={() => fields.setTerms((v) => !v)}
-              label="I agree to the Terms and the Privacy Policy."
+              label={t('I agree to the Terms and the Privacy Policy.')}
               linkWords={['Terms', 'Privacy Policy.']}
             />
 
@@ -907,13 +914,13 @@ function SignUpView({
             <StepHead
               title={
                 role === 'cook'
-                  ? 'Where do you cook?'
-                  : 'Where should we find you?'
+                  ? t('Where do you cook?')
+                  : t('Where should we find you?')
               }
               sub={
                 role === 'cook'
-                  ? 'Drag the map so the pin sits on your kitchen. This decides who can order from you.'
-                  : 'Drag the map so the pin sits on your door. This decides which kitchens you see.'
+                  ? t('Drag the map so the pin sits on your kitchen. This decides who can order from you.')
+                  : t('Drag the map so the pin sits on your door. This decides which kitchens you see.')
               }
             />
 
@@ -923,10 +930,10 @@ function SignUpView({
 
             <View style={{ marginTop: 18 }}>
               <FloatLabelInput
-                label="House / road / flat"
+                label={t('House / road / flat')}
                 value={fields.detail}
                 onChangeText={fields.setDetail}
-                placeholder="House 12, Road 7, Flat 4B"
+                placeholder={t('House 12, Road 7, Flat 4B')}
                 style={{ marginBottom: 16 }}
               />
             </View>
@@ -1030,7 +1037,7 @@ function SignUpView({
             color: colors.textLight,
           }}
         >
-          Protected by reCAPTCHA. Read our Privacy Policy and Terms of Service.
+          {t('Protected by reCAPTCHA. Read our Privacy Policy and Terms of Service.')}
         </Text>
       ) : null}
     </View>
@@ -1318,13 +1325,14 @@ function PasswordStrength({ level }) {
  */
 function SpecialtyPicker({ value, onChange }) {
   const { colors } = useTheme();
+  const { t } = useLang();
   const [open, setOpen] = useState(false);
 
   return (
     <View style={{ marginBottom: 16 }}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`What you cook best, currently ${value || 'not chosen'}`}
+        accessibilityLabel={`${t('What you cook best, currently')} ${value ? t(value) : '—'}`}
         onPress={() => setOpen((v) => !v)}
         style={{
           borderWidth: 1,
@@ -1350,7 +1358,7 @@ function SpecialtyPicker({ value, onChange }) {
             color: open ? colors.primary : colors.textMuted,
           }}
         >
-          What you cook best
+          {t('What you cook best')}
         </Text>
         <Text
           style={{
@@ -1359,7 +1367,7 @@ function SpecialtyPicker({ value, onChange }) {
             color: value ? colors.text : colors.textLight,
           }}
         >
-          {value || 'Choose a specialty'}
+          {value ? t(value) : t('Choose a specialty')}
         </Text>
         <Icon
           name="chevronDown"
@@ -1416,6 +1424,7 @@ function SpecialtyPicker({ value, onChange }) {
 /** `.range` — delivery radius, cooks only. A tap-anywhere track, no gesture lib. */
 function RadiusSlider({ value, onChange }) {
   const { colors, shadow } = useTheme();
+  const { t, n } = useLang();
   const [width, setWidth] = useState(0);
 
   const MIN = 1;
@@ -1449,7 +1458,7 @@ function RadiusSlider({ value, onChange }) {
             color: colors.textMuted,
           }}
         >
-          Delivery radius
+          {t('Delivery radius')}
         </Text>
         <Text
           style={{
@@ -1459,7 +1468,7 @@ function RadiusSlider({ value, onChange }) {
             fontVariant: ['tabular-nums'],
           }}
         >
-          {value.toFixed(1)} km
+          {n(value.toFixed(1))} km
         </Text>
       </View>
 
@@ -1519,14 +1528,15 @@ function RadiusSlider({ value, onChange }) {
 
 function DoneState({ role, name, place, addressLabel, radiusKm, onDone }) {
   const { colors } = useTheme();
+  const { t, n } = useLang();
 
   const rows = [
-    ['Account', role === 'cook' ? 'Home cook' : 'Customer'],
-    ['Name', name || '—'],
-    ['Location', place?.address || 'Pinned location'],
+    [t('Account'), role === 'cook' ? t('Home cook') : t('Customer')],
+    [t('Full name'), name || '—'],
+    [t('Default address'), place?.address || '—'],
     role === 'cook'
-      ? ['Delivery radius', `${radiusKm.toFixed(1)} km`]
-      : ['Saved as', addressLabel],
+      ? [t('Delivery radius'), `${n(radiusKm.toFixed(1))} km`]
+      : [t('Saved as'), t(addressLabel)],
   ];
 
   return (
@@ -1559,7 +1569,7 @@ function DoneState({ role, name, place, addressLabel, radiusKm, onDone }) {
           marginBottom: 10,
         }}
       >
-        You&rsquo;re in.
+        {t('You’re in.')}
       </Text>
       <Text
         style={{
@@ -1571,7 +1581,7 @@ function DoneState({ role, name, place, addressLabel, radiusKm, onDone }) {
           marginBottom: 26,
         }}
       >
-        Your account is ready and your pin is on the map.
+        {t('Your account is ready and your pin is on the map.')}
       </Text>
 
       <View
@@ -1619,7 +1629,7 @@ function DoneState({ role, name, place, addressLabel, radiusKm, onDone }) {
       </View>
 
       <Button
-        label={role === 'cook' ? 'Go to my kitchen' : 'Start exploring'}
+        label={role === 'cook' ? t('Go to my kitchen') : t('Start exploring')}
         icon="arrowRight"
         block
         onPress={onDone}

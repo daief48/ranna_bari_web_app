@@ -18,6 +18,7 @@ import {
   stepIndex,
   useOrders,
 } from '../src/store/OrdersContext';
+import { useLang } from '../src/i18n/LanguageContext';
 
 /** Status pill tone: a stopped order reads muted, delivered sage, in-flight primary. */
 function statusTone(status, colors) {
@@ -33,17 +34,18 @@ export default function OrdersScreen() {
   const { colors, shadow } = useTheme();
   const router = useRouter();
   const { orders, hydrated } = useOrders();
+  const { t, n, lang } = useLang();
 
   return (
     <Screen glow="both">
       <Container>
         <SectionHeader
-          lead="YOUR"
-          accent="ORDERS"
+          lead={t('YOUR')}
+          accent={t('ORDERS')}
           subtitle={
             orders.length
-              ? `${orders.length} order${orders.length === 1 ? '' : 's'} so far`
-              : 'Every meal you order shows up here.'
+              ? t(orders.length === 1 ? '{n} order so far' : '{n} orders so far', { n: n(orders.length) })
+              : t('Every meal you order shows up here.')
           }
         />
 
@@ -51,16 +53,15 @@ export default function OrdersScreen() {
           <View style={{ alignItems: 'center', gap: 18, paddingVertical: 40 }}>
             <IconTile name="receipt" large />
             <Heading size={20}>
-              {hydrated ? 'No orders yet' : 'Loading…'}
+              {hydrated ? t('No orders yet') : t('Loading…')}
             </Heading>
             {hydrated ? (
               <>
                 <Body muted size={15} style={{ textAlign: 'center' }}>
-                  Pick a kitchen, add a dish, and pay the rider in cash when it
-                  lands at your door.
+                  {t('Pick a kitchen, add a dish, and pay the rider in cash when it lands at your door.')}
                 </Body>
                 <Button
-                  label="Browse artisans"
+                  label={t('Browse artisans')}
                   icon="arrowRight"
                   onPress={() => router.push('/browse')}
                 />
@@ -77,7 +78,7 @@ export default function OrdersScreen() {
                 <Reveal key={order.id} delay={(i % 5) + 1}>
                   <Pressable
                     accessibilityRole="link"
-                    accessibilityLabel={`Order ${order.id}, ${tone.label}, ৳${order.total}`}
+                    accessibilityLabel={`${t('Order')} ${order.id}, ${t(tone.label)}, ৳${n(order.total)}`}
                     onPress={() => router.push(`/order/${order.id}`)}
                     style={({ pressed }) => [
                       {
@@ -128,7 +129,7 @@ export default function OrdersScreen() {
                             color: tone.fg,
                           }}
                         >
-                          {tone.label}
+                          {t(tone.label)}
                         </Text>
                       </View>
 
@@ -168,7 +169,7 @@ export default function OrdersScreen() {
                             color: colors.text,
                           }}
                         >
-                          {order.chefName || 'RannaBari kitchen'}
+                          {order.chefName || t('RannaBari member')}
                         </Text>
                         <Text
                           numberOfLines={1}
@@ -178,13 +179,13 @@ export default function OrdersScreen() {
                             color: colors.textMuted,
                           }}
                         >
-                          {count} item{count === 1 ? '' : 's'} ·{' '}
-                          {formatOrderDate(order.createdAt)}
+                          {t(count === 1 ? '{n} item' : '{n} items', { n: n(count) })} ·{' '}
+                          {formatOrderDate(order.createdAt, lang)}
                         </Text>
                       </View>
 
                       <View style={{ alignItems: 'flex-end' }}>
-                        <Price size={17}>৳{order.total}</Price>
+                        <Price size={17}>৳{n(order.total)}</Price>
                         {order.paymentMethod === 'cod' ? (
                           <Text
                             style={{
@@ -195,7 +196,7 @@ export default function OrdersScreen() {
                               color: colors.saffron,
                             }}
                           >
-                            Cash
+                            {t('Cash')}
                           </Text>
                         ) : null}
                       </View>

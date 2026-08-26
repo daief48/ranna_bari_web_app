@@ -23,6 +23,7 @@ import { Body, Heading } from '../src/components/Typography';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
+import { useLang } from '../src/i18n/LanguageContext';
 
 const SPECIALTIES = [
   'Traditional Heritage',
@@ -48,12 +49,13 @@ const LABELS = [
  */
 export default function EditProfileScreen() {
   const { colors } = useTheme();
+  const { t } = useLang();
   const router = useRouter();
   const { account, isSignedIn, hydrated } = useAuth();
 
   if (!hydrated) {
     return (
-      <Screen activeIcon="user">
+      <Screen>
         <Container style={{ alignItems: 'center', paddingTop: 60 }}>
           <ActivityIndicator color={colors.primary} />
         </Container>
@@ -63,15 +65,15 @@ export default function EditProfileScreen() {
 
   if (!isSignedIn) {
     return (
-      <Screen activeIcon="user">
+      <Screen>
         <Container style={{ alignItems: 'center', gap: 18, paddingTop: 40 }}>
           <IconTile name="user" large />
-          <Heading size={20}>Sign in first</Heading>
+          <Heading size={20}>{t('Sign in first')}</Heading>
           <Body muted size={15} style={{ textAlign: 'center' }}>
-            Your profile details live with your account.
+            {t('Your profile details live with your account.')}
           </Body>
           <Button
-            label="Sign in or join"
+            label={t('Sign in or join')}
             icon="arrowRight"
             onPress={() => router.replace('/auth')}
           />
@@ -85,6 +87,7 @@ export default function EditProfileScreen() {
 
 function EditProfileForm({ account }) {
   const { colors, shadow } = useTheme();
+  const { t } = useLang();
   const router = useRouter();
   const { updateAccount } = useAuth();
 
@@ -142,8 +145,8 @@ function EditProfileForm({ account }) {
       if (!perm.granted) {
         setNote(
           fromCamera
-            ? 'Camera permission was blocked. Allow it in your device settings.'
-            : 'Photo permission was blocked. Allow it in your device settings.',
+            ? t('Camera permission was blocked. Allow it in your device settings.')
+            : t('Photo permission was blocked. Allow it in your device settings.'),
         );
         return;
       }
@@ -190,7 +193,7 @@ function EditProfileForm({ account }) {
       return;
     }
     if (role === 'cook' && !kitchen.trim()) {
-      setNote('Your kitchen needs a name for customers to find it.');
+      setNote(t('Your kitchen needs a name for customers to find it.'));
       return;
     }
 
@@ -223,18 +226,18 @@ function EditProfileForm({ account }) {
     .toUpperCase();
 
   return (
-    <Screen activeIcon="user" glow="both">
+    <Screen glow="both">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Container>
           <SectionHeader
-            lead="EDIT"
-            accent="PROFILE"
-            subtitle="Everything you gave us when you joined, yours to change."
+            lead={t('EDIT')}
+            accent={t('PROFILE')}
+            subtitle={t('Everything you gave us when you joined, yours to change.')}
             style={{ marginBottom: 24 }}
           />
 
           <FormNote text={note} />
-          {saved ? <FormNote text="Saved." tone="info" /> : null}
+          {saved ? <FormNote text={t('Saved.')} tone="info" /> : null}
 
           {/* ---- Photo ---- */}
           <Reveal delay={1}>
@@ -309,7 +312,7 @@ function EditProfileForm({ account }) {
               >
                 <Button
                   variant="glass"
-                  label="Choose photo"
+                  label={t('Choose photo')}
                   icon="box"
                   iconPosition="left"
                   small
@@ -320,7 +323,7 @@ function EditProfileForm({ account }) {
                 {Platform.OS !== 'web' ? (
                   <Button
                     variant="glass"
-                    label="Camera"
+                    label={t('Camera')}
                     icon="locate"
                     iconPosition="left"
                     small
@@ -331,7 +334,7 @@ function EditProfileForm({ account }) {
                 {avatar ? (
                   <Button
                     variant="ghost"
-                    label="Remove"
+                    label={t('Remove')}
                     small
                     disabled={picking}
                     onPress={() => setAvatar(null)}
@@ -344,17 +347,17 @@ function EditProfileForm({ account }) {
           {/* ---- Basics ---- */}
           <Reveal delay={2}>
             <View style={[card(colors), shadow.sm, { marginTop: 16 }]}>
-              <CardHeading icon="user" title="About you" />
+              <CardHeading icon="user" title={t('About you')} />
 
               <FloatLabelInput
-                label="Full name"
+                label={t('Full name')}
                 value={name}
                 onChangeText={setName}
-                placeholder="As you want cooks to see it"
+                placeholder={t('As you want cooks to see it')}
                 autoComplete="name"
               />
               <FloatLabelInput
-                label="Phone"
+                label={t('Phone')}
                 value={phone}
                 onChangeText={setPhone}
                 placeholder="+880 1XXXXXXXXX"
@@ -362,19 +365,19 @@ function EditProfileForm({ account }) {
                 autoComplete="tel"
               />
               <FloatLabelInput
-                label="Email"
+                label={t('Email')}
                 value={email}
                 onChangeText={setEmail}
-                placeholder="you@example.com"
+                placeholder={t('you@example.com')}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
               />
               <FloatLabelInput
-                label="About"
+                label={t('About')}
                 value={bio}
                 onChangeText={setBio}
-                placeholder="Allergies, favourite spice level, anything a cook should know"
+                placeholder={t('Allergies, favourite spice level, anything a cook should know')}
                 multiline
                 style={{ marginBottom: 0 }}
               />
@@ -386,7 +389,7 @@ function EditProfileForm({ account }) {
                   from your profile", so this is where that happens. */}
           <Reveal delay={3}>
             <View style={[card(colors), shadow.sm, { marginTop: 16 }]}>
-              <CardHeading icon="chefHat" title="How you use RannaBari" />
+              <CardHeading icon="chefHat" title={t('How you use RannaBari')} />
 
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 {[
@@ -426,7 +429,7 @@ function EditProfileForm({ account }) {
                           color: on ? colors.text : colors.textMuted,
                         }}
                       >
-                        {title}
+                        {t(title)}
                       </Text>
                     </Pressable>
                   );
@@ -436,7 +439,7 @@ function EditProfileForm({ account }) {
               {role === 'cook' ? (
                 <View style={{ marginTop: 20 }}>
                   <FloatLabelInput
-                    label="Kitchen name"
+                    label={t('Kitchen name')}
                     value={kitchen}
                     onChangeText={setKitchen}
                     placeholder="e.g. Fatema's Heritage Kitchen"
@@ -444,7 +447,7 @@ function EditProfileForm({ account }) {
 
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`What you cook best, currently ${specialty || 'not chosen'}`}
+                    accessibilityLabel={`${t('What you cook best, currently')} ${specialty ? t(specialty) : '—'}`}
                     onPress={() => setSpecialtyOpen((v) => !v)}
                     style={{
                       borderWidth: 1,
@@ -469,7 +472,7 @@ function EditProfileForm({ account }) {
                         color: specialtyOpen ? colors.primary : colors.textMuted,
                       }}
                     >
-                      What you cook best
+                      {t('What you cook best')}
                     </Text>
                     <Text
                       style={{
@@ -478,7 +481,7 @@ function EditProfileForm({ account }) {
                         color: specialty ? colors.text : colors.textLight,
                       }}
                     >
-                      {specialty || 'Choose a specialty'}
+                      {specialty ? t(specialty) : t('Choose a specialty')}
                     </Text>
                     <Icon
                       name="chevronDown"
@@ -524,7 +527,7 @@ function EditProfileForm({ account }) {
                               color: specialty === s ? colors.primary : colors.text,
                             }}
                           >
-                            {s}
+                            {t(s)}
                           </Text>
                         </Pressable>
                       ))}
@@ -538,7 +541,7 @@ function EditProfileForm({ account }) {
           {/* ---- Address ---- */}
           <Reveal delay={4}>
             <View style={[card(colors), shadow.sm, { marginTop: 16 }]}>
-              <CardHeading icon="pin" title="Default address" />
+              <CardHeading icon="pin" title={t('Default address')} />
 
               {/* The same picker signup step 3 uses, opened on the pin the
                   account already has rather than on the Dhaka default. */}
@@ -555,16 +558,16 @@ function EditProfileForm({ account }) {
               </View>
 
               <FloatLabelInput
-                label="House / road / flat"
+                label={t('House / road / flat')}
                 value={line}
                 onChangeText={setLine}
-                placeholder="House 12, Road 7, Flat 4B"
+                placeholder={t('House 12, Road 7, Flat 4B')}
               />
               <FloatLabelInput
-                label="Area"
+                label={t('Area')}
                 value={area}
                 onChangeText={setArea}
-                placeholder="Dhanmondi, Dhaka"
+                placeholder={t('Dhanmondi, Dhaka')}
               />
 
               <Text
@@ -577,7 +580,7 @@ function EditProfileForm({ account }) {
                   marginBottom: 10,
                 }}
               >
-                Save this address as
+                {t('Save this address as')}
               </Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {LABELS.map(([l, icon]) => {
@@ -615,7 +618,7 @@ function EditProfileForm({ account }) {
                           color: on ? '#FFFFFF' : colors.textMuted,
                         }}
                       >
-                        {l}
+                        {t(l)}
                       </Text>
                     </Pressable>
                   );
@@ -640,15 +643,14 @@ function EditProfileForm({ account }) {
                     color: colors.textLight,
                   }}
                 >
-                  Checkout starts from this address. Drag the map to move
-                  your pin — the area fills itself in.
+                  {t('Checkout starts from this address. Drag the map to move your pin — the area fills itself in.')}
                 </Text>
               </View>
             </View>
           </Reveal>
 
           <View style={{ marginTop: 24, gap: 12 }}>
-            <Button label="Save changes" icon="check" block onPress={save} />
+            <Button label={t('Save changes')} icon="check" block onPress={save} />
             <Pressable
               accessibilityRole="button"
               onPress={() => (router.canGoBack() ? router.back() : router.replace('/profile'))}
@@ -663,7 +665,7 @@ function EditProfileForm({ account }) {
                   color: colors.textMuted,
                 }}
               >
-                Cancel
+                {t('Cancel')}
               </Text>
             </Pressable>
           </View>

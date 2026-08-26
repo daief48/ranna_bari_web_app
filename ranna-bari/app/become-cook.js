@@ -20,6 +20,7 @@ import useResponsive from '../src/theme/useResponsive';
 import { font, radius, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
 import { DEMO_COOK_ONBOARDING } from '../src/lib/demoData';
+import { useLang } from '../src/i18n/LanguageContext';
 
 const ZONES = [
   'Dhanmondi, Dhaka',
@@ -65,6 +66,7 @@ export default function BecomeCookScreen() {
   const r = useResponsive();
   const router = useRouter();
   const { isSignedIn, isCook, hydrated } = useAuth();
+  const { t } = useLang();
 
   const [name, setName] = useState(DEMO_COOK_ONBOARDING.name);
   const [phone, setPhone] = useState(DEMO_COOK_ONBOARDING.phone);
@@ -81,7 +83,7 @@ export default function BecomeCookScreen() {
 
   const submit = () => {
     if (!name.trim() || !phone.trim() || !zone || !nid.trim()) {
-      setNote('Fill in every field so we can start verification.');
+      setNote(t('Fill in every field so we can start verification.'));
       return;
     }
     setNote('');
@@ -102,17 +104,15 @@ export default function BecomeCookScreen() {
         {/* ---- Hero ---- */}
         <Container style={{ alignItems: 'center', paddingBottom: 40 }}>
           <Reveal delay={1} style={{ alignItems: 'center' }}>
-            <Display style={{ textAlign: 'center' }}>ELEVATE YOUR KITCHEN.</Display>
+            <Display style={{ textAlign: 'center' }}>{t('ELEVATE YOUR KITCHEN.')}</Display>
             <GradientText
               style={{ ...displayStyle(r.heroTitle), textAlign: 'center' }}
             >
-              OWN YOUR BUSINESS.
+              {t('OWN YOUR BUSINESS.')}
             </GradientText>
 
             <Body muted size={15} style={{ textAlign: 'center', marginTop: 24 }}>
-              Join an elite network of culinary artisans. No upfront costs.
-              Ultimate flexibility. Connect directly with food lovers who crave
-              authenticity.
+              {t('Join an elite network of culinary artisans. No upfront costs. Ultimate flexibility. Connect directly with food lovers who crave authenticity.')}
             </Body>
           </Reveal>
         </Container>
@@ -144,10 +144,10 @@ export default function BecomeCookScreen() {
               >
                 <View style={{ flex: 1 }}>
                   <Heading size={24} style={{ marginBottom: 2 }}>
-                    Onboarding
+                    {t('Onboarding')}
                   </Heading>
                   <Body muted size={14}>
-                    Step 1 of 3: Verification
+                    {t('Step 1 of 3: Verification')}
                   </Body>
                 </View>
 
@@ -168,15 +168,15 @@ export default function BecomeCookScreen() {
               <FormNote text={note} />
 
               <FloatLabelInput
-                label="Full legal name"
+                label={t('Full legal name')}
                 value={name}
                 onChangeText={setName}
-                placeholder="As it appears on your ID"
+                placeholder={t('As it appears on your ID')}
                 autoComplete="name"
               />
 
               <FloatLabelInput
-                label="Secure phone number"
+                label={t('Secure phone number')}
                 value={phone}
                 onChangeText={setPhone}
                 placeholder="+880 1XXXXXXXXX"
@@ -188,7 +188,7 @@ export default function BecomeCookScreen() {
               <View style={{ marginBottom: 20 }}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Primary cooking location, currently ${zone || 'not chosen'}`}
+                  accessibilityLabel={`${t('Primary cooking location, currently')} ${zone ? t(zone) : '—'}`}
                   onPress={() => setZoneOpen((v) => !v)}
                   style={{
                     borderWidth: 1,
@@ -213,7 +213,7 @@ export default function BecomeCookScreen() {
                       color: zoneOpen ? colors.primary : colors.textMuted,
                     }}
                   >
-                    Primary cooking location
+                    {t('Primary cooking location')}
                   </Text>
                   <Text
                     style={{
@@ -222,7 +222,7 @@ export default function BecomeCookScreen() {
                       color: zone ? colors.text : colors.textLight,
                     }}
                   >
-                    {zone || 'Select your zone'}
+                    {zone ? t(zone) : t('Select your zone')}
                   </Text>
                   <Icon
                     name="chevronDown"
@@ -265,7 +265,7 @@ export default function BecomeCookScreen() {
                             color: zone === z ? colors.primary : colors.text,
                           }}
                         >
-                          {z}
+                          {t(z)}
                         </Text>
                       </Pressable>
                     ))}
@@ -274,10 +274,10 @@ export default function BecomeCookScreen() {
               </View>
 
               <FloatLabelInput
-                label="National ID (encrypted)"
+                label={t('National ID (encrypted)')}
                 value={nid}
                 onChangeText={setNid}
-                placeholder="Enter NID for secure verification"
+                placeholder={t('Enter NID for secure verification')}
                 keyboardType="number-pad"
                 trailingIcon="lock"
               />
@@ -291,7 +291,7 @@ export default function BecomeCookScreen() {
                   borderTopColor: colors.line,
                 }}
               >
-                <Button label="Continue" icon="arrowRight" block onPress={submit} />
+                <Button label={t('Continue')} icon="arrowRight" block onPress={submit} />
                 <Pressable
                   accessibilityRole="button"
                   onPress={() =>
@@ -308,7 +308,7 @@ export default function BecomeCookScreen() {
                       color: colors.textMuted,
                     }}
                   >
-                    Cancel
+                    {t('Cancel')}
                   </Text>
                 </Pressable>
               </View>
@@ -322,10 +322,10 @@ export default function BecomeCookScreen() {
                 <BentoBox style={{ padding: 24, alignItems: 'center', gap: 16 }}>
                   <IconTile name={p.icon} variant={p.variant} />
                   <Heading size={18} style={{ textAlign: 'center' }}>
-                    {p.title}
+                    {t(p.title)}
                   </Heading>
                   <Body muted size={14} style={{ textAlign: 'center' }}>
-                    {p.body}
+                    {t(p.body)}
                   </Body>
                 </BentoBox>
               </Reveal>

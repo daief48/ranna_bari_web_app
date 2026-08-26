@@ -21,12 +21,13 @@ export const APP_BAR_CLEARANCE = 110;
  */
 export default function Screen({
   children,
-  activeIcon,
   showNavbar = true,
   scroll = true,
   glow = 'top-right',
   contentStyle,
   scrollRef,
+  /** Rendered over the scroll, not inside it -- for a bar that must stay put. */
+  footer,
   ...scrollProps
 }) {
   const { colors } = useTheme();
@@ -68,8 +69,10 @@ export default function Screen({
         <View style={{ flex: 1 }}>{children}</View>
       )}
 
+      {footer}
+
       <FilmGrain />
-      {showNavbar ? <Navbar activeIcon={activeIcon} /> : null}
+      {showNavbar ? <Navbar /> : null}
     </View>
   );
 }

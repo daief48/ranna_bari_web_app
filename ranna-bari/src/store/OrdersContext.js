@@ -398,30 +398,44 @@ export function useOrders() {
   return ctx;
 }
 
-/** "24 Aug 2026, 9:12 pm" — one format, used on every order surface. */
-export function formatOrderDate(iso) {
+/**
+ * "24 Aug 2026, 9:12 pm" — one format, used on every order surface.
+ *
+ * `lang` picks the locale, so a Bengali reader gets Bengali month names and
+ * numerals from Intl rather than an English date sitting inside a Bengali
+ * sentence.
+ */
+export function formatOrderDate(iso, lang = 'en') {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  const date = d.toLocaleDateString('en-GB', {
+  const locale = lang === 'bn' ? 'bn-BD' : 'en-GB';
+  const date = d.toLocaleDateString(locale, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
   });
   const time = d
-    .toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true })
+    .toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit', hour12: true })
     .toLowerCase();
   return `${date}, ${time}`;
 }
 
-/** "4 min ago" / "2 hr ago" — the cook queue needs urgency, not a date. */
-export function timeAgo(iso) {
+/**
+ * "4 min ago" / "2 hr ago" — the cook queue needs urgency, not a date.
+ *
+ * The translator is passed in rather than imported: this module is loaded by
+ * the provider that sits above the language provider, and a phrase like this
+ * cannot be assembled from parts anyway -- Bengali puts "আগে" after the unit,
+ * so the whole sentence has to come out of the catalogue in one piece.
+ */
+export function timeAgo(iso, t = (s) => s, n = (v) => String(v)) {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return '';
   const mins = Math.max(0, Math.round((Date.now() - then) / 60_000));
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins} min ago`;
+  if (mins < 1) return t('just now');
+  if (mins < 60) return t('{n} min ago', { n: n(mins) });
   const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs} hr ago`;
+  if (hrs < 24) return t('{n} hr ago', { n: n(hrs) });
   const days = Math.round(hrs / 24);
-  return `${days} day${days === 1 ? '' : 's'} ago`;
+  return t(days === 1 ? '{n} day ago' : '{n} days ago', { n: n(days) });
 }

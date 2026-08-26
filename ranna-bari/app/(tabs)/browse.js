@@ -17,6 +17,7 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useAreas, useChefs } from '../../src/data';
+import { useLang } from '../../src/i18n/LanguageContext';
 
 /** The five chips on browsecook.html, in order. */
 const CHIPS = [
@@ -29,6 +30,7 @@ const CHIPS = [
 
 export default function BrowseScreen() {
   const chefs = useChefs();
+  const { t, n } = useLang();
   const { colors, shadow } = useTheme();
   const r = useResponsive();
   const router = useRouter();
@@ -77,9 +79,9 @@ export default function BrowseScreen() {
     <Screen>
       <Container>
         <SectionHeader
-          lead="DISCOVER"
-          accent="ARTISANS"
-          subtitle="Find the perfect meal curated by local chefs."
+          lead={t('DISCOVER')}
+          accent={t('ARTISANS')}
+          subtitle={t('Find the perfect meal curated by local chefs.')}
           style={{ marginBottom: 24 }}
         />
 
@@ -116,7 +118,7 @@ export default function BrowseScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search cuisines, chefs, or areas..."
+            placeholder={t('Search cuisines, chefs, or areas...')}
             placeholderTextColor={colors.textLight}
             returnKeyType="search"
             style={{
@@ -144,7 +146,7 @@ export default function BrowseScreen() {
         <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Filter by area, currently ${area === 'all' ? 'all areas' : area}`}
+            accessibilityLabel={`${t('Filter by area, currently')} ${area === 'all' ? t('All Areas') : area}`}
             onPress={() => setAreaOpen(true)}
             style={({ pressed }) => [
               {
@@ -172,7 +174,7 @@ export default function BrowseScreen() {
                 color: colors.text,
               }}
             >
-              {area === 'all' ? 'All Areas' : area}
+              {area === 'all' ? t('All Areas') : area}
             </Text>
             <Icon name="chevronDown" size={16} color={colors.textMuted} />
           </Pressable>
@@ -241,7 +243,7 @@ export default function BrowseScreen() {
                   color: active ? '#FFFFFF' : colors.textMuted,
                 }}
               >
-                {c.label}
+                {t(c.label)}
               </Text>
             </Pressable>
           );
@@ -259,7 +261,7 @@ export default function BrowseScreen() {
             marginBottom: 24,
           }}
         >
-          {results.length} Artisans Curated For You
+          {n(results.length)} {t('Artisans Curated For You')}
         </Text>
 
         {results.length ? (
@@ -279,7 +281,7 @@ export default function BrowseScreen() {
                 color: colors.textMuted,
               }}
             >
-              No artisans found matching your criteria.
+              {t('No artisans found matching your criteria.')}
             </Text>
           </View>
         )}
@@ -302,6 +304,7 @@ export default function BrowseScreen() {
 function AreaPicker({ open, value, onSelect, onClose }) {
   const { colors, shadow } = useTheme();
   const areas = useAreas();
+  const { t } = useLang();
 
   return (
     <Modal
@@ -352,7 +355,7 @@ function AreaPicker({ open, value, onSelect, onClose }) {
                 color: colors.textMuted,
               }}
             >
-              Choose an area
+              {t('Choose an area')}
             </Text>
             <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
               <Icon name="x" size={18} color={colors.textMuted} />
@@ -391,7 +394,7 @@ function AreaPicker({ open, value, onSelect, onClose }) {
                       color: active ? colors.primary : colors.text,
                     }}
                   >
-                    {a === 'all' ? 'All Areas' : a}
+                    {a === 'all' ? t('All Areas') : a}
                   </Text>
                   {active ? (
                     <Icon name="check" size={17} color={colors.primary} strokeWidth={2.2} />
