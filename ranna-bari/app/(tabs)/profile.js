@@ -124,8 +124,14 @@ export default function ProfileScreen() {
             sub="See who is cooking near you"
             onPress={() => router.push('/map')}
           />
-          {/* Not shown to a cook: they already have one. */}
-          {!isCook ? (
+          {/* Guests only.
+              For someone already signed in this was a trap: `/become-cook`
+              feeds the three-step signup, and finishing it calls signIn(),
+              which REPLACES the stored account rather than upgrading it --
+              their name, email, phone and saved address all came back as the
+              form's defaults. A signed-in user turns cook from the profile
+              editor, which changes the role in place. */}
+          {!isSignedIn ? (
             <Row
               icon="chefHat"
               variant="sage"
@@ -144,7 +150,13 @@ export default function ProfileScreen() {
               icon="user"
               variant="sage"
               title="Edit profile"
-              sub="Photo, contact details and address"
+              /* This is where a customer turns cook now, so the row has to
+                 say so -- it is no longer a separate entry in the list. */
+              sub={
+                isCook
+                  ? 'Photo, contact details and address'
+                  : 'Details, address, or open your own kitchen'
+              }
               onPress={() => router.push('/edit-profile')}
             />
           ) : null}

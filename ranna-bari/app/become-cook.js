@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../src/components/Screen';
 import Icon from '../src/components/Icon';
@@ -18,6 +18,7 @@ import {
 import { useTheme } from '../src/theme/ThemeProvider';
 import useResponsive from '../src/theme/useResponsive';
 import { font, radius, type } from '../src/theme/tokens';
+import { useAuth } from '../src/store/AuthContext';
 import { DEMO_COOK_ONBOARDING } from '../src/lib/demoData';
 
 const ZONES = [
@@ -48,10 +49,22 @@ const PERKS = [
   },
 ];
 
+/**
+ * The pitch, and step 1 of the cook signup. It is for people who do not have
+ * an account yet.
+ *
+ * Anyone already signed in must not come through here: this hands off to the
+ * three-step signup, and finishing that calls signIn(), which replaces the
+ * stored account instead of upgrading it -- an existing customer would come
+ * out the other side with the form's default name, email, phone and address
+ * in place of their own. Changing the role from the profile editor keeps the
+ * account and just flips it, so that is where they go.
+ */
 export default function BecomeCookScreen() {
   const { colors, shadow } = useTheme();
   const r = useResponsive();
   const router = useRouter();
+  const { isSignedIn, isCook, hydrated } = useAuth();
 
   const [name, setName] = useState(DEMO_COOK_ONBOARDING.name);
   const [phone, setPhone] = useState(DEMO_COOK_ONBOARDING.phone);
@@ -59,6 +72,12 @@ export default function BecomeCookScreen() {
   const [zoneOpen, setZoneOpen] = useState(false);
   const [nid, setNid] = useState(DEMO_COOK_ONBOARDING.nid);
   const [note, setNote] = useState('');
+
+  // Below the state, so the hook order is the same on the render that
+  // redirects as on the one that draws the page.
+  if (hydrated && isSignedIn) {
+    return <Redirect href={isCook ? '/cook' : '/edit-profile'} />;
+  }
 
   const submit = () => {
     if (!name.trim() || !phone.trim() || !zone || !nid.trim()) {
