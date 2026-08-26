@@ -16,7 +16,7 @@ import SectionHeader from '../../src/components/SectionHeader';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
-import { AREAS, chefs } from '../../src/data';
+import { useAreas, useChefs } from '../../src/data';
 
 /** The five chips on browsecook.html, in order. */
 const CHIPS = [
@@ -28,6 +28,7 @@ const CHIPS = [
 ];
 
 export default function BrowseScreen() {
+  const chefs = useChefs();
   const { colors, shadow } = useTheme();
   const r = useResponsive();
   const router = useRouter();
@@ -63,7 +64,7 @@ export default function BrowseScreen() {
 
       return matchesCategory && matchesArea && matchesSearch;
     });
-  }, [filter, query, area]);
+  }, [filter, query, area, chefs]);
 
   /* A chip that is active but absent from the five defaults (a mood pill sent
      us here) still needs somewhere to show, so it is appended to the row. */
@@ -300,6 +301,7 @@ export default function BrowseScreen() {
 /** Bottom sheet standing in for the web build's native <select>. */
 function AreaPicker({ open, value, onSelect, onClose }) {
   const { colors, shadow } = useTheme();
+  const areas = useAreas();
 
   return (
     <Modal
@@ -358,7 +360,7 @@ function AreaPicker({ open, value, onSelect, onClose }) {
           </View>
 
           <ScrollView style={{ maxHeight: 340 }}>
-            {AREAS.map((a) => {
+            {areas.map((a) => {
               const active = a === value;
               return (
                 <Pressable

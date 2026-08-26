@@ -26,7 +26,7 @@ import {
 import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
-import { chefs, reviewSummary, reviews } from '../../src/data';
+import { reviewSummary, reviews, useChefs } from '../../src/data';
 
 /** The seven cravings from index.html's mood carousel, in source order. */
 const MOODS = [
@@ -91,6 +91,7 @@ const AVATARS = [
 ];
 
 export default function HomeScreen() {
+  const chefs = useChefs();
   const { colors, shadow, isDark } = useTheme();
   const r = useResponsive();
   const router = useRouter();
@@ -100,7 +101,7 @@ export default function HomeScreen() {
   const chefName = useMemo(() => {
     const map = new Map(chefs.map((c) => [String(c.id), c.name]));
     return (id) => map.get(String(id)) ?? 'a home kitchen';
-  }, []);
+  }, [chefs]);
 
   const search = () =>
     router.push({ pathname: '/browse', params: area ? { q: area } : {} });

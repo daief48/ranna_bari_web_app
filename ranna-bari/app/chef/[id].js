@@ -13,7 +13,7 @@ import { Body, Heading, Price } from '../../src/components/Typography';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
-import { getChef, getMenu } from '../../src/data';
+import { useChef, useMenu } from '../../src/data';
 import { useCart } from '../../src/store/CartContext';
 
 export default function ChefScreen() {
@@ -23,8 +23,8 @@ export default function ChefScreen() {
   const router = useRouter();
   const { add } = useCart();
 
-  const chef = useMemo(() => getChef(id), [id]);
-  const menu = useMemo(() => getMenu(id), [id]);
+  const chef = useChef(id);
+  const menu = useMenu(id);
 
   if (!chef) {
     return (
@@ -42,10 +42,15 @@ export default function ChefScreen() {
   }
 
   const stats = [
-    { value: chef.rating, label: 'Rating' },
+    // A kitchen with no reviews has no score to show, so it shows none.
+    { value: chef.reviewCount ? chef.rating : '—', label: 'Rating' },
     { value: chef.reviewCount, label: 'Reviews' },
     { value: menu.length, label: 'Dishes' },
   ];
+
+  /* Only a live kitchen carries an `isOpen` flag -- the seeded ones are
+     always taking orders, so an undefined value is not "closed". */
+  const closed = chef.isOpen === false;
 
   return (
     <Screen>
@@ -227,6 +232,38 @@ export default function ChefScreen() {
       <Container style={{ paddingTop: 56 }}>
         <SectionHeader lead="CURATED" accent="MENU" />
 
+        {/* A closed kitchen keeps its listing but cannot be ordered from, so
+            say that once at the top rather than only on each greyed button. */}
+        {closed ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'flex-start',
+              gap: 11,
+              padding: 15,
+              marginBottom: 20,
+              borderRadius: radius.sm,
+              backgroundColor: colors.saffron50,
+              borderWidth: 1,
+              borderColor: colors.saffron100,
+            }}
+          >
+            <Icon name="moon" size={17} color={colors.saffron} />
+            <Text
+              style={{
+                flex: 1,
+                fontFamily: font.ui,
+                fontSize: type.sm,
+                lineHeight: 21,
+                color: colors.text,
+              }}
+            >
+              {chef.name} is not taking orders right now. The menu is here for
+              when they open again.
+            </Text>
+          </View>
+        ) : null}
+
         <View style={{ gap: 14 }}>
           {menu.map((item, i) => (
             <Reveal key={item.id} delay={(i % 5) + 1}>
@@ -283,11 +320,12 @@ export default function ChefScreen() {
                     ৳{item.price}
                   </Price>
                   <Button
-                    label="Add to cart"
-                    icon="plus"
+                    label={closed ? 'Kitchen closed' : 'Add to cart'}
+                    icon={closed ? 'lock' : 'plus'}
                     iconPosition="left"
                     block
                     small
+                    disabled={closed}
                     onPress={() => add(item, chef)}
                   />
                 </View>

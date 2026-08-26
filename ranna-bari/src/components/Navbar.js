@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Brand from './Brand';
 import Icon from './Icon';
+import ModeSwitch from './ModeSwitch';
 import { useTheme } from '../theme/ThemeProvider';
 import { useCart } from '../store/CartContext';
 import { useAuth } from '../store/AuthContext';
@@ -107,7 +108,7 @@ export default function Navbar({ activeIcon }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { count } = useCart();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isCook } = useAuth();
 
   return (
     <View
@@ -152,10 +153,14 @@ export default function Navbar({ activeIcon }) {
             accessibilityRole="link"
             accessibilityLabel="RannaBari home"
           >
-            <Brand size={20} markSize={34} />
+            {/* A cook carries a fourth control up here, so the wordmark gives
+                up its space to it and the mark stands in alone. */}
+            <Brand size={20} markSize={34} markOnly={isCook} />
           </Pressable>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+            {/* Only a cook has somewhere else to be. */}
+            <ModeSwitch style={{ marginRight: 4 }} />
             <NavIcon
               name="cart"
               badge={count}

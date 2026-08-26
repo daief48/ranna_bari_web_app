@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -83,7 +83,15 @@ export default function AuthScreen() {
   const router = useRouter();
   const { signIn } = useAuth();
 
-  const [tab, setTab] = useState('signin');
+  /* become-cook.js is step 1 of the same funnel: it collects a name, a phone,
+     a zone and an NID, then hands over. Reading them here is what keeps that
+     from being a form the user fills in twice. */
+  const params = useLocalSearchParams();
+  const fromCookFunnel = params.role === 'cook';
+  const param = (key, fallback) =>
+    typeof params[key] === 'string' && params[key] ? params[key] : fallback;
+
+  const [tab, setTab] = useState(fromCookFunnel ? 'signup' : 'signin');
 
   /* ---- sign in ---- */
   const [siId, setSiId] = useState(DEMO_CREDENTIALS.id);
@@ -91,19 +99,20 @@ export default function AuthScreen() {
   const [siNote, setSiNote] = useState('');
 
   /* ---- sign up ---- */
-  const [step, setStep] = useState(1);
-  const [role, setRole] = useState(DEMO_SIGNUP.role);
+  // Arriving from the cook funnel means the role question is already answered.
+  const [step, setStep] = useState(fromCookFunnel ? 2 : 1);
+  const [role, setRole] = useState(fromCookFunnel ? 'cook' : DEMO_SIGNUP.role);
   const [roleNote, setRoleNote] = useState('');
   const [detailsNote, setDetailsNote] = useState('');
   const [locNote, setLocNote] = useState('');
 
-  const [name, setName] = useState(DEMO_SIGNUP.name);
-  const [phone, setPhone] = useState(DEMO_SIGNUP.phone);
+  const [name, setName] = useState(param('name', DEMO_SIGNUP.name));
+  const [phone, setPhone] = useState(param('phone', DEMO_SIGNUP.phone));
   const [email, setEmail] = useState(DEMO_SIGNUP.email);
   const [pw, setPw] = useState(DEMO_SIGNUP.password);
   const [kitchen, setKitchen] = useState(DEMO_KITCHEN.kitchen);
   const [specialty, setSpecialty] = useState(DEMO_KITCHEN.specialty);
-  const [nid, setNid] = useState(DEMO_KITCHEN.nid);
+  const [nid, setNid] = useState(param('nid', DEMO_KITCHEN.nid));
   const [terms, setTerms] = useState(DEMO_SIGNUP.terms);
 
   /* Seeded rather than null, so "Create account" is live the moment step 3
@@ -112,7 +121,8 @@ export default function AuthScreen() {
   const [place, setPlace] = useState({
     lat: DEMO_ADDRESS.lat,
     lng: DEMO_ADDRESS.lng,
-    address: DEMO_ADDRESS.area,
+    // The zone chosen on the cook funnel is the pin's starting address.
+    address: param('zone', DEMO_ADDRESS.area),
   });
   const [detail, setDetail] = useState(DEMO_ADDRESS.detail);
   const [addressLabel, setAddressLabel] = useState(DEMO_ADDRESS.label);
@@ -204,8 +214,8 @@ export default function AuthScreen() {
       return;
     }
     setSiNote('');
-    await signIn(demoAccount(siId));
-    router.replace('/profile');
+    const acct = await signIn(demoAccount(siId));
+    router.replace(acct.role === 'cook' ? '/cook' : '/profile');
   };
 
   return (
@@ -459,7 +469,9 @@ export default function AuthScreen() {
                 pwLevel={pwLevel}
                 place={place}
                 setPlace={setPlace}
-                onDone={() => router.replace(role === 'cook' ? '/profile' : '/browse')}
+                /* A cook finishes signup inside their own kitchen, not on a
+                   customer profile page they have no use for. */
+                onDone={() => router.replace(role === 'cook' ? '/cook' : '/browse')}
               />
             )}
           </View>

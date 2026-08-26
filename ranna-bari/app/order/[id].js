@@ -51,6 +51,22 @@ export default function OrderScreen() {
   }
 
   const cancelled = order.status === 'cancelled';
+  /* The kitchen turning an order down is not the customer changing their
+     mind. Both leave the rail, so they share a layout, but they must not
+     share a sentence -- being told you cancelled something you did not is
+     worse than being told nothing. */
+  const rejected = order.status === 'rejected';
+  const stopped = cancelled || rejected;
+  const delivered = order.status === 'delivered';
+  /* When each step happened. Orders placed before the kitchen panel existed
+     have no history, so the first step falls back to the order's own date
+     and the rest simply go unstamped. */
+  const stamps = Object.fromEntries(
+    (order.history ?? [{ status: 'placed', at: order.createdAt }]).map((h) => [
+      h.status,
+      h.at,
+    ]),
+  );
   const current = stepIndex(order.status);
   const isCod = order.paymentMethod === 'cod';
 
@@ -64,7 +80,7 @@ export default function OrderScreen() {
         >
           <LinearGradient
             colors={
-              cancelled
+              stopped
                 ? [colors.ink3, colors.ink2]
                 : [colors.sage, '#33441f']
             }
@@ -80,7 +96,7 @@ export default function OrderScreen() {
             }}
           >
             <Icon
-              name={cancelled ? 'x' : 'check'}
+              name={stopped ? 'x' : 'check'}
               size={30}
               color="#FFFFFF"
               strokeWidth={2.4}
@@ -88,12 +104,22 @@ export default function OrderScreen() {
           </LinearGradient>
 
           <Heading size={23} style={{ marginBottom: 8, textAlign: 'center' }}>
-            {cancelled ? 'Order cancelled' : 'Order placed.'}
+            {rejected
+              ? 'The kitchen could not take this'
+              : cancelled
+                ? 'Order cancelled'
+                : delivered
+                  ? 'Delivered.'
+                  : 'Order placed.'}
           </Heading>
           <Body muted size={14} style={{ textAlign: 'center' }}>
-            {cancelled
-              ? 'Nothing was charged — cash orders are only paid on delivery.'
-              : `${order.chefName || 'The kitchen'} has your order. You pay when it arrives.`}
+            {rejected
+              ? `${order.chefName || 'The kitchen'} turned this one down. Nothing was charged — cash orders are only paid on delivery.`
+              : cancelled
+                ? 'Nothing was charged — cash orders are only paid on delivery.'
+                : delivered
+                  ? `${order.chefName || 'The kitchen'} cooked this one. Hope it was good.`
+                  : `${order.chefName || 'The kitchen'} has your order. You pay when it arrives.`}
           </Body>
 
           <View
@@ -129,7 +155,7 @@ export default function OrderScreen() {
         </Animated.View>
 
         {/* ---- Cash callout: the single most important line on the page ---- */}
-        {isCod && !cancelled ? (
+        {isCod && !stopped ? (
           <Reveal delay={1}>
             <View
               style={[
@@ -182,7 +208,9 @@ export default function OrderScreen() {
                       color: colors.textMuted,
                     }}
                   >
-                    ready for the rider
+                    {/* Once the food has landed the money has changed hands.
+                        Still telling someone to have it "ready" is stale. */}
+                    {delivered ? 'paid to the rider' : 'ready for the rider'}
                   </Text>
                 </View>
               </View>
@@ -193,12 +221,13 @@ export default function OrderScreen() {
         {/* ---- Status timeline ---- */}
         <Reveal delay={2}>
           <View style={[card(colors), shadow.sm]}>
-            <CardHeading icon="route" title={cancelled ? 'What happened' : 'Order status'} />
+            <CardHeading icon="route" title={stopped ? 'What happened' : 'Order status'} />
 
-            {cancelled ? (
+            {stopped ? (
               <Body muted size={14}>
-                You cancelled this order on{' '}
-                {formatOrderDate(order.cancelledAt ?? order.createdAt)}.
+                {rejected
+                  ? `${order.chefName || 'The kitchen'} could not take this order on ${formatOrderDate(order.rejectedAt ?? order.createdAt)}.${order.rejectReason ? ` ${order.rejectReason}.` : ''}`
+                  : `You cancelled this order on ${formatOrderDate(order.cancelledAt ?? order.createdAt)}.`}
               </Body>
             ) : (
               <View>
@@ -267,7 +296,11 @@ export default function OrderScreen() {
                         >
                           {step.label}
                         </Text>
-                        {active ? (
+                        {/* Each step carries the moment it actually happened.
+                            Before the kitchen could move an order along there
+                            was only one timestamp to show, so every step that
+                            had one showed the time the order was placed. */}
+                        {stamps[step.key] ? (
                           <Text
                             style={{
                               fontFamily: font.ui,
@@ -276,7 +309,7 @@ export default function OrderScreen() {
                               marginTop: 2,
                             }}
                           >
-                            {formatOrderDate(order.createdAt)}
+                            {formatOrderDate(stamps[step.key])}
                           </Text>
                         ) : null}
                       </View>
@@ -284,6 +317,8 @@ export default function OrderScreen() {
                   );
                 })}
 
+                {/* A finished order has nothing left to wait for, so the
+                    "watch this space" line would just be noise. */}
                 <View
                   style={{
                     flexDirection: 'row',
@@ -292,7 +327,11 @@ export default function OrderScreen() {
                     marginTop: 2,
                   }}
                 >
-                  <Icon name="clock" size={14} color={colors.textLight} />
+                  <Icon
+                    name={delivered ? 'shieldCheck' : 'clock'}
+                    size={14}
+                    color={colors.textLight}
+                  />
                   <Text
                     style={{
                       flex: 1,
@@ -302,8 +341,9 @@ export default function OrderScreen() {
                       color: colors.textLight,
                     }}
                   >
-                    The kitchen moves this along as they cook. You will see it
-                    update here.
+                    {delivered
+                      ? 'This order is complete.'
+                      : 'The kitchen moves this along as they cook. You will see it update here.'}
                   </Text>
                 </View>
               </View>

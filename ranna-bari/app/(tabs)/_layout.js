@@ -1,12 +1,13 @@
 import React from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import Icon from '../../src/components/Icon';
 import { useTheme } from '../../src/theme/ThemeProvider';
+import { useAuth } from '../../src/store/AuthContext';
 import { font, radius } from '../../src/theme/tokens';
 
 const TABS = [
@@ -121,6 +122,13 @@ function AppBar({ state, descriptors, navigation }) {
 }
 
 export default function TabsLayout() {
+  const { isCookMode, hydrated } = useAuth();
+
+  /* The customer tabs are the app's front door, so a cook arrives here first
+     and is handed straight over. Waiting on `hydrated` is what keeps that
+     from flashing the wrong panel for a frame on a cold start. */
+  if (hydrated && isCookMode) return <Redirect href="/cook" />;
+
   return (
     <Tabs
       screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true }}

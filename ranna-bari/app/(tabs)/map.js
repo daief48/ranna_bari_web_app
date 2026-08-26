@@ -17,7 +17,7 @@ import Navbar, { NAVBAR_HEIGHT, NAVBAR_TOP } from '../../src/components/Navbar';
 import Icon from '../../src/components/Icon';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
-import { chefs } from '../../src/data';
+import { useChefs } from '../../src/data';
 import {
   buildMapHtml,
   distanceKm,
@@ -27,6 +27,7 @@ import {
 const NEAREST_COUNT = 5;
 
 export default function MapScreen() {
+  const chefs = useChefs();
   const { colors, shadow, mode } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -142,7 +143,7 @@ export default function MapScreen() {
         text: 'Your location could not be determined right now.',
       });
     }
-  }, [send]);
+  }, [send, chefs]);
 
   /** Search jumps to the first kitchen whose name, specialty or area matches. */
   const runSearch = useCallback(() => {
@@ -167,7 +168,7 @@ export default function MapScreen() {
         text: `Nothing found for "${query.trim()}". Try an area like Dhanmondi, or a specialty.`,
       });
     }
-  }, [query, send]);
+  }, [query, send, chefs]);
 
   const barTop = insets.top + NAVBAR_TOP + NAVBAR_HEIGHT + 12;
 

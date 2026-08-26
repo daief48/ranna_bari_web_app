@@ -96,7 +96,10 @@ function CheckoutForm() {
     setNote('');
     setPlacing(true);
 
-    const order = placeOrder({
+    /* A basket spanning two kitchens is two orders -- two cooks, two queues,
+       two receipts. `placeOrder` does that split, so this gets a list back
+       however many kitchens were involved. */
+    const placed = placeOrder({
       paymentMethod: method,
       items,
       subtotal,
@@ -117,7 +120,9 @@ function CheckoutForm() {
     // The cart is emptied only after the order exists, so a failure here
     // could never lose the basket.
     clear();
-    router.replace(`/order/${order.id}`);
+    // One kitchen gets its receipt; several go to the list, because no single
+    // receipt would be honest about the others.
+    router.replace(placed.length === 1 ? `/order/${placed[0].id}` : '/orders');
   };
 
   if (!items.length) {

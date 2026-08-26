@@ -13,10 +13,11 @@ import { useTheme } from '../src/theme/ThemeProvider';
 import useResponsive from '../src/theme/useResponsive';
 import { font, radius, type } from '../src/theme/tokens';
 import { useCart } from '../src/store/CartContext';
-import { menus } from '../src/data';
+import { useMenus } from '../src/data';
 
 /** A cheap, honest pairing: the least expensive dish from another kitchen. */
 function usePairing(items) {
+  const menus = useMenus();
   return useMemo(() => {
     if (!items.length) return null;
 
@@ -30,7 +31,7 @@ function usePairing(items) {
       .sort((a, b) => a.price - b.price);
 
     return candidates[0] ?? null;
-  }, [items]);
+  }, [items, menus]);
 }
 
 export default function CartScreen() {

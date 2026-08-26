@@ -16,11 +16,12 @@ import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
 import { useCart } from '../../src/store/CartContext';
 import { useOrders } from '../../src/store/OrdersContext';
+import { useKitchen } from '../../src/store/KitchenContext';
 
 export default function ProfileScreen() {
   const { colors, shadow, isDark, toggle } = useTheme();
   const router = useRouter();
-  const { account, isSignedIn, signOut } = useAuth();
+  const { account, isSignedIn, isCook, setViewMode, signOut } = useAuth();
   const { count } = useCart();
   const { orders, activeOrders } = useOrders();
   const [confirmOut, setConfirmOut] = useState(false);
@@ -32,9 +33,11 @@ export default function ProfileScreen() {
           lead="YOUR"
           accent="PROFILE"
           subtitle={
-            isSignedIn
-              ? 'Your account, your kitchens, your orders.'
-              : 'Sign in to order, or open your own kitchen.'
+            isCook
+              ? 'You are browsing as a customer. Your kitchen is one tap away.'
+              : isSignedIn
+                ? 'Your account, your kitchens, your orders.'
+                : 'Sign in to order, or open your own kitchen.'
           }
         />
 
@@ -68,16 +71,32 @@ export default function ProfileScreen() {
           </Reveal>
         )}
 
-        <View style={{ gap: 12, marginTop: 16 }}>
-          {isSignedIn ? (
-            <Row
-              icon="user"
-              variant="sage"
-              title="Edit profile"
-              sub="Photo, contact details and address"
-              onPress={() => router.push('/edit-profile')}
-            />
-          ) : null}
+        {/* ---- A cook's half ----
+            A cook signed in here is the same person who runs a kitchen, and
+            a flat list identical to a customer's hides that. Their kitchen
+            gets its own block at the top, with the numbers that decide
+            whether they need to go back to it right now. */}
+        {isCook ? (
+          <Reveal delay={2}>
+            <View style={{ marginTop: 24 }}>
+              <GroupLabel icon="chefHat" text="Your kitchen" />
+              <KitchenCard
+                onOpen={async () => {
+                  await setViewMode('cook');
+                  router.replace('/cook');
+                }}
+                goTo={async (href) => {
+                  await setViewMode('cook');
+                  router.replace(href);
+                }}
+              />
+            </View>
+          </Reveal>
+        ) : null}
+
+        {isCook ? <GroupLabel icon="cart" text="As a customer" style={{ marginTop: 28 }} /> : null}
+
+        <View style={{ gap: 12, marginTop: isCook ? 0 : 16 }}>
           <Row
             icon="receipt"
             variant="primary"
@@ -99,19 +118,36 @@ export default function ProfileScreen() {
             onPress={() => router.push('/cart')}
           />
           <Row
-            icon="chefHat"
-            variant="sage"
-            title="Become a cook"
-            sub="Turn your kitchen into a business"
-            onPress={() => router.push('/become-cook')}
-          />
-          <Row
             icon="map"
             variant="saffron"
             title="Kitchen map"
             sub="See who is cooking near you"
             onPress={() => router.push('/map')}
           />
+          {/* Not shown to a cook: they already have one. */}
+          {!isCook ? (
+            <Row
+              icon="chefHat"
+              variant="sage"
+              title="Become a cook"
+              sub="Turn your kitchen into a business"
+              onPress={() => router.push('/become-cook')}
+            />
+          ) : null}
+        </View>
+
+        {isCook ? <GroupLabel icon="sliders" text="Account" style={{ marginTop: 28 }} /> : null}
+
+        <View style={{ gap: 12, marginTop: isCook ? 0 : 12 }}>
+          {isSignedIn ? (
+            <Row
+              icon="user"
+              variant="sage"
+              title="Edit profile"
+              sub="Photo, contact details and address"
+              onPress={() => router.push('/edit-profile')}
+            />
+          ) : null}
           <Row
             icon={isDark ? 'sun' : 'moon'}
             variant="primary"
@@ -119,7 +155,6 @@ export default function ProfileScreen() {
             sub={isDark ? 'Washi paper and shari rice' : 'Nori over sumi ink'}
             onPress={toggle}
           />
-
         </View>
 
         {/* ---- Log out ----
@@ -182,6 +217,237 @@ export default function ProfileScreen() {
         ) : null}
       </Container>
     </Screen>
+  );
+}
+
+/** A small caption that splits the list into the two halves of a cook's life. */
+function GroupLabel({ icon, text, style }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+        style,
+      ]}
+    >
+      <Icon name={icon} size={14} color={colors.textLight} />
+      <Text
+        style={{
+          fontFamily: font.uiBold,
+          fontSize: type.micro,
+          letterSpacing: type.micro * tracking.label,
+          textTransform: 'uppercase',
+          color: colors.textLight,
+        }}
+      >
+        {text}
+      </Text>
+      <View style={{ flex: 1, height: 1, backgroundColor: colors.line2 }} />
+    </View>
+  );
+}
+
+/**
+ * The kitchen, seen from the customer side of the app.
+ *
+ * A cook over here still has a kitchen running, and the two numbers that
+ * decide whether they should drop the shopping and go back to it are orders
+ * waiting and whether they are even open. Those lead; the three ways in sit
+ * under them.
+ */
+function KitchenCard({ onOpen, goTo }) {
+  const { colors, shadow } = useTheme();
+  const { kitchen, liveDishes } = useKitchen();
+  const { ordersForKitchen } = useOrders();
+
+  if (!kitchen) return null;
+
+  const mine = ordersForKitchen(kitchen.id);
+  const waiting = mine.filter((o) => o.status === 'placed').length;
+  const cooking = mine.filter(
+    (o) => o.status === 'accepted' || o.status === 'cooking' || o.status === 'on_the_way',
+  ).length;
+  const open = kitchen.isOpen;
+
+  return (
+    <View
+      style={[
+        {
+          borderRadius: radius.lg,
+          backgroundColor: colors.surfaceSolid,
+          borderWidth: 1,
+          borderColor: waiting ? colors.primary100 : colors.line,
+          overflow: 'hidden',
+        },
+        shadow.sm,
+      ]}
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${kitchen.name}. ${
+          open ? 'Open for orders' : 'Closed'
+        }, ${waiting} waiting.`}
+        onPress={onOpen}
+        style={({ pressed }) => ({
+          padding: 16,
+          backgroundColor: pressed ? colors.sunken : 'transparent',
+        })}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <IconTile
+            name="chefHat"
+            variant="sage"
+            style={{ width: 48, height: 48, borderRadius: 15 }}
+          />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text
+              numberOfLines={1}
+              style={{
+                fontFamily: font.displayBold,
+                fontSize: 17,
+                letterSpacing: -0.17,
+                color: colors.text,
+              }}
+            >
+              {kitchen.name}
+            </Text>
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}
+            >
+              <View
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: 4,
+                  backgroundColor: open ? colors.sage : colors.textLight,
+                }}
+              />
+              <Text
+                style={{
+                  fontFamily: font.uiSemi,
+                  fontSize: type.xs,
+                  color: open ? colors.sage : colors.textMuted,
+                }}
+              >
+                {open
+                  ? `Open · ${liveDishes.length} dish${liveDishes.length === 1 ? '' : 'es'} live`
+                  : 'Closed · not taking orders'}
+              </Text>
+            </View>
+          </View>
+          <Icon name="arrowRight" size={17} color={colors.sage} strokeWidth={2} />
+        </View>
+
+        {/* The interrupt. Only drawn when there is actually something to do. */}
+        {waiting || cooking ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 9,
+              marginTop: 14,
+              padding: 12,
+              borderRadius: radius.sm,
+              backgroundColor: waiting ? colors.primary50 : colors.sunken,
+            }}
+          >
+            <Icon
+              name={waiting ? 'alertCircle' : 'pot'}
+              size={16}
+              color={waiting ? colors.primary : colors.textMuted}
+            />
+            <Text
+              style={{
+                flex: 1,
+                fontFamily: font.uiSemi,
+                fontSize: type.sm,
+                color: waiting ? colors.primary : colors.textMuted,
+              }}
+            >
+              {waiting
+                ? `${waiting} order${waiting === 1 ? '' : 's'} waiting to be accepted`
+                : `${cooking} order${cooking === 1 ? '' : 's'} in the pass`}
+            </Text>
+          </View>
+        ) : null}
+      </Pressable>
+
+      {/* Straight into the three screens that matter, without a stop on the
+          dashboard first. */}
+      <View
+        style={{
+          flexDirection: 'row',
+          borderTopWidth: 1,
+          borderTopColor: colors.line2,
+        }}
+      >
+        {[
+          { icon: 'receipt', label: 'Orders', href: '/cook/orders', badge: waiting },
+          { icon: 'utensils', label: 'Menu', href: '/cook/menu' },
+          { icon: 'banknote', label: 'Earnings', href: '/cook/earnings' },
+        ].map((q, i) => (
+          <React.Fragment key={q.href}>
+            {i > 0 ? <View style={{ width: 1, backgroundColor: colors.line2 }} /> : null}
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={
+                q.badge ? `${q.label}, ${q.badge} waiting` : q.label
+              }
+              onPress={() => goTo(q.href)}
+              style={({ pressed }) => ({
+                flex: 1,
+                alignItems: 'center',
+                gap: 5,
+                paddingVertical: 13,
+                backgroundColor: pressed ? colors.sage50 : 'transparent',
+              })}
+            >
+              <View>
+                <Icon name={q.icon} size={19} color={colors.sage} />
+                {q.badge ? (
+                  <View
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -8,
+                      minWidth: 15,
+                      height: 15,
+                      paddingHorizontal: 4,
+                      borderRadius: 8,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: colors.primary,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: font.uiBold,
+                        fontSize: 9,
+                        lineHeight: 11,
+                        color: '#FFFFFF',
+                      }}
+                    >
+                      {q.badge}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text
+                style={{
+                  fontFamily: font.uiSemi,
+                  fontSize: type.micro,
+                  letterSpacing: type.micro * tracking.label,
+                  textTransform: 'uppercase',
+                  color: colors.textMuted,
+                }}
+              >
+                {q.label}
+              </Text>
+            </Pressable>
+          </React.Fragment>
+        ))}
+      </View>
+    </View>
   );
 }
 

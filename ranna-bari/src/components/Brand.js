@@ -12,8 +12,11 @@ import { font } from '../theme/tokens';
  * The wordmark lockup. Two bugs the CSS had to fix are structural here:
  * "RANNA" and "BARI" live in one <Text> run so no flex gap can split them,
  * and both halves share a size so the second half can't render larger.
+ *
+ * `markOnly` drops the word and keeps the mark, for headers carrying more
+ * controls than the full lockup leaves room for.
  */
-export default function Brand({ size, markSize = 38 }) {
+export default function Brand({ size, markSize = 38, markOnly = false }) {
   const { colors, shadow } = useTheme();
   const r = useResponsive();
   const wordSize = size ?? r.brandWord;
@@ -50,10 +53,12 @@ export default function Brand({ size, markSize = 38 }) {
         />
       </LinearGradient>
 
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text style={wordStyle}>RANNA</Text>
-        <GradientText style={wordStyle}>BARI</GradientText>
-      </View>
+      {markOnly ? null : (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={wordStyle}>RANNA</Text>
+          <GradientText style={wordStyle}>BARI</GradientText>
+        </View>
+      )}
     </View>
   );
 }

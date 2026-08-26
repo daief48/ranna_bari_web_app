@@ -27,7 +27,9 @@ export default function ChefCard({ chef, index = 0 }) {
     <Reveal delay={(index % 5) + 1} style={{ paddingTop: 12 }}>
       <Pressable
         accessibilityRole="link"
-        accessibilityLabel={`${chef.name}, ${chef.specialty}, rated ${chef.rating}`}
+        accessibilityLabel={`${chef.name}, ${chef.specialty}, ${
+          chef.reviewCount ? `rated ${chef.rating}` : 'not rated yet'
+        }`}
         onPress={() => router.push(`/chef/${chef.id}`)}
         style={({ pressed }) => [
           {
@@ -134,27 +136,47 @@ export default function ChefCard({ chef, index = 0 }) {
             paddingTop: 18,
           }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-            <Icon name="star" size={16} color={colors.saffron} fill={colors.saffron} />
-            <Text
-              style={{
-                fontFamily: font.displayBold,
-                fontSize: 17,
-                color: colors.text,
-              }}
-            >
-              {chef.rating}
-            </Text>
-            <Text
-              style={{
-                fontFamily: font.ui,
-                fontSize: type.xs,
-                color: colors.textLight,
-              }}
-            >
-              ({chef.reviewCount})
-            </Text>
-          </View>
+          {/* A kitchen nobody has reviewed yet has no score, and printing
+              "0" for that reads as the worst rating on the page rather than
+              the absence of one. New kitchens say so instead. */}
+          {chef.reviewCount ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Icon name="star" size={16} color={colors.saffron} fill={colors.saffron} />
+              <Text
+                style={{
+                  fontFamily: font.displayBold,
+                  fontSize: 17,
+                  color: colors.text,
+                }}
+              >
+                {chef.rating}
+              </Text>
+              <Text
+                style={{
+                  fontFamily: font.ui,
+                  fontSize: type.xs,
+                  color: colors.textLight,
+                }}
+              >
+                ({chef.reviewCount})
+              </Text>
+            </View>
+          ) : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Icon name="sparkles" size={15} color={colors.sage} />
+              <Text
+                style={{
+                  fontFamily: font.uiSemi,
+                  fontSize: type.xs,
+                  letterSpacing: type.xs * tracking.label,
+                  textTransform: 'uppercase',
+                  color: colors.sage,
+                }}
+              >
+                New kitchen
+              </Text>
+            </View>
+          )}
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text

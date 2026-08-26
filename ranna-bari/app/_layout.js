@@ -25,10 +25,41 @@ import NotoSansBengali_700Bold from '@expo-google-fonts/noto-sans-bengali/700Bol
 
 import { ThemeProvider, useTheme } from '../src/theme/ThemeProvider';
 import { CartProvider } from '../src/store/CartContext';
-import { AuthProvider } from '../src/store/AuthContext';
-import { OrdersProvider } from '../src/store/OrdersContext';
+import { AuthProvider, useAuth } from '../src/store/AuthContext';
+import { OrdersProvider, useOrders } from '../src/store/OrdersContext';
+import { KitchenProvider, useKitchen } from '../src/store/KitchenContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+/**
+ * Keeps the local kitchen in step with the account.
+ *
+ * A cook's kitchen is derived state -- signing up as a cook implies one, and
+ * nothing else in the app is in a position to create it. This is the one
+ * place that watches for that, so no screen has to remember to.
+ *
+ * It deliberately does not tear the kitchen down on sign-out: a listed
+ * kitchen does not stop existing because its cook closed the app, and a menu
+ * built over several sessions should survive one.
+ */
+function KitchenSync() {
+  const { account, hydrated: authReady } = useAuth();
+  const { kitchen, hydrated: kitchenReady, ensureKitchen } = useKitchen();
+  const { seedKitchenOrders, hydrated: ordersReady } = useOrders();
+
+  useEffect(() => {
+    if (!authReady || !kitchenReady) return;
+    if (account?.role !== 'cook' || kitchen) return;
+    ensureKitchen(account);
+  }, [authReady, kitchenReady, account, kitchen, ensureKitchen]);
+
+  useEffect(() => {
+    if (!ordersReady || !kitchen) return;
+    seedKitchenOrders(kitchen);
+  }, [ordersReady, kitchen, seedKitchenOrders]);
+
+  return null;
+}
 
 /**
  * Fraunces is the display voice -- expressive optical-size serif, artisanal
@@ -50,6 +81,9 @@ function Root() {
         }}
       >
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+        {/* The cook panel is a peer of the customer tabs, not a screen inside
+            them -- switching modes replaces the whole app, so it fades. */}
+        <Stack.Screen name="cook" options={{ animation: 'fade' }} />
         <Stack.Screen name="chef/[id]" />
         <Stack.Screen name="cart" />
         <Stack.Screen name="checkout" />
@@ -103,9 +137,12 @@ export default function RootLayout() {
         <ThemeProvider>
           <AuthProvider>
             <OrdersProvider>
-              <CartProvider>
-                <Root />
-              </CartProvider>
+              <KitchenProvider>
+                <CartProvider>
+                  <KitchenSync />
+                  <Root />
+                </CartProvider>
+              </KitchenProvider>
             </OrdersProvider>
           </AuthProvider>
         </ThemeProvider>

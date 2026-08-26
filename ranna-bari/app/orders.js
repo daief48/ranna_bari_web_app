@@ -19,9 +19,11 @@ import {
   useOrders,
 } from '../src/store/OrdersContext';
 
-/** Status pill tone: cancelled reads muted, delivered sage, in-flight primary. */
+/** Status pill tone: a stopped order reads muted, delivered sage, in-flight primary. */
 function statusTone(status, colors) {
   if (status === 'cancelled') return { bg: colors.sunken, fg: colors.textLight, label: 'Cancelled' };
+  // The kitchen turning an order down, which is not the customer's doing.
+  if (status === 'rejected') return { bg: colors.sunken, fg: colors.textLight, label: 'Declined' };
   if (status === 'delivered') return { bg: colors.sage50, fg: colors.sage, label: 'Delivered' };
   const step = ORDER_STEPS[stepIndex(status)];
   return { bg: colors.primary50, fg: colors.primary, label: step?.label ?? 'In progress' };

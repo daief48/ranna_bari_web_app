@@ -66,8 +66,15 @@ export default function BecomeCookScreen() {
       return;
     }
     setNote('');
-    // Step 1 of 3 hands off to the full three-step signup, pre-set to "cook".
-    router.push('/auth');
+
+    /* Step 1 of 3 hands off to the full three-step signup, pre-set to
+       "cook". Everything collected here rides along as params, so the next
+       screen opens on step 2 with these four fields already answered rather
+       than asking for them a second time. */
+    router.push({
+      pathname: '/auth',
+      params: { role: 'cook', name: name.trim(), phone: phone.trim(), zone, nid: nid.trim() },
+    });
   };
 
   return (
