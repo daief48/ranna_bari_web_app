@@ -16,6 +16,8 @@ import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useChef, useMenu } from '../../src/data';
 import { useCart } from '../../src/store/CartContext';
+import { useAuth } from '../../src/store/AuthContext';
+import { distanceKm, formatDistance } from '../../src/lib/geo';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 export default function ChefScreen() {
@@ -25,6 +27,7 @@ export default function ChefScreen() {
   const router = useRouter();
   const { add } = useCart();
   const { t, n } = useLang();
+  const { account } = useAuth();
 
   const chef = useChef(id);
   const menu = useMenu(id);
@@ -54,6 +57,21 @@ export default function ChefScreen() {
   /* Only a live kitchen carries an `isOpen` flag -- the seeded ones are
      always taking orders, so an undefined value is not "closed". */
   const closed = chef.isOpen === false;
+
+  const away =
+    typeof account?.lat === 'number' &&
+    typeof account?.lng === 'number' &&
+    typeof chef.lat === 'number' &&
+    typeof chef.lng === 'number'
+      ? formatDistance(
+          distanceKm(
+            { lat: account.lat, lng: account.lng },
+            { lat: chef.lat, lng: chef.lng },
+          ),
+          t,
+          n,
+        )
+      : null;
 
   return (
     <Screen footer={<CartBar />}>
@@ -167,8 +185,37 @@ export default function ChefScreen() {
                   marginBottom: 16,
                 }}
               >
-                {chef.specialty} • {chef.area}
+                {t(chef.specialty)} • {chef.area}
               </Text>
+
+              {/* How far this kitchen is from the address you order to. */}
+              {away ? (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 5,
+                    alignSelf: 'center',
+                    paddingVertical: 4,
+                    paddingHorizontal: 11,
+                    marginBottom: 16,
+                    borderRadius: radius.pill,
+                    backgroundColor: colors.sage50,
+                  }}
+                >
+                  <Icon name="navigation" size={11} color={colors.sage} />
+                  <Text
+                    style={{
+                      fontFamily: font.uiBold,
+                      fontSize: type.xs,
+                      color: colors.sage,
+                      fontVariant: ['tabular-nums'],
+                    }}
+                  >
+                    {t('{d} away', { d: away })}
+                  </Text>
+                </View>
+              ) : null}
 
               <Body muted size={14} style={{ textAlign: 'center' }}>
                 {chef.description}

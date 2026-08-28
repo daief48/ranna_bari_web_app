@@ -9,6 +9,8 @@ import Reveal from './Reveal';
 import { EcoBadge, Tag } from './Surfaces';
 import { useTheme } from '../theme/ThemeProvider';
 import { useLang } from '../i18n/LanguageContext';
+import { useAuth } from '../store/AuthContext';
+import { distanceKm, formatDistance } from '../lib/geo';
 import { font, radius, tracking, type } from '../theme/tokens';
 
 /**
@@ -23,7 +25,26 @@ import { font, radius, tracking, type } from '../theme/tokens';
 export default function ChefCard({ chef, index = 0 }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
+  const { account } = useAuth();
   const router = useRouter();
+
+  /* Measured from the account's delivery address, so the card answers "can
+     this reach me" wherever it is shown -- browse, home, anywhere. A guest
+     has no address, and gets no number rather than a made-up one. */
+  const away =
+    typeof account?.lat === 'number' &&
+    typeof account?.lng === 'number' &&
+    typeof chef.lat === 'number' &&
+    typeof chef.lng === 'number'
+      ? formatDistance(
+          distanceKm(
+            { lat: account.lat, lng: account.lng },
+            { lat: chef.lat, lng: chef.lng },
+          ),
+          t,
+          n,
+        )
+      : null;
 
   return (
     <Reveal delay={(index % 5) + 1} style={{ paddingTop: 12 }}>
@@ -31,7 +52,7 @@ export default function ChefCard({ chef, index = 0 }) {
         accessibilityRole="link"
         accessibilityLabel={`${chef.name}, ${t(chef.specialty)}, ${
           chef.reviewCount ? `${t('Rating')} ${n(chef.rating)}` : t('New kitchen')
-        }`}
+        }${away ? `, ${away}` : ''}`}
         onPress={() => router.push(`/chef/${chef.id}`)}
         style={({ pressed }) => [
           {
@@ -111,6 +132,55 @@ export default function ChefCard({ chef, index = 0 }) {
             >
               {t(chef.specialty)}
             </Text>
+
+            {/* Where it is, and how far that is from your door. */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 7,
+                marginTop: 5,
+              }}
+            >
+              <Icon name="pin" size={11} color={colors.textLight} />
+              <Text
+                numberOfLines={1}
+                style={{
+                  flexShrink: 1,
+                  fontFamily: font.ui,
+                  fontSize: type.xs,
+                  color: colors.textMuted,
+                }}
+              >
+                {chef.area}
+              </Text>
+
+              {away ? (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 3,
+                    paddingVertical: 2,
+                    paddingHorizontal: 7,
+                    borderRadius: radius.pill,
+                    backgroundColor: colors.sage50,
+                  }}
+                >
+                  <Icon name="navigation" size={9} color={colors.sage} />
+                  <Text
+                    style={{
+                      fontFamily: font.uiBold,
+                      fontSize: 10,
+                      color: colors.sage,
+                      fontVariant: ['tabular-nums'],
+                    }}
+                  >
+                    {away}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           </View>
         </View>
 

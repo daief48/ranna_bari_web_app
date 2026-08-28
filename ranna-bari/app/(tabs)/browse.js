@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -25,6 +25,10 @@ import { useAuth } from '../../src/store/AuthContext';
 import { distanceKm, formatDistance } from '../../src/lib/geo';
 import { useLang } from '../../src/i18n/LanguageContext';
 
+
+/** How many rows a section shows before "See more", and how many each tap adds. */
+const PAGE = 5;
+const STEP = 10;
 
 /** The five chips on browsecook.html, in order. */
 const CHIPS = [
@@ -53,6 +57,18 @@ export default function BrowseScreen() {
   const [query, setQuery] = useState(typeof params.q === 'string' ? params.q : '');
   const [area, setArea] = useState('all');
   const [areaOpen, setAreaOpen] = useState(false);
+
+  /* Five of each to start with. Enough to show what the section holds, few
+     enough that the kitchens below stay reachable without a long scroll. */
+  const [dishLimit, setDishLimit] = useState(PAGE);
+  const [kitchenLimit, setKitchenLimit] = useState(PAGE);
+
+  // A new query is a new list; carrying an expanded limit into it would drop
+  // someone into the middle of results they have not seen the top of.
+  useEffect(() => {
+    setDishLimit(PAGE);
+    setKitchenLimit(PAGE);
+  }, [query, filter, area]);
 
   /**
    * Where "near" is measured from: the address on the account, which is the
@@ -116,12 +132,44 @@ export default function BrowseScreen() {
     const inCategory = (tags) => filter === 'all' || tags.includes(filter);
     const inArea = (chef) => area === 'all' || chef.area === area;
 
+    /* With no query this screen used to be a wall of kitchens, which asks
+       people to pick a shop before they know what they want to eat. The
+       default is food now, with the kitchens underneath -- the same two
+       sections a search produces, just unfiltered. */
     if (!q) {
       const list = chefs
         .filter((c) => inCategory(c.tags) && inArea(c))
         .map((c) => ({ chef: c, km: kmTo(c) }));
-      if (origin) list.sort(byDistance);
-      return { kitchens: list, dishes: [] };
+
+      const menu = dishIndex
+        .filter(({ dish, chef }) => inCategory(dish.tags ?? []) && inArea(chef))
+        .map((row) => ({ ...row, km: kmTo(row.chef) }));
+
+      if (origin) {
+        list.sort(byDistance);
+        menu.sort(byDistance);
+      }
+
+      /* Every dish of one kitchen sits at the same distance, so sorting the
+         flat list by distance alone hands the first five slots to whichever
+         kitchen is closest -- a discovery feed that opens on one shop's menu.
+         Taking one dish per kitchen in turn keeps the nearest-first order
+         between kitchens while showing five different ones. */
+      const byKitchen = new Map();
+      for (const row of menu) {
+        const key = String(row.chef.id);
+        if (!byKitchen.has(key)) byKitchen.set(key, []);
+        byKitchen.get(key).push(row);
+      }
+      const queues = [...byKitchen.values()];
+      const spread = [];
+      for (let round = 0; spread.length < menu.length; round++) {
+        for (const queue of queues) {
+          if (queue[round]) spread.push(queue[round]);
+        }
+      }
+
+      return { kitchens: list, dishes: spread };
     }
 
     const rank = (dish) => {
@@ -355,6 +403,7 @@ export default function BrowseScreen() {
             First, because a query that matched a dish is a query about food.
             Every row names its kitchen: the dish is what you wanted, but the
             kitchen is what you have to open to order it. */}
+        {/* ---- Food first ---- */}
         {dishes.length ? (
           <View style={{ marginBottom: 32 }}>
             <ResultLabel
@@ -363,7 +412,7 @@ export default function BrowseScreen() {
               })}
             />
             <View style={{ gap: 12 }}>
-              {dishes.slice(0, 12).map(({ dish, chef, km }, i) => (
+              {dishes.slice(0, dishLimit).map(({ dish, chef, km }, i) => (
                 <Reveal key={`${chef.id}-${dish.id}`} delay={(i % 5) + 1}>
                   <DishResult
                     dish={dish}
@@ -377,25 +426,32 @@ export default function BrowseScreen() {
                 </Reveal>
               ))}
             </View>
+
+            <SeeMore
+              remaining={dishes.length - dishLimit}
+              onPress={() => setDishLimit((v) => v + STEP)}
+            />
           </View>
         ) : null}
 
+        {/* ---- Then the kitchens they come from ---- */}
         {kitchens.length ? (
           <>
             <ResultLabel
-              text={
-                query.trim()
-                  ? t(kitchens.length === 1 ? '{n} kitchen' : '{n} kitchens', {
-                      n: n(kitchens.length),
-                    })
-                  : `${n(kitchens.length)} ${t('Artisans Curated For You')}`
-              }
+              text={t(kitchens.length === 1 ? '{n} kitchen' : '{n} kitchens', {
+                n: n(kitchens.length),
+              })}
             />
             <View style={{ gap: 16 }}>
-              {kitchens.map(({ chef }, i) => (
+              {kitchens.slice(0, kitchenLimit).map(({ chef }, i) => (
                 <ChefCard key={chef.id} chef={chef} index={i} />
               ))}
             </View>
+
+            <SeeMore
+              remaining={kitchens.length - kitchenLimit}
+              onPress={() => setKitchenLimit((v) => v + STEP)}
+            />
           </>
         ) : null}
 
@@ -426,6 +482,54 @@ export default function BrowseScreen() {
         onClose={() => setAreaOpen(false)}
       />
     </Screen>
+  );
+}
+
+/**
+ * The control that lengthens a section.
+ *
+ * It carries the number still hidden rather than a bare "See more", because
+ * the useful question at the bottom of five rows is whether there are three
+ * more or seventy — that is what decides between tapping and searching.
+ * Renders nothing once the section is fully shown.
+ */
+function SeeMore({ remaining, onPress }) {
+  const { colors } = useTheme();
+  const { t, n } = useLang();
+
+  if (remaining <= 0) return null;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t('See {n} more', { n: n(remaining) })}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        marginTop: 14,
+        paddingVertical: 13,
+        borderRadius: radius.pill,
+        backgroundColor: pressed ? colors.primary50 : colors.surfaceSolid,
+        borderWidth: 1,
+        borderColor: colors.line,
+      })}
+    >
+      <Text
+        style={{
+          fontFamily: font.uiBold,
+          fontSize: type.xs + 1,
+          letterSpacing: (type.xs + 1) * tracking.label,
+          textTransform: 'uppercase',
+          color: colors.primary,
+        }}
+      >
+        {t('See {n} more', { n: n(remaining) })}
+      </Text>
+      <Icon name="chevronDown" size={15} color={colors.primary} strokeWidth={2.2} />
+    </Pressable>
   );
 }
 

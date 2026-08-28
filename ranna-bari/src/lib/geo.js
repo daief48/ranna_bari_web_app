@@ -29,6 +29,10 @@ export function distanceKm(a, b) {
  */
 export function formatDistance(km, t = (s) => s, n = (v) => String(v)) {
   if (km == null || Number.isNaN(km)) return null;
+  /* Below a block or so the number stops being useful and starts being
+     suspicious -- a pin that happens to match yours renders as "0 m", which
+     reads as a bug rather than as "very close". */
+  if (km < 0.05) return t('Nearby');
   if (km < 1) return t('{n} m', { n: n(Math.round(km * 1000)) });
   if (km < 10) return t('{n} km', { n: n(km.toFixed(1)) });
   return t('{n} km', { n: n(Math.round(km)) });

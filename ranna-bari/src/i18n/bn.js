@@ -768,6 +768,7 @@ export const bn = {
   '{n} dishes': '{n}টি পদ',
   '{n} kitchen': '{n}টি রান্নাঘর',
   '{n} kitchens': '{n}টি রান্নাঘর',
+  'See {n} more': 'আরও {n}টি দেখুন',
 
   /* ---------------- dish page ---------------- */
   Back: 'ফিরুন',
@@ -778,6 +779,8 @@ export const bn = {
   // Distance. The unit follows the number in Bengali too.
   '{n} km': '{n} কিমি',
   '{n} m': '{n} মি',
+  '{d} away': '{d} দূরে',
+  Nearby: 'খুব কাছে',
 
   'Type an area': 'এলাকার নাম লিখুন',
   'No area matches that.': 'ওই নামে কোনো এলাকা নেই।',
