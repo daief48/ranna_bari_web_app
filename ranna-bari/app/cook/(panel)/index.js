@@ -22,7 +22,7 @@ import {
   timeAgo,
   useOrders,
 } from '../../../src/store/OrdersContext';
-import { tomorrowKey, useMeals } from '../../../src/store/MealsContext';
+import { tomorrowKey, useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 const isToday = (iso) => {
@@ -40,7 +40,7 @@ export default function CookDashboard() {
   const router = useRouter();
   const { kitchen, toggleOpen, liveDishes } = useKitchen();
   const { ordersForKitchen, advanceOrder } = useOrders();
-  const meals = useMeals();
+  const meals = useCommerce();
   const { t, n } = useLang();
 
   /* Tomorrow's service, summarised: plates already paid for, and the softer
@@ -59,6 +59,19 @@ export default function CookDashboard() {
     0,
   );
   const unread = meals.unreadFor('cook');
+
+  /* The shop's one urgent number, on the screen a cook opens first. */
+  const shopStore = kitchen ? meals.storeForKitchen(kitchen.id) : null;
+  const storeOpen = !!shopStore?.isOpen;
+  const waitingPreorders = kitchen ? meals.pendingPreorders(kitchen.id).length : 0;
+
+  /* Requests this kitchen could bid on and has not answered yet. */
+  const openRequests = kitchen
+    ? meals
+        .requestsForCook(kitchen.id)
+        .filter((r) => r.status === 'open' && !meals.offerForCook(r.id, kitchen.id))
+        .length
+    : 0;
 
   const mine = ordersForKitchen(kitchen?.id);
 
@@ -472,6 +485,30 @@ export default function CookDashboard() {
                   : t('Publish tonight and let people book a plate')
               }
               onPress={() => router.push('/cook/meals')}
+            />
+            <ActionRow
+              icon="sparkles"
+              tone={openRequests ? 'primary' : 'sage'}
+              title={t('Food requests')}
+              sub={
+                openRequests
+                  ? t('{n} waiting for your price', { n: n(openRequests) })
+                  : t('Customers asking for things nobody has listed')
+              }
+              onPress={() => router.push('/cook/requests')}
+            />
+            <ActionRow
+              icon="box"
+              tone={waitingPreorders ? 'primary' : 'sage'}
+              title={t('Your shop')}
+              sub={
+                waitingPreorders
+                  ? t('{n} pre-orders waiting for your answer', { n: n(waitingPreorders) })
+                  : storeOpen
+                    ? t('Products, stock and shop orders')
+                    : t('Open a shop for the things you make to keep')
+              }
+              onPress={() => router.push('/cook/store')}
             />
             <ActionRow
               icon="sparkles"

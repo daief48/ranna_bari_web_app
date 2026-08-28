@@ -9,7 +9,7 @@ import Icon from '../../../src/components/Icon';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useOrders } from '../../../src/store/OrdersContext';
 import { useKitchen } from '../../../src/store/KitchenContext';
-import { useMeals } from '../../../src/store/MealsContext';
+import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { font, radius } from '../../../src/theme/tokens';
 
@@ -39,7 +39,7 @@ function CookBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
   const { ordersForKitchen } = useOrders();
   const { kitchen } = useKitchen();
-  const { orders: mealOrders } = useMeals();
+  const { orders: mealOrders } = useCommerce();
   const { t, n: num } = useLang();
 
   /* The one number worth interrupting a cook for: orders nobody has looked

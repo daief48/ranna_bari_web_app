@@ -19,6 +19,7 @@ import { useCart } from '../../src/store/CartContext';
 import { useAuth } from '../../src/store/AuthContext';
 import { distanceKm, formatDistance } from '../../src/lib/geo';
 import { isOpenNow } from '../../src/lib/kitchen';
+import { useCommerce } from '../../src/store/CommerceContext';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 export default function ChefScreen() {
@@ -32,6 +33,11 @@ export default function ChefScreen() {
 
   const chef = useChef(id);
   const menu = useMenu(id);
+
+  /* A cook can run a shop as well as a kitchen. If they do, this is the only
+     place a customer already looking at them would think to find it. */
+  const commerce = useCommerce();
+  const shop = commerce.storeForKitchen(id);
 
   if (!chef) {
     return (
@@ -280,6 +286,56 @@ export default function ChefScreen() {
       {/* ---- MENU ---- */}
       <Container style={{ paddingTop: 56 }}>
         <SectionHeader lead={t('CURATED')} accent={t('MENU')} />
+
+        {/* ---- their shop, if they keep one ---- */}
+        {shop ? (
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => router.push(`/stores/${shop.id}`)}
+            style={({ pressed }) => [
+              {
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                padding: 16,
+                marginBottom: 20,
+                borderRadius: radius.sm,
+                backgroundColor: colors.surfaceSolid,
+                borderWidth: 1,
+                borderColor: pressed ? colors.primary200 : colors.line,
+              },
+              shadow.sm,
+            ]}
+          >
+            <View
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 14,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: colors.primary50,
+              }}
+            >
+              <Icon name="box" size={18} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text
+                numberOfLines={1}
+                style={{ fontFamily: font.uiSemi, fontSize: type.sm + 2, color: colors.text }}
+              >
+                {shop.name}
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
+              >
+                {shop.tagline || t('Cakes, pitha, achar and gifts')}
+              </Text>
+            </View>
+            <Icon name="chevronRight" size={16} color={colors.textLight} />
+          </Pressable>
+        ) : null}
 
         {/* A closed kitchen keeps its listing but cannot be ordered from, so
             say that once at the top rather than only on each greyed button. */}

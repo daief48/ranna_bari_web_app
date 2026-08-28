@@ -17,7 +17,8 @@ import { useAuth } from '../../src/store/AuthContext';
 import { useCart } from '../../src/store/CartContext';
 import { useOrders } from '../../src/store/OrdersContext';
 import { useKitchen } from '../../src/store/KitchenContext';
-import { useMeals } from '../../src/store/MealsContext';
+import { useCommerce } from '../../src/store/CommerceContext';
+import { customerKeyOf } from '../../src/lib/ledger';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 export default function ProfileScreen() {
@@ -26,11 +27,14 @@ export default function ProfileScreen() {
   const { account, isSignedIn, isCook, setViewMode, signOut } = useAuth();
   const { count } = useCart();
   const { orders, activeOrders } = useOrders();
-  const { wallet, unreadFor } = useMeals();
+  const { wallet, unreadFor, requestsForCustomer } = useCommerce();
   const [confirmOut, setConfirmOut] = useState(false);
   const { t, n } = useLang();
 
   const unread = unreadFor('customer');
+  const openRequests = requestsForCustomer(customerKeyOf(account)).filter(
+    (r) => r.status === 'open' || r.status === 'selected' || r.status === 'agreed',
+  ).length;
 
   return (
     <Screen glow="both">
@@ -148,6 +152,24 @@ export default function ProfileScreen() {
                 : t('Meals near you, and your order updates')
             }
             onPress={() => router.push('/notifications')}
+          />
+          <Row
+            icon="sparkles"
+            variant="saffron"
+            title={t('Food requests')}
+            sub={
+              openRequests
+                ? t('{n} taking offers', { n: n(openRequests) })
+                : t('Ask cooks for something nobody has listed')
+            }
+            onPress={() => router.push('/requests')}
+          />
+          <Row
+            icon="box"
+            variant="primary"
+            title={t('Home shops')}
+            sub={t('Cakes, pitha, achar and gifts')}
+            onPress={() => router.push('/stores')}
           />
           <Row
             icon="map"

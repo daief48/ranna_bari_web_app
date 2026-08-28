@@ -166,12 +166,22 @@ export default function FloatLabelInput({
   );
 }
 
-/** `.auth-note` — the inline error / info strip above a form. */
+/**
+ * `.auth-note` — the inline strip above a form.
+ *
+ * Three tones, because a form says three kinds of thing and only one of them
+ * is a problem: something is wrong, something needs noticing, something
+ * worked. A confirmation painted in the error colour is read as an error.
+ */
 export function FormNote({ text, tone = 'error' }) {
   const { colors } = useTheme();
   if (!text) return null;
 
   const isError = tone === 'error';
+  const isOk = tone === 'ok';
+  const fg = isError ? colors.primary : isOk ? colors.sage : colors.saffron;
+  const bg = isError ? colors.primary50 : isOk ? colors.sage50 : colors.saffron50;
+  const line = isError ? colors.primary100 : isOk ? colors.sage100 : colors.saffron100;
   return (
     <View
       style={{
@@ -181,16 +191,12 @@ export function FormNote({ text, tone = 'error' }) {
         padding: 12,
         marginBottom: 16,
         borderRadius: radius.sm,
-        backgroundColor: isError ? colors.primary50 : colors.saffron50,
+        backgroundColor: bg,
         borderWidth: 1,
-        borderColor: isError ? colors.primary100 : colors.saffron100,
+        borderColor: line,
       }}
     >
-      <Icon
-        name="alertCircle"
-        size={17}
-        color={isError ? colors.primary : colors.saffron}
-      />
+      <Icon name={isOk ? 'check' : 'alertCircle'} size={17} color={fg} />
       <Animated.Text
         style={{
           flex: 1,

@@ -32,6 +32,17 @@ export default function CookLayout() {
       <Stack.Screen name="dish/[id]" />
       <Stack.Screen name="meal/new" />
       <Stack.Screen name="meal/[id]" />
+      {/* The shop is a hub with its own children rather than a seventh tab:
+          six destinations is already the most a phone bar can carry. */}
+      <Stack.Screen name="store/index" />
+      <Stack.Screen name="store/settings" />
+      <Stack.Screen name="store/categories" />
+      <Stack.Screen name="store/products" />
+      <Stack.Screen name="store/product/[id]" />
+      <Stack.Screen name="store/orders" />
+      <Stack.Screen name="store/preorders" />
+      <Stack.Screen name="requests/index" />
+      <Stack.Screen name="requests/[id]" />
     </Stack>
   );
 }

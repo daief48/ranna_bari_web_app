@@ -24,8 +24,8 @@ import {
   dayKey,
   todayKey,
   tomorrowKey,
-  useMeals,
-} from '../../src/store/MealsContext';
+  useCommerce,
+} from '../../src/store/CommerceContext';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 export default function MealsScreen() {
@@ -33,7 +33,7 @@ export default function MealsScreen() {
   const { t, n } = useLang();
   const router = useRouter();
   const { account, isSignedIn } = useAuth();
-  const { mealsNearby, remaining, wallet, hydrated } = useMeals();
+  const { mealsNearby, remaining, wallet, hydrated } = useCommerce();
 
   const origin = useMemo(
     () =>

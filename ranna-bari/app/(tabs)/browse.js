@@ -34,6 +34,7 @@ import { distanceKm, formatDistance } from '../../src/lib/geo';
 import { deliversTo, isOpenNow } from '../../src/lib/kitchen';
 import { RANK, makeMatcher } from '../../src/lib/search';
 import useRecentSearches from '../../src/lib/useRecentSearches';
+import { useCommerce } from '../../src/store/CommerceContext';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 /** How many rows a section shows before "See more", and how many each tap adds. */
@@ -41,45 +42,10 @@ const PAGE = 5;
 const STEP = 10;
 
 /**
- * The chip row, over the tag vocabulary the data actually uses.
- *
- * It used to carry five of the twenty-four tags, which left most of the menu
- * reachable only by guessing the right word into the search box -- and six of
- * the home screen's seven mood pills landing on a chip row that could not
- * show what was selected.
- *
- * Meal times first, because that is what a hungry person filters by; then
- * kinds of food; then the things you pick when nothing in particular is
- * wanted. Dietary tags are deliberately absent: they are constraints, not
- * moods, so they live in the filter sheet where they combine with one of
- * these instead of replacing it.
+ * Categories that only ever apply to something a cook makes to order, so
+ * they never match a listed dish and would only ever show an empty browse.
  */
-const CHIPS = [
-  { key: 'all', label: 'All' },
-  { key: 'breakfast', label: 'Morning' },
-  { key: 'lunch', label: 'Lunch' },
-  { key: 'dinner', label: 'Evening' },
-  { key: 'biryani', label: 'Biryani' },
-  { key: 'heritage', label: 'Heritage' },
-  { key: 'comfort', label: 'Comfort' },
-  { key: 'street', label: 'Street food' },
-  { key: 'seafood', label: 'Seafood' },
-  { key: 'grill', label: 'Grill' },
-  { key: 'snacks', label: 'Snacks' },
-  { key: 'sweet', label: 'Sweet' },
-  { key: 'bakery', label: 'Bakery' },
-  { key: 'healthy', label: 'Healthy' },
-  { key: 'spicy', label: 'Spicy' },
-  { key: 'meat', label: 'Meat' },
-  { key: 'sylheti', label: 'Sylheti' },
-  { key: 'asian', label: 'Asian' },
-  { key: 'fusion', label: 'Fusion' },
-  { key: 'office', label: 'Office lunch' },
-  { key: 'iftar', label: 'Iftar' },
-  { key: 'budget', label: 'Budget' },
-];
-
-const CHIP_LABEL = new Map(CHIPS.map((c) => [c.key, c.label]));
+const REQUEST_ONLY = ['cake', 'pitha', 'achar', 'gift'];
 
 /** Tags the sheet owns, so a mood pill naming one lands there instead. */
 const DIET_KEYS = DIETS.map((d) => d.key);
@@ -254,6 +220,7 @@ export default function BrowseScreen() {
   const menus = useMenus();
   const { t, n } = useLang();
   const { account, isSignedIn } = useAuth();
+  const { taxonomy } = useCommerce();
   const { colors, shadow } = useTheme();
   const r = useResponsive();
   const router = useRouter();
@@ -414,12 +381,27 @@ export default function BrowseScreen() {
     return () => clearTimeout(handle);
   }, [query, total, remember]);
 
-  /* A chip that is active but absent from the row (a mood pill sent us to a
-     tag the row does not carry) still needs somewhere to show. */
+  /**
+   * The chip row, read from the platform's category list rather than a
+   * constant in this file -- the same list a food request picks from, so the
+   * two cannot drift apart.
+   *
+   * A chip that is active but absent from the row (a mood pill sent us to a
+   * tag the row does not carry) is appended, so the screen can always show
+   * what is selected.
+   */
   const chips = useMemo(() => {
-    if (filter === 'all' || CHIPS.some((c) => c.key === filter)) return CHIPS;
-    return [...CHIPS, { key: filter, label: filter }];
-  }, [filter]);
+    const base = [
+      { key: 'all', label: 'All' },
+      ...taxonomy
+        .filter((c) => !REQUEST_ONLY.includes(c.key))
+        .map((c) => ({ key: c.key, label: c.label })),
+    ];
+    if (filter === 'all' || base.some((c) => c.key === filter)) return base;
+    return [...base, { key: filter, label: filter }];
+  }, [taxonomy, filter]);
+
+  const chipLabel = (key) => chips.find((c) => c.key === key)?.label ?? key;
 
   const filterCount = activeCount(filters);
   const sortLabel = SORTS.find((s) => s.key === filters.sort)?.label;
@@ -439,7 +421,7 @@ export default function BrowseScreen() {
 
   /** What the suggestion buttons in the empty state are called. */
   const relaxLabel = (id) => {
-    if (id === 'filter') return t(CHIP_LABEL.get(filter) ?? filter);
+    if (id === 'filter') return t(chipLabel(filter));
     if (id === 'area') return area;
     if (id === 'query') return `“${query.trim()}”`;
     if (id === 'openOnly') return t('Open now');

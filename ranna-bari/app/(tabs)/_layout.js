@@ -9,7 +9,7 @@ import Icon from '../../src/components/Icon';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useAuth } from '../../src/store/AuthContext';
 import { useCart } from '../../src/store/CartContext';
-import { useMeals } from '../../src/store/MealsContext';
+import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/mealLogic';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { font, radius } from '../../src/theme/tokens';
@@ -44,7 +44,7 @@ function AppBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
   const { count } = useCart();
   const { account } = useAuth();
-  const { orders } = useMeals();
+  const { orders } = useCommerce();
   const { t, n: num } = useLang();
 
   const key = customerKeyOf(account);

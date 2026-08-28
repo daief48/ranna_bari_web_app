@@ -28,12 +28,12 @@ import {
   MealStatusPill,
   PaymentPill,
   deadlineLabel,
-  mealErrorText,
+  errorText,
   serviceLabel,
 } from '../../../src/components/MealBits';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../../src/theme/tokens';
-import { useMeals } from '../../../src/store/MealsContext';
+import { useCommerce } from '../../../src/store/CommerceContext';
 import { COOK_ADVANCES } from '../../../src/lib/mealLogic';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
@@ -50,7 +50,7 @@ export default function CookMealScreen() {
   const { colors, shadow } = useTheme();
   const { t, n, lang } = useLang();
   const router = useRouter();
-  const meals = useMeals();
+  const meals = useCommerce();
 
   const [asking, setAsking] = useState(null); // 'close' | 'cancel'
   const [error, setError] = useState(null);
@@ -108,7 +108,7 @@ export default function CookMealScreen() {
 
   const advanceOne = (orderId) => {
     const out = meals.advanceOrder(orderId);
-    if (!out.ok) setError(mealErrorText(out.error, t, n, out));
+    if (!out.ok) setError(errorText(out.error, t, n, out));
   };
 
   /* One customer's plate called off -- they ran out of an ingredient, or the
@@ -116,7 +116,7 @@ export default function CookMealScreen() {
      the service carries on. */
   const cancelOne = (orderId) => {
     const out = meals.cancelOrder(orderId, 'cook', 'Cancelled by the kitchen');
-    if (!out.ok) return setError(mealErrorText(out.error, t, n, out));
+    if (!out.ok) return setError(errorText(out.error, t, n, out));
     setError(null);
     setFlash(t('Order cancelled. ৳{n} refunded.', { n: n(out.result) }));
   };
@@ -124,14 +124,14 @@ export default function CookMealScreen() {
   const close = () => {
     setAsking(null);
     const out = meals.closeMeal(meal.id);
-    if (!out.ok) return setError(mealErrorText(out.error, t, n, out));
+    if (!out.ok) return setError(errorText(out.error, t, n, out));
     setFlash(t('Closed. Existing orders are unaffected.'));
   };
 
   const cancel = () => {
     setAsking(null);
     const out = meals.cancelMeal(meal.id, 'Cancelled by the kitchen');
-    if (!out.ok) return setError(mealErrorText(out.error, t, n, out));
+    if (!out.ok) return setError(errorText(out.error, t, n, out));
     setFlash(t('Cancelled. ৳{n} refunded to customers.', { n: n(out.result.refunded) }));
   };
 

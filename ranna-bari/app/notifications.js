@@ -20,7 +20,7 @@ import { EmptyState, notificationText } from '../src/components/MealBits';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { font, radius, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
-import { useMeals } from '../src/store/MealsContext';
+import { useCommerce } from '../src/store/CommerceContext';
 import { timeAgo } from '../src/store/OrdersContext';
 import { useLang } from '../src/i18n/LanguageContext';
 
@@ -40,6 +40,11 @@ const ICONS = {
   'payment-released': 'banknote',
   'confirm-receipt': 'box',
   topup: 'plus',
+  'store-order-new': 'box',
+  'preorder-new': 'clock',
+  'preorder-sent': 'clock',
+  'preorder-accepted': 'check',
+  'preorder-rejected': 'x',
 };
 
 export default function NotificationsScreen() {
@@ -47,7 +52,7 @@ export default function NotificationsScreen() {
   const { t, n } = useLang();
   const router = useRouter();
   const { isCookMode } = useAuth();
-  const meals = useMeals();
+  const meals = useCommerce();
 
   const audience = isCookMode ? 'cook' : 'customer';
   const rows = meals.notificationsFor(audience);
@@ -61,6 +66,19 @@ export default function NotificationsScreen() {
 
   const open = (nt) => {
     if (nt.orderId) {
+      /* Which order screen depends on what sold it -- a shop order has no
+         meal behind it, and a meal order has no shop. */
+      const order = meals.orders.find((o) => o.id === nt.orderId);
+      if (order?.kind === 'store') {
+        router.push(
+          isCookMode
+            ? order.status === 'pending'
+              ? '/cook/store/preorders'
+              : '/cook/store/orders'
+            : `/store-order/${nt.orderId}`,
+        );
+        return;
+      }
       router.push(isCookMode ? `/cook/meal/${nt.mealId}` : `/meal-order/${nt.orderId}`);
       return;
     }
@@ -104,7 +122,7 @@ export default function NotificationsScreen() {
           accent={t('UPDATES')}
           subtitle={
             isCookMode
-              ? t('Interest, orders and payouts from your meals.')
+              ? t('Interest, orders and payouts from your kitchen and shop.')
               : t('Meals near you, and where your orders have got to.')
           }
           right={

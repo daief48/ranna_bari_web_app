@@ -20,7 +20,7 @@ import { EmptyState, deadlineLabel, serviceLabel } from '../../../src/components
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
-import { todayKey, tomorrowKey, useMeals } from '../../../src/store/MealsContext';
+import { todayKey, tomorrowKey, useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 export default function CookMeals() {
@@ -28,7 +28,7 @@ export default function CookMeals() {
   const { t, n, lang } = useLang();
   const router = useRouter();
   const { kitchen } = useKitchen();
-  const meals = useMeals();
+  const meals = useCommerce();
 
   const mine = useMemo(
     () => (kitchen ? meals.mealsForKitchen(kitchen.id) : []),

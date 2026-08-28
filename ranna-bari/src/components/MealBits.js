@@ -16,7 +16,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { font, radius, tracking, type } from '../theme/tokens';
 import { useLang } from '../i18n/LanguageContext';
 import { formatDistance } from '../lib/geo';
-import { slotMeta, todayKey, tomorrowKey } from '../store/MealsContext';
+import { slotMeta, todayKey, tomorrowKey } from '../store/CommerceContext';
 
 /* ------------------------------------------------------------------ *
  * status
@@ -553,9 +553,10 @@ export function LedgerRow({ tx, title, when }) {
  *
  * The rules return codes so they stay language-free; this is the one place
  * that decides how each one reads, so the same failure says the same thing
- * on the customer screen and the cook's.
+ * on the customer screen and the cook's, and in the store as well as in the
+ * meal system.
  */
-export function mealErrorText(error, t, n, extra = {}) {
+export function errorText(error, t, n, extra = {}) {
   switch (error) {
     case 'meal-missing':
       return t('That meal is no longer listed.');
@@ -579,6 +580,52 @@ export function mealErrorText(error, t, n, extra = {}) {
       return t('This order has already been settled.');
     case 'amount-invalid':
       return t('Enter a valid amount.');
+
+    /* ---- cook stores ---- */
+    case 'store-missing':
+      return t('That shop is no longer listed.');
+    case 'store-closed':
+      return t('This shop is closed right now.');
+    case 'product-missing':
+      return t('That product is no longer listed.');
+    case 'product-unavailable':
+      return t('{name} is not on sale right now.', { name: extra.productName ?? '' });
+    case 'product-out-of-stock':
+      return t('{name} is out of stock.', { name: extra.productName ?? '' });
+    case 'product-not-enough-stock':
+      return t('Only {n} left of {name}.', {
+        n: n(extra.stock ?? 0),
+        name: extra.productName ?? '',
+      });
+    case 'product-below-minimum':
+      return t('The kitchen sells this in larger quantities.');
+    case 'product-above-maximum':
+      return t('You can order at most {n} of this.', { n: n(extra.max ?? 0) });
+    case 'cart-empty':
+      return t('Your basket is empty.');
+    case 'category-in-use':
+      return t('Move or delete its {n} products first.', { n: n(extra.count ?? 0) });
+    case 'name-required':
+      return t('Give it a name.');
+
+    /* ---- food requests and bidding ---- */
+    case 'request-missing':
+      return t('That request no longer exists.');
+    case 'request-closed':
+      return t('This request is no longer taking offers.');
+    case 'request-not-eligible':
+      return t('You were not asked for this one.');
+    case 'offer-missing':
+      return t('That offer no longer stands.');
+    case 'offer-closed':
+      return t('This offer is closed.');
+    case 'offer-no-price':
+      return t('That cook has not named a price yet.');
+    case 'offer-not-your-turn':
+      return t('It is the other side’s turn.');
+    case 'offer-not-agreed':
+      return t('Agree a price first.');
+
     default:
       return t('Something went wrong. Try again.');
   }

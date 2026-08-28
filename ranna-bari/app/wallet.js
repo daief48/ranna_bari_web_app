@@ -19,12 +19,12 @@ import {
   EmptyState,
   LedgerRow,
   WalletCard,
-  mealErrorText,
+  errorText,
 } from '../src/components/MealBits';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
-import { useMeals } from '../src/store/MealsContext';
+import { useCommerce } from '../src/store/CommerceContext';
 import { formatOrderDate } from '../src/store/OrdersContext';
 import { useLang } from '../src/i18n/LanguageContext';
 
@@ -36,7 +36,7 @@ export default function WalletScreen() {
   const { t, n, lang } = useLang();
   const router = useRouter();
   const { isSignedIn } = useAuth();
-  const meals = useMeals();
+  const meals = useCommerce();
 
   const [amount, setAmount] = useState('');
   const [error, setError] = useState(null);
@@ -69,7 +69,7 @@ export default function WalletScreen() {
     setDone(null);
     const out = meals.topUp(value, 'bKash');
     if (!out.ok) {
-      setError(mealErrorText(out.error, t, n, out));
+      setError(errorText(out.error, t, n, out));
       return;
     }
     setAmount('');

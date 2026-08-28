@@ -19,13 +19,13 @@ import {
   CountTile,
   EmptyState,
   deadlineLabel,
-  mealErrorText,
+  errorText,
   serviceLabel,
 } from '../../src/components/MealBits';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
-import { useMeals } from '../../src/store/MealsContext';
+import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/mealLogic';
 import { distanceKm, formatDistance } from '../../src/lib/geo';
 import { useLang } from '../../src/i18n/LanguageContext';
@@ -36,7 +36,7 @@ export default function MealScreen() {
   const { t, n, lang } = useLang();
   const router = useRouter();
   const { account, isSignedIn } = useAuth();
-  const meals = useMeals();
+  const meals = useCommerce();
 
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState(null);
@@ -110,7 +110,7 @@ export default function MealScreen() {
     setConfirming(false);
 
     if (!out.ok) {
-      setError(mealErrorText(out.error, t, n, out));
+      setError(errorText(out.error, t, n, out));
       return;
     }
     router.replace(`/meal-order/${out.result.id}`);

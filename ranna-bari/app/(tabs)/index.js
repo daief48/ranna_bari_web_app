@@ -31,7 +31,8 @@ import { useAuth } from '../../src/store/AuthContext';
 import { distanceKm } from '../../src/lib/geo';
 import { deliversTo } from '../../src/lib/kitchen';
 import { MealCard } from '../../src/components/MealBits';
-import { tomorrowKey, useMeals } from '../../src/store/MealsContext';
+import { StoreCard } from '../../src/components/StoreBits';
+import { tomorrowKey, useCommerce } from '../../src/store/CommerceContext';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 /** The seven cravings from index.html's mood carousel, in source order. */
@@ -99,7 +100,7 @@ const AVATARS = [
 export default function HomeScreen() {
   const chefs = useChefs();
   const { account } = useAuth();
-  const { mealsNearby, remaining: mealRemaining } = useMeals();
+  const { mealsNearby, remaining: mealRemaining, storesNearby } = useCommerce();
   const { colors, shadow, isDark } = useTheme();
   const r = useResponsive();
   const router = useRouter();
@@ -145,6 +146,14 @@ export default function HomeScreen() {
         : null;
     return mealsNearby(origin, { day: tomorrowKey() }).slice(0, 6);
   }, [mealsNearby, account]);
+
+  const shops = useMemo(() => {
+    const origin =
+      typeof account?.lat === 'number' && typeof account?.lng === 'number'
+        ? { lat: account.lat, lng: account.lng }
+        : null;
+    return storesNearby(origin).filter((row) => row.products > 0).slice(0, 5);
+  }, [storesNearby, account]);
 
   const search = () =>
     router.push({ pathname: '/browse', params: area ? { q: area } : {} });
@@ -542,6 +551,52 @@ export default function HomeScreen() {
                 wide
                 onPress={() => router.push(`/meals/${meal.id}`)}
               />
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {/* ============ HOME SHOPS ============
+          Cakes and jars keep, so they are a different errand from dinner --
+          and a different one from a kitchen, which is why they are not in
+          Browse. Hidden when nobody near you has opened one. */}
+      {shops.length ? (
+        <View style={{ paddingTop: 16, paddingBottom: 20 }}>
+          <Container>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                marginBottom: 16,
+              }}
+            >
+              <Heading size={20} style={{ flex: 1 }}>
+                {t('Home shops near you')}
+              </Heading>
+              <Button
+                variant="glass"
+                small
+                label={t('See all')}
+                onPress={() => router.push('/stores')}
+              />
+            </View>
+          </Container>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 12, paddingHorizontal: r.gutter, paddingVertical: 2 }}
+          >
+            {shops.map(({ store, km, products }) => (
+              <View key={store.id} style={{ width: 260 }}>
+                <StoreCard
+                  store={store}
+                  km={km}
+                  products={products}
+                  onPress={() => router.push(`/stores/${store.id}`)}
+                />
+              </View>
             ))}
           </ScrollView>
         </View>

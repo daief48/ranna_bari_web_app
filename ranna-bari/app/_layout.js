@@ -33,7 +33,7 @@ import { CartProvider } from '../src/store/CartContext';
 import { AuthProvider, useAuth } from '../src/store/AuthContext';
 import { OrdersProvider, useOrders } from '../src/store/OrdersContext';
 import { KitchenProvider, useKitchen } from '../src/store/KitchenContext';
-import { MealsProvider } from '../src/store/MealsContext';
+import { CommerceProvider } from '../src/store/CommerceContext';
 import { LanguageProvider } from '../src/i18n/LanguageContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -109,6 +109,19 @@ function Root() {
         <Stack.Screen name="meal-order/[id]" options={{ animation: 'fade' }} />
         <Stack.Screen name="wallet" />
         <Stack.Screen name="notifications" />
+        {/* ---- cook stores ---- */}
+        <Stack.Screen name="stores/index" />
+        <Stack.Screen name="stores/[id]" />
+        <Stack.Screen name="product/[id]" />
+        <Stack.Screen name="store-checkout" />
+        {/* Paying replaces the basket with the receipt, the same one-way step
+            the other checkouts make. */}
+        <Stack.Screen name="store-order/[id]" options={{ animation: 'fade' }} />
+        {/* ---- food requests and bidding ---- */}
+        <Stack.Screen name="requests/index" />
+        <Stack.Screen name="requests/new" />
+        <Stack.Screen name="requests/[id]" />
+        <Stack.Screen name="request-order/[id]" options={{ animation: 'fade' }} />
       </Stack>
     </>
   );
@@ -157,12 +170,12 @@ export default function RootLayout() {
           <AuthProvider>
             <OrdersProvider>
               <KitchenProvider>
-                <MealsProvider>
+                <CommerceProvider>
                   <CartProvider>
                     <KitchenSync />
                     <Root />
                   </CartProvider>
-                </MealsProvider>
+                </CommerceProvider>
               </KitchenProvider>
             </OrdersProvider>
           </AuthProvider>

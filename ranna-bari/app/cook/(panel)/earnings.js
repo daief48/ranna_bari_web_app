@@ -20,7 +20,7 @@ import {
   formatOrderDate,
   useOrders,
 } from '../../../src/store/OrdersContext';
-import { useMeals } from '../../../src/store/MealsContext';
+import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 const DAY = 86_400_000;
@@ -40,7 +40,7 @@ export default function CookEarnings() {
   const { colors, shadow } = useTheme();
   const { kitchen } = useKitchen();
   const { ordersForKitchen } = useOrders();
-  const meals = useMeals();
+  const meals = useCommerce();
   const { t, n: num, lang } = useLang();
 
   /* The cook's half of the meal ledger: money that has actually landed, and

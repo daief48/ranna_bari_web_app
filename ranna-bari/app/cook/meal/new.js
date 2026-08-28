@@ -35,8 +35,8 @@ import {
   dayKey,
   defaultDeadline,
   tomorrowKey,
-  useMeals,
-} from '../../../src/store/MealsContext';
+  useCommerce,
+} from '../../../src/store/CommerceContext';
 import { distanceKm } from '../../../src/lib/geo';
 import { deliversTo } from '../../../src/lib/kitchen';
 import { useLang } from '../../../src/i18n/LanguageContext';
@@ -50,7 +50,7 @@ export default function NewMeal() {
   const router = useRouter();
   const { account } = useAuth();
   const { kitchen } = useKitchen();
-  const meals = useMeals();
+  const meals = useCommerce();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');

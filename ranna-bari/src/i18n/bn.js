@@ -14,7 +14,6 @@
  */
 export const bn = {
   /* ---------------- brand, shell, common actions ---------------- */
-  Home: 'হোম',
   Browse: 'খুঁজুন',
   Map: 'ম্যাপ',
   Cart: 'কার্ট',
@@ -1117,4 +1116,445 @@ export const bn = {
     'অর্ডারের এই ধাপে এটি করা যাবে না।',
   'This order has already been settled.': 'এই অর্ডারের হিসাব আগেই মিটে গেছে।',
   'Something went wrong. Try again.': 'কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।',
+
+  /* ---------------- cook stores: shared vocabulary ---------------- */
+  SHOP: 'দোকান',
+  SHOPS: 'দোকান',
+  HOME: 'ঘরোয়া',
+  BASKET: 'ঝুড়ি',
+  'Your shop': 'আপনার দোকান',
+  'Home shops': 'ঘরোয়া দোকান',
+  'All shops': 'সব দোকান',
+  'Browse shops': 'দোকান দেখুন',
+  Products: 'পণ্য',
+  products: 'পণ্য',
+  'Product name': 'পণ্যের নাম',
+  Category: 'ক্যাটাগরি',
+  Categories: 'ক্যাটাগরি',
+  Name: 'নাম',
+  Price: 'দাম',
+  Stock: 'স্টক',
+  'In stock': 'স্টকে আছে',
+  'Out of stock': 'স্টকে নেই',
+  Hidden: 'লুকানো',
+  Unavailable: 'পাওয়া যাচ্ছে না',
+  'On sale': 'বিক্রিতে',
+  'Pre-order': 'প্রি-অর্ডার',
+  'Pre-orders': 'প্রি-অর্ডার',
+  'Pre-orderable': 'প্রি-অর্ডারযোগ্য',
+  'Shop open': 'দোকান খোলা',
+  'Shop closed': 'দোকান বন্ধ',
+  'Shop basket': 'দোকানের ঝুড়ি',
+  'Shop orders': 'দোকানের অর্ডার',
+  'Shop settings': 'দোকানের সেটিংস',
+  'Shop name': 'দোকানের নাম',
+  Items: 'যা যা আছে',
+  Free: 'ফ্রি',
+  'Free delivery': 'ফ্রি ডেলিভারি',
+  'Delivery fee': 'ডেলিভারি ফি',
+  Preparation: 'তৈরির সময়',
+  'Preparation time': 'তৈরির সময়',
+  Photo: 'ছবি',
+  'Cover photo': 'কভার ছবি',
+  Icon: 'আইকন',
+  Manage: 'পরিচালনা',
+  Never: 'কখনো নয়',
+  More: 'বাড়ান',
+  Fewer: 'কমান',
+  'Move up': 'উপরে নিন',
+  'Move down': 'নিচে নিন',
+  Rename: 'নাম বদলান',
+  Delete: 'মুছুন',
+  Decline: 'ফিরিয়ে দিন',
+  'and up': 'থেকে শুরু',
+  'Active orders': 'চলমান অর্ডার',
+  'Your catalogue': 'আপনার তালিকা',
+  'Held for you': 'আপনার জন্য জমা',
+  'Waiting for the cook': 'রাঁধুনির উত্তরের অপেক্ষায়',
+  'Pre-order declined': 'প্রি-অর্ডার ফিরিয়ে দেওয়া হয়েছে',
+
+  /* ---------------- cook stores: the storefront ---------------- */
+  'Cakes, pitha, achar and everything else cooks make to keep.':
+    'কেক, পিঠা, আচার — রাঁধুনিরা যা যা বানিয়ে রাখেন।',
+  'Cakes, pitha, achar and gifts': 'কেক, পিঠা, আচার আর উপহার',
+  'Home shops near you': 'আপনার কাছের ঘরোয়া দোকান',
+  'No shops near you yet': 'আপনার কাছে এখনো কোনো দোকান নেই',
+  'Cooks near you have not opened a shop yet. If you cook, yours can be the first.':
+    'আপনার কাছের রাঁধুনিরা এখনো দোকান খোলেননি। আপনি রাঁধলে আপনারটাই প্রথম হতে পারে।',
+  'Shop not found': 'দোকান পাওয়া যায়নি',
+  'That shop is no longer listed.': 'দোকানটি আর তালিকায় নেই।',
+  'This shop is closed right now.': 'দোকানটি এখন বন্ধ।',
+  '{name} is closed. The shelves are here for when they open again.':
+    '{name} এখন বন্ধ। আবার খুললে এখান থেকেই নিতে পারবেন।',
+  '{name} is closed right now.': '{name} এখন বন্ধ।',
+  'This shop has not listed anything yet.': 'এই দোকানে এখনো কিছু দেওয়া হয়নি।',
+  'This category is empty. Try another one.': 'এই ক্যাটাগরি খালি। অন্যটা দেখুন।',
+  '{n} products': '{n}টি পণ্য',
+  '{n} in basket': 'ঝুড়িতে {n}টি',
+  'Delivery ৳{fee}': 'ডেলিভারি ৳{fee}',
+  'Delivery ৳{fee} · free over ৳{over}': 'ডেলিভারি ৳{fee} · ৳{over}-এর বেশি হলে ফ্রি',
+  '৳{fee}': '৳{fee}',
+  '৳{fee}, free over ৳{over}': '৳{fee}, ৳{over}-এর বেশি হলে ফ্রি',
+  '{name} added to your basket.': '{name} ঝুড়িতে যোগ হয়েছে।',
+  '{name} added as a pre-order.': '{name} প্রি-অর্ডার হিসেবে যোগ হয়েছে।',
+
+  /* ---------------- cook stores: a product ---------------- */
+  'Product not found': 'পণ্য পাওয়া যায়নি',
+  'That product is no longer listed.': 'পণ্যটি আর তালিকায় নেই।',
+  '{name} is out of stock.': '{name} স্টকে নেই।',
+  '{name} is not on sale right now.': '{name} এখন বিক্রি হচ্ছে না।',
+  'Only {n} left of {name}.': '{name} আর মাত্র {n}টি আছে।',
+  'The kitchen sells this in larger quantities.':
+    'রাঁধুনি এটি আরও বেশি পরিমাণে বিক্রি করেন।',
+  'You can order at most {n} of this.': 'এটি সর্বোচ্চ {n}টি নেওয়া যাবে।',
+  'minimum {n}': 'সর্বনিম্ন {n}টি',
+  'Pre-order only': 'শুধু প্রি-অর্ডার',
+  'This is out of stock, but {cook} makes it to order. Your payment is held while they decide, and returned in full if they cannot take it.':
+    'এটি স্টকে নেই, তবে {cook} অর্ডার পেলে বানিয়ে দেন। তাঁরা সিদ্ধান্ত না নেওয়া পর্যন্ত টাকা জমা থাকবে, নিতে না পারলে পুরোটাই ফেরত।',
+  'Add to basket': 'ঝুড়িতে যোগ করুন',
+  'Buy now': 'এখনই কিনুন',
+  'Pre-order · ৳{n}': 'প্রি-অর্ডার · ৳{n}',
+
+  /* ---------------- cook stores: the basket ---------------- */
+  'Your basket is empty': 'আপনার ঝুড়ি খালি',
+  'Your basket is empty.': 'আপনার ঝুড়ি খালি।',
+  'Anything you add from a shop lands here.': 'দোকান থেকে যা যোগ করবেন এখানে আসবে।',
+  'Paid from your wallet, and held until the food reaches you.':
+    'ওয়ালেট থেকে টাকা যায়, আর খাবার না পৌঁছানো পর্যন্ত জমা থাকে।',
+  'Some of this is a pre-order': 'এর কিছু অংশ প্রি-অর্ডার',
+  'Pre-ordered items go to the cook as a request and are billed separately from the rest. If the cook cannot take them, that part is refunded in full.':
+    'প্রি-অর্ডারের জিনিসগুলো রাঁধুনির কাছে অনুরোধ হিসেবে যায় আর আলাদা বিল হয়। তাঁরা নিতে না পারলে ওই অংশ পুরোটাই ফেরত।',
+  'Place order · ৳{n}': 'অর্ডার দিন · ৳{n}',
+  'Fix the basket to continue': 'এগোতে ঝুড়ি ঠিক করুন',
+  'Top up to continue': 'এগোতে টপ আপ করুন',
+  'Top up ৳{n} to place this order': 'এই অর্ডার দিতে ৳{n} টপ আপ করুন',
+  '৳{n} left after this order': 'এই অর্ডারের পর ৳{n} থাকবে',
+  'The cook is paid only after you confirm the food arrived.':
+    'আপনি খাবার পেয়েছেন জানানোর পরই রাঁধুনি টাকা পান।',
+  '{n} items · ৳{total} · paid from your wallet':
+    '{n}টি জিনিস · ৳{total} · ওয়ালেট থেকে',
+  'No kitchen dishes yet': 'রান্নাঘরের কোনো পদ নেই',
+  'Withdraw pre-order': 'প্রি-অর্ডার তুলে নিন',
+  'Withdraw this pre-order?': 'প্রি-অর্ডারটি তুলে নেবেন?',
+  '{cook} has not answered yet. ৳{n} is held, and comes straight back if they decline.':
+    '{cook} এখনো উত্তর দেননি। ৳{n} জমা আছে, তাঁরা না নিলে সঙ্গে সঙ্গেই ফেরত।',
+
+  /* ---------------- cook stores: the cook’s shop ---------------- */
+  'Sell cakes, pitha, achar — anything you make that keeps.':
+    'কেক, পিঠা, আচার — যা যা বানিয়ে রাখা যায়, বিক্রি করুন।',
+  'You have not opened a shop yet': 'আপনি এখনো দোকান খোলেননি',
+  'A shop is your own storefront: your categories, your products, your stock. It sits alongside your kitchen, not instead of it.':
+    'দোকান হলো আপনার নিজের দোকানঘর: আপনার ক্যাটাগরি, আপনার পণ্য, আপনার স্টক। এটি রান্নাঘরের বদলে নয়, পাশাপাশি চলে।',
+  'Open your shop': 'দোকান খুলুন',
+  'Opening…': 'খোলা হচ্ছে…',
+  '{name} is open.': '{name} খোলা আছে।',
+  '{name} is closed. Nothing can be bought.': '{name} বন্ধ। কিছু কেনা যাবে না।',
+  'Tap to open your shop': 'দোকান খুলতে ট্যাপ করুন',
+  'Tap to start selling': 'বিক্রি শুরু করতে ট্যাপ করুন',
+  '{n} products on sale': '{n}টি পণ্য বিক্রিতে',
+  'Name, price, stock and photos': 'নাম, দাম, স্টক আর ছবি',
+  'Products and stock': 'পণ্য ও স্টক',
+  '{n} listed, {out} out of stock': '{n}টি আছে, {out}টি স্টকে নেই',
+  '{n} categories, in your own order': '{n}টি ক্যাটাগরি, আপনার সাজানো ক্রমে',
+  '{n} waiting for your answer': '{n}টি আপনার উত্তরের অপেক্ষায়',
+  'Nothing waiting': 'অপেক্ষায় কিছু নেই',
+  'Name, photos, delivery and contact': 'নাম, ছবি, ডেলিভারি আর যোগাযোগ',
+  'View your shop': 'আপনার দোকান দেখুন',
+  'See it the way a customer does': 'ক্রেতা যেভাবে দেখেন সেভাবে দেখুন',
+  'Products, stock and shop orders': 'পণ্য, স্টক আর দোকানের অর্ডার',
+  'Open a shop for the things you make to keep':
+    'যা বানিয়ে রাখেন তার জন্য দোকান খুলুন',
+  '{n} pre-orders waiting for your answer': '{n}টি প্রি-অর্ডার আপনার উত্তরের অপেক্ষায়',
+
+  /* ---------------- cook stores: settings and categories ---------------- */
+  'This is the first thing a customer sees. Changes are live at once.':
+    'ক্রেতা সবার আগে এটাই দেখেন। পরিবর্তন সঙ্গে সঙ্গেই কার্যকর হয়।',
+  'Change cover photo': 'কভার ছবি বদলান',
+  'Change shop logo': 'দোকানের লোগো বদলান',
+  'Tap either photo to change it.': 'যেকোনো ছবিতে ট্যাপ করে বদলান।',
+  'One line about the shop': 'দোকান নিয়ে এক লাইন',
+  'Cakes, pitha and achar, made at home': 'ঘরে বানানো কেক, পিঠা আর আচার',
+  'What you make, and how you make it': 'কী বানান, আর কীভাবে বানান',
+  'Free over (optional)': 'কত টাকার বেশি হলে ফ্রি (ইচ্ছে হলে)',
+  'Charged once per order, however many things are in the basket.':
+    'ঝুড়িতে যতই থাকুক, প্রতি অর্ডারে একবারই নেওয়া হয়।',
+  'RannaBari needs photo access to set a shop photo.':
+    'দোকানের ছবি দিতে রান্নাবাড়ির ছবির অনুমতি লাগবে।',
+  'Your own shelves, in the order customers will see them.':
+    'আপনার নিজের তাক, ক্রেতারা যে ক্রমে দেখবেন সেভাবেই।',
+  'New category': 'নতুন ক্যাটাগরি',
+  'Add category': 'ক্যাটাগরি যোগ করুন',
+  Cake: 'কেক',
+  'No categories yet': 'এখনো কোনো ক্যাটাগরি নেই',
+  'Add the first one above. Products go under them.':
+    'উপরে প্রথমটি যোগ করুন। পণ্য এগুলোর নিচেই থাকে।',
+  'Move or delete its {n} products first.': 'আগে এর {n}টি পণ্য সরান বা মুছুন।',
+  'Give it a name.': 'একটি নাম দিন।',
+
+  /* ---------------- cook stores: products ---------------- */
+  'Add a product': 'পণ্য যোগ করুন',
+  'Add product': 'পণ্য যোগ করুন',
+  'Edit product': 'পণ্য সম্পাদনা',
+  'Delete product': 'পণ্য মুছুন',
+  'Tap again to delete': 'মুছতে আবার ট্যাপ করুন',
+  'Remove photo': 'ছবি সরান',
+  'It appears in your shop as soon as you save.':
+    'সেভ করলেই এটি আপনার দোকানে দেখা যাবে।',
+  'Change stock here. Tap a product to edit everything else.':
+    'স্টক এখানেই বদলান। বাকি সব বদলাতে পণ্যে ট্যাপ করুন।',
+  'No products yet': 'এখনো কোনো পণ্য নেই',
+  'Add the first thing you sell. It goes live as soon as you save.':
+    'যা বিক্রি করবেন তার প্রথমটি যোগ করুন। সেভ করলেই চালু।',
+  'Nothing in this view': 'এই ভিউতে কিছু নেই',
+  'Try another filter.': 'অন্য ফিল্টার দেখুন।',
+  'Hide from the shop': 'দোকান থেকে লুকান',
+  'Put back on sale': 'আবার বিক্রিতে দিন',
+  'How it sells': 'কীভাবে বিক্রি হবে',
+  'Allow pre-orders': 'প্রি-অর্ডার চালু রাখুন',
+  'When stock hits zero this keeps selling, as a request you accept or decline.':
+    'স্টক শূন্য হলেও এটি বিক্রি চলবে — অনুরোধ হিসেবে, যা আপনি নেবেন বা ফিরিয়ে দেবেন।',
+  'Turn this off to hide it without deleting it.': 'না মুছে লুকাতে এটি বন্ধ করুন।',
+  'Minimum order': 'সর্বনিম্ন অর্ডার',
+  'Maximum (optional)': 'সর্বোচ্চ (ইচ্ছে হলে)',
+  '24 hours': '২৪ ঘণ্টা',
+  'Delivery note (optional)': 'ডেলিভারির নোট (ইচ্ছে হলে)',
+  'Delivered chilled, same day': 'একই দিনে ঠান্ডা অবস্থায় পৌঁছাবে',
+  'What is in it, and how it is made': 'কী দিয়ে বানানো, কীভাবে বানানো',
+  'Chocolate Cake': 'চকলেট কেক',
+  'Make a category first — products live under them.':
+    'আগে একটি ক্যাটাগরি বানান — পণ্য এগুলোর নিচেই থাকে।',
+  'RannaBari needs photo access to set a product photo.':
+    'পণ্যের ছবি দিতে রান্নাবাড়ির ছবির অনুমতি লাগবে।',
+
+  /* ---------------- cook stores: orders and pre-orders ---------------- */
+  'You are paid when the customer confirms the parcel arrived.':
+    'ক্রেতা পার্সেল পেয়েছেন জানালেই আপনি টাকা পাবেন।',
+  'No shop orders yet': 'এখনো কোনো দোকানের অর্ডার নেই',
+  'When somebody buys from your shop it lands here.':
+    'কেউ আপনার দোকান থেকে কিনলে এখানে আসবে।',
+  'Answer this pre-order': 'এই প্রি-অর্ডারের উত্তর দিন',
+  'Start packing': 'প্যাক করা শুরু',
+  'Mark ready': 'তৈরি বলে চিহ্নিত করুন',
+  'Send out': 'পাঠিয়ে দিন',
+  '{n} person is waiting to hear from you.': '{n} জন আপনার উত্তরের অপেক্ষায়।',
+  '{n} people are waiting to hear from you.': '{n} জন আপনার উত্তরের অপেক্ষায়।',
+  'Requests for things you were out of land here.':
+    'যেগুলো স্টকে ছিল না, তার অনুরোধ এখানে আসে।',
+  'Turn on pre-orders for a product and customers can still ask for it when it sells out.':
+    'কোনো পণ্যে প্রি-অর্ডার চালু রাখলে শেষ হয়ে গেলেও ক্রেতারা চাইতে পারবেন।',
+  'Already answered': 'উত্তর দেওয়া হয়েছে',
+  '৳{n} is held. Declining returns it in full.':
+    '৳{n} জমা আছে। ফিরিয়ে দিলে পুরোটাই ফেরত যাবে।',
+  'Accepted. {customer} has been told.':
+    'গ্রহণ করা হয়েছে। {customer}-কে জানানো হয়েছে।',
+  'Declined. ৳{n} went back to {customer}.':
+    'ফিরিয়ে দেওয়া হয়েছে। ৳{n} {customer}-এর কাছে ফেরত গেছে।',
+
+  /* ---------------- cook stores: notifications ---------------- */
+  'New store order': 'দোকানে নতুন অর্ডার',
+  '{customer} ordered {title} — ৳{amount}.':
+    '{customer} {title} অর্ডার করেছেন — ৳{amount}।',
+  'New pre-order request': 'নতুন প্রি-অর্ডারের অনুরোধ',
+  '{customer} asked to pre-order {title}. Accept or decline.':
+    '{customer} {title} প্রি-অর্ডার করতে চেয়েছেন। নিন বা ফিরিয়ে দিন।',
+  'Pre-order sent': 'প্রি-অর্ডার পাঠানো হয়েছে',
+  '৳{amount} is held while {cook} decides. You get it back if they decline.':
+    '{cook} সিদ্ধান্ত নেওয়া পর্যন্ত ৳{amount} জমা থাকবে। না নিলে ফেরত পাবেন।',
+  'Pre-order accepted': 'প্রি-অর্ডার গ্রহণ করা হয়েছে',
+  '{cook} accepted your pre-order for {title}.':
+    '{cook} আপনার {title}-এর প্রি-অর্ডার নিয়েছেন।',
+  '{cook} could not take {title}. ৳{amount} is back in your wallet.':
+    '{cook} {title} নিতে পারেননি। ৳{amount} আপনার ওয়ালেটে ফিরে এসেছে।',
+  'Interest, orders and payouts from your kitchen and shop.':
+    'আপনার রান্নাঘর ও দোকানে আগ্রহ, অর্ডার আর টাকা।',
+  'Meals and shops near you, and where your orders have got to.':
+    'কাছের খাবার ও দোকান, আর আপনার অর্ডার কোথায় পৌঁছাল।',
+
+  /* ---------------- food requests: shared vocabulary ---------------- */
+  FOOD: 'খাবারের',
+  REQUESTS: 'অনুরোধ',
+  'Food requests': 'খাবারের অনুরোধ',
+  'Your requests': 'আপনার অনুরোধ',
+  'Request not found': 'অনুরোধ পাওয়া যায়নি',
+  'That request no longer exists.': 'ওই অনুরোধটি আর নেই।',
+  Offers: 'অফার',
+  'Other offers': 'অন্যান্য অফার',
+  'Your offers': 'আপনার অফার',
+  'No offers yet': 'এখনো কোনো অফার নেই',
+  '{n} offers': '{n}টি অফার',
+  Lowest: 'সবচেয়ে কম',
+  'no price yet': 'এখনো দাম দেননি',
+  'from ৳{n}': '৳{n} থেকে',
+  'around ৳{n}': 'প্রায় ৳{n}',
+  '{n} portions': '{n} জনের',
+  'Agreed price': 'রাজি হওয়া দাম',
+  You: 'আপনি',
+  'the customer': 'ক্রেতা',
+  'your price': 'আপনার দাম',
+  'Your price': 'আপনার দাম',
+  'Your cook': 'আপনার রাঁধুনি',
+  Send: 'পাঠান',
+  Withdraw: 'তুলে নিন',
+  'One cook': 'একজন রাঁধুনি',
+  'Sent to you': 'আপনাকে পাঠানো',
+  'Open to every cook': 'সব রাঁধুনির জন্য খোলা',
+
+  /* ---------------- food requests: statuses ---------------- */
+  'Taking offers': 'অফার নেওয়া হচ্ছে',
+  'Pay to confirm': 'নিশ্চিত করতে টাকা দিন',
+  Ordered: 'অর্ডার হয়েছে',
+  Withdrawn: 'তুলে নেওয়া হয়েছে',
+  'Price submitted': 'দাম দেওয়া হয়েছে',
+  Negotiating: 'দরদাম চলছে',
+  Agreed: 'রাজি',
+  'Not selected': 'বাছাই হয়নি',
+
+  /* ---------------- food requests: the customer ---------------- */
+  'Ask for something': 'কিছু চেয়ে নিন',
+  'Ask for something nobody has listed, and let cooks name their price.':
+    'তালিকায় নেই এমন কিছু চান, রাঁধুনিরা নিজেরাই দাম বলবেন।',
+  'Nothing asked for yet': 'এখনো কিছু চাওয়া হয়নি',
+  'Wanted a two-pound chocolate cake for Friday and could not find one? Describe it, and every cook who could make it can offer you a price.':
+    'শুক্রবারের জন্য দুই পাউন্ডের চকলেট কেক দরকার কিন্তু পাচ্ছেন না? লিখে দিন, যাঁরা বানাতে পারেন তাঁরাই দাম বলবেন।',
+  'Describe what you want. Cooks answer with their own price, and you pick.':
+    'কী চান লিখুন। রাঁধুনিরা নিজেদের দাম বলবেন, আপনি বেছে নেবেন।',
+  'Who should see this': 'কে দেখবে',
+  'Every cook who can reach you': 'যাঁরা আপনার কাছে পৌঁছাতে পারেন সবাই',
+  '{n} kitchens right now. You compare their prices.':
+    'এখন {n}টি রান্নাঘর। আপনি দাম মিলিয়ে দেখবেন।',
+  'Pick a kitchen below': 'নিচে থেকে রান্নাঘর বাছুন',
+  'What do you want?': 'কী চান?',
+  '2 pound chocolate cake': '২ পাউন্ড চকলেট কেক',
+  'Anything the cook should know': 'রাঁধুনির যা জানা দরকার',
+  'No nuts. Written on top: Happy Birthday.':
+    'বাদাম দেবেন না। উপরে লেখা থাকবে: শুভ জন্মদিন।',
+  'How many': 'কতটি',
+  'Budget (optional)': 'বাজেট (ইচ্ছে হলে)',
+  'Leave blank': 'খালি রাখুন',
+  'When do you need it': 'কবে লাগবে',
+  'Ask every cook': 'সব রাঁধুনিকে জিজ্ঞেস করুন',
+  'Send the request': 'অনুরোধ পাঠান',
+  'Say what you are looking for.': 'কী খুঁজছেন লিখুন।',
+  'Nothing is charged until you agree a price and pay.':
+    'দামে রাজি হয়ে টাকা না দেওয়া পর্যন্ত কিছুই কাটা হবে না।',
+  'Ask cooks for something nobody has listed':
+    'তালিকায় নেই এমন কিছু রাঁধুনিদের কাছে চান',
+  '{n} taking offers': '{n}টিতে অফার আসছে',
+
+  /* ---------------- food requests: comparing and choosing ---------------- */
+  'Cooks who can make this will answer with their own price.':
+    'যাঁরা এটি বানাতে পারেন তাঁরা নিজেদের দাম বলবেন।',
+  'Choose {who}': '{who}-কে বাছুন',
+  'You picked {who}. The other cooks were told.':
+    'আপনি {who}-কে বেছেছেন। বাকি রাঁধুনিদের জানানো হয়েছে।',
+  '{n} offers · ৳{low}': '{n}টি অফার · ৳{low}',
+  '{n} offers · ৳{low} – ৳{high}': '{n}টি অফার · ৳{low} – ৳{high}',
+  '{n} more interested, price to come': 'আরও {n} জন আগ্রহী, দাম আসছে',
+  'Negotiating with {who}': '{who}-এর সাথে দরদাম চলছে',
+  'Paid and on its way': 'টাকা দেওয়া হয়েছে, পথে আছে',
+  'You withdrew this': 'আপনি এটি তুলে নিয়েছেন',
+  'Agreed at ৳{n} — pay to confirm': '৳{n}-এ রাজি — নিশ্চিত করতে টাকা দিন',
+
+  /* ---------------- food requests: negotiation ---------------- */
+  'How the price moved': 'দাম যেভাবে বদলাল',
+  'You offered': 'আপনি বলেছেন',
+  '{who} offered': '{who} বলেছেন',
+  '{who} agreed': '{who} রাজি হয়েছেন',
+  '৳{n} is on the table': 'এখন ৳{n} বলা হয়েছে',
+  'Accept it, or name a different price.': 'রাজি হন, নয়তো অন্য দাম বলুন।',
+  'Waiting on {who}': '{who}-এর উত্তরের অপেক্ষা',
+  'They have your ৳{n}. You will be told when they answer.':
+    'আপনার বলা ৳{n} তাঁদের কাছে আছে। উত্তর দিলেই জানানো হবে।',
+  'Accept ৳{n}': '৳{n}-এ রাজি',
+  'Offer less': 'কম বলুন',
+  'Meet in the middle': 'মাঝামাঝি বলুন',
+  'Agreed at ৳{n}': '৳{n}-এ রাজি হয়েছেন',
+  'Agreed at ৳{n}. Pay to confirm.': '৳{n}-এ রাজি। নিশ্চিত করতে টাকা দিন।',
+  'Agreed at ৳{n}. Waiting for payment.': '৳{n}-এ রাজি। টাকার অপেক্ষায়।',
+  'Pay to confirm the order. Nothing is charged until you do.':
+    'অর্ডার নিশ্চিত করতে টাকা দিন। তার আগে কিছুই কাটা হবে না।',
+  'Waiting for the customer to pay.': 'ক্রেতার টাকা দেওয়ার অপেক্ষায়।',
+
+  /* ---------------- food requests: paying ---------------- */
+  'Pay ৳{n}': '৳{n} দিন',
+  'Pay ৳{n}?': '৳{n} দেবেন?',
+  'Pay now': 'এখনই দিন',
+  '৳{n} leaves your wallet now and is held by RannaBari. {cook} is paid only after you confirm the food arrived.':
+    'এখন ৳{n} আপনার ওয়ালেট থেকে কেটে রান্নাবাড়ির কাছে জমা থাকবে। খাবার পেয়েছেন জানানোর পরই {cook} টাকা পাবেন।',
+  'Ordered at ৳{n}': '৳{n}-এ অর্ডার হয়েছে',
+  'Track it, and confirm when the food arrives.': 'দেখতে থাকুন, খাবার এলে জানিয়ে দিন।',
+  'Withdraw this request': 'এই অনুরোধটি তুলে নিন',
+  'Withdraw this request?': 'অনুরোধটি তুলে নেবেন?',
+  'Every offer on it closes. Nothing has been charged, so nothing is refunded.':
+    'এর সব অফার বন্ধ হয়ে যাবে। কিছুই কাটা হয়নি, তাই ফেরতেরও কিছু নেই।',
+
+  /* ---------------- food requests: the cook ---------------- */
+  'Customers asking for things nobody has listed.':
+    'তালিকায় নেই এমন কিছু ক্রেতারা চাইছেন।',
+  'Customers asking for things nobody has listed':
+    'তালিকায় নেই এমন কিছু ক্রেতারা চাইছেন',
+  '{n} people are looking for something you could make.':
+    '{n} জন এমন কিছু খুঁজছেন যা আপনি বানাতে পারেন।',
+  '{n} waiting for your price': '{n}টি আপনার দামের অপেক্ষায়',
+  'Waiting for your price': 'আপনার দামের অপেক্ষায়',
+  'When somebody near you wants something they cannot find, it lands here and you can name your price.':
+    'আপনার কাছের কেউ না পাওয়া কিছু চাইলে সেটি এখানে আসবে, আর আপনি দাম বলতে পারবেন।',
+  'What would you charge?': 'আপনি কত নেবেন?',
+  'How long you need': 'আপনার কত সময় লাগবে',
+  'A note to the customer (optional)': 'ক্রেতার জন্য নোট (ইচ্ছে হলে)',
+  'I make these to order, fresh on the day.': 'অর্ডার পেলে সেদিনই টাটকা বানিয়ে দিই।',
+  'Send my price': 'আমার দাম পাঠান',
+  'Update my offer': 'আমার অফার বদলান',
+  'Change your price': 'দাম বদলান',
+  'Just register interest': 'শুধু আগ্রহ জানান',
+  'Your price is with the customer.': 'আপনার দাম ক্রেতার কাছে গেছে।',
+  'You are on the list. Add a price when you know it.':
+    'আপনি তালিকায় আছেন। দাম ঠিক হলে যোগ করুন।',
+  'Other cooks cannot see your price, and you cannot see theirs.':
+    'অন্য রাঁধুনিরা আপনার দাম দেখতে পান না, আপনিও তাঁদেরটা দেখবেন না।',
+  'Withdraw my offer': 'আমার অফার তুলে নিন',
+  'The order': 'অর্ডারটি',
+  'Open the order': 'অর্ডারটি খুলুন',
+  'The customer went with another cook': 'ক্রেতা অন্য রাঁধুনিকে বেছেছেন',
+  'The customer withdrew this request': 'ক্রেতা অনুরোধটি তুলে নিয়েছেন',
+  'Nothing more to do here.': 'এখানে আর কিছু করার নেই।',
+
+  /* ---------------- food requests: notifications ---------------- */
+  'New food request': 'নতুন খাবারের অনুরোধ',
+  '{customer} is looking for {title}. Name your price.':
+    '{customer} {title} খুঁজছেন। আপনার দাম বলুন।',
+  'Request withdrawn': 'অনুরোধ তুলে নেওয়া হয়েছে',
+  '{customer} withdrew the request for {title}.':
+    '{customer} {title}-এর অনুরোধ তুলে নিয়েছেন।',
+  'A cook is interested': 'একজন রাঁধুনি আগ্রহী',
+  '{cook} is interested in {title}.': '{cook} {title}-এ আগ্রহী।',
+  'New offer': 'নতুন অফার',
+  '{cook} offered ৳{amount} for {title}.': '{cook} {title}-এর জন্য ৳{amount} বলেছেন।',
+  'Offer withdrawn': 'অফার তুলে নেওয়া হয়েছে',
+  '{cook} pulled out of {title}.': '{cook} {title} থেকে সরে গেছেন।',
+  'You were chosen': 'আপনাকে বাছাই করা হয়েছে',
+  '{customer} picked your offer for {title}.':
+    '{customer} {title}-এর জন্য আপনার অফার নিয়েছেন।',
+  'Offer not selected': 'অফার বাছাই হয়নি',
+  '{customer} went with another cook for {title}.':
+    '{customer} {title}-এর জন্য অন্য রাঁধুনিকে বেছেছেন।',
+  'Counter offer': 'পাল্টা দাম',
+  '৳{amount} for {title}. Accept it or name another price.':
+    '{title}-এর জন্য ৳{amount}। রাজি হন, নয়তো অন্য দাম বলুন।',
+  'Price agreed': 'দামে রাজি',
+  '৳{amount} agreed with {cook}. Pay to confirm the order.':
+    '{cook}-এর সাথে ৳{amount}-এ রাজি। অর্ডার নিশ্চিত করতে টাকা দিন।',
+  '৳{amount} agreed for {title}. Waiting for payment.':
+    '{title}-এর জন্য ৳{amount}-এ রাজি। টাকার অপেক্ষায়।',
+  '{customer} paid ৳{amount} for {title}. Start when you are ready.':
+    '{customer} {title}-এর জন্য ৳{amount} দিয়েছেন। প্রস্তুত হলেই শুরু করুন।',
+
+  /* ---------------- food requests: errors ---------------- */
+  'This request is no longer taking offers.': 'এই অনুরোধে আর অফার নেওয়া হচ্ছে না।',
+  'You were not asked for this one.': 'এটির জন্য আপনাকে বলা হয়নি।',
+  'That offer no longer stands.': 'ওই অফারটি আর নেই।',
+  'This offer is closed.': 'এই অফারটি বন্ধ।',
+  'That cook has not named a price yet.': 'ওই রাঁধুনি এখনো দাম বলেননি।',
+  'It is the other side’s turn.': 'এখন অন্য পক্ষের পালা।',
+  'Agree a price first.': 'আগে দামে রাজি হন।',
 };

@@ -13,6 +13,9 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useCart } from '../../src/store/CartContext';
+import { useCommerce } from '../../src/store/CommerceContext';
+import { customerKeyOf } from '../../src/lib/ledger';
+import { useAuth } from '../../src/store/AuthContext';
 import { useMenus } from '../../src/data';
 import { useLang } from '../../src/i18n/LanguageContext';
 
@@ -54,6 +57,14 @@ export default function CartScreen() {
   const { t, n } = useLang();
   const pairing = usePairing(items);
 
+  /* The shop basket, which is a different basket: wallet-paid, stock-checked
+     and held in escrow. Summarised here rather than merged in, because
+     merging two payment rails into one list would make the totals a lie. */
+  const { account } = useAuth();
+  const shop = useCommerce();
+  const shopPriced = shop.priceCart(customerKeyOf(account));
+  const shopCount = shopPriced.lines.reduce((sum, l) => sum + l.qty, 0);
+
   /* The cart badge on the navbar shows a single kitchen's order in the web
      build; group the rows the same way so the "FROM:" chip stays truthful. */
   const groups = useMemo(() => {
@@ -92,6 +103,56 @@ export default function CartScreen() {
           </GradientText>
         </View>
 
+        {shopCount ? (
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => router.push('/store-checkout')}
+            style={({ pressed }) => [
+              {
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                padding: 16,
+                marginBottom: 24,
+                borderRadius: radius.md,
+                backgroundColor: colors.surfaceSolid,
+                borderWidth: 1,
+                borderColor: pressed ? colors.primary200 : colors.line,
+              },
+              shadow.sm,
+            ]}
+          >
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 14,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: colors.primary50,
+              }}
+            >
+              <Icon name="box" size={19} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text
+                style={{ fontFamily: font.uiSemi, fontSize: type.sm + 2, color: colors.text }}
+              >
+                {t('Shop basket')}
+              </Text>
+              <Text
+                style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
+              >
+                {t('{n} items · ৳{total} · paid from your wallet', {
+                  n: n(shopCount),
+                  total: n(shopPriced.total),
+                })}
+              </Text>
+            </View>
+            <Icon name="chevronRight" size={16} color={colors.textLight} />
+          </Pressable>
+        ) : null}
+
         {!items.length ? (
           <View style={{ alignItems: 'center', gap: 18, paddingVertical: 40 }}>
             <View
@@ -106,7 +167,9 @@ export default function CartScreen() {
             >
               <Icon name="cart" size={30} color={colors.primary} />
             </View>
-            <Heading size={20}>{t('Nothing here yet')}</Heading>
+            <Heading size={20}>
+              {shopCount ? t('No kitchen dishes yet') : t('Nothing here yet')}
+            </Heading>
             <Body muted size={15} style={{ textAlign: 'center' }}>
               {t('Pick a kitchen and the dishes you add will show up here.')}
             </Body>
