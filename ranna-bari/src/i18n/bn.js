@@ -853,4 +853,268 @@ export const bn = {
   '{n} hr ago': '{n} ঘণ্টা আগে',
   '{n} days ago': '{n} দিন আগে',
   '{n} day ago': '{n} দিন আগে',
+
+  /* ---------------- meal system: shared vocabulary ---------------- */
+  Meals: 'খাবার',
+  MEALS: 'খাবার',
+  'TOMORROW’S': 'আগামীকালের',
+  UPDATES: 'খবর',
+  WALLET: 'ওয়ালেট',
+  Tomorrow: 'আগামীকাল',
+  Breakfast: 'সকালের নাশতা',
+  Dinner: 'রাতের খাবার',
+  Sitting: 'বেলা',
+  Day: 'দিন',
+  Meal: 'খাবার',
+  'a meal': 'একটি খাবার',
+  'per plate': 'প্রতি প্লেট',
+  plates: 'প্লেট',
+  'plate confirmed': 'প্লেট নিশ্চিত',
+  'plates confirmed': 'প্লেট নিশ্চিত',
+  confirmed: 'নিশ্চিত',
+  Interested: 'আগ্রহী',
+  Confirmed: 'নিশ্চিত',
+  Left: 'বাকি',
+  Held: 'জমা',
+  Prepare: 'রাঁধতে হবে',
+  Delivery: 'ডেলিভারি',
+  Collection: 'নিজে নেবেন',
+  Handover: 'কীভাবে পৌঁছাবে',
+  Amount: 'পরিমাণ',
+  Payment: 'পেমেন্ট',
+  Served: 'পরিবেশন',
+  Booked: 'বুক করা হয়েছে',
+  'Order code': 'অর্ডার কোড',
+  paid: 'পরিশোধিত',
+  'At the kitchen': 'রান্নাঘরে',
+
+  /* ---------------- meal system: order lifecycle ---------------- */
+  'Order confirmed': 'অর্ডার নিশ্চিত',
+  Preparing: 'রান্না হচ্ছে',
+  Ready: 'তৈরি',
+  Completed: 'সম্পন্ন',
+  Collected: 'নেওয়া হয়েছে',
+  'Confirm receipt': 'পেয়েছেন কি না জানান',
+  'Being prepared': 'রান্না চলছে',
+  'Payment held': 'টাকা জমা আছে',
+  'Paid out': 'পরিশোধ হয়েছে',
+  Refunded: 'ফেরত দেওয়া হয়েছে',
+  'Held by RannaBari': 'রান্নাবাড়ির কাছে জমা',
+  'Released to the cook': 'রাঁধুনিকে দেওয়া হয়েছে',
+  'Refunded to your wallet': 'আপনার ওয়ালেটে ফেরত',
+  'Mark all ready': 'সবগুলো তৈরি',
+  'Send all out': 'সবগুলো পাঠান',
+  'Mark all delivered': 'সবগুলো পৌঁছেছে',
+  'Move on': 'পরের ধাপে',
+  'Waiting for the customer to confirm they got it.':
+    'ক্রেতা পেয়েছেন কি না জানানোর অপেক্ষা।',
+
+  /* ---------------- meal system: customer screens ---------------- */
+  'Home cooks near you are planning tomorrow. Book your plate tonight.':
+    'আপনার কাছের রাঁধুনিরা আগামীকালের রান্না ঠিক করছেন। আজ রাতেই প্লেট বুক করুন।',
+  'Tomorrow’s meals near you': 'আপনার কাছে আগামীকালের খাবার',
+  'Tomorrow’s meals': 'আগামীকালের খাবার',
+  'Coming up': 'সামনে যা আছে',
+  Earlier: 'আগের',
+  '{n} meals': '{n}টি খাবার',
+  '{n} left': 'আর {n}টি',
+  '{n} interested': '{n} জন আগ্রহী',
+  '{n} min left': 'আর {n} মিনিট',
+  '{n} hr left': 'আর {n} ঘণ্টা',
+  '{n} days left': 'আর {n} দিন',
+  'Orders closed': 'অর্ডার বন্ধ',
+  'Orders close': 'অর্ডার বন্ধ হবে',
+  'No deadline': 'কোনো সময়সীমা নেই',
+  'No meals planned near you yet': 'আপনার কাছে এখনো কোনো খাবার ঠিক হয়নি',
+  'Cooks publish tomorrow’s meals the evening before. Check back tonight, or browse kitchens cooking to order right now.':
+    'রাঁধুনিরা আগের সন্ধ্যায় আগামীকালের খাবার দেন। আজ রাতে আবার দেখুন, নয়তো এখনই যারা রাঁধছে তাদের দেখুন।',
+  'Browse kitchens': 'রান্নাঘর দেখুন',
+  'Add a delivery address so we can show only the kitchens that reach you.':
+    'ঠিকানা যোগ করুন, তাহলে যারা আপনার কাছে পৌঁছাতে পারে শুধু তাদেরই দেখাব।',
+  'Sign in to book a meal and use your wallet.':
+    'খাবার বুক করতে ও ওয়ালেট ব্যবহার করতে সাইন ইন করুন।',
+  'Meal not found': 'খাবারটি পাওয়া যায়নি',
+  'Delivered to your address.': 'আপনার ঠিকানায় পৌঁছে দেওয়া হবে।',
+  'Collect from the kitchen.': 'রান্নাঘর থেকে নিয়ে যাবেন।',
+  'I’m interested': 'আমি আগ্রহী',
+  'Interested ✓': 'আগ্রহী ✓',
+  'Confirm order · ৳{n}': 'অর্ডার নিশ্চিত করুন · ৳{n}',
+  'Top up to confirm': 'নিশ্চিত করতে টপ আপ করুন',
+  'Your payment is held until you confirm the food arrived.':
+    'খাবার পেয়েছেন জানানোর আগ পর্যন্ত টাকা জমা থাকবে।',
+  'You have booked this meal.': 'আপনি এই খাবারটি বুক করেছেন।',
+  'Track your order': 'অর্ডার দেখুন',
+  'Confirm this meal?': 'এই খাবারটি নিশ্চিত করবেন?',
+  'Balance after': 'পরে ব্যালেন্স',
+  Confirm: 'নিশ্চিত করুন',
+  'Confirming…': 'নিশ্চিত হচ্ছে…',
+  '৳{n} leaves your wallet now and is held by RannaBari. The cook is paid only after you confirm the food arrived.':
+    'এখন ৳{n} আপনার ওয়ালেট থেকে কেটে রান্নাবাড়ির কাছে জমা থাকবে। খাবার পেয়েছেন জানানোর পরই রাঁধুনি টাকা পাবেন।',
+
+  /* ---------------- meal system: order tracking ---------------- */
+  'Did your food arrive?': 'খাবার কি পৌঁছেছে?',
+  'Food received': 'খাবার পেয়েছি',
+  '৳{n} is still held. Confirming releases it to {cook}.':
+    '৳{n} এখনো জমা আছে। নিশ্চিত করলেই {cook} টাকাটা পেয়ে যাবেন।',
+  'Confirm you received the food?': 'খাবার পেয়েছেন নিশ্চিত করছেন?',
+  'This releases ৳{n} to {cook} and completes the order. It cannot be undone.':
+    'এতে ৳{n} {cook}-কে দেওয়া হবে আর অর্ডারটি সম্পন্ন হবে। এটি আর ফেরানো যাবে না।',
+  'Yes, it arrived': 'হ্যাঁ, পেয়েছি',
+  '৳{n} has been released to the cook.': '৳{n} রাঁধুনিকে দেওয়া হয়েছে।',
+  'Cancel this order?': 'এই অর্ডারটি বাতিল করবেন?',
+  '৳{n} goes back to your wallet, and the cook is told.':
+    '৳{n} আপনার ওয়ালেটে ফিরে যাবে, আর রাঁধুনিকে জানানো হবে।',
+  '৳{n} has been refunded to your wallet.': '৳{n} আপনার ওয়ালেটে ফেরত এসেছে।',
+  '৳{n} was refunded to your wallet.': '৳{n} আপনার ওয়ালেটে ফেরত দেওয়া হয়েছে।',
+
+  /* ---------------- meal system: wallet ---------------- */
+  Wallet: 'ওয়ালেট',
+  'Wallet balance': 'ওয়ালেট ব্যালেন্স',
+  'Available balance': 'যা খরচ করা যাবে',
+  'Held for meals in progress': 'চলমান খাবারের জন্য জমা',
+  'Meals are paid for from here, and held until the food arrives.':
+    'খাবারের টাকা এখান থেকেই যায়, আর খাবার পৌঁছানো পর্যন্ত জমা থাকে।',
+  'Top up': 'টপ আপ',
+  'Other amount': 'অন্য পরিমাণ',
+  'Demo top-up: no payment gateway is connected, so the balance is added straight away.':
+    'ডেমো টপ আপ: কোনো পেমেন্ট গেটওয়ে যুক্ত নেই, তাই ব্যালেন্স সঙ্গে সঙ্গেই যোগ হয়।',
+  '৳{n} added to your wallet.': '৳{n} আপনার ওয়ালেটে যোগ হয়েছে।',
+  'Transaction history': 'লেনদেনের তালিকা',
+  Transaction: 'লেনদেন',
+  'Wallet top up': 'ওয়ালেট টপ আপ',
+  'Held for {title}': '{title}-এর জন্য জমা',
+  Refund: 'ফেরত',
+  'Refund · {title}': 'ফেরত · {title}',
+  'No transactions yet': 'এখনো কোনো লেনদেন নেই',
+  'Top up your wallet to book tomorrow’s meals.':
+    'আগামীকালের খাবার বুক করতে ওয়ালেটে টাকা যোগ করুন।',
+  '৳{n} available': '৳{n} আছে',
+  '৳{n} available · ৳{held} held': '৳{n} আছে · ৳{held} জমা',
+  'Enter a valid amount.': 'সঠিক একটি পরিমাণ লিখুন।',
+  'Insufficient balance. Top up ৳{n} to confirm this meal.':
+    'ব্যালেন্স যথেষ্ট নয়। এই খাবারটি নিশ্চিত করতে ৳{n} টপ আপ করুন।',
+
+  /* ---------------- meal system: cook screens ---------------- */
+  'Plan a meal': 'খাবার ঠিক করুন',
+  'Publish meal': 'খাবার প্রকাশ করুন',
+  'Your meals': 'আপনার খাবার',
+  'No meals planned yet': 'এখনো কোনো খাবার ঠিক করা হয়নি',
+  'Plan tomorrow’s meal tonight and let people book a plate.':
+    'আজ রাতেই আগামীকালের খাবার ঠিক করুন, মানুষ প্লেট বুক করুক।',
+  'Publish tomorrow’s meal and every customer in your delivery radius sees it tonight. They book a plate, you find out how much to cook.':
+    'আগামীকালের খাবার প্রকাশ করলে আপনার ডেলিভারি এলাকার সব ক্রেতা আজ রাতেই দেখবেন। তাঁরা প্লেট বুক করবেন, আপনি জানবেন কতটা রাঁধতে হবে।',
+  '{n} plates confirmed for tomorrow.': 'আগামীকালের জন্য {n}টি প্লেট নিশ্চিত।',
+  'Prepare {n} plates tomorrow': 'আগামীকাল {n}টি প্লেট রাঁধতে হবে',
+  'Plan tomorrow’s meal': 'আগামীকালের খাবার ঠিক করুন',
+  'Publish tonight and let people book a plate':
+    'আজ রাতে প্রকাশ করুন, মানুষ প্লেট বুক করুক',
+  '{n} interested, {c} confirmed': '{n} জন আগ্রহী, {c}টি নিশ্চিত',
+  'Customers inside your delivery radius see it as soon as you publish.':
+    'প্রকাশ করা মাত্রই আপনার ডেলিভারি এলাকার ক্রেতারা দেখতে পাবেন।',
+  'Start from your menu': 'আপনার মেনু থেকে শুরু করুন',
+  'Meal name': 'খাবারের নাম',
+  'Chicken Biryani': 'চিকেন বিরিয়ানি',
+  'What is in it, and how much': 'কী কী আছে, কতটা',
+  'Price per plate': 'প্রতি প্লেটের দাম',
+  'Plates (optional)': 'কত প্লেট (ইচ্ছে হলে)',
+  'No limit': 'সীমা নেই',
+  'Handover note (optional)': 'পৌঁছানোর নোট (ইচ্ছে হলে)',
+  'Collect between 1 and 2pm.': 'দুপুর ১টা থেকে ২টার মধ্যে নিয়ে যাবেন।',
+  'Delivered by 1:30pm.': 'দুপুর ১:৩০-এর মধ্যে পৌঁছে যাবে।',
+  'Orders close a few hours before the sitting — {when}.':
+    'বেলার কয়েক ঘণ্টা আগে অর্ডার বন্ধ হয় — {when}।',
+  'already closed': 'ইতিমধ্যেই বন্ধ',
+  'Give the meal a name.': 'খাবারটির একটি নাম দিন।',
+  'Leave the quantity blank for no limit, or set it above zero.':
+    'সীমা না চাইলে খালি রাখুন, নয়তো শূন্যের বেশি দিন।',
+  'That service has already closed. Pick a later date or sitting.':
+    'ওই বেলা ইতিমধ্যেই বন্ধ। পরের দিন বা বেলা বাছুন।',
+  'Set your kitchen up first.': 'আগে আপনার রান্নাঘর ঠিক করুন।',
+  'RannaBari needs photo access to set a meal photo.':
+    'খাবারের ছবি দিতে রান্নাবাড়ির ছবির অনুমতি লাগবে।',
+  '{n} confirmed orders': '{n}টি নিশ্চিত অর্ডার',
+  '{n} people are interested. They pay to confirm.':
+    '{n} জন আগ্রহী। টাকা দিলেই নিশ্চিত হবে।',
+  'Nobody has booked this meal yet.': 'এখনো কেউ এই খাবারটি বুক করেননি।',
+  '{n} orders moved on.': '{n}টি অর্ডার পরের ধাপে গেছে।',
+  'Stop taking orders': 'অর্ডার নেওয়া বন্ধ করুন',
+  'Stop taking orders?': 'অর্ডার নেওয়া বন্ধ করবেন?',
+  'Stop orders': 'অর্ডার বন্ধ',
+  'The meal stays visible but nobody new can book it. Orders already placed are unaffected.':
+    'খাবারটি দেখা যাবে, কিন্তু নতুন কেউ বুক করতে পারবেন না। আগের অর্ডারগুলো ঠিকই থাকবে।',
+  'Closed. Existing orders are unaffected.': 'বন্ধ হয়েছে। আগের অর্ডারগুলো ঠিকই আছে।',
+  'Cancel this meal': 'এই খাবারটি বাতিল করুন',
+  'Cancel this meal?': 'এই খাবারটি বাতিল করবেন?',
+  'Cancel meal': 'খাবার বাতিল',
+  'All {n} confirmed orders are cancelled and ৳{amount} goes back to the customers. This cannot be undone.':
+    '{n}টি নিশ্চিত অর্ডারই বাতিল হবে আর ৳{amount} ক্রেতাদের কাছে ফেরত যাবে। এটি আর ফেরানো যাবে না।',
+  'Order cancelled. ৳{n} refunded.': 'অর্ডার বাতিল হয়েছে। ৳{n} ফেরত দেওয়া হয়েছে।',
+  'Cancelled. ৳{n} refunded to customers.':
+    'বাতিল হয়েছে। ক্রেতাদের ৳{n} ফেরত দেওয়া হয়েছে।',
+  '৳{n} released to your wallet from this meal.':
+    'এই খাবার থেকে ৳{n} আপনার ওয়ালেটে এসেছে।',
+  '{n} plates to cook': '{n}টি প্লেট রাঁধতে হবে',
+
+  /* ---------------- meal system: cook wallet ---------------- */
+  'Meal wallet': 'খাবারের ওয়ালেট',
+  'Released to you': 'আপনাকে দেওয়া হয়েছে',
+  'Held until customers confirm delivery': 'ক্রেতারা নিশ্চিত করা পর্যন্ত জমা',
+  'Meal payment': 'খাবারের পেমেন্ট',
+  'Nothing released yet. Payment lands here when a customer confirms they got their meal.':
+    'এখনো কিছু আসেনি। ক্রেতা খাবার পেয়েছেন জানালেই টাকা এখানে আসবে।',
+
+  /* ---------------- meal system: notifications ---------------- */
+  Notifications: 'নোটিফিকেশন',
+  '{n} unread': '{n}টি অপঠিত',
+  '{n} to confirm': '{n}টি নিশ্চিত করার আছে',
+  'Nothing new': 'নতুন কিছু নেই',
+  'Meals near you, and your order updates': 'কাছের খাবার আর আপনার অর্ডারের খবর',
+  'Meals near you, and where your orders have got to.':
+    'কাছের খাবার, আর আপনার অর্ডার কোথায় পৌঁছাল।',
+  'Interest, orders and payouts from your meals.':
+    'আপনার খাবারে আগ্রহ, অর্ডার আর টাকা।',
+  'Interest, orders and payouts': 'আগ্রহ, অর্ডার আর টাকা',
+  'When a cook near you plans tomorrow’s meal, it lands here.':
+    'কাছের কোনো রাঁধুনি আগামীকালের খাবার ঠিক করলে এখানে আসবে।',
+  'Publish a meal and you will hear the moment someone books it.':
+    'খাবার প্রকাশ করুন, কেউ বুক করলেই জানতে পারবেন।',
+  'New meal near you': 'কাছেই নতুন খাবার',
+  '{title} from {cook} — ৳{price}': '{cook}-এর {title} — ৳{price}',
+  'Someone is interested': 'কেউ আগ্রহ দেখিয়েছেন',
+  '{n} interested in {title}': '{title}-এ {n} জন আগ্রহী',
+  'New confirmed order': 'নতুন নিশ্চিত অর্ডার',
+  '{customer} confirmed {title}. Prepare {n}.':
+    '{customer} {title} নিশ্চিত করেছেন। {n}টি রাঁধতে হবে।',
+  '৳{amount} is held until you confirm the food arrived.':
+    'খাবার পেয়েছেন জানানো পর্যন্ত ৳{amount} জমা থাকবে।',
+  '{title} is being cooked.': '{title} রান্না হচ্ছে।',
+  '{title} is ready.': '{title} তৈরি।',
+  '{title} is out for delivery.': '{title} পথে আছে।',
+  'Confirm you received {title} to complete the order.':
+    'অর্ডার শেষ করতে {title} পেয়েছেন কি না জানান।',
+  'Payment released': 'টাকা ছাড়া হয়েছে',
+  '৳{amount} for {title} is in your wallet.': '{title}-এর ৳{amount} আপনার ওয়ালেটে।',
+  'Order completed': 'অর্ডার সম্পন্ন',
+  '৳{amount} has been released to the cook.': '৳{amount} রাঁধুনিকে দেওয়া হয়েছে।',
+  '{title} was cancelled. ৳{amount} was refunded.':
+    '{title} বাতিল হয়েছে। ৳{amount} ফেরত দেওয়া হয়েছে।',
+  'Meal cancelled': 'খাবার বাতিল',
+  '{title} was cancelled. ৳{amount} is back in your wallet.':
+    '{title} বাতিল হয়েছে। ৳{amount} আপনার ওয়ালেটে ফিরে এসেছে।',
+  'Wallet topped up': 'ওয়ালেটে টাকা যোগ হয়েছে',
+  '৳{amount} added to your wallet.': '৳{amount} আপনার ওয়ালেটে যোগ হয়েছে।',
+  'Confirm {title} so the cook can be paid.':
+    '{title} নিশ্চিত করুন, তাহলেই রাঁধুনি টাকা পাবেন।',
+
+  /* ---------------- meal system: errors ---------------- */
+  'That meal is no longer listed.': 'খাবারটি আর তালিকায় নেই।',
+  'This meal is no longer taking orders.': 'এই খাবারে আর অর্ডার নেওয়া হচ্ছে না।',
+  'Orders for this meal have closed.': 'এই খাবারের অর্ডার বন্ধ হয়ে গেছে।',
+  'This meal is sold out.': 'এই খাবার শেষ হয়ে গেছে।',
+  'You have already booked this meal.': 'আপনি এই খাবারটি আগেই বুক করেছেন।',
+  'That order no longer exists.': 'ওই অর্ডারটি আর নেই।',
+  'That cannot be done at this stage of the order.':
+    'অর্ডারের এই ধাপে এটি করা যাবে না।',
+  'This order has already been settled.': 'এই অর্ডারের হিসাব আগেই মিটে গেছে।',
+  'Something went wrong. Try again.': 'কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।',
 };

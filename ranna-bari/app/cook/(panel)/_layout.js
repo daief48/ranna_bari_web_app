@@ -9,12 +9,14 @@ import Icon from '../../../src/components/Icon';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useOrders } from '../../../src/store/OrdersContext';
 import { useKitchen } from '../../../src/store/KitchenContext';
+import { useMeals } from '../../../src/store/MealsContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { font, radius } from '../../../src/theme/tokens';
 
 const TABS = [
   { name: 'index', icon: 'activity', label: 'Today' },
   { name: 'orders', icon: 'receipt', label: 'Orders' },
+  { name: 'meals', icon: 'pot', label: 'Meals' },
   { name: 'menu', icon: 'utensils', label: 'Menu' },
   { name: 'earnings', icon: 'banknote', label: 'Earnings' },
   { name: 'kitchen', icon: 'chefHat', label: 'Kitchen' },
@@ -37,12 +39,22 @@ function CookBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
   const { ordersForKitchen } = useOrders();
   const { kitchen } = useKitchen();
+  const { orders: mealOrders } = useMeals();
   const { t, n: num } = useLang();
 
   /* The one number worth interrupting a cook for: orders nobody has looked
      at yet. It rides the Orders tab so it is visible from every screen. */
   const waiting = kitchen
     ? ordersForKitchen(kitchen.id).filter((o) => o.status === 'placed').length
+    : 0;
+
+  /* Its equivalent for pre-booked meals: plates paid for and not yet
+     started. This is the number the cook shops against, so it should be
+     legible from wherever they are standing. */
+  const toCook = kitchen
+    ? mealOrders
+        .filter((o) => String(o.kitchenId) === String(kitchen.id))
+        .filter((o) => o.status === 'confirmed').length
     : 0;
 
   return (
@@ -81,7 +93,8 @@ function CookBar({ state, descriptors, navigation }) {
 
             const focused = state.index === i;
             const { options } = descriptors[route.key];
-            const badge = meta.name === 'orders' ? waiting : 0;
+            const badge =
+              meta.name === 'orders' ? waiting : meta.name === 'meals' ? toCook : 0;
 
             const onPress = () => {
               const event = navigation.emit({
@@ -101,9 +114,13 @@ function CookBar({ state, descriptors, navigation }) {
                 accessibilityRole="tab"
                 accessibilityState={{ selected: focused }}
                 accessibilityLabel={
-                  badge
-                    ? `${t(options.title ?? meta.label)}, ${t('{n} waiting on you', { n: num(badge) })}`
-                    : t(options.title ?? meta.label)
+                  !badge
+                    ? t(options.title ?? meta.label)
+                    : `${t(options.title ?? meta.label)}, ${
+                        meta.name === 'meals'
+                          ? t('{n} plates to cook', { n: num(badge) })
+                          : t('{n} waiting on you', { n: num(badge) })
+                      }`
                 }
                 onPress={onPress}
                 style={({ pressed }) => ({
@@ -184,6 +201,7 @@ export default function CookPanelLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Today' }} />
       <Tabs.Screen name="orders" options={{ title: 'Orders' }} />
+      <Tabs.Screen name="meals" options={{ title: 'Meals' }} />
       <Tabs.Screen name="menu" options={{ title: 'Menu' }} />
       <Tabs.Screen name="earnings" options={{ title: 'Earnings' }} />
       <Tabs.Screen name="kitchen" options={{ title: 'Kitchen' }} />

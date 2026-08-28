@@ -17,6 +17,7 @@ import { useAuth } from '../../src/store/AuthContext';
 import { useCart } from '../../src/store/CartContext';
 import { useOrders } from '../../src/store/OrdersContext';
 import { useKitchen } from '../../src/store/KitchenContext';
+import { useMeals } from '../../src/store/MealsContext';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 export default function ProfileScreen() {
@@ -25,8 +26,11 @@ export default function ProfileScreen() {
   const { account, isSignedIn, isCook, setViewMode, signOut } = useAuth();
   const { count } = useCart();
   const { orders, activeOrders } = useOrders();
+  const { wallet, unreadFor } = useMeals();
   const [confirmOut, setConfirmOut] = useState(false);
   const { t, n } = useLang();
+
+  const unread = unreadFor('customer');
 
   return (
     <Screen glow="both">
@@ -117,6 +121,33 @@ export default function ProfileScreen() {
             title={t('Your cart')}
             sub={count ? t(count === 1 ? '{n} item waiting' : '{n} items waiting', { n: n(count) }) : t('Empty right now')}
             onPress={() => router.push('/cart')}
+          />
+          {/* Meals are paid for from the wallet, so the balance is a thing
+              people check before they go looking, not after. */}
+          <Row
+            icon="banknote"
+            variant="sage"
+            title={t('Wallet')}
+            sub={
+              wallet.held
+                ? t('৳{n} available · ৳{held} held', {
+                    n: n(wallet.customer),
+                    held: n(wallet.held),
+                  })
+                : t('৳{n} available', { n: n(wallet.customer) })
+            }
+            onPress={() => router.push('/wallet')}
+          />
+          <Row
+            icon="sparkles"
+            variant="primary"
+            title={t('Notifications')}
+            sub={
+              unread
+                ? t('{n} unread', { n: n(unread) })
+                : t('Meals near you, and your order updates')
+            }
+            onPress={() => router.push('/notifications')}
           />
           <Row
             icon="map"

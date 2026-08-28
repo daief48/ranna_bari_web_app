@@ -9,6 +9,7 @@ import Reveal from '../../../src/components/Reveal';
 import SectionHeader from '../../../src/components/SectionHeader';
 import { BentoBox, IconTile } from '../../../src/components/Surfaces';
 import { RowHeading, StatTile } from '../../../src/components/CookBits';
+import { LedgerRow, WalletCard } from '../../../src/components/MealBits';
 import { Body, Heading, Price } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../../src/theme/tokens';
@@ -19,6 +20,7 @@ import {
   formatOrderDate,
   useOrders,
 } from '../../../src/store/OrdersContext';
+import { useMeals } from '../../../src/store/MealsContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 const DAY = 86_400_000;
@@ -38,7 +40,16 @@ export default function CookEarnings() {
   const { colors, shadow } = useTheme();
   const { kitchen } = useKitchen();
   const { ordersForKitchen } = useOrders();
+  const meals = useMeals();
   const { t, n: num, lang } = useLang();
+
+  /* The cook's half of the meal ledger: money that has actually landed, and
+     money still held against orders nobody has confirmed receiving. */
+  const mealOrders = kitchen ? meals.ordersForKitchen(kitchen.id) : [];
+  const pending = mealOrders
+    .filter((o) => o.payment === 'held')
+    .reduce((sum, o) => sum + o.amount, 0);
+  const mealLedger = meals.ledger.filter((tx) => tx.to === 'cook').slice().reverse();
 
   /* Only a delivered order is money. Anything still moving is a promise, and
      a payout screen that counts promises is lying to the cook. */
@@ -92,8 +103,48 @@ export default function CookEarnings() {
           subtitle={t('You keep {pct}% of every dish you sell.', { pct: num(Math.round(COOK_PAYOUT_RATE * 100)) })}
         />
 
-        {/* ---- Payable ---- */}
+        {/* ---- Meal wallet ----
+            Kept apart from the block below on purpose. That one is cash a
+            rider hands over on delivery; this is money that moved inside the
+            app and is already yours. Adding them into one figure would tell
+            a cook they have been paid when half of it is still in a customer's
+            pocket. */}
         <Reveal delay={1}>
+          <RowHeading icon="banknote" title={t('Meal wallet')} />
+          <WalletCard
+            label={t('Released to you')}
+            amount={meals.wallet.cook}
+            sub={pending || null}
+            subLabel={t('Held until customers confirm delivery')}
+            tone="sage"
+          />
+
+          {mealLedger.length ? (
+            <View style={{ marginTop: 6, marginBottom: 28 }}>
+              {mealLedger.slice(0, 6).map((tx) => (
+                <LedgerRow
+                  key={tx.id}
+                  tx={tx}
+                  title={
+                    mealOrders.find((o) => o.id === tx.orderId)?.title ??
+                    t('Meal payment')
+                  }
+                  when={formatOrderDate(tx.at, lang)}
+                />
+              ))}
+            </View>
+          ) : (
+            <Body muted size={14} style={{ marginTop: 12, marginBottom: 28 }}>
+              {t('Nothing released yet. Payment lands here when a customer confirms they got their meal.')}
+            </Body>
+          )}
+        </Reveal>
+
+        {/* ---- Payable ---- */}
+        <Reveal delay={2}>
+          <RowHeading icon="delivery" title={t('Cash on delivery')} style={{ marginTop: 4 }} />
+        </Reveal>
+        <Reveal delay={2}>
           <LinearGradient
             colors={[colors.sage, colors.sage]}
             style={[{ borderRadius: 28, padding: 22, overflow: 'hidden' }, shadow.md]}

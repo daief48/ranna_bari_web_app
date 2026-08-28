@@ -30,6 +30,8 @@ export default function CookLayout() {
       <Stack.Screen name="(panel)" options={{ animation: 'fade' }} />
       <Stack.Screen name="order/[id]" />
       <Stack.Screen name="dish/[id]" />
+      <Stack.Screen name="meal/new" />
+      <Stack.Screen name="meal/[id]" />
     </Stack>
   );
 }

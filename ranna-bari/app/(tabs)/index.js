@@ -30,6 +30,8 @@ import { reviewSummary, reviews, useChefs } from '../../src/data';
 import { useAuth } from '../../src/store/AuthContext';
 import { distanceKm } from '../../src/lib/geo';
 import { deliversTo } from '../../src/lib/kitchen';
+import { MealCard } from '../../src/components/MealBits';
+import { tomorrowKey, useMeals } from '../../src/store/MealsContext';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 /** The seven cravings from index.html's mood carousel, in source order. */
@@ -97,6 +99,7 @@ const AVATARS = [
 export default function HomeScreen() {
   const chefs = useChefs();
   const { account } = useAuth();
+  const { mealsNearby, remaining: mealRemaining } = useMeals();
   const { colors, shadow, isDark } = useTheme();
   const r = useResponsive();
   const router = useRouter();
@@ -134,6 +137,14 @@ export default function HomeScreen() {
       .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
       .slice(0, 3);
   }, [chefs, account]);
+
+  const tomorrowsMeals = useMemo(() => {
+    const origin =
+      typeof account?.lat === 'number' && typeof account?.lng === 'number'
+        ? { lat: account.lat, lng: account.lng }
+        : null;
+    return mealsNearby(origin, { day: tomorrowKey() }).slice(0, 6);
+  }, [mealsNearby, account]);
 
   const search = () =>
     router.push({ pathname: '/browse', params: area ? { q: area } : {} });
@@ -487,6 +498,54 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
       </View>
+
+      {/* ============ TOMORROW'S MEALS ============
+          Pre-booking only works if people see it the evening before, and the
+          home screen is where they are. Hidden entirely when no kitchen near
+          them has planned anything: an empty rail here would teach people to
+          scroll past this spot. */}
+      {tomorrowsMeals.length ? (
+        <View style={{ paddingTop: 16, paddingBottom: 20 }}>
+          <Container>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                marginBottom: 16,
+              }}
+            >
+              <Heading size={20} style={{ flex: 1 }}>
+                {t('Tomorrow’s meals near you')}
+              </Heading>
+              <Button
+                variant="glass"
+                small
+                label={t('See all')}
+                onPress={() => router.push('/meals')}
+              />
+            </View>
+          </Container>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 12, paddingHorizontal: r.gutter, paddingVertical: 2 }}
+          >
+            {tomorrowsMeals.map(({ meal, km }) => (
+              <MealCard
+                key={meal.id}
+                meal={meal}
+                km={km}
+                remaining={mealRemaining(meal)}
+                interested={meal.interested?.length ?? 0}
+                wide
+                onPress={() => router.push(`/meals/${meal.id}`)}
+              />
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
 
       {/* ============ HOW IT WORKS ============ */}
       <Container style={{ paddingTop: 20, paddingBottom: 56 }}>

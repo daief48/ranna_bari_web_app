@@ -22,6 +22,7 @@ import {
   timeAgo,
   useOrders,
 } from '../../../src/store/OrdersContext';
+import { tomorrowKey, useMeals } from '../../../src/store/MealsContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 const isToday = (iso) => {
@@ -39,7 +40,25 @@ export default function CookDashboard() {
   const router = useRouter();
   const { kitchen, toggleOpen, liveDishes } = useKitchen();
   const { ordersForKitchen, advanceOrder } = useOrders();
+  const meals = useMeals();
   const { t, n } = useLang();
+
+  /* Tomorrow's service, summarised: plates already paid for, and the softer
+     number of people who said they were interested. */
+  const tomorrow = kitchen
+    ? meals
+        .mealsForKitchen(kitchen.id)
+        .filter((m) => m.serveDate === tomorrowKey() && m.status !== 'cancelled')
+    : [];
+  const platesTomorrow = tomorrow.reduce(
+    (sum, m) => sum + meals.confirmedCount(m.id),
+    0,
+  );
+  const interestTomorrow = tomorrow.reduce(
+    (sum, m) => sum + (m.interested?.length ?? 0),
+    0,
+  );
+  const unread = meals.unreadFor('cook');
 
   const mine = ordersForKitchen(kitchen?.id);
 
@@ -431,9 +450,45 @@ export default function CookDashboard() {
           </Reveal>
         ) : null}
 
-        {/* ---- Quick actions ---- */}
+        {/* ---- Tomorrow ----
+            The number a cook needs before they go shopping, on the screen
+            they open first. */}
         <Reveal delay={5}>
           <View style={{ gap: 12, marginTop: 28 }}>
+            <ActionRow
+              icon="pot"
+              tone={platesTomorrow ? 'primary' : 'sage'}
+              title={
+                platesTomorrow
+                  ? t('Prepare {n} plates tomorrow', { n: n(platesTomorrow) })
+                  : t('Plan tomorrow’s meal')
+              }
+              sub={
+                platesTomorrow
+                  ? t('{n} interested, {c} confirmed', {
+                      n: n(interestTomorrow),
+                      c: n(platesTomorrow),
+                    })
+                  : t('Publish tonight and let people book a plate')
+              }
+              onPress={() => router.push('/cook/meals')}
+            />
+            <ActionRow
+              icon="sparkles"
+              title={t('Notifications')}
+              sub={
+                unread
+                  ? t('{n} unread', { n: n(unread) })
+                  : t('Interest, orders and payouts')
+              }
+              onPress={() => router.push('/notifications')}
+            />
+          </View>
+        </Reveal>
+
+        {/* ---- Quick actions ---- */}
+        <Reveal delay={6}>
+          <View style={{ gap: 12, marginTop: 12 }}>
             <ActionRow
               icon="plus"
               title={t('Add a dish')}

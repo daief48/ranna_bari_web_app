@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '../theme/ThemeProvider';
 import { useLang } from '../i18n/LanguageContext';
-import { font, radius } from '../theme/tokens';
+import { font } from '../theme/tokens';
 
 /**
  * English / Bengali, from any header.

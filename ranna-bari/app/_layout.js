@@ -33,6 +33,7 @@ import { CartProvider } from '../src/store/CartContext';
 import { AuthProvider, useAuth } from '../src/store/AuthContext';
 import { OrdersProvider, useOrders } from '../src/store/OrdersContext';
 import { KitchenProvider, useKitchen } from '../src/store/KitchenContext';
+import { MealsProvider } from '../src/store/MealsContext';
 import { LanguageProvider } from '../src/i18n/LanguageContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -100,6 +101,14 @@ function Root() {
         <Stack.Screen name="auth" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="become-cook" />
         <Stack.Screen name="edit-profile" />
+        {/* ---- pre-booked meals ---- */}
+        <Stack.Screen name="meals/[id]" />
+        {/* Confirming replaces the meal with its receipt, the same one-way
+            step checkout makes: back should not walk into a meal you have
+            already paid for. */}
+        <Stack.Screen name="meal-order/[id]" options={{ animation: 'fade' }} />
+        <Stack.Screen name="wallet" />
+        <Stack.Screen name="notifications" />
       </Stack>
     </>
   );
@@ -148,10 +157,12 @@ export default function RootLayout() {
           <AuthProvider>
             <OrdersProvider>
               <KitchenProvider>
-                <CartProvider>
-                  <KitchenSync />
-                  <Root />
-                </CartProvider>
+                <MealsProvider>
+                  <CartProvider>
+                    <KitchenSync />
+                    <Root />
+                  </CartProvider>
+                </MealsProvider>
               </KitchenProvider>
             </OrdersProvider>
           </AuthProvider>

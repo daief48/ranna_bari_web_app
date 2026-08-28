@@ -9,6 +9,8 @@ import Icon from '../../src/components/Icon';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useAuth } from '../../src/store/AuthContext';
 import { useCart } from '../../src/store/CartContext';
+import { useMeals } from '../../src/store/MealsContext';
+import { customerKeyOf } from '../../src/lib/mealLogic';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { font, radius } from '../../src/theme/tokens';
 
@@ -19,6 +21,10 @@ import { font, radius } from '../../src/theme/tokens';
 const TABS = [
   { name: 'index', icon: 'home', label: 'Home' },
   { name: 'browse', icon: 'search', label: 'Browse' },
+  /* Ordering now and booking tomorrow are two different intents, not two
+     views of one list, so pre-booked meals get their own destination rather
+     than a filter inside Browse. */
+  { name: 'meals', icon: 'pot', label: 'Meals' },
   { name: 'cart', icon: 'cart', label: 'Cart' },
   { name: 'map', icon: 'map', label: 'Map' },
   { name: 'profile', icon: 'user', label: 'Profile' },
@@ -37,7 +43,14 @@ function AppBar({ state, descriptors, navigation }) {
   const { colors, shadow, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { count } = useCart();
+  const { account } = useAuth();
+  const { orders } = useMeals();
   const { t, n: num } = useLang();
+
+  const key = customerKeyOf(account);
+  const toConfirm = orders.filter(
+    (o) => o.customerKey === key && o.status === 'delivered',
+  ).length;
 
   return (
     <View
@@ -75,8 +88,12 @@ function AppBar({ state, descriptors, navigation }) {
 
             const focused = state.index === i;
             const { options } = descriptors[route.key];
-            // The cart is the only tab whose contents change behind your back.
-            const badge = meta.name === 'cart' ? count : 0;
+            /* The two tabs whose contents change behind your back: what is in
+               the basket, and what has been delivered and is waiting on you to
+               say so -- until you do, your money is held and the cook is not
+               paid, so it belongs on the bar rather than one screen in. */
+            const badge =
+              meta.name === 'cart' ? count : meta.name === 'meals' ? toConfirm : 0;
 
             const onPress = () => {
               const event = navigation.emit({
@@ -96,9 +113,13 @@ function AppBar({ state, descriptors, navigation }) {
                 accessibilityRole="tab"
                 accessibilityState={{ selected: focused }}
                 accessibilityLabel={
-                  badge
-                    ? `${t(options.title ?? meta.label)}, ${t(badge === 1 ? '{n} item' : '{n} items', { n: num(badge) })}`
-                    : t(options.title ?? meta.label)
+                  !badge
+                    ? t(options.title ?? meta.label)
+                    : `${t(options.title ?? meta.label)}, ${
+                        meta.name === 'meals'
+                          ? t('{n} to confirm', { n: num(badge) })
+                          : t(badge === 1 ? '{n} item' : '{n} items', { n: num(badge) })
+                      }`
                 }
                 onPress={onPress}
                 style={({ pressed }) => ({
@@ -111,8 +132,8 @@ function AppBar({ state, descriptors, navigation }) {
                   transform: [{ scale: pressed ? 0.97 : 1 }],
                 })}
               >
-                {/* Five tabs instead of four, so the icon and label each give
-                    up a point to keep the labels off each other. */}
+                {/* Six tabs now, so the icon and label each give up a point
+                    to keep the labels off each other. */}
                 <View>
                   <Icon
                     name={meta.icon}
@@ -185,6 +206,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="browse" options={{ title: 'Browse' }} />
+      <Tabs.Screen name="meals" options={{ title: 'Meals' }} />
       <Tabs.Screen name="cart" options={{ title: 'Cart' }} />
       <Tabs.Screen name="map" options={{ title: 'Map' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
