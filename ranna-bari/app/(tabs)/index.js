@@ -192,7 +192,7 @@ export default function HomeScreen() {
                 onChangeText={setArea}
                 onSubmitEditing={search}
                 returnKeyType="search"
-                placeholder={t('Enter your area (e.g. Dhanmondi)')}
+                placeholder={t('Search a dish, kitchen or area…')}
                 placeholderTextColor={colors.textLight}
                 style={{
                   fontFamily: font.ui,

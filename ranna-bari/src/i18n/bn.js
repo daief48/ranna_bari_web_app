@@ -760,6 +760,29 @@ export const bn = {
   'Name, specialty, description and delivery radius':
     'নাম, বিশেষত্ব, বিবরণ ও ডেলিভারির সীমা',
 
+  /* ---------------- search ---------------- */
+  'Search a dish, kitchen or area…': 'পদ, রান্নাঘর বা এলাকা খুঁজুন…',
+  'Clear search': 'খোঁজা মুছুন',
+  From: 'যেখান থেকে',
+  '{n} dish': '{n}টি পদ',
+  '{n} dishes': '{n}টি পদ',
+  '{n} kitchen': '{n}টি রান্নাঘর',
+  '{n} kitchens': '{n}টি রান্নাঘর',
+
+  /* ---------------- dish page ---------------- */
+  Back: 'ফিরুন',
+  'From this kitchen': 'যে রান্নাঘরের',
+  'More from {name}': '{name}-এর আরও পদ',
+  'It may have been removed from the menu.': 'হয়তো এটি মেনু থেকে সরানো হয়েছে।',
+
+  // Distance. The unit follows the number in Bengali too.
+  '{n} km': '{n} কিমি',
+  '{n} m': '{n} মি',
+
+  'Type an area': 'এলাকার নাম লিখুন',
+  'No area matches that.': 'ওই নামে কোনো এলাকা নেই।',
+  Close: 'বন্ধ',
+
   /* ---------------- relative time ---------------- */
   'just now': 'এইমাত্র',
   '{n} min ago': '{n} মিনিট আগে',

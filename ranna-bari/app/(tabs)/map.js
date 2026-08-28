@@ -19,11 +19,8 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useChefs } from '../../src/data';
 import { useLang } from '../../src/i18n/LanguageContext';
-import {
-  buildMapHtml,
-  distanceKm,
-  formatDistance,
-} from '../../src/lib/mapHtml';
+import { buildMapHtml } from '../../src/lib/mapHtml';
+import { distanceKm, formatDistance } from '../../src/lib/geo';
 
 const NEAREST_COUNT = 5;
 
@@ -399,7 +396,7 @@ export default function MapScreen() {
                 <Pressable
                   key={chef.id}
                   accessibilityRole="button"
-                  accessibilityLabel={`${chef.name}, ${formatDistance(km)} away`}
+                  accessibilityLabel={`${chef.name}, ${formatDistance(km, t, n)}`}
                   onPress={() => send({ type: 'focus', id: chef.id })}
                   onLongPress={() => router.push(`/chef/${chef.id}`)}
                   style={({ pressed }) => ({
@@ -463,7 +460,7 @@ export default function MapScreen() {
                         fontVariant: ['tabular-nums'],
                       }}
                     >
-                      {formatDistance(km)}
+                      {formatDistance(km, t, n)}
                     </Text>
                   </View>
                 </Pressable>

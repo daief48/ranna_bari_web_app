@@ -91,6 +91,7 @@ function Root() {
             them -- switching modes replaces the whole app, so it fades. */}
         <Stack.Screen name="cook" options={{ animation: 'fade' }} />
         <Stack.Screen name="chef/[id]" />
+        <Stack.Screen name="dish/[id]" />
         <Stack.Screen name="checkout" />
         <Stack.Screen name="orders" />
         {/* Replacing the cart with the receipt is a one-way step: the back

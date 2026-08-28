@@ -102,6 +102,31 @@ export function useMenus() {
   }, [kitchen]);
 }
 
+/**
+ * One dish and the kitchen that cooks it.
+ *
+ * A dish id is only unique in the context of its menu, and nothing in the
+ * data links back the other way, so the lookup walks the menus rather than
+ * indexing by dish. Eighty dishes is small enough that the walk costs less
+ * than keeping an index in sync with a menu the cook can edit.
+ */
+export function useDish(id) {
+  const menus = useMenus();
+  const chefs = useChefs();
+
+  return useMemo(() => {
+    if (!id) return null;
+    const key = String(id);
+    for (const menu of menus) {
+      const dish = (menu.items ?? []).find((d) => String(d.id) === key);
+      if (!dish) continue;
+      const chef = chefs.find((c) => String(c.id) === String(menu.chefId));
+      return chef ? { dish, chef } : null;
+    }
+    return null;
+  }, [id, menus, chefs]);
+}
+
 /** Areas for the browse picker, including wherever the local cook is. */
 export function useAreas() {
   const list = useChefs();
