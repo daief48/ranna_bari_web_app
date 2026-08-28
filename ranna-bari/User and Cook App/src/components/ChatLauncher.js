@@ -7,6 +7,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { font, radius, type } from '../theme/tokens';
 import { useSession } from '../store/SessionContext';
 import { useChat } from '../store/ChatContext';
+import { useSync } from '../store/SyncContext';
 import { hasServer } from '../lib/server';
 import { useLang } from '../i18n/LanguageContext';
 
@@ -32,6 +33,7 @@ export default function ChatLauncher({
   const { t } = useLang();
   const { isVerified } = useSession();
   const { openThread } = useChat();
+  const { serverOrderId } = useSync();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(null);
 
@@ -43,14 +45,31 @@ export default function ChatLauncher({
     setBusy(true);
     setNote(null);
     try {
-      const thread = await openThread(spec);
+      let resolved = spec;
+
+      /* An order lives on the device, and the server knows it by a different
+         id — or not at all, if it has not been mirrored up yet. Ask for the
+         server's id, syncing if that is what it takes, rather than posting a
+         local code the server will rightly refuse. */
+      if (spec.kind === 'order') {
+        const serverId = await serverOrderId(spec.orderId);
+        if (!serverId) {
+          setNote(
+            t('This order has not reached the server yet. Try again in a moment.'),
+          );
+          return;
+        }
+        resolved = { ...spec, orderId: serverId };
+      }
+
+      const thread = await openThread(resolved);
       if (thread) router.push(`/chat/${thread.id}`);
     } catch (error) {
       setNote(error?.message ?? t('Could not open the conversation.'));
     } finally {
       setBusy(false);
     }
-  }, [isVerified, openThread, spec, router, t]);
+  }, [isVerified, openThread, serverOrderId, spec, router, t]);
 
   // Nothing to connect to. Say so instead of offering a button that cannot work.
   if (!hasServer) return null;

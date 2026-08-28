@@ -299,6 +299,9 @@ async function main() {
     const kitchen = await db.kitchen.create({
       data: {
         accountId: account.id,
+        /* Ties this row back to the app bundle. An order the app places names
+           `chefId: 4`, and this is the only way to know which kitchen that is. */
+        legacyId: chef.id,
         name: `${chef.name.split(' ')[0]}'s Kitchen`,
         ownerName,
         avatar: chef.avatar,

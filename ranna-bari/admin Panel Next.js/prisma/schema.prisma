@@ -129,6 +129,15 @@ model AppSession {
 model Kitchen {
   id          String  @id @default(cuid())
   accountId   String? @unique
+
+  /// The id this kitchen has in the app bundle (`chefs.json`).
+  ///
+  /// Two id spaces exist and both are real: the app ships twenty kitchens
+  /// numbered 1-20, and this database gives everything a cuid. An order the
+  /// app places names `chefId: 4`, and without this column there is no way to
+  /// say which kitchen that is. Null for a kitchen that was never in the
+  /// bundle — one a cook registered from their own device.
+  legacyId    Int?    @unique
   name        String
   ownerName   String
   avatar      String

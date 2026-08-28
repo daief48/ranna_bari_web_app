@@ -14,7 +14,8 @@
     "setup": "prisma db push && tsx prisma/seed.ts",
     "test:money": "tsx --conditions react-server scripts/test-money.ts",
     "dev:next": "next dev -p 3100",
-    "test:chat": "tsx --conditions react-server scripts/test-chat.ts"
+    "test:chat": "tsx --conditions react-server scripts/test-chat.ts",
+    "test:order-chat": "tsx --conditions react-server scripts/test-order-chat.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.3.1",

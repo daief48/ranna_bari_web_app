@@ -214,23 +214,42 @@ export async function verifyOtp(
     data: { consumedAt: new Date() },
   });
 
-  /* The account is keyed on `customerKey`, which the app derives as
-     (email || phone).toLowerCase(). A phone-first signup has no email, so the
-     normalised phone is the key — and it stays the key even if an email is
-     added later, or every order they ever placed would detach. */
-  const account = await db.account.upsert({
-    where: { customerKey: phone },
-    create: {
-      customerKey: phone,
-      role: 'user',
-      name: '',
-      phone,
-      phoneVerifiedAt: new Date(),
-      signedInAt: new Date(),
-    },
-    update: { phoneVerifiedAt: new Date(), signedInAt: new Date() },
+  /**
+   * Find the account this handset already belongs to, or make one.
+   *
+   * `customerKey` is whatever the app derived first — the app's own rule is
+   * `(email || phone).toLowerCase()`, so a cook who signed up with an email
+   * has an email key with their phone in another column. Keying purely on
+   * the phone would hand that cook a brand-new empty account on their first
+   * verification, detaching them from their own kitchen and every order they
+   * ever cooked. So the phone column is searched first, and only somebody
+   * genuinely new gets an account keyed on their number.
+   */
+  const existing = await db.account.findFirst({
+    where: { OR: [{ phone }, { customerKey: phone }] },
+    // Oldest wins, so a duplicate created by an earlier bug never steals the
+    // real account's history.
+    orderBy: { createdAt: 'asc' },
     include: { kitchen: { select: { id: true, name: true, suspended: true } } },
   });
+
+  const account = existing
+    ? await db.account.update({
+        where: { id: existing.id },
+        data: { phone, phoneVerifiedAt: new Date(), signedInAt: new Date() },
+        include: { kitchen: { select: { id: true, name: true, suspended: true } } },
+      })
+    : await db.account.create({
+        data: {
+          customerKey: phone,
+          role: 'user',
+          name: '',
+          phone,
+          phoneVerifiedAt: new Date(),
+          signedInAt: new Date(),
+        },
+        include: { kitchen: { select: { id: true, name: true, suspended: true } } },
+      });
 
   if (account.suspended) {
     return { ok: false, error: 'This account is suspended. Contact support.' };
