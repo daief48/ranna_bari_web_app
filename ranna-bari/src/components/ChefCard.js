@@ -11,6 +11,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { useLang } from '../i18n/LanguageContext';
 import { useAuth } from '../store/AuthContext';
 import { distanceKm, formatDistance } from '../lib/geo';
+import { isOpenNow } from '../lib/kitchen';
 import { font, radius, tracking, type } from '../theme/tokens';
 
 /**
@@ -46,13 +47,18 @@ export default function ChefCard({ chef, index = 0 }) {
         )
       : null;
 
+  /* Whether it is cooking right now. This used to be read only on the
+     kitchen's own page, so a closed kitchen sat in the feed looking exactly
+     like an open one and only admitted it after a tap. */
+  const closed = !isOpenNow(chef);
+
   return (
     <Reveal delay={(index % 5) + 1} style={{ paddingTop: 12 }}>
       <Pressable
         accessibilityRole="link"
         accessibilityLabel={`${chef.name}, ${t(chef.specialty)}, ${
           chef.reviewCount ? `${t('Rating')} ${n(chef.rating)}` : t('New kitchen')
-        }${away ? `, ${away}` : ''}`}
+        }${away ? `, ${away}` : ''}${closed ? `, ${t('Closed')}` : ''}`}
         onPress={() => router.push(`/chef/${chef.id}`)}
         style={({ pressed }) => [
           {
@@ -266,6 +272,44 @@ export default function ChefCard({ chef, index = 0 }) {
           </View>
         </View>
       </Pressable>
+
+      {/* Hung off the top edge like the verified badge, on the other side:
+          both are facts about the kitchen rather than about its menu, and
+          "not cooking tonight" is the one worth reading before the tap. */}
+      {closed ? (
+        <View
+          style={[
+            {
+              position: 'absolute',
+              top: 0,
+              left: 16,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 5,
+              paddingVertical: 5,
+              paddingHorizontal: 11,
+              borderRadius: radius.pill,
+              backgroundColor: colors.saffron50,
+              borderWidth: 1,
+              borderColor: colors.saffron100,
+            },
+            shadow.xs,
+          ]}
+        >
+          <Icon name="moon" size={12} color={colors.saffron} />
+          <Text
+            style={{
+              fontFamily: font.uiBold,
+              fontSize: 10,
+              letterSpacing: 0.7,
+              textTransform: 'uppercase',
+              color: colors.saffron,
+            }}
+          >
+            {t('Closed')}
+          </Text>
+        </View>
+      ) : null}
 
       {chef.isVerified ? (
         <View

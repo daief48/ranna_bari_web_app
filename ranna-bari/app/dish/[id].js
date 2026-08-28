@@ -17,6 +17,7 @@ import { useDish, useMenu } from '../../src/data';
 import { useCart } from '../../src/store/CartContext';
 import { useAuth } from '../../src/store/AuthContext';
 import { distanceKm, formatDistance } from '../../src/lib/geo';
+import { isOpenNow } from '../../src/lib/kitchen';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 /**
@@ -57,7 +58,7 @@ export default function DishScreen() {
   }
 
   const { dish, chef } = found;
-  const closed = chef.isOpen === false;
+  const closed = !isOpenNow(chef);
 
   const km =
     typeof account?.lat === 'number' &&

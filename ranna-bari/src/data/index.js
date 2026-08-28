@@ -15,6 +15,7 @@ import chefs from './chefs.json';
 import menus from './menus.json';
 import reviews from './reviews.json';
 import { useKitchen } from '../store/KitchenContext';
+import { normaliseArea } from '../lib/areas';
 
 export { chefs, menus, reviews };
 
@@ -49,7 +50,12 @@ export const reviewSummary = () => {
  */
 const asChef = (kitchen) => {
   const { dishes, nextDishSeq, createdAt, ownerName, ...chef } = kitchen;
-  return chef;
+  /* The cook's area came from a reverse geocode, which answers with a postal
+     address. Left alone it put "Lane 11 East, 1212 Dhaka, Bangladesh" into
+     the area filter next to "Dhanmondi" — a filter of one, matching nothing
+     anyone would think to look for. Normalising here rather than only at
+     signup also repairs kitchens already saved on the device. */
+  return { ...chef, area: normaliseArea(chef.area) };
 };
 
 /**
@@ -127,11 +133,22 @@ export function useDish(id) {
   }, [id, menus, chefs]);
 }
 
-/** Areas for the browse picker, including wherever the local cook is. */
+/**
+ * Areas for the browse picker, including wherever the local cook is.
+ *
+ * Alphabetical, not in data order: the picker has a filter box above it now,
+ * and a list you can predict the position of is worth more than one that
+ * happens to put the seeded kitchens first.
+ */
 export function useAreas() {
   const list = useChefs();
   return useMemo(
-    () => ['all', ...Array.from(new Set(list.map((c) => c.area)))],
+    () => [
+      'all',
+      ...Array.from(new Set(list.map((c) => c.area))).sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    ],
     [list],
   );
 }

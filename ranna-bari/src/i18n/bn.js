@@ -137,7 +137,6 @@ export const bn = {
     'পাড়ার রাঁধুনিদের বাছাই করা খাবার থেকে পছন্দেরটি নিন।',
   'Search cuisines, chefs, or areas...': 'খাবার, রাঁধুনি বা এলাকা খুঁজুন...',
   'Filter by area, currently': 'এলাকা অনুযায়ী ছাঁকুন, এখন',
-  'Artisans Curated For You': 'আপনার জন্য বাছাই করা রাঁধুনি',
   'No artisans found matching your criteria.':
     'আপনার পছন্দ অনুযায়ী কোনো রাঁধুনি পাওয়া যায়নি।',
   'Choose an area': 'একটি এলাকা বাছুন',
@@ -785,6 +784,68 @@ export const bn = {
   'Type an area': 'এলাকার নাম লিখুন',
   'No area matches that.': 'ওই নামে কোনো এলাকা নেই।',
   Close: 'বন্ধ',
+
+  /* ---------------- browse chips ----------------
+     The display labels on the chip row. The lowercase tags above are the
+     same words as they appear on a card; these are how the filter names
+     them, and the two are translated separately because a chip is a
+     command and a tag is a description. */
+  Biryani: 'বিরিয়ানি',
+  Heritage: 'ঐতিহ্য',
+  Comfort: 'ঘরোয়া',
+  'Street food': 'স্ট্রিট ফুড',
+  Seafood: 'সামুদ্রিক',
+  Grill: 'গ্রিল',
+  Snacks: 'নাস্তা',
+  Sweet: 'মিষ্টি',
+  Bakery: 'বেকারি',
+  Spicy: 'ঝাল',
+  Meat: 'মাংস',
+  Sylheti: 'সিলেটি',
+  Asian: 'এশিয়ান',
+  Fusion: 'ফিউশন',
+  'Office lunch': 'অফিস লাঞ্চ',
+  Iftar: 'ইফতার',
+  Budget: 'সাশ্রয়ী',
+
+  /* ---------------- filter sheet ---------------- */
+  Filters: 'ফিল্টার',
+  'Sort by': 'সাজান',
+  'Nearest first': 'কাছেরটা আগে',
+  'Top rated': 'সেরা রেটিং',
+  'Cheapest first': 'কম দামেরটা আগে',
+  'Most expensive': 'বেশি দামেরটা আগে',
+  Availability: 'খোলা আছে কি না',
+  'Open now': 'এখন খোলা',
+  'Price per dish': 'পদপ্রতি দাম',
+  'Any price': 'যেকোনো দাম',
+  'Under ৳200': '৳২০০-এর নিচে',
+  '৳200 – ৳400': '৳২০০ – ৳৪০০',
+  '৳400 – ৳800': '৳৪০০ – ৳৮০০',
+  '৳800+': '৳৮০০+',
+  Dietary: 'খাদ্যাভ্যাস',
+  Vegetarian: 'নিরামিষ',
+  Vegan: 'ভেগান',
+  'Diabetic-friendly': 'ডায়াবেটিস-বান্ধব',
+  'Kitchen rating': 'রান্নাঘরের রেটিং',
+  'Any rating': 'যেকোনো রেটিং',
+  'Clear all': 'সব মুছুন',
+  'Show {n} result': '{n}টি ফল দেখুন',
+  'Show {n} results': '{n}টি ফল দেখুন',
+  'No matches': 'কিছু মেলেনি',
+  'Add a delivery address to sort and filter by distance.':
+    'দূরত্ব দিয়ে সাজাতে ও ছাঁকতে হলে ঠিকানা যোগ করুন।',
+
+  /* ---------------- recent searches, and empty results ---------------- */
+  'Recent searches': 'সাম্প্রতিক খোঁজ',
+  Clear: 'মুছুন',
+  'Search again': 'আবার খুঁজুন',
+  'Try removing': 'সরিয়ে দেখুন',
+  '+{n}': '+{n}',
+  '{n} kitchen does not deliver to your address.':
+    '{n}টি রান্নাঘর আপনার ঠিকানায় পৌঁছায় না।',
+  '{n} kitchens do not deliver to your address.':
+    '{n}টি রান্নাঘর আপনার ঠিকানায় পৌঁছায় না।',
 
   /* ---------------- relative time ---------------- */
   'just now': 'এইমাত্র',

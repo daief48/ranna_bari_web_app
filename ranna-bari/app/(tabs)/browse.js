@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -17,46 +17,278 @@ import ChefCard from '../../src/components/ChefCard';
 import Reveal from '../../src/components/Reveal';
 import { Price } from '../../src/components/Typography';
 import SectionHeader from '../../src/components/SectionHeader';
+import FilterSheet, {
+  DEFAULT_FILTERS,
+  DIETS,
+  RATINGS,
+  SORTS,
+  activeCount,
+  priceBand,
+} from '../../src/components/FilterSheet';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useAreas, useChefs, useMenus } from '../../src/data';
 import { useAuth } from '../../src/store/AuthContext';
 import { distanceKm, formatDistance } from '../../src/lib/geo';
+import { deliversTo, isOpenNow } from '../../src/lib/kitchen';
+import { RANK, makeMatcher } from '../../src/lib/search';
+import useRecentSearches from '../../src/lib/useRecentSearches';
 import { useLang } from '../../src/i18n/LanguageContext';
-
 
 /** How many rows a section shows before "See more", and how many each tap adds. */
 const PAGE = 5;
 const STEP = 10;
 
-/** The five chips on browsecook.html, in order. */
+/**
+ * The chip row, over the tag vocabulary the data actually uses.
+ *
+ * It used to carry five of the twenty-four tags, which left most of the menu
+ * reachable only by guessing the right word into the search box -- and six of
+ * the home screen's seven mood pills landing on a chip row that could not
+ * show what was selected.
+ *
+ * Meal times first, because that is what a hungry person filters by; then
+ * kinds of food; then the things you pick when nothing in particular is
+ * wanted. Dietary tags are deliberately absent: they are constraints, not
+ * moods, so they live in the filter sheet where they combine with one of
+ * these instead of replacing it.
+ */
 const CHIPS = [
   { key: 'all', label: 'All' },
   { key: 'breakfast', label: 'Morning' },
   { key: 'lunch', label: 'Lunch' },
   { key: 'dinner', label: 'Evening' },
+  { key: 'biryani', label: 'Biryani' },
+  { key: 'heritage', label: 'Heritage' },
+  { key: 'comfort', label: 'Comfort' },
+  { key: 'street', label: 'Street food' },
+  { key: 'seafood', label: 'Seafood' },
+  { key: 'grill', label: 'Grill' },
+  { key: 'snacks', label: 'Snacks' },
+  { key: 'sweet', label: 'Sweet' },
+  { key: 'bakery', label: 'Bakery' },
   { key: 'healthy', label: 'Healthy' },
+  { key: 'spicy', label: 'Spicy' },
+  { key: 'meat', label: 'Meat' },
+  { key: 'sylheti', label: 'Sylheti' },
+  { key: 'asian', label: 'Asian' },
+  { key: 'fusion', label: 'Fusion' },
+  { key: 'office', label: 'Office lunch' },
+  { key: 'iftar', label: 'Iftar' },
+  { key: 'budget', label: 'Budget' },
 ];
+
+const CHIP_LABEL = new Map(CHIPS.map((c) => [c.key, c.label]));
+
+/** Tags the sheet owns, so a mood pill naming one lands there instead. */
+const DIET_KEYS = DIETS.map((d) => d.key);
+
+/**
+ * One pass of the whole pipeline.
+ *
+ * Pure, and outside the component, because the empty state has to run it
+ * again several times -- once per active constraint, with that constraint
+ * lifted -- to work out which one is responsible for the empty screen.
+ */
+function runSearch({ chefs, dishIndex, query, filter, area, filters, kmOf }) {
+  const matcher = makeMatcher(query);
+  const band = priceBand(filters.price);
+  const { diet, openOnly, minRating, sort } = filters;
+
+  const km = new Map(chefs.map((c) => [String(c.id), kmOf(c)]));
+
+  /* Dish-level constraints. When any is on, a kitchen only earns its place in
+     the kitchen list by having a dish that survives them -- picking "Vegan"
+     and being shown a kitchen with nothing vegan on it is the filter lying. */
+  const dishConstrained =
+    filter !== 'all' || filters.price !== 'any' || diet.length > 0;
+
+  const dishPasses = (dish) => {
+    const tags = dish.tags ?? [];
+    if (filter !== 'all' && !tags.includes(filter)) return false;
+    if (dish.price < band.min || dish.price > band.max) return false;
+    if (diet.length && !diet.some((d) => tags.includes(d))) return false;
+    return true;
+  };
+
+  /* Everything about the kitchen except whether it will come this far, which
+     is counted separately so the screen can own up to what it hid. */
+  const chefPasses = (chef) => {
+    if (area !== 'all' && chef.area !== area) return false;
+    if (openOnly && !isOpenNow(chef)) return false;
+    if (minRating > 0 && !(chef.rating >= minRating)) return false;
+    return true;
+  };
+
+  const dishes = [];
+  const passingByChef = new Map();
+  let outOfRange = 0;
+
+  for (const { dish, chef } of dishIndex) {
+    const id = String(chef.id);
+    const away = km.get(id);
+    if (!chefPasses(chef) || !deliversTo(chef, away)) continue;
+    if (!dishPasses(dish)) continue;
+
+    const seen = passingByChef.get(id);
+    if (!seen) passingByChef.set(id, { low: dish.price, high: dish.price });
+    else {
+      if (dish.price < seen.low) seen.low = dish.price;
+      if (dish.price > seen.high) seen.high = dish.price;
+    }
+
+    const rank = matcher
+      ? matcher.rank({ name: dish.name, tags: dish.tags, text: dish.description })
+      : 0;
+    if (rank === RANK.NONE) continue;
+
+    dishes.push({
+      dish,
+      chef,
+      km: away,
+      rank,
+      priceLow: dish.price,
+      priceHigh: dish.price,
+    });
+  }
+
+  const viaDish = new Set(dishes.map((d) => String(d.chef.id)));
+
+  const kitchens = [];
+  for (const chef of chefs) {
+    const id = String(chef.id);
+    const away = km.get(id);
+    if (!chefPasses(chef)) continue;
+    if (!deliversTo(chef, away)) {
+      outOfRange++;
+      continue;
+    }
+    if (dishConstrained && !passingByChef.has(id)) continue;
+
+    /* Specialty and area ride along as tags: they are how people describe a
+       kitchen, and a "Sylheti" or "Uttara" query should find one. */
+    const direct = matcher
+      ? matcher.rank({
+          name: chef.name,
+          tags: [...(chef.tags ?? []), chef.specialty, chef.area],
+          text: chef.description,
+        })
+      : 0;
+
+    /* Reached only through one of its dishes -- listed, but never above a
+       kitchen the query actually named. */
+    const reached = viaDish.has(id);
+    if (matcher && direct === RANK.NONE && !reached) continue;
+
+    const prices = passingByChef.get(id);
+    kitchens.push({
+      chef,
+      km: away,
+      rank: direct === RANK.NONE ? RANK.FUZZY + 1 : direct,
+      priceLow: prices?.low ?? Infinity,
+      priceHigh: prices?.high ?? 0,
+    });
+  }
+
+  /* ---- ordering ---- */
+  const hasOrigin = !!kmOf.hasOrigin;
+  const byRank = (a, b) => a.rank - b.rank;
+  const byRating = (a, b) => (b.chef.rating ?? 0) - (a.chef.rating ?? 0);
+
+  let compare;
+  if (sort === 'rating') compare = (a, b) => byRating(a, b) || byRank(a, b);
+  else if (sort === 'priceAsc')
+    compare = (a, b) => a.priceLow - b.priceLow || byRank(a, b);
+  else if (sort === 'priceDesc')
+    compare = (a, b) => b.priceHigh - a.priceHigh || byRank(a, b);
+  else if (hasOrigin)
+    compare = (a, b) => (a.km ?? Infinity) - (b.km ?? Infinity) || byRank(a, b);
+  // Nothing to measure from: relevance carries the whole order.
+  else compare = (a, b) => byRank(a, b) || byRating(a, b);
+
+  dishes.sort(compare);
+  kitchens.sort(compare);
+
+  /* Every dish of one kitchen sits at the same distance and under the same
+     rating, so those two orderings hand the first five slots of the default
+     feed to whichever kitchen wins -- a discovery feed that opens on one
+     shop's menu. Taking one dish per kitchen in turn keeps the order between
+     kitchens while showing five different ones.
+
+     Only with no query. Someone who typed "biryani" asked for the nearest
+     biryani, not for one biryani from each kitchen in turn, and interleaving
+     their results would put a 3.3km match above a 2.4km one. Price
+     orderings are left alone for the same reason: their key is genuinely
+     per-dish, so shuffling them would be a lie. */
+  const spread =
+    !matcher && (sort === 'rating' || (sort === 'nearest' && hasOrigin));
+
+  return {
+    kitchens,
+    dishes: spread ? interleaveByKitchen(dishes) : dishes,
+    outOfRange,
+  };
+}
+
+/** Round-robin over the kitchens, preserving the order they first appear in. */
+function interleaveByKitchen(rows) {
+  const queues = new Map();
+  for (const row of rows) {
+    const id = String(row.chef.id);
+    if (!queues.has(id)) queues.set(id, []);
+    queues.get(id).push(row);
+  }
+  const lists = [...queues.values()];
+  const out = [];
+  for (let round = 0; out.length < rows.length; round++) {
+    for (const list of lists) {
+      if (list[round]) out.push(list[round]);
+    }
+  }
+  return out;
+}
 
 export default function BrowseScreen() {
   const chefs = useChefs();
   const menus = useMenus();
   const { t, n } = useLang();
-  const { account } = useAuth();
+  const { account, isSignedIn } = useAuth();
   const { colors, shadow } = useTheme();
   const r = useResponsive();
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  // Both entry points from the home screen: a mood pill sends `filter`,
-  // the hero search sends `q`.
+  /* Both entry points from the home screen: a mood pill sends `filter`, the
+     hero search sends `q`. A pill naming a dietary tag is a constraint rather
+     than a mood, so it opens as one. */
+  const incoming = typeof params.filter === 'string' ? params.filter : 'all';
   const [filter, setFilter] = useState(
-    typeof params.filter === 'string' ? params.filter : 'all',
+    DIET_KEYS.includes(incoming) ? 'all' : incoming,
   );
-  const [query, setQuery] = useState(typeof params.q === 'string' ? params.q : '');
+  const [filters, setFilters] = useState(() =>
+    DIET_KEYS.includes(incoming)
+      ? { ...DEFAULT_FILTERS, diet: [incoming] }
+      : DEFAULT_FILTERS,
+  );
+
+  /* `draft` is what the field shows, `query` is what the list is built from.
+     They are the same value a moment apart: matching eighty menus with an
+     edit-distance fallback on every keystroke is work worth not doing while
+     someone is still in the middle of the word. */
+  const [draft, setDraft] = useState(typeof params.q === 'string' ? params.q : '');
+  const [query, setQuery] = useState(draft);
+
   const [area, setArea] = useState('all');
   const [areaOpen, setAreaOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  const { recent, remember, forget, clear } = useRecentSearches();
+
+  useEffect(() => {
+    const handle = setTimeout(() => setQuery(draft), 180);
+    return () => clearTimeout(handle);
+  }, [draft]);
 
   /* Five of each to start with. Enough to show what the section holds, few
      enough that the kitchens below stay reachable without a long scroll. */
@@ -68,7 +300,7 @@ export default function BrowseScreen() {
   useEffect(() => {
     setDishLimit(PAGE);
     setKitchenLimit(PAGE);
-  }, [query, filter, area]);
+  }, [query, filter, area, filters]);
 
   /**
    * Where "near" is measured from: the address on the account, which is the
@@ -86,12 +318,17 @@ export default function BrowseScreen() {
     return { lat: account.lat, lng: account.lng };
   }, [account]);
 
-  const kmTo = useMemo(() => {
-    if (!origin) return () => null;
-    return (chef) =>
-      typeof chef?.lat === 'number' && typeof chef?.lng === 'number'
-        ? distanceKm(origin, { lat: chef.lat, lng: chef.lng })
-        : null;
+  const kmOf = useMemo(() => {
+    const fn = origin
+      ? (chef) =>
+          typeof chef?.lat === 'number' && typeof chef?.lng === 'number'
+            ? distanceKm(origin, { lat: chef.lat, lng: chef.lng })
+            : null
+      : () => null;
+    /* Carried on the function so runSearch can tell "too far" from "nowhere
+       to measure from" without a second argument threaded through. */
+    fn.hasOrigin = !!origin;
+    return fn;
   }, [origin]);
 
   /** Every dish paired with the kitchen that cooks it, flattened once. */
@@ -104,124 +341,119 @@ export default function BrowseScreen() {
       .filter((row) => row.chef);
   }, [menus, chefs]);
 
-  /** Distance ascending, with kitchens that have no pin at the back. */
-  const byDistance = (a, b) => {
-    const x = a.km ?? Infinity;
-    const y = b.km ?? Infinity;
-    return x - y;
-  };
-
   /**
-   * Two result sets from one box.
+   * The results, and -- when there are none -- what to do about it.
    *
-   * Searching "biryani" used to return nothing, because the query only ever
-   * touched the kitchen record -- name, specialty, area, tags -- and a dish
-   * lives one level down. People search for the food, so dishes are matched
-   * too and shown first, each carrying the kitchen it belongs to; a dish
-   * without that line is useless, since ordering means opening a kitchen.
-   *
-   * A kitchen reached only through one of its dishes still appears in the
-   * kitchen list, so the two sections agree with each other.
-   *
-   * Rank puts a name hit above a tag hit above a description hit, so typing
-   * "mustard" surfaces the dish actually called mustard-something before the
-   * ones that merely mention it.
+   * An empty screen under six controls is a puzzle: the one that emptied it
+   * is not visible from the outcome. So each active constraint is lifted in
+   * turn and the pipeline re-run, which is cheap over eighty dishes, and
+   * "No artisans found" becomes a list of the specific things that would
+   * bring results back, largest first.
    */
-  const { kitchens, dishes } = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const inCategory = (tags) => filter === 'all' || tags.includes(filter);
-    const inArea = (chef) => area === 'all' || chef.area === area;
+  const { kitchens, dishes, outOfRange, relaxations } = useMemo(() => {
+    const base = { chefs, dishIndex, kmOf };
+    const main = runSearch({ ...base, query, filter, area, filters });
 
-    /* With no query this screen used to be a wall of kitchens, which asks
-       people to pick a shop before they know what they want to eat. The
-       default is food now, with the kitchens underneath -- the same two
-       sections a search produces, just unfiltered. */
-    if (!q) {
-      const list = chefs
-        .filter((c) => inCategory(c.tags) && inArea(c))
-        .map((c) => ({ chef: c, km: kmTo(c) }));
-
-      const menu = dishIndex
-        .filter(({ dish, chef }) => inCategory(dish.tags ?? []) && inArea(chef))
-        .map((row) => ({ ...row, km: kmTo(row.chef) }));
-
-      if (origin) {
-        list.sort(byDistance);
-        menu.sort(byDistance);
-      }
-
-      /* Every dish of one kitchen sits at the same distance, so sorting the
-         flat list by distance alone hands the first five slots to whichever
-         kitchen is closest -- a discovery feed that opens on one shop's menu.
-         Taking one dish per kitchen in turn keeps the nearest-first order
-         between kitchens while showing five different ones. */
-      const byKitchen = new Map();
-      for (const row of menu) {
-        const key = String(row.chef.id);
-        if (!byKitchen.has(key)) byKitchen.set(key, []);
-        byKitchen.get(key).push(row);
-      }
-      const queues = [...byKitchen.values()];
-      const spread = [];
-      for (let round = 0; spread.length < menu.length; round++) {
-        for (const queue of queues) {
-          if (queue[round]) spread.push(queue[round]);
-        }
-      }
-
-      return { kitchens: list, dishes: spread };
+    if (main.dishes.length || main.kitchens.length) {
+      return { ...main, relaxations: [] };
     }
 
-    const rank = (dish) => {
-      const name = dish.name.toLowerCase();
-      if (name.startsWith(q)) return 0;
-      if (name.includes(q)) return 1;
-      if ((dish.tags ?? []).some((tag) => tag.toLowerCase().includes(q))) return 2;
-      if ((dish.description ?? '').toLowerCase().includes(q)) return 3;
-      return -1;
-    };
+    const tries = [];
+    if (filter !== 'all') tries.push({ id: 'filter', patch: { filter: 'all' } });
+    if (area !== 'all') tries.push({ id: 'area', patch: { area: 'all' } });
+    if (filters.openOnly)
+      tries.push({
+        id: 'openOnly',
+        patch: { filters: { ...filters, openOnly: false } },
+      });
+    if (filters.price !== 'any')
+      tries.push({ id: 'price', patch: { filters: { ...filters, price: 'any' } } });
+    if (filters.diet.length)
+      tries.push({ id: 'diet', patch: { filters: { ...filters, diet: [] } } });
+    if (filters.minRating > 0)
+      tries.push({
+        id: 'minRating',
+        patch: { filters: { ...filters, minRating: 0 } },
+      });
+    if (query.trim()) tries.push({ id: 'query', patch: { query: '' } });
 
-    /* Nearest first once there is an address to measure from -- the food you
-       can actually get tonight beats the better-worded match across town.
-       Relevance breaks ties, and carries the whole order when there is no
-       origin to sort by. */
-    const dishHits = dishIndex
-      .filter(({ dish, chef }) => inCategory(dish.tags ?? []) && inArea(chef))
-      .map((row) => ({ ...row, rank: rank(row.dish), km: kmTo(row.chef) }))
-      .filter((row) => row.rank >= 0)
-      .sort((a, b) =>
-        origin
-          ? byDistance(a, b) || a.rank - b.rank
-          : a.rank - b.rank || a.dish.name.localeCompare(b.dish.name),
-      );
+    const scored = tries
+      .map((attempt) => {
+        const out = runSearch({
+          ...base,
+          query,
+          filter,
+          area,
+          filters,
+          ...attempt.patch,
+        });
+        return { ...attempt, count: out.dishes.length + out.kitchens.length };
+      })
+      .filter((attempt) => attempt.count > 0)
+      /* Dropping the search term is the blunt option -- it answers a
+         different question than the one that was asked -- so it sits below
+         any filter that would have done the job. */
+      .sort(
+        (a, b) =>
+          (a.id === 'query' ? 1 : 0) - (b.id === 'query' ? 1 : 0) ||
+          b.count - a.count,
+      )
+      .slice(0, 3);
 
-    const matchesKitchen = (chef) =>
-      chef.name.toLowerCase().includes(q) ||
-      chef.specialty.toLowerCase().includes(q) ||
-      chef.area.toLowerCase().includes(q) ||
-      chef.tags.some((tag) => tag.toLowerCase().includes(q));
+    return { ...main, relaxations: scored };
+  }, [chefs, dishIndex, kmOf, query, filter, area, filters]);
 
-    const eligible = chefs.filter((c) => inCategory(c.tags) && inArea(c));
-    const direct = eligible.filter(matchesKitchen);
+  const total = dishes.length + kitchens.length;
 
-    const seen = new Set(direct.map((c) => String(c.id)));
-    const kitchenHits = direct.map((c) => ({ chef: c, km: kmTo(c) }));
-    for (const { chef, km } of dishHits) {
-      if (seen.has(String(chef.id))) continue;
-      seen.add(String(chef.id));
-      kitchenHits.push({ chef, km });
-    }
-    if (origin) kitchenHits.sort(byDistance);
+  /* Remembered once the typing stops and the query turned out to lead
+     somewhere -- a term that found nothing is not worth offering back. */
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2 || !total) return undefined;
+    const handle = setTimeout(() => remember(term), 1200);
+    return () => clearTimeout(handle);
+  }, [query, total, remember]);
 
-    return { kitchens: kitchenHits, dishes: dishHits };
-  }, [filter, query, area, chefs, dishIndex, origin, kmTo]);
-
-  /* A chip that is active but absent from the five defaults (a mood pill sent
-     us here) still needs somewhere to show, so it is appended to the row. */
+  /* A chip that is active but absent from the row (a mood pill sent us to a
+     tag the row does not carry) still needs somewhere to show. */
   const chips = useMemo(() => {
     if (filter === 'all' || CHIPS.some((c) => c.key === filter)) return CHIPS;
     return [...CHIPS, { key: filter, label: filter }];
   }, [filter]);
+
+  const filterCount = activeCount(filters);
+  const sortLabel = SORTS.find((s) => s.key === filters.sort)?.label;
+
+  /** Turn one of the empty state's suggestions into the state change it names. */
+  const applyRelaxation = useCallback((id) => {
+    if (id === 'filter') setFilter('all');
+    else if (id === 'area') setArea('all');
+    else if (id === 'query') {
+      setDraft('');
+      setQuery('');
+    } else if (id === 'openOnly') setFilters((f) => ({ ...f, openOnly: false }));
+    else if (id === 'price') setFilters((f) => ({ ...f, price: 'any' }));
+    else if (id === 'diet') setFilters((f) => ({ ...f, diet: [] }));
+    else if (id === 'minRating') setFilters((f) => ({ ...f, minRating: 0 }));
+  }, []);
+
+  /** What the suggestion buttons in the empty state are called. */
+  const relaxLabel = (id) => {
+    if (id === 'filter') return t(CHIP_LABEL.get(filter) ?? filter);
+    if (id === 'area') return area;
+    if (id === 'query') return `“${query.trim()}”`;
+    if (id === 'openOnly') return t('Open now');
+    if (id === 'price') return t(priceBand(filters.price).label);
+    if (id === 'diet') {
+      return filters.diet
+        .map((d) => t(DIETS.find((x) => x.key === d)?.label ?? d))
+        .join(', ');
+    }
+    if (id === 'minRating') {
+      return n(RATINGS.find((x) => x.key === filters.minRating)?.label ?? '');
+    }
+    return '';
+  };
 
   return (
     <Screen>
@@ -239,7 +471,7 @@ export default function BrowseScreen() {
             carries its own surface.
 
               search
-              area | map
+              area | filters | map
               chips -> -> -> */}
         <View
           style={[
@@ -264,8 +496,12 @@ export default function BrowseScreen() {
             style={{ marginLeft: 16 }}
           />
           <TextInput
-            value={query}
-            onChangeText={setQuery}
+            value={draft}
+            onChangeText={setDraft}
+            onSubmitEditing={() => {
+              setQuery(draft);
+              remember(draft);
+            }}
             placeholder={t('Search a dish, kitchen or area…')}
             placeholderTextColor={colors.textLight}
             returnKeyType="search"
@@ -278,9 +514,12 @@ export default function BrowseScreen() {
               paddingHorizontal: 12,
             }}
           />
-          {query ? (
+          {draft ? (
             <Pressable
-              onPress={() => setQuery('')}
+              onPress={() => {
+                setDraft('');
+                setQuery('');
+              }}
               hitSlop={10}
               accessibilityRole="button"
               accessibilityLabel={t('Clear search')}
@@ -327,6 +566,64 @@ export default function BrowseScreen() {
             <Icon name="chevronDown" size={16} color={colors.textMuted} />
           </Pressable>
 
+          {/* Filters, carrying how many are on. Without that count an active
+              filter is invisible from the results screen, and a list that is
+              quietly narrower than it looks is worse than no filter at all. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              filterCount ? `${t('Filters')}, ${n(filterCount)}` : t('Filters')
+            }
+            onPress={() => setFilterOpen(true)}
+            style={({ pressed }) => [
+              {
+                width: 52,
+                height: 52,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: radius.pill,
+                backgroundColor: filterCount ? colors.primary50 : colors.surfaceSolid,
+                borderWidth: 1,
+                borderColor:
+                  filterCount || pressed ? colors.primary200 : colors.line,
+              },
+              shadow.sm,
+            ]}
+          >
+            <Icon
+              name="sliders"
+              size={19}
+              color={filterCount ? colors.primary : colors.textMuted}
+            />
+            {filterCount ? (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 3,
+                  right: 3,
+                  minWidth: 17,
+                  height: 17,
+                  paddingHorizontal: 4,
+                  borderRadius: 9,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: colors.primary,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: font.uiBold,
+                    fontSize: 10,
+                    color: '#FFFFFF',
+                    fontVariant: ['tabular-nums'],
+                  }}
+                >
+                  {n(filterCount)}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+
           {/* The one visual call to action on the page: a solid accent button */}
           <Pressable
             accessibilityRole="link"
@@ -367,6 +664,10 @@ export default function BrowseScreen() {
             <Pressable
               key={c.key}
               accessibilityRole="button"
+              /* `selected` reaches the DOM as nothing on a button, so which
+                 chip is on was invisible to a screen reader. A chip is a
+                 toggle, and `pressed` is the state a toggle has. */
+              aria-pressed={active}
               accessibilityState={{ selected: active }}
               onPress={() => setFilter(c.key)}
               style={({ pressed }) => [
@@ -398,18 +699,99 @@ export default function BrowseScreen() {
         })}
       </ScrollView>
 
+      {/* ---- Recent searches ----
+          Only with an empty box: once there is a query these are answers to
+          a question nobody is asking any more. */}
+      {!draft && recent.length ? (
+        <Container style={{ paddingTop: 18 }}>
+          <View
+            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}
+          >
+            <Text
+              style={{
+                flex: 1,
+                fontFamily: font.uiBold,
+                fontSize: type.xs + 1,
+                letterSpacing: (type.xs + 1) * tracking.label,
+                textTransform: 'uppercase',
+                color: colors.textMuted,
+              }}
+            >
+              {t('Recent searches')}
+            </Text>
+            <Pressable onPress={clear} hitSlop={8} accessibilityRole="button">
+              <Text
+                style={{
+                  fontFamily: font.uiSemi,
+                  fontSize: type.xs + 1,
+                  color: colors.primary,
+                }}
+              >
+                {t('Clear')}
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {recent.map((term) => (
+              <View
+                key={term}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  borderRadius: radius.pill,
+                  backgroundColor: colors.surfaceSolid,
+                  borderWidth: 1,
+                  borderColor: colors.line,
+                }}
+              >
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('Search again')} ${term}`}
+                  onPress={() => {
+                    setDraft(term);
+                    setQuery(term);
+                  }}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                    paddingVertical: 9,
+                    paddingLeft: 13,
+                  }}
+                >
+                  <Icon name="clock" size={12} color={colors.textLight} />
+                  <Text style={{ fontFamily: font.ui, fontSize: 13, color: colors.text }}>
+                    {term}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('Remove')} ${term}`}
+                  onPress={() => forget(term)}
+                  hitSlop={6}
+                  style={{ paddingHorizontal: 10, paddingVertical: 9 }}
+                >
+                  <Icon name="x" size={12} color={colors.textLight} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        </Container>
+      ) : null}
+
       <Container style={{ paddingTop: 24 }}>
-        {/* ---- Dishes ----
-            First, because a query that matched a dish is a query about food.
-            Every row names its kitchen: the dish is what you wanted, but the
-            kitchen is what you have to open to order it. */}
-        {/* ---- Food first ---- */}
+        {/* ---- Food first ----
+            A query that matched a dish is a query about food. Every row names
+            its kitchen: the dish is what you wanted, but the kitchen is what
+            has to be open to cook it. */}
         {dishes.length ? (
           <View style={{ marginBottom: 32 }}>
             <ResultLabel
               text={t(dishes.length === 1 ? '{n} dish' : '{n} dishes', {
                 n: n(dishes.length),
               })}
+              note={sortLabel ? t(sortLabel) : null}
             />
             <View style={{ gap: 12 }}>
               {dishes.slice(0, dishLimit).map(({ dish, chef, km }, i) => (
@@ -455,8 +837,62 @@ export default function BrowseScreen() {
           </>
         ) : null}
 
-        {!kitchens.length && !dishes.length ? (
-          <View style={{ alignItems: 'center', paddingVertical: 40, gap: 12 }}>
+        {/* ---- What the delivery radius took out ----
+            Every cook sets one, and signup promises them that only customers
+            inside it will see their kitchen. Honouring that quietly would
+            leave a shorter list with no explanation, so it says so -- and
+            offers the one thing that actually changes the answer.
+
+            Held back when a filter is what emptied the screen: pointing at
+            the distance then would blame the wrong thing, and the empty
+            state below already names the real culprit. It does still show
+            when nothing else can be lifted, because then distance really is
+            the answer. */}
+        {outOfRange && (total > 0 || !relaxations.length) ? (
+          <Pressable
+            accessibilityRole={isSignedIn ? 'link' : 'text'}
+            disabled={!isSignedIn}
+            onPress={() => router.push('/edit-profile')}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10,
+              marginTop: 20,
+              padding: 14,
+              borderRadius: radius.sm,
+              backgroundColor: colors.sunken,
+              borderWidth: 1,
+              borderColor: colors.line2,
+            }}
+          >
+            <Icon name="route" size={16} color={colors.textMuted} />
+            <Text
+              style={{
+                flex: 1,
+                fontFamily: font.ui,
+                fontSize: type.xs + 1,
+                lineHeight: (type.xs + 1) * 1.5,
+                color: colors.textMuted,
+              }}
+            >
+              {t(
+                outOfRange === 1
+                  ? '{n} kitchen does not deliver to your address.'
+                  : '{n} kitchens do not deliver to your address.',
+                { n: n(outOfRange) },
+              )}
+            </Text>
+            {isSignedIn ? (
+              <Icon name="chevronRight" size={15} color={colors.textLight} />
+            ) : null}
+          </Pressable>
+        ) : null}
+
+        {/* ---- Nothing matched ----
+            Naming the constraint that emptied the screen, next to the tap
+            that lifts it. */}
+        {!total ? (
+          <View style={{ alignItems: 'center', paddingVertical: 40, gap: 14 }}>
             <Icon name="searchCheck" size={32} color={colors.textLight} />
             <Text
               style={{
@@ -468,6 +904,78 @@ export default function BrowseScreen() {
             >
               {t('No artisans found matching your criteria.')}
             </Text>
+
+            {relaxations.length ? (
+              <>
+                <Text
+                  style={{
+                    fontFamily: font.uiBold,
+                    fontSize: type.xs + 1,
+                    letterSpacing: (type.xs + 1) * tracking.label,
+                    textTransform: 'uppercase',
+                    textAlign: 'center',
+                    color: colors.textLight,
+                    marginTop: 4,
+                  }}
+                >
+                  {t('Try removing')}
+                </Text>
+
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                >
+                  {relaxations.map((rx) => (
+                    <Pressable
+                      key={rx.id}
+                      accessibilityRole="button"
+                      onPress={() => applyRelaxation(rx.id)}
+                      style={({ pressed }) => [
+                        {
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 7,
+                          paddingVertical: 10,
+                          paddingHorizontal: 14,
+                          borderRadius: radius.pill,
+                          backgroundColor: pressed
+                            ? colors.primary50
+                            : colors.surfaceSolid,
+                          borderWidth: 1,
+                          borderColor: colors.line,
+                        },
+                        shadow.xs,
+                      ]}
+                    >
+                      <Icon name="x" size={12} color={colors.primary} />
+                      <Text
+                        style={{
+                          fontFamily: font.uiSemi,
+                          fontSize: 13,
+                          color: colors.text,
+                        }}
+                      >
+                        {relaxLabel(rx.id)}
+                      </Text>
+                      <Text
+                        style={{
+                          fontFamily: font.uiBold,
+                          fontSize: 11,
+                          color: colors.primary,
+                          fontVariant: ['tabular-nums'],
+                        }}
+                      >
+                        {t('+{n}', { n: n(rx.count) })}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            ) : null}
           </View>
         ) : null}
       </Container>
@@ -480,6 +988,15 @@ export default function BrowseScreen() {
           setAreaOpen(false);
         }}
         onClose={() => setAreaOpen(false)}
+      />
+
+      <FilterSheet
+        open={filterOpen}
+        value={filters}
+        onChange={setFilters}
+        onClose={() => setFilterOpen(false)}
+        resultCount={total}
+        canSortByDistance={!!origin}
       />
     </Screen>
   );
@@ -533,22 +1050,60 @@ function SeeMore({ remaining, onPress }) {
   );
 }
 
-/** The uppercase count line above each group of results. */
-function ResultLabel({ text }) {
+/**
+ * The uppercase count line above each group of results.
+ *
+ * `note` carries the ordering, which otherwise lives only inside a sheet
+ * nobody has open: "5 dishes" says nothing about why these five.
+ */
+function ResultLabel({ text, note }) {
   const { colors } = useTheme();
   return (
-    <Text
+    <View
       style={{
-        fontFamily: font.uiBold,
-        fontSize: type.sm,
-        letterSpacing: type.sm * tracking.label,
-        textTransform: 'uppercase',
-        color: colors.textMuted,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
         marginBottom: 16,
       }}
     >
-      {text}
-    </Text>
+      <Text
+        style={{
+          fontFamily: font.uiBold,
+          fontSize: type.sm,
+          letterSpacing: type.sm * tracking.label,
+          textTransform: 'uppercase',
+          color: colors.textMuted,
+        }}
+      >
+        {text}
+      </Text>
+      {note ? (
+        <>
+          <View
+            style={{
+              width: 3,
+              height: 3,
+              borderRadius: 2,
+              backgroundColor: colors.textLight,
+            }}
+          />
+          <Text
+            numberOfLines={1}
+            style={{
+              flex: 1,
+              fontFamily: font.ui,
+              fontSize: type.xs,
+              letterSpacing: type.xs * tracking.label,
+              textTransform: 'uppercase',
+              color: colors.textLight,
+            }}
+          >
+            {note}
+          </Text>
+        </>
+      ) : null}
+    </View>
   );
 }
 
@@ -557,20 +1112,20 @@ function ResultLabel({ text }) {
  *
  * The kitchen line is the point of the row, not decoration: a dish on its
  * own cannot be ordered, and without it there is no way to tell which of
- * twenty kitchens the biryani you just found belongs to. Tapping opens that
- * kitchen, where the dish can actually be added.
+ * twenty kitchens the biryani you just found belongs to.
  */
 function DishResult({ dish, chef, km, onPress }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
   const away = formatDistance(km, t, n);
+  const closed = !isOpenNow(chef);
 
   return (
     <Pressable
       accessibilityRole="link"
       accessibilityLabel={`${dish.name}, ৳${n(dish.price)}, ${t('From')} ${chef.name}${
         away ? `, ${away}` : ''
-      }`}
+      }${closed ? `, ${t('Closed')}` : ''}`}
       onPress={onPress}
       style={({ pressed }) => [
         {
@@ -612,7 +1167,7 @@ function DishResult({ dish, chef, km, onPress }) {
           {dish.name}
         </Text>
 
-        {/* Which kitchen this is under. */}
+        {/* Which kitchen this is under, and whether it is cooking. */}
         <View
           style={{
             flexDirection: 'row',
@@ -625,7 +1180,7 @@ function DishResult({ dish, chef, km, onPress }) {
           <Text
             numberOfLines={1}
             style={{
-              flex: 1,
+              flexShrink: 1,
               fontFamily: font.uiSemi,
               fontSize: type.xs,
               color: colors.primary,
@@ -633,6 +1188,33 @@ function DishResult({ dish, chef, km, onPress }) {
           >
             {chef.name}
           </Text>
+
+          {closed ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 3,
+                paddingVertical: 1,
+                paddingHorizontal: 6,
+                borderRadius: radius.pill,
+                backgroundColor: colors.saffron50,
+              }}
+            >
+              <Icon name="moon" size={8} color={colors.saffron} />
+              <Text
+                style={{
+                  fontFamily: font.uiBold,
+                  fontSize: 9,
+                  letterSpacing: 0.5,
+                  textTransform: 'uppercase',
+                  color: colors.saffron,
+                }}
+              >
+                {t('Closed')}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Area, and how far that is from the address this would ship to. */}
@@ -691,7 +1273,7 @@ function DishResult({ dish, chef, km, onPress }) {
 function AreaPicker({ open, value, onSelect, onClose }) {
   const { colors, shadow } = useTheme();
   const areas = useAreas();
-  const { t, n } = useLang();
+  const { t } = useLang();
   const [q, setQ] = useState('');
 
   /* The list is as long as the number of neighbourhoods on the platform and
@@ -716,12 +1298,7 @@ function AreaPicker({ open, value, onSelect, onClose }) {
   };
 
   return (
-    <Modal
-      visible={open}
-      transparent
-      animationType="fade"
-      onRequestClose={close}
-    >
+    <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
       <Pressable
         onPress={close}
         style={{
@@ -890,7 +1467,12 @@ function AreaPicker({ open, value, onSelect, onClose }) {
                     {a === 'all' ? t('All Areas') : a}
                   </Text>
                   {active ? (
-                    <Icon name="check" size={17} color={colors.primary} strokeWidth={2.2} />
+                    <Icon
+                      name="check"
+                      size={17}
+                      color={colors.primary}
+                      strokeWidth={2.2}
+                    />
                   ) : null}
                 </Pressable>
               );

@@ -27,6 +27,9 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { reviewSummary, reviews, useChefs } from '../../src/data';
+import { useAuth } from '../../src/store/AuthContext';
+import { distanceKm } from '../../src/lib/geo';
+import { deliversTo } from '../../src/lib/kitchen';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 /** The seven cravings from index.html's mood carousel, in source order. */
@@ -93,6 +96,7 @@ const AVATARS = [
 
 export default function HomeScreen() {
   const chefs = useChefs();
+  const { account } = useAuth();
   const { colors, shadow, isDark } = useTheme();
   const r = useResponsive();
   const router = useRouter();
@@ -104,6 +108,32 @@ export default function HomeScreen() {
     const map = new Map(chefs.map((c) => [String(c.id), c.name]));
     return (id) => map.get(String(id)) ?? 'a home kitchen';
   }, [chefs]);
+
+  /**
+   * The three kitchens under "the highest-rated artists near you".
+   *
+   * It used to be the first three rows of the file, which was neither
+   * highest-rated nor near anyone -- and once browse started honouring each
+   * cook's delivery radius, it was also the one screen left showing kitchens
+   * that cannot reach you. Rated first among the ones that can.
+   */
+  const featured = useMemo(() => {
+    const origin =
+      typeof account?.lat === 'number' && typeof account?.lng === 'number'
+        ? { lat: account.lat, lng: account.lng }
+        : null;
+
+    const reachable = chefs.filter((c) => {
+      if (!origin || typeof c.lat !== 'number' || typeof c.lng !== 'number') {
+        return true;
+      }
+      return deliversTo(c, distanceKm(origin, { lat: c.lat, lng: c.lng }));
+    });
+
+    return [...reachable]
+      .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+      .slice(0, 3);
+  }, [chefs, account]);
 
   const search = () =>
     router.push({ pathname: '/browse', params: area ? { q: area } : {} });
@@ -528,7 +558,7 @@ export default function HomeScreen() {
         />
 
         <View style={{ gap: 16 }}>
-          {chefs.slice(0, 3).map((c, i) => (
+          {featured.map((c, i) => (
             <ChefCard key={c.id} chef={c} index={i} />
           ))}
         </View>

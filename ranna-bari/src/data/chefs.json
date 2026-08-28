@@ -19,7 +19,9 @@
         "isVerified": true,
         "area": "Dhanmondi",
         "lat": 23.7461,
-        "lng": 90.3742
+        "lng": 90.3742,
+        "deliveryRadiusKm": 6,
+        "isOpen": true
     },
     {
         "id": 2,
@@ -39,7 +41,9 @@
         "isVerified": true,
         "area": "Dhanmondi",
         "lat": 23.7511,
-        "lng": 90.3802
+        "lng": 90.3802,
+        "deliveryRadiusKm": 4,
+        "isOpen": true
     },
     {
         "id": 3,
@@ -60,7 +64,9 @@
         "isVerified": true,
         "area": "Dhanmondi",
         "lat": 23.7401,
-        "lng": 90.3642
+        "lng": 90.3642,
+        "deliveryRadiusKm": 8,
+        "isOpen": false
     },
     {
         "id": 4,
@@ -80,7 +86,9 @@
         "isVerified": false,
         "area": "Dhanmondi",
         "lat": 23.7381,
-        "lng": 90.37
+        "lng": 90.37,
+        "deliveryRadiusKm": 5,
+        "isOpen": true
     },
     {
         "id": 5,
@@ -100,7 +108,9 @@
         "isVerified": true,
         "area": "Dhanmondi",
         "lat": 23.7481,
-        "lng": 90.385
+        "lng": 90.385,
+        "deliveryRadiusKm": 3,
+        "isOpen": true
     },
     {
         "id": 6,
@@ -122,7 +132,9 @@
         "isVerified": true,
         "area": "Mohammadpur",
         "lat": 23.7639,
-        "lng": 90.3612
+        "lng": 90.3612,
+        "deliveryRadiusKm": 7,
+        "isOpen": true
     },
     {
         "id": 7,
@@ -144,7 +156,9 @@
         "isVerified": true,
         "area": "Old Dhaka",
         "lat": 23.7188,
-        "lng": 90.3881
+        "lng": 90.3881,
+        "deliveryRadiusKm": 9,
+        "isOpen": true
     },
     {
         "id": 8,
@@ -165,7 +179,9 @@
         "isVerified": true,
         "area": "Mirpur",
         "lat": 23.8069,
-        "lng": 90.3687
+        "lng": 90.3687,
+        "deliveryRadiusKm": 4,
+        "isOpen": false
     },
     {
         "id": 9,
@@ -187,7 +203,9 @@
         "isVerified": true,
         "area": "Mirpur",
         "lat": 23.8223,
-        "lng": 90.3654
+        "lng": 90.3654,
+        "deliveryRadiusKm": 6,
+        "isOpen": true
     },
     {
         "id": 10,
@@ -209,7 +227,9 @@
         "isVerified": true,
         "area": "Mirpur",
         "lat": 23.8154,
-        "lng": 90.3598
+        "lng": 90.3598,
+        "deliveryRadiusKm": 5,
+        "isOpen": true
     },
     {
         "id": 11,
@@ -229,7 +249,9 @@
         "isVerified": true,
         "area": "Uttara",
         "lat": 23.8721,
-        "lng": 90.3794
+        "lng": 90.3794,
+        "deliveryRadiusKm": 8,
+        "isOpen": true
     },
     {
         "id": 12,
@@ -250,7 +272,9 @@
         "isVerified": false,
         "area": "Uttara",
         "lat": 23.8759,
-        "lng": 90.3959
+        "lng": 90.3959,
+        "deliveryRadiusKm": 3,
+        "isOpen": false
     },
     {
         "id": 13,
@@ -272,7 +296,9 @@
         "isVerified": true,
         "area": "Uttara",
         "lat": 23.8683,
-        "lng": 90.4001
+        "lng": 90.4001,
+        "deliveryRadiusKm": 7,
+        "isOpen": true
     },
     {
         "id": 14,
@@ -293,7 +319,9 @@
         "isVerified": true,
         "area": "Banani",
         "lat": 23.7936,
-        "lng": 90.4043
+        "lng": 90.4043,
+        "deliveryRadiusKm": 6,
+        "isOpen": true
     },
     {
         "id": 15,
@@ -314,7 +342,9 @@
         "isVerified": false,
         "area": "Banani",
         "lat": 23.7961,
-        "lng": 90.4008
+        "lng": 90.4008,
+        "deliveryRadiusKm": 4,
+        "isOpen": true
     },
     {
         "id": 16,
@@ -336,7 +366,9 @@
         "isVerified": true,
         "area": "Gulshan",
         "lat": 23.7925,
-        "lng": 90.4145
+        "lng": 90.4145,
+        "deliveryRadiusKm": 9,
+        "isOpen": false
     },
     {
         "id": 17,
@@ -357,7 +389,9 @@
         "isVerified": true,
         "area": "Gulshan",
         "lat": 23.7808,
-        "lng": 90.4174
+        "lng": 90.4174,
+        "deliveryRadiusKm": 5,
+        "isOpen": true
     },
     {
         "id": 18,
@@ -378,7 +412,9 @@
         "isVerified": true,
         "area": "Bashundhara",
         "lat": 23.8198,
-        "lng": 90.4283
+        "lng": 90.4283,
+        "deliveryRadiusKm": 7,
+        "isOpen": true
     },
     {
         "id": 19,
@@ -399,7 +435,9 @@
         "isVerified": true,
         "area": "Bashundhara",
         "lat": 23.8241,
-        "lng": 90.4331
+        "lng": 90.4331,
+        "deliveryRadiusKm": 3,
+        "isOpen": false
     },
     {
         "id": 20,
@@ -420,6 +458,8 @@
         "isVerified": true,
         "area": "Motijheel",
         "lat": 23.7305,
-        "lng": 90.4179
+        "lng": 90.4179,
+        "deliveryRadiusKm": 6,
+        "isOpen": true
     }
 ]

@@ -8,6 +8,8 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { normaliseArea } from '../lib/areas';
+
 const KEY = 'rannabari_kitchen';
 
 /**
@@ -231,7 +233,9 @@ export function kitchenFromAccount(account) {
     tags: tagsFromDishes(dishes),
     ecoBadge: 'Eco-Packaging',
     isVerified: false,
-    area: account?.area || 'Dhanmondi, Dhaka',
+    /* The signup map hands back a full postal address; a kitchen's area is
+       a neighbourhood, and that is what every filter and card expects. */
+    area: normaliseArea(account?.area || 'Dhanmondi'),
     lat: account?.lat ?? 23.7461,
     lng: account?.lng ?? 90.3742,
     deliveryRadiusKm: account?.deliveryRadiusKm ?? DEFAULT_RADIUS_KM,

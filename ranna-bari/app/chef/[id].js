@@ -18,6 +18,7 @@ import { useChef, useMenu } from '../../src/data';
 import { useCart } from '../../src/store/CartContext';
 import { useAuth } from '../../src/store/AuthContext';
 import { distanceKm, formatDistance } from '../../src/lib/geo';
+import { isOpenNow } from '../../src/lib/kitchen';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 export default function ChefScreen() {
@@ -54,9 +55,7 @@ export default function ChefScreen() {
     { value: n(menu.length), label: 'Dishes' },
   ];
 
-  /* Only a live kitchen carries an `isOpen` flag -- the seeded ones are
-     always taking orders, so an undefined value is not "closed". */
-  const closed = chef.isOpen === false;
+  const closed = !isOpenNow(chef);
 
   const away =
     typeof account?.lat === 'number' &&
