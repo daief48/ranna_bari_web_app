@@ -1283,6 +1283,7 @@ export const bn = {
   'Your own shelves, in the order customers will see them.':
     'আপনার নিজের তাক, ক্রেতারা যে ক্রমে দেখবেন সেভাবেই।',
   'New category': 'নতুন ক্যাটাগরি',
+  'Start from a common one': 'কমন একটি থেকে শুরু করুন',
   'Add category': 'ক্যাটাগরি যোগ করুন',
   Cake: 'কেক',
   'No categories yet': 'এখনো কোনো ক্যাটাগরি নেই',
@@ -1557,4 +1558,28 @@ export const bn = {
   'That cook has not named a price yet.': 'ওই রাঁধুনি এখনো দাম বলেননি।',
   'It is the other side’s turn.': 'এখন অন্য পক্ষের পালা।',
   'Agree a price first.': 'আগে দামে রাজি হন।',
+
+  /* ---------------- food requests: declining and walking away ---------------- */
+  'Just interested': 'শুধু আগ্রহী',
+  'Not interested': 'আগ্রহী নই',
+  'Choose a different cook': 'অন্য রাঁধুনি বাছুন',
+  'Choose a different cook?': 'অন্য রাঁধুনি বাছবেন?',
+  'This negotiation closes and the other offers come back. Your request stays open.':
+    'এই দরদাম বন্ধ হবে আর বাকি অফারগুলো ফিরে আসবে। আপনার অনুরোধ খোলা থাকবে।',
+  'Go back to the offers': 'অফারগুলোয় ফিরুন',
+  'Back to the other offers.': 'বাকি অফারগুলোয় ফেরা হলো।',
+
+  /* ---------------- food requests: the fuller status set ---------------- */
+  Selected: 'বাছাই করা',
+  'Turned down': 'নেওয়া হয়নি',
+  Expired: 'সময় পেরিয়ে গেছে',
+  'The cook passed': 'রাঁধুনি নেননি',
+  'They cannot take {title}. Try asking every cook instead.':
+    'তাঁরা {title} নিতে পারছেন না। সব রাঁধুনিকে জিজ্ঞেস করে দেখুন।',
+  'Offer turned down': 'অফার নেওয়া হয়নি',
+  '{customer} did not take your price for {title}.':
+    '{customer} {title}-এর জন্য আপনার দাম নেননি।',
+  '{n} cooks have offered': '{n} জন রাঁধুনি দাম দিয়েছেন',
+  'The lowest so far is ৳{low} for {title}.':
+    '{title}-এর জন্য এখন পর্যন্ত সবচেয়ে কম ৳{low}।',
 };

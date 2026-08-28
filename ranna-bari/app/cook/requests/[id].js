@@ -138,6 +138,14 @@ export default function CookRequestScreen() {
     setError(null);
   };
 
+  /* The other half of "interested": a cook who cannot take it says so, and
+     the request leaves their board instead of sitting there unanswered. */
+  const decline = () => {
+    const out = shop.declineRequest(request.id, kitchen.id);
+    if (!out.ok) return setError(errorText(out.error, t, n, out));
+    router.replace('/cook/requests');
+  };
+
   const withdraw = () => {
     const out = shop.withdrawOffer(offer.id);
     if (!out.ok) return setError(errorText(out.error, t, n, out));
@@ -271,16 +279,23 @@ export default function CookRequestScreen() {
               />
 
               {!offer ? (
-                <Button
-                  variant="glass"
-                  label={t('Just register interest')}
-                  block
-                  onPress={() => {
-                    setPrice('');
-                    submit();
-                  }}
-                  style={{ marginTop: 10 }}
-                />
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                  <Button
+                    variant="glass"
+                    label={t('Just interested')}
+                    onPress={() => {
+                      setPrice('');
+                      submit();
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    variant="ghost"
+                    label={t('Not interested')}
+                    onPress={decline}
+                    style={{ flex: 1 }}
+                  />
+                </View>
               ) : null}
 
               <Text

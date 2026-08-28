@@ -7,7 +7,7 @@
  * order customers see across the top of the shop.
  */
 import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import CookScreen from '../../../src/components/CookScreen';
@@ -24,7 +24,7 @@ import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
-/** Enough to pick from without opening a keyboard picker. */
+/** Fallbacks, for a shelf the platform list has no word for. */
 const EMOJI = ['🎂', '🥮', '🫙', '🍪', '🍰', '🍛', '🎁', '🍞', '🍯', '🥧', '🍮', '🧁'];
 
 export default function StoreCategories() {
@@ -120,6 +120,60 @@ export default function StoreCategories() {
               placeholder={t('Cake')}
               onSubmitEditing={add}
             />
+
+            {/* The platform's own categories, as starting points. Tapping one
+                fills the name and the icon; both stay editable, because a
+                cook's shelf is theirs to name. */}
+            {shop.taxonomy.length ? (
+              <View style={{ gap: 8 }}>
+                <Text
+                  style={{
+                    fontFamily: font.uiSemi,
+                    fontSize: type.xs,
+                    color: colors.textMuted,
+                  }}
+                >
+                  {t('Start from a common one')}
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingBottom: 4 }}
+                >
+                  {shop.taxonomy
+                    .filter((c) => !categories.some((own) => own.name === t(c.label)))
+                    .map((c) => (
+                      <Pressable
+                        key={c.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${t('Start from a common one')} ${t(c.label)}`}
+                        onPress={() => {
+                          setName(t(c.label));
+                          if (c.emoji) setEmoji(c.emoji);
+                        }}
+                        style={({ pressed }) => ({
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 6,
+                          paddingVertical: 8,
+                          paddingHorizontal: 13,
+                          borderRadius: radius.pill,
+                          backgroundColor: pressed ? colors.sage50 : colors.sunken,
+                          borderWidth: 1,
+                          borderColor: colors.line,
+                        })}
+                      >
+                        {c.emoji ? <Text style={{ fontSize: 12 }}>{c.emoji}</Text> : null}
+                        <Text
+                          style={{ fontFamily: font.uiSemi, fontSize: 12, color: colors.text }}
+                        >
+                          {t(c.label)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                </ScrollView>
+              </View>
+            ) : null}
 
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {EMOJI.map((e) => {

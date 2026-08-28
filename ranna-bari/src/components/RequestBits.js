@@ -39,6 +39,9 @@ export function requestStatusMeta(status, colors) {
     [REQUEST_STATUS.CANCELLED]: {
       label: 'Withdrawn', icon: 'x', fg: colors.textMuted, bg: colors.sunken,
     },
+    [REQUEST_STATUS.EXPIRED]: {
+      label: 'Expired', icon: 'clock', fg: colors.textMuted, bg: colors.sunken,
+    },
   }[status] ?? { label: 'Taking offers', icon: 'sparkles', fg: colors.primary, bg: colors.primary50 };
 }
 
@@ -56,8 +59,20 @@ export function offerStatusMeta(status, colors) {
     [OFFER_STATUS.AGREED]: {
       label: 'Agreed', icon: 'check', fg: colors.sage, bg: colors.sage50,
     },
+    [OFFER_STATUS.SELECTED]: {
+      label: 'Selected', icon: 'check', fg: colors.sage, bg: colors.sage50,
+    },
     [OFFER_STATUS.NOT_SELECTED]: {
       label: 'Not selected', icon: 'x', fg: colors.textMuted, bg: colors.sunken,
+    },
+    [OFFER_STATUS.DECLINED]: {
+      label: 'Declined', icon: 'x', fg: colors.textMuted, bg: colors.sunken,
+    },
+    [OFFER_STATUS.REJECTED]: {
+      label: 'Turned down', icon: 'x', fg: colors.textMuted, bg: colors.sunken,
+    },
+    [OFFER_STATUS.EXPIRED]: {
+      label: 'Expired', icon: 'clock', fg: colors.textMuted, bg: colors.sunken,
     },
     [OFFER_STATUS.WITHDRAWN]: {
       label: 'Withdrawn', icon: 'x', fg: colors.textMuted, bg: colors.sunken,

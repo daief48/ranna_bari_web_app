@@ -46,6 +46,9 @@ export const REQUEST_STATUS = {
   AGREED: 'agreed',
   ORDERED: 'ordered',
   CANCELLED: 'cancelled',
+  /* The day it was wanted for has passed and nobody paid. Kept apart from
+     cancelled: nobody withdrew it, time simply ran out. */
+  EXPIRED: 'expired',
 };
 
 /**
@@ -58,15 +61,33 @@ export const REQUEST_STATUS = {
 export const OFFER_STATUS = {
   INTERESTED: 'interested',
   PRICED: 'priced',
+  /* Chosen, but nobody has moved the price since. Distinct from negotiating
+     because "they picked me" and "we are still arguing" are different things
+     to see on a dashboard. */
+  SELECTED: 'selected',
   NEGOTIATING: 'negotiating',
   AGREED: 'agreed',
   NOT_SELECTED: 'not-selected',
+  /* The cook said no up front. */
+  DECLINED: 'declined',
+  /* The customer walked away mid-negotiation. */
+  REJECTED: 'rejected',
   WITHDRAWN: 'withdrawn',
+  EXPIRED: 'expired',
 };
 
 export const isLiveOffer = (offer) =>
-  [OFFER_STATUS.INTERESTED, OFFER_STATUS.PRICED, OFFER_STATUS.NEGOTIATING, OFFER_STATUS.AGREED]
-    .includes(offer.status);
+  [
+    OFFER_STATUS.INTERESTED,
+    OFFER_STATUS.PRICED,
+    OFFER_STATUS.SELECTED,
+    OFFER_STATUS.NEGOTIATING,
+    OFFER_STATUS.AGREED,
+  ].includes(offer.status);
+
+/** An offer the customer and cook are still going back and forth on. */
+export const isNegotiable = (offer) =>
+  [OFFER_STATUS.SELECTED, OFFER_STATUS.NEGOTIATING].includes(offer?.status);
 
 /* ------------------------------------------------------------------ *
  * reads
@@ -257,16 +278,7 @@ export function submitOffer(state, { requestId, cook, price, note, prepTime, now
       ...state,
       offers: state.offers.map((o) => (o.id === existing.id ? updated : o)),
     };
-    next = notify(next, {
-      audience: 'customer',
-      kind: 'offer-priced',
-      key: `customer:offer-priced:${existing.id}:${updated.history.length}`,
-      title: 'New offer',
-      body: '{cook} offered ৳{amount} for {title}.',
-      requestId,
-      offerId: existing.id,
-      now,
-    });
+    next = tellCustomer(next, { request, offer: updated, now });
     return done(next, updated);
   }
 
@@ -292,22 +304,213 @@ export function submitOffer(state, { requestId, cook, price, note, prepTime, now
   };
 
   let next = { ...state, seq, offers: [...state.offers, offer] };
+  next = tellCustomer(next, { request, offer, now });
+  return done(next, offer);
+}
 
-  next = notify(next, {
+/**
+ * Tell the customer a cook has answered.
+ *
+ * A broadcast that seven kitchens reply to should not produce seven
+ * notifications. Past the second offer they collapse into one line carrying
+ * the count and the cheapest so far, keyed by that count so each new arrival
+ * refreshes it exactly once. A request sent to one cook keeps the personal
+ * version, because there is nothing to summarise.
+ */
+function tellCustomer(state, { request, offer, now }) {
+  const priced = offersForRequest(state, request.id)
+    .filter(isLiveOffer)
+    .filter((o) => o.price != null);
+
+  if (request.target === 'all' && priced.length >= 2) {
+    return notify(state, {
+      audience: 'customer',
+      kind: 'offers-summary',
+      key: `customer:offers-summary:${request.id}:${priced.length}`,
+      title: '{n} cooks have offered',
+      body: 'The lowest so far is ৳{low} for {title}.',
+      requestId: request.id,
+      offerId: offer.id,
+      now,
+    });
+  }
+
+  return notify(state, {
     audience: 'customer',
-    kind: amount == null ? 'offer-interested' : 'offer-priced',
-    key: `customer:offer:${id}`,
-    title: amount == null ? 'A cook is interested' : 'New offer',
+    kind: offer.price == null ? 'offer-interested' : 'offer-priced',
+    key: `customer:offer:${offer.id}:${offer.history.length}`,
+    title: offer.price == null ? 'A cook is interested' : 'New offer',
     body:
-      amount == null
+      offer.price == null
         ? '{cook} is interested in {title}.'
         : '{cook} offered ৳{amount} for {title}.',
-    requestId,
-    offerId: id,
+    requestId: request.id,
+    offerId: offer.id,
+    now,
+  });
+}
+
+/**
+ * A cook says no up front.
+ *
+ * Recorded rather than ignored, so the request leaves their board and the
+ * customer can see somebody looked and passed -- which is more informative
+ * than silence when only one cook was asked.
+ */
+export function declineRequest(state, { requestId, kitchenId, now }) {
+  const request = requestById(state, requestId);
+  if (!request) return fail(state, ERR.NO_REQUEST);
+  if (!(request.eligible ?? []).some((k) => String(k) === String(kitchenId))) {
+    return fail(state, ERR.NOT_ELIGIBLE);
+  }
+
+  const existing = offerForCook(state, requestId, kitchenId);
+  if (existing?.status === OFFER_STATUS.AGREED) return fail(state, ERR.ALREADY_SETTLED);
+  if (existing && !isLiveOffer(existing)) return fail(state, ERR.OFFER_CLOSED);
+
+  let next;
+  if (existing) {
+    next = {
+      ...state,
+      offers: state.offers.map((o) =>
+        o.id === existing.id ? { ...o, status: OFFER_STATUS.DECLINED } : o,
+      ),
+    };
+  } else {
+    const [seq, id] = bump(state, 'off');
+    next = {
+      ...state,
+      seq,
+      offers: [
+        ...state.offers,
+        {
+          id,
+          requestId,
+          kitchenId,
+          cookName: '',
+          cookAvatar: '',
+          rating: 0,
+          reviewCount: 0,
+          area: '',
+          lat: null,
+          lng: null,
+          price: null,
+          note: '',
+          prepTime: '',
+          status: OFFER_STATUS.DECLINED,
+          history: [],
+          agreedPrice: null,
+          createdAt: now,
+        },
+      ],
+    };
+  }
+
+  /* Worth telling the customer only when they asked one cook. On a broadcast
+     it is noise -- what matters there is who said yes. */
+  if (request.target !== 'all') {
+    next = notify(next, {
+      audience: 'customer',
+      kind: 'offer-declined',
+      key: `customer:offer-declined:${requestId}`,
+      title: 'The cook passed',
+      body: 'They cannot take {title}. Try asking every cook instead.',
+      requestId,
+      now,
+    });
+
+    /* That was the only cook who could answer, so the request is done. */
+    if (request.status === REQUEST_STATUS.OPEN) {
+      next = {
+        ...next,
+        requests: next.requests.map((r) =>
+          r.id === requestId ? { ...r, status: REQUEST_STATUS.CANCELLED, closedAt: now } : r,
+        ),
+      };
+    }
+  }
+
+  return done(next, null);
+}
+
+/**
+ * The customer walks away from one negotiation without abandoning the
+ * request.
+ *
+ * Withdrawing the whole thing would throw away every other offer too, which
+ * is a heavy price for one cook holding out over ৳200. This puts the request
+ * back on the table with the offers that were closed out restored.
+ */
+export function rejectOffer(state, { offerId, reason, now }) {
+  const offer = state.offers.find((o) => o.id === offerId);
+  if (!offer) return fail(state, ERR.NO_OFFER);
+  if (offer.status === OFFER_STATUS.AGREED) return fail(state, ERR.ALREADY_SETTLED);
+  if (!isNegotiable(offer)) return fail(state, ERR.OFFER_CLOSED);
+
+  let next = {
+    ...state,
+    offers: state.offers.map((o) =>
+      o.id === offerId ? { ...o, status: OFFER_STATUS.REJECTED, cancelReason: reason } : o,
+    ),
+  };
+
+  next = {
+    ...next,
+    offers: next.offers.map((o) =>
+      o.requestId === offer.requestId && o.status === OFFER_STATUS.NOT_SELECTED
+        ? { ...o, status: o.price == null ? OFFER_STATUS.INTERESTED : OFFER_STATUS.PRICED }
+        : o,
+    ),
+    requests: next.requests.map((r) =>
+      r.id === offer.requestId
+        ? { ...r, status: REQUEST_STATUS.OPEN, selectedOfferId: null }
+        : r,
+    ),
+  };
+
+  next = notify(next, {
+    audience: 'cook',
+    kind: 'offer-rejected',
+    key: `cook:offer-rejected:${offerId}`,
+    title: 'Offer turned down',
+    body: '{customer} did not take your price for {title}.',
+    requestId: offer.requestId,
+    offerId,
     now,
   });
 
-  return done(next, offer);
+  return done(next, requestById(next, offer.requestId));
+}
+
+/**
+ * Close out requests whose day has been and gone.
+ *
+ * Nothing financial happens: money only moves at payment, and an expired
+ * request never got that far. It stops a board filling with things nobody
+ * can act on any more.
+ */
+export function expireRequests(state, { today, now }) {
+  const stale = state.requests.filter(
+    (r) =>
+      r.wantedDate &&
+      r.wantedDate < today &&
+      [REQUEST_STATUS.OPEN, REQUEST_STATUS.SELECTED, REQUEST_STATUS.AGREED].includes(r.status),
+  );
+  if (!stale.length) return done(state, 0);
+
+  const ids = new Set(stale.map((r) => r.id));
+  return done(
+    {
+      ...state,
+      requests: state.requests.map((r) =>
+        ids.has(r.id) ? { ...r, status: REQUEST_STATUS.EXPIRED, closedAt: now } : r,
+      ),
+      offers: state.offers.map((o) =>
+        ids.has(o.requestId) && isLiveOffer(o) ? { ...o, status: OFFER_STATUS.EXPIRED } : o,
+      ),
+    },
+    stale.length,
+  );
 }
 
 /** A cook pulls out before being chosen. */
@@ -379,7 +582,9 @@ export function selectOffer(state, { requestId, offerId, now }) {
     ),
     offers: state.offers.map((o) => {
       if (o.requestId !== requestId) return o;
-      if (o.id === offerId) return { ...o, status: OFFER_STATUS.NEGOTIATING };
+      if (o.id === offerId) {
+        return { ...o, status: OFFER_STATUS.SELECTED, selectedAt: now };
+      }
       return isLiveOffer(o) ? { ...o, status: OFFER_STATUS.NOT_SELECTED } : o;
     }),
   };
@@ -429,7 +634,7 @@ export function counterOffer(state, { offerId, by, amount, now }) {
   const offer = state.offers.find((o) => o.id === offerId);
   if (!offer) return fail(state, ERR.NO_OFFER);
   if (offer.status === OFFER_STATUS.AGREED) return fail(state, ERR.ALREADY_SETTLED);
-  if (offer.status !== OFFER_STATUS.NEGOTIATING) return fail(state, ERR.OFFER_CLOSED);
+  if (!isNegotiable(offer)) return fail(state, ERR.OFFER_CLOSED);
   if (turnOf(offer) !== by) return fail(state, ERR.NOT_YOUR_TURN);
 
   const value = Math.round(Number(amount));
@@ -438,6 +643,7 @@ export function counterOffer(state, { offerId, by, amount, now }) {
   const updated = {
     ...offer,
     price: value,
+    status: OFFER_STATUS.NEGOTIATING,
     history: [...offer.history, { by, amount: value, at: now }],
   };
 
@@ -471,7 +677,7 @@ export function acceptPrice(state, { offerId, by, now }) {
   const offer = state.offers.find((o) => o.id === offerId);
   if (!offer) return fail(state, ERR.NO_OFFER);
   if (offer.status === OFFER_STATUS.AGREED) return fail(state, ERR.ALREADY_SETTLED);
-  if (offer.status !== OFFER_STATUS.NEGOTIATING) return fail(state, ERR.OFFER_CLOSED);
+  if (!isNegotiable(offer)) return fail(state, ERR.OFFER_CLOSED);
 
   const last = standing(offer);
   if (!last) return fail(state, ERR.NO_PRICE_YET);

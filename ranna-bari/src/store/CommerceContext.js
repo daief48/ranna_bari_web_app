@@ -426,10 +426,15 @@ export function CommerceProvider({ children }) {
     if (remindedRef.current === today) return;
     remindedRef.current = today;
 
-    const out = L.remindReceipts(live.current, { now: Date.now(), today });
-    if (out.ok && out.state !== live.current) {
-      live.current = out.state;
-      setState(out.state);
+    let next = live.current;
+    const reminded = L.remindReceipts(next, { now: Date.now(), today });
+    if (reminded.ok) next = reminded.state;
+    const expired = R.expireRequests(next, { today, now: Date.now() });
+    if (expired.ok) next = expired.state;
+
+    if (next !== live.current) {
+      live.current = next;
+      setState(next);
     }
   }, [hydrated]);
 
@@ -627,6 +632,9 @@ export function CommerceProvider({ children }) {
       counterOffer: (offerId, by, amount) => mutate(R.counterOffer, { offerId, by, amount }),
       acceptPrice: (offerId, by) => mutate(R.acceptPrice, { offerId, by }),
       payForRequest: (requestId, customer) => mutate(R.payForRequest, { requestId, customer }),
+      declineRequest: (requestId, kitchenId) =>
+        mutate(R.declineRequest, { requestId, kitchenId }),
+      rejectOffer: (offerId, reason) => mutate(R.rejectOffer, { offerId, reason }),
     };
   }, [state, hydrated, mutate, kitchen]);
 

@@ -131,6 +131,16 @@ export default function RequestScreen() {
     router.replace(`/request-order/${out.result.id}`);
   };
 
+  /* Leaving one negotiation without abandoning the request. The other
+     offers come back, so this is a much smaller step than withdrawing. */
+  const walkAway = () => {
+    setAsking(null);
+    const out = shop.rejectOffer(selected.id, 'The customer went elsewhere');
+    if (!out.ok) return setError(errorText(out.error, t, n, out));
+    setError(null);
+    setFlash(t('Back to the other offers.'));
+  };
+
   const cancel = () => {
     setAsking(null);
     const out = shop.cancelRequest(request.id);
@@ -333,6 +343,16 @@ export default function RequestScreen() {
               </View>
             ) : null}
 
+            {/* ---- walk away from this one ---- */}
+            {request.status === REQUEST_STATUS.SELECTED ? (
+              <Button
+                variant="ghost"
+                label={t('Choose a different cook')}
+                block
+                onPress={() => setAsking('walk')}
+              />
+            ) : null}
+
             {/* ---- pay ---- */}
             {request.status === REQUEST_STATUS.AGREED ? (
               <View style={{ gap: 12 }}>
@@ -469,6 +489,17 @@ export default function RequestScreen() {
         )}
         confirmLabel={t('Pay now')}
         onConfirm={pay}
+        onClose={() => setAsking(null)}
+      />
+
+      <Confirm
+        open={asking === 'walk'}
+        title={t('Choose a different cook?')}
+        body={t(
+          'This negotiation closes and the other offers come back. Your request stays open.',
+        )}
+        confirmLabel={t('Go back to the offers')}
+        onConfirm={walkAway}
         onClose={() => setAsking(null)}
       />
 
