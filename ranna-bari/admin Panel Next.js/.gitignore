@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+build/
+next-env.d.ts
+
+# local database — recreate with: npm run setup
+*.db
+*.db-journal
+prisma/dev.db*
+
+# secrets. .env.example is committed, .env is not
+.env
+.env.local
+.env*.local
+
+# generated prisma client
+node_modules/.prisma/
+
+# logs and scratch
+*.log
+npm-debug.log*
+dev.log
+*.tsbuildinfo
+
+# editors and os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

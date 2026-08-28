@@ -1,0 +1,690 @@
+// RannaBari Admin — data model.
+//
+// Field names are copied verbatim from the Expo app (`../User and Cook App`).
+// The mobile client will read this back, so nothing here is renamed for taste.
+//
+// SQLite is the local-dev provider because it needs no server. It has no
+// native array or JSON column, so every list/object field is a String holding
+// JSON and is parsed by `lib/mappers.ts` on the way out. Switching to
+// Postgres is a provider swap plus turning those columns into `Json` /
+// `String[]` — the mappers are the only thing that changes.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- identity
+
+/// An app account. `role` is 'user' | 'cook'.
+model Account {
+  id               String  @id @default(cuid())
+  /// (email || phone || 'guest').toLowerCase() — the stable identity string.
+  customerKey      String  @unique
+  role             String
+  name             String
+  phone            String?
+  email            String?
+  kitchenName      String? // the cook's kitchen name from signup ("kitchen")
+  specialty        String?
+  /// National ID. KYC only — never returned on a customer-facing endpoint.
+  nid              String?
+  area             String?
+  lat              Float?
+  lng              Float?
+  addressDetail    String?
+  addressLabel     String?
+  deliveryRadiusKm Float?
+  avatar           String?
+
+  /// Admin-side. Not in the app: an operator needs to stop an account.
+  suspended       Boolean   @default(false)
+  suspendedReason String?
+
+  signedInAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  kitchen Kitchen?
+
+  @@index([role])
+  @@index([suspended])
+}
+
+model Kitchen {
+  id          String  @id @default(cuid())
+  accountId   String? @unique
+  name        String
+  ownerName   String
+  avatar      String
+  coverImage  String
+  specialty   String
+  description String
+
+  rating      Float @default(0)
+  reviewCount Int   @default(0)
+
+  /// JSON string[] — derived from the kitchen's dishes.
+  tags        String  @default("[]")
+  ecoBadge    String  @default("Eco-Packaging")
+  isVerified  Boolean @default(false)
+
+  area             String
+  lat              Float
+  lng              Float
+  deliveryRadiusKm Float   @default(3)
+  isOpen           Boolean @default(false)
+
+  /// Admin-side suspension. Hides the kitchen from browse regardless of isOpen.
+  suspended       Boolean @default(false)
+  suspendedReason String?
+
+  /// KYC. 'pending' | 'approved' | 'rejected'
+  kycStatus   String    @default("pending")
+  kycNote     String?
+  kycDecidedAt DateTime?
+  kycDecidedBy String?
+
+  nextDishSeq Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  account  Account?  @relation(fields: [accountId], references: [id])
+  dishes   Dish[]
+  meals    Meal[]
+  store    Store?
+  orders   Order[]
+  offers   Offer[]
+  reviews  Review[]
+
+  @@index([area])
+  @@index([isVerified])
+  @@index([kycStatus])
+  @@index([suspended])
+}
+
+model Dish {
+  id          String  @id @default(cuid())
+  kitchenId   String
+  name        String
+  description String
+  price       Int
+  image       String
+  /// JSON string[]
+  tags        String  @default("[]")
+  available   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  kitchen   Kitchen  @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+
+  @@index([kitchenId])
+}
+
+// ---------------------------------------------------------------- commerce
+
+model Meal {
+  id           String @id @default(cuid())
+  code         String @unique
+  kitchenId    String
+  cookName     String
+  title        String
+  description  String
+  image        String
+  price        Int
+  capacity     Int
+
+  /// Local calendar day 'YYYY-MM-DD' in Asia/Dhaka. Never a UTC timestamp.
+  serveDate    String
+  /// 'breakfast' | 'lunch' | 'dinner'
+  slot         String
+  deadline     DateTime
+
+  /// 'delivery' | 'pickup'
+  handover     String  @default("delivery")
+  handoverNote String  @default("")
+
+  area             String
+  lat              Float
+  lng              Float
+  deliveryRadiusKm Float
+
+  /// 'published' | 'closed' | 'cancelled'
+  status       String  @default("published")
+  cancelReason String?
+
+  /// JSON customerKey[]
+  interested String @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  kitchen Kitchen @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  orders  Order[]
+
+  @@index([kitchenId])
+  @@index([status])
+  @@index([serveDate, slot])
+}
+
+model Store {
+  id          String  @id @default(cuid())
+  kitchenId   String  @unique
+  name        String  @default("")
+  tagline     String  @default("")
+  description String  @default("")
+  logo        String  @default("")
+  cover       String  @default("")
+  phone       String  @default("")
+
+  area             String  @default("")
+  lat              Float?
+  lng              Float?
+  deliveryRadiusKm Float?
+  deliveryFee      Int     @default(0)
+  freeDeliveryOver Int?
+  isOpen           Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  kitchen    Kitchen         @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  categories StoreCategory[]
+  products   Product[]
+  orders     Order[]
+
+  @@index([isOpen])
+}
+
+/// One cook's shelves. Distinct from TaxonomyCategory, which is platform-wide.
+model StoreCategory {
+  id      String @id @default(cuid())
+  storeId String
+  name    String
+  emoji   String @default("")
+  order   Int    @default(0)
+
+  createdAt DateTime  @default(now())
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products  Product[]
+
+  @@index([storeId, order])
+}
+
+model Product {
+  id          String  @id @default(cuid())
+  storeId     String
+  categoryId  String?
+  name        String
+  description String  @default("")
+  /// JSON string[]
+  images      String  @default("[]")
+
+  price  Int @default(0)
+  stock  Int @default(0)
+  minQty Int @default(1)
+  maxQty Int?
+
+  active   Boolean @default(true)
+  preorder Boolean @default(false)
+
+  prepTime     String @default("")
+  deliveryNote String @default("")
+  /// JSON {label, price}[] | null
+  options      String?
+
+  /// Admin-side: when stock last hit zero, so the stock alarm can age it.
+  outOfStockSince DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store    Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category StoreCategory? @relation(fields: [categoryId], references: [id])
+
+  @@index([storeId])
+  @@index([active, stock])
+}
+
+/// The platform's shared category vocabulary. Gap #5 — the "future admin screen".
+model TaxonomyCategory {
+  id      String  @id @default(cuid())
+  key     String  @unique
+  label   String
+  emoji   String  @default("")
+  order   Int     @default(0)
+  retired Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([order])
+}
+
+// -------------------------------------------------- requests and bidding
+
+model Request {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  customerKey String
+  title       String
+  description String  @default("")
+  quantity    Int     @default(1)
+  budget      Int?
+
+  /// 'all' for a broadcast, otherwise a kitchenId.
+  target   String @default("all")
+  /// JSON kitchenId[] the broadcast actually reached. Empty = coverage bug.
+  eligible String @default("[]")
+
+  wantedFor String?
+  category  String?
+  area      String?
+  lat       Float?
+  lng       Float?
+
+  /// open | selected | agreed | ordered | cancelled | expired
+  status          String  @default("open")
+  selectedOfferId String?
+  orderId         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  offers Offer[]
+
+  @@index([status])
+  @@index([customerKey])
+}
+
+model Offer {
+  id        String @id @default(cuid())
+  requestId String
+  kitchenId String
+  cookName  String
+
+  /// interested | priced | selected | negotiating | agreed
+  /// | not-selected | declined | rejected | withdrawn | expired
+  status String @default("interested")
+
+  price       Int?
+  agreedPrice Int?
+  note        String @default("")
+  prepTime    String @default("")
+
+  /// JSON [{ by: 'cook'|'customer', amount, at }] — append-only. Never rewritten.
+  history String @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  kitchen Kitchen @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, kitchenId])
+  @@index([status])
+}
+
+// ------------------------------------------------------------------ orders
+
+model Order {
+  id   String @id @default(cuid())
+  code String @unique
+
+  /// 'cod' | 'meal' | 'store' | 'request'
+  kind String
+
+  mealId    String?
+  storeId   String?
+  requestId String?
+  offerId   String?
+
+  kitchenId String
+  cookName  String
+  title     String
+  image     String @default("")
+
+  customerKey  String
+  customerName String
+  phone        String @default("")
+  /// JSON { label, line, area, instructions }
+  address      String @default("null")
+
+  /// 'delivery' | 'pickup'
+  handover  String  @default("delivery")
+  serveDate String?
+  slot      String?
+
+  /// JSON line[] for store and COD orders.
+  lines String @default("[]")
+
+  subtotal    Int @default(0)
+  deliveryFee Int @default(0)
+  platformFee Int @default(0)
+  price       Int @default(0)
+  amount      Int @default(0)
+
+  preorder Boolean @default(false)
+
+  /// COD rail:    placed | accepted | cooking | on_the_way | delivered
+  /// Escrow rail: pending | confirmed | preparing | ready | delivering
+  ///              | delivered | completed
+  /// Both:        cancelled | rejected
+  status String
+
+  /// 'cod' | 'held' | 'released' | 'refunded'
+  payment String @default("held")
+
+  /// The cook's share, computed at release. Null until money moves.
+  cookAmount     Int?
+  /// The platform's share at release. Gap #2.
+  platformAmount Int?
+
+  rejectReason String?
+  cancelReason String?
+
+  /// JSON [{ status, at, by? }]
+  history String @default("[]")
+
+  deliveredAt DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  kitchen Kitchen       @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  meal    Meal?         @relation(fields: [mealId], references: [id])
+  store   Store?        @relation(fields: [storeId], references: [id])
+  ledger  LedgerEntry[]
+  dispute Dispute?
+
+  @@index([kind])
+  @@index([status])
+  @@index([kitchenId])
+  @@index([customerKey])
+  @@index([payment, deliveredAt])
+  @@index([createdAt])
+}
+
+// ------------------------------------------------------------------ money
+
+/// APPEND-ONLY. No update, no delete — enforced in `lib/logic/ledger.ts` and
+/// by the triggers in `prisma/append-only.sql`. A correction is a new entry
+/// in the opposite direction.
+model LedgerEntry {
+  id String @id @default(cuid())
+
+  /// topup | hold | release | refund | commission | payout | adjustment
+  kind String
+
+  amount Int
+
+  /// 'customer' | 'held' | 'cook' | 'platform'
+  from String
+  /// 'customer' | 'held' | 'cook' | 'platform'
+  to   String
+
+  /// Which customer/kitchen the `from` side belongs to. The app's three
+  /// buckets are global; a real panel needs per-party balances too.
+  fromRef String?
+  toRef   String?
+
+  mealId  String?
+  orderId String?
+  /// Set on payout entries so a run can be reconciled.
+  payoutRunId String?
+
+  note String @default("")
+
+  /// Idempotency guard. A double-clicked "Release" writes one row.
+  idemKey String? @unique
+
+  at DateTime @default(now())
+
+  order     Order?     @relation(fields: [orderId], references: [id])
+  payoutRun PayoutRun? @relation(fields: [payoutRunId], references: [id])
+
+  @@index([kind])
+  @@index([from])
+  @@index([to])
+  @@index([at])
+  @@index([toRef])
+  @@index([fromRef])
+}
+
+/// A batch of cook payouts. Gap #8.
+model PayoutRun {
+  id        String @id @default(cuid())
+  code      String @unique
+  /// 'draft' | 'paid' | 'cancelled'
+  status    String @default("draft")
+  method    String @default("bKash")
+  note      String @default("")
+
+  total     Int    @default(0)
+  cookCount Int    @default(0)
+
+  createdBy String
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
+  paidBy    String?
+
+  items  PayoutItem[]
+  ledger LedgerEntry[]
+
+  @@index([status])
+}
+
+model PayoutItem {
+  id          String @id @default(cuid())
+  payoutRunId String
+  kitchenId   String
+  kitchenName String
+  amount      Int
+
+  run PayoutRun @relation(fields: [payoutRunId], references: [id], onDelete: Cascade)
+
+  @@unique([payoutRunId, kitchenId])
+}
+
+/// A wallet top-up as the app recorded it, plus whatever the PSP says. Gap #9.
+model TopUp {
+  id          String @id @default(cuid())
+  customerKey String
+  amount      Int
+  method      String @default("bKash")
+
+  /// 'matched' | 'orphan' | 'disputed'
+  reconciled  String  @default("orphan")
+  /// The payment-service-provider reference, when there is one.
+  pspRef      String?
+  pspAmount   Int?
+  note        String  @default("")
+
+  ledgerEntryId String?
+  at            DateTime @default(now())
+
+  @@index([reconciled])
+  @@index([customerKey])
+}
+
+// ---------------------------------------------------------------- disputes
+
+model Dispute {
+  id      String @id @default(cuid())
+  code    String @unique
+  orderId String @unique
+
+  /// 'open' | 'investigating' | 'resolved'
+  status String @default("open")
+  /// 'customer' | 'cook' | 'admin'
+  openedBy String @default("admin")
+  reason   String
+
+  /// 'refund' | 'release' | 'split' | 'no-action'
+  resolution      String?
+  resolutionNote  String?
+  refundAmount    Int?
+  releaseAmount   Int?
+
+  /// JSON [{ at, by, text }]
+  notes String @default("[]")
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+  resolvedBy String?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+// ----------------------------------------------------------------- content
+
+model Review {
+  id          String @id @default(cuid())
+  kitchenId   String
+  customerKey String @default("")
+  name        String
+  avatar      String @default("")
+  area        String @default("")
+  rating      Int
+  text        String
+
+  /// Moderation. Hidden reviews are excluded from the kitchen's rating.
+  hidden      Boolean   @default(false)
+  hiddenBy    String?
+  hiddenAt    DateTime?
+  hiddenNote  String?
+
+  date      String
+  createdAt DateTime @default(now())
+
+  kitchen Kitchen @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+
+  @@index([kitchenId])
+  @@index([hidden])
+}
+
+model Notification {
+  id  String @id @default(cuid())
+  /// The dedupe key. Unique only while unread — see lib/logic/notify.ts.
+  key String
+
+  /// 'customer' | 'cook'
+  audience String
+  kind     String
+  title    String
+  body     String
+
+  /// Narrow the audience. Null = everyone in it.
+  customerKey String?
+  kitchenId   String?
+  zone        String?
+
+  mealId    String?
+  orderId   String?
+  requestId String?
+  offerId   String?
+
+  /// Set when an operator sent it rather than the app.
+  broadcastBy String?
+
+  read Boolean  @default(false)
+  at   DateTime @default(now())
+
+  @@index([audience, read])
+  @@index([key])
+  @@index([at])
+}
+
+// ----------------------------------------------------------- configuration
+
+/// A delivery zone. Replaces the hardcoded KNOWN_AREAS array. Gap #4.
+model Zone {
+  id       String  @id @default(cuid())
+  name     String  @unique
+  active   Boolean @default(true)
+  /// Per-zone overrides. Null falls back to the platform Setting.
+  deliveryFee Int?
+  platformFee Int?
+  lat      Float?
+  lng      Float?
+  order    Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([active])
+}
+
+/// Platform configuration, one row per key, value is JSON. Gaps #3 and #7.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
+model FeatureFlag {
+  key         String   @id
+  enabled     Boolean  @default(true)
+  description String   @default("")
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+}
+
+// ------------------------------------------------------------ admin access
+
+model AdminUser {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  name         String
+  /// scrypt, as `salt:hash`. See lib/auth.ts.
+  passwordHash String
+  /// 'superadmin' | 'ops' | 'finance' | 'support'
+  role         String  @default("support")
+  active       Boolean @default(true)
+
+  /// base32 TOTP secret. Null until the operator enrols.
+  totpSecret  String?
+  totpEnabled Boolean @default(false)
+
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  audits AuditLog[]
+
+  @@index([role])
+}
+
+/// Every state-changing action in the panel writes one of these.
+/// Money actions are worthless without it.
+model AuditLog {
+  id          String @id @default(cuid())
+  actorId     String?
+  actorEmail  String
+  actorRole   String
+
+  action     String
+  targetType String
+  targetId   String
+  summary    String @default("")
+
+  /// JSON snapshot before and after. Null where not applicable.
+  before String?
+  after  String?
+
+  ip String?
+  at DateTime @default(now())
+
+  actor AdminUser? @relation(fields: [actorId], references: [id])
+
+  @@index([at])
+  @@index([targetType, targetId])
+  @@index([actorEmail])
+  @@index([action])
+}

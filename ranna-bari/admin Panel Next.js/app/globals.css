@@ -1,0 +1,321 @@
+@import 'tailwindcss';
+
+/*
+ * RannaBari Admin.
+ *
+ * The palette is the app's, ported from `src/theme/tokens.js` — 朱色 vermilion
+ * over washi paper, 松葉色 sage, 山吹色 saffron, on a green-black in the dark.
+ * The *density* is not the app's: this is a desk tool. Tighter rhythm, real
+ * tables, no decorative motion, and colour used to mean something rather than
+ * to decorate.
+ *
+ * The status legend is fixed and used everywhere:
+ *   vermilion — destructive, and money leaving
+ *   sage      — healthy, settled, paid
+ *   saffron   — needs a human: ageing escrow, pending KYC, stock at zero
+ *   ink3      — inert, closed, nothing to do
+ */
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root {
+  --primary-50: #fcefea;
+  --primary-100: #f7d8ce;
+  --primary-200: #eaab97;
+  --primary-300: #db7a5f;
+  --primary: #c7381a;
+  --primary-600: #a62b10;
+  --primary-700: #7f1f0a;
+
+  --sage: #55703f;
+  --sage-50: #eff3ea;
+  --sage-100: #dce5d2;
+
+  --saffron: #b8850f;
+  --saffron-50: #fcf4e0;
+  --saffron-100: #f6e5b9;
+
+  --ink: #1f1d1a;
+  --ink2: #5b564e;
+  --ink3: #928b7f;
+
+  --canvas: #faf7f0;
+  --raised: #ffffff;
+  --sunken: #f5f0e5;
+  --line: rgb(31 29 26 / 0.1);
+  --line2: rgb(31 29 26 / 0.06);
+
+  --geo: #2f7df6;
+  --on-primary: #ffffff;
+
+  /* Warm, ink-tinted depth. Flat black reads as cheap. */
+  --shadow-xs: 0 1px 2px rgb(31 29 26 / 0.05);
+  --shadow-sm: 0 2px 5px rgb(31 29 26 / 0.07);
+  --shadow-md: 0 8px 16px rgb(31 29 26 / 0.13);
+  --shadow-lg: 0 18px 30px rgb(31 29 26 / 0.19);
+
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --primary-50: rgb(239 106 61 / 0.14);
+  --primary-100: rgb(239 106 61 / 0.22);
+  --primary-200: #c7522c;
+  --primary-300: #d95e33;
+  --primary: #ef6a3d;
+  --primary-600: #ff875f;
+  --primary-700: #7f1f0a;
+
+  --sage: #8fae72;
+  --sage-50: rgb(143 174 114 / 0.15);
+  --sage-100: rgb(143 174 114 / 0.24);
+
+  --saffron: #e8be5a;
+  --saffron-50: rgb(232 190 90 / 0.15);
+  --saffron-100: rgb(232 190 90 / 0.24);
+
+  --ink: #eceae1;
+  --ink2: #a5aca2;
+  --ink3: #6c756e;
+
+  --canvas: #101613;
+  --raised: #1a211c;
+  --sunken: #0b0f0d;
+  --line: rgb(236 234 225 / 0.11);
+  --line2: rgb(236 234 225 / 0.06);
+
+  /* Dark-mode vermilion is bright enough that white drops to 3.1:1 and fails
+     AA, so text on a primary fill flips to sumi. */
+  --on-primary: #221a15;
+
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-sm: 0 2px 6px rgb(0 0 0 / 0.45);
+  --shadow-md: 0 8px 18px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 18px 34px rgb(0 0 0 / 0.55);
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-primary: var(--primary);
+  --color-primary-50: var(--primary-50);
+  --color-primary-100: var(--primary-100);
+  --color-primary-200: var(--primary-200);
+  --color-primary-300: var(--primary-300);
+  --color-primary-600: var(--primary-600);
+  --color-primary-700: var(--primary-700);
+
+  --color-sage: var(--sage);
+  --color-sage-50: var(--sage-50);
+  --color-sage-100: var(--sage-100);
+
+  --color-saffron: var(--saffron);
+  --color-saffron-50: var(--saffron-50);
+  --color-saffron-100: var(--saffron-100);
+
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink2);
+  --color-ink3: var(--ink3);
+
+  --color-canvas: var(--canvas);
+  --color-raised: var(--raised);
+  --color-sunken: var(--sunken);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-geo: var(--geo);
+  --color-on-primary: var(--on-primary);
+
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-bengali: var(--font-bengali), var(--font-inter), sans-serif;
+
+  --radius-xs: 8px;
+  --radius-sm: 14px;
+  --radius-md: 22px;
+  --radius-lg: 30px;
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+}
+
+/* ------------------------------------------------------------------ *
+ * base
+ * ------------------------------------------------------------------ */
+
+* {
+  border-color: var(--line);
+}
+
+html {
+  background: var(--canvas);
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Bengali never takes letter-spacing.
+ *
+ * Tracking pulls a Bengali word apart at its conjunct clusters and detaches
+ * the matra — the horizontal bar that runs unbroken across the whole word —
+ * so what reads as refinement in Latin reads as broken text here.
+ */
+.bn,
+[lang='bn'] {
+  font-family: var(--font-bengali), var(--font-inter), sans-serif;
+  letter-spacing: 0 !important;
+}
+
+.label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+
+.label.bn,
+[lang='bn'] .label {
+  letter-spacing: 0;
+}
+
+/* Tabular figures everywhere a number sits in a column. Money that does not
+   line up cannot be scanned, and scanning is most of this job. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+::selection {
+  background: var(--primary-100);
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ *
+ * focus — this tool is meant to be driven from the keyboard
+ * ------------------------------------------------------------------ */
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ------------------------------------------------------------------ *
+ * scrollbars
+ * ------------------------------------------------------------------ */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink3) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--ink3);
+  background-clip: content-box;
+}
+
+/* ------------------------------------------------------------------ *
+ * primitives used across every module
+ * ------------------------------------------------------------------ */
+
+.card {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow-xs);
+}
+
+.tbl {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.tbl thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--sunken);
+  color: var(--ink3);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 9px 12px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--line);
+}
+
+.tbl tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line2);
+  vertical-align: middle;
+}
+
+.tbl tbody tr:hover {
+  background: var(--sunken);
+}
+
+.tbl tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Wide content scrolls inside its own box. The page body never scrolls
+   sideways — a horizontal scrollbar under the whole app loses the sidebar. */
+.scroll-x {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

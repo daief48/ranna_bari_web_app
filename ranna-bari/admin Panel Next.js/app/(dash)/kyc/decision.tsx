@@ -1,0 +1,55 @@
+'use client';
+
+import { useState } from 'react';
+
+import { decideKyc } from '@/actions/kitchens';
+import { ActionButton } from '@/components/ui/client';
+
+/**
+ * Approve or reject one cook.
+ *
+ * A rejection requires a note because the cook is sent it verbatim — a
+ * rejection that arrives as silence is indistinguishable from the queue being
+ * slow, and the cook has no way to fix whatever was wrong.
+ */
+export function KycDecision({ kitchenId, name }: { kitchenId: string; name: string }) {
+  const [note, setNote] = useState('');
+
+  return (
+    <div>
+      <div className="label mb-1.5">Decision</div>
+
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        rows={3}
+        placeholder="Note — optional to approve, required to reject. The cook is sent this."
+        className="mb-2 w-full resize-y rounded-[10px] border border-line bg-canvas px-2.5 py-2 text-[12.5px] outline-none placeholder:text-ink3 focus:border-primary-200"
+      />
+
+      <div className="flex flex-wrap gap-2">
+        <ActionButton
+          action={() => decideKyc(kitchenId, 'approved', note)}
+          variant="good"
+          confirm={`Verify ${name}? The badge goes live immediately.`}
+        >
+          Approve
+        </ActionButton>
+
+        <ActionButton
+          action={() => decideKyc(kitchenId, 'rejected', note)}
+          variant="danger"
+          disabled={!note.trim()}
+          title={note.trim() ? undefined : 'A rejection needs a reason'}
+        >
+          Reject
+        </ActionButton>
+      </div>
+
+      <p className="mt-2.5 text-[11px] leading-relaxed text-ink3">
+        Approving writes <code>isVerified: true</code> and stamps who decided it.
+        Both outcomes notify the cook and land in the audit log.
+      </p>
+    </div>
+  );
+}
