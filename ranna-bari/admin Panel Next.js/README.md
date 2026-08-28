@@ -12,7 +12,7 @@ Next.js 16 (App Router) · TypeScript · Prisma · Tailwind v4
 ```bash
 npm install
 npm run setup      # creates the SQLite database and seeds it
-npm run dev        # http://localhost:3100
+npm run dev        # http://localhost:3100 — Next + the chat socket, one process
 ```
 
 Sign in with any of the four seeded operators, all with the password
@@ -57,6 +57,7 @@ the top, so the panel explains itself to whoever inherits it.
 | Reviews are a static JSON file, unmoderated | `/reviews` |
 | Nobody can see the request/bidding market | `/requests` |
 | Notifications are client-generated only | `/notifications` |
+| **Nobody could message anybody.** A `tel:` link, cook→customer only; the customer saw their own number and had no way back | `/chat` + the app |
 
 Plus what the app never had at all: a dashboard, an audit log, and roles.
 
@@ -212,3 +213,99 @@ Named so the gaps are known rather than discovered:
   in by a human. A bKash webhook would replace that.
 - **The dashboard map** in the original brief is a set of counters, not a map.
 - **Write endpoints for the app** — only reads are exposed so far.
+
+---
+
+## Live chat
+
+Three lanes, one shape — an order thread between a customer and their cook, a
+request thread while a bespoke job is negotiated, and a support thread with
+the desk. `/chat` is the operator's side; `app/chat/*` in the Expo app is
+everyone else's.
+
+### Why WebSocket
+
+React Native has `WebSocket` as a **built-in global** (`setUpXHR.js`
+polyfills it), working the same on iOS, Android and Expo web. It has no
+`EventSource`, so server-sent events would mean shipping a polyfill to get a
+transport that is one-directional anyway. Polling a chat is a request per user
+per second to say nothing happened.
+
+That is why `npm run dev` runs `server.ts` rather than `next dev`: Next still
+handles every HTTP request, and the custom server claims only the `upgrade`
+event on `/ws`. **This needs a host that runs Node continuously** — a VPS,
+Railway, Render, Fly. Vercel's functions cannot hold a socket open. SQLite
+already required a persistent filesystem, so this is the same constraint.
+
+### The rules
+
+1. **Sending is HTTP; the socket is only delivery.** A send has to be
+   transactional, idempotent, and able to fail with a status the app's outbox
+   can act on. A WebSocket frame has none of those.
+
+2. **`clientId` is minted on the device before the message leaves it.** The
+   app queues into an outbox that survives being killed and replays on
+   reconnect; the server treats a repeat as the same message. That is what
+   makes retrying safe enough to do blindly.
+
+3. **Authorisation is a query predicate, not a check.** `visibleTo(viewer)`
+   composes into every read, so `threadsFor()` *cannot* return a thread you
+   are not on — no caller downstream has to remember not to leak one. Same
+   trick `requestLogic.js` uses to keep one cook out of another's offer.
+
+4. **Messages are append-only.** No edit, no delete — these threads are what a
+   dispute gets settled on, and a chat that can be rewritten is not evidence.
+   A moderator can hide a message; the row stays.
+
+5. **A socket's identity is fixed at handshake and never re-read.** It cannot
+   later claim to be somebody else, because nothing downstream asks it.
+
+### Phone verification
+
+Chat forced the app to get real accounts. It had none: `signIn(demoAccount(id))`
+built an account from whatever string was typed and threw the password away.
+Survivable while nothing left the device, and not survivable the moment two
+strangers can message each other.
+
+So: phone plus a one-time code (`lib/app-auth.ts`). No password — the account
+was already keyed on a phone number and a password is one more thing to lose.
+Numbers are normalised to `+8801XXXXXXXXX`, so `01712…`, `8801712…` and
+`+8801712…` are one account rather than three. Tokens carry a `jti` matching an
+`AppSession` row, so a device can be revoked without waiting thirty days, and
+`tokenVersion` revokes every device at once.
+
+**There is no SMS provider.** In dev the code is printed to the server log and
+returned in the response; `requestOtp` refuses that branch once `SMS_PROVIDER`
+is set, so it cannot reach production by accident. Wiring a provider is the one
+thing standing between this and real use.
+
+### One process, two module instances
+
+`lib/realtime.ts` keeps its socket registry on `globalThis`, and that is not
+defensive coding. `server.ts` loads that module through Node; the route handler
+that posts a message loads Next's own bundled copy. Two instances, two Maps —
+the sender's is empty, `publish()` finds nobody, and every message delivers
+perfectly to zero recipients with no error anywhere. Same reason `lib/db.ts`
+parks the Prisma client on `globalThis`: module identity is not process
+identity.
+
+### Verified
+
+- `npm run test:chat` — 23 assertions over real HTTP and a real socket:
+  forged tokens refused, one customer cannot read another's thread *by id*, a
+  replayed `clientId` posts once, a reply arrives live.
+- The Expo app driven in headless Chrome at 390×844 against the running
+  server — 12 assertions, ending with a support reply appearing with no
+  reload.
+
+### Not built
+
+- **Attachments.** The schema carries them and the UI does not. Disputes want
+  photos; that needs file storage, which does not exist yet.
+- **Push when the app is closed.** A notification row is filed for whoever was
+  offline, but nothing delivers it to a closed app — that needs device tokens.
+- **Typing indicators reach the panel only.** The app sends no `typing` frame.
+- **Customer ↔ cook is wired but lightly used.** The launcher is on both order
+  screens; meals and store orders have no entry point yet.
+- **The token lives in AsyncStorage**, which is not encrypted. `expo-secure-store`
+  is the right home for it.

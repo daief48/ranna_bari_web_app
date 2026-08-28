@@ -43,17 +43,87 @@ model Account {
   avatar           String?
 
   /// Admin-side. Not in the app: an operator needs to stop an account.
-  suspended       Boolean   @default(false)
+  suspended       Boolean @default(false)
   suspendedReason String?
+
+  /// The phone the OTP actually reached, normalised to +8801XXXXXXXXX.
+  /// Null until somebody proves they hold the handset.
+  phoneVerifiedAt DateTime?
+
+  /// Bumped to revoke every token this account holds at once — a lost
+  /// handset, or an operator suspending somebody mid-conversation.
+  tokenVersion Int @default(0)
 
   signedInAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  kitchen Kitchen?
+  kitchen  Kitchen?
+  sessions AppSession[]
 
   @@index([role])
   @@index([suspended])
+  @@index([phone])
+}
+
+/**
+ * ------------------------------------------------------------------ *
+ * app authentication
+ * The app has none today: `signIn(demoAccount(id))` fabricates an account
+ * from whatever string was typed and throws the password away. That is
+ * survivable for a demo with one device and no server. It is not survivable
+ * the moment two strangers can send each other messages — a chat is exactly
+ * where impersonation pays, and "I am your cook, confirm your bKash PIN" is
+ * the whole attack.
+ * Phone plus a one-time code rather than a password: this is Bangladesh, the
+ * account is already keyed on a phone number, and a password is one more
+ * thing to lose.
+ * ------------------------------------------------------------------
+ */
+
+/// One outstanding code. Consumed on use, and never stored in the clear.
+model OtpChallenge {
+  id    String @id @default(cuid())
+  phone String
+
+  /// scrypt of the six digits, same helper the admin passwords use.
+  codeHash String
+
+  /// Wrong guesses so far. Six digits is a million tries; this makes it five.
+  attempts Int @default(0)
+
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  /// For rate limiting by origin as well as by number.
+  ip String?
+
+  @@index([phone, createdAt])
+  @@index([expiresAt])
+}
+
+/// One signed-in device. The token carries this row's id as its `jti`.
+model AppSession {
+  id        String @id @default(cuid())
+  accountId String
+
+  /// Matches the token's `jti`. Revoking is deleting nothing — it is
+  /// stamping `revokedAt`, so a stolen token can be traced afterwards.
+  tokenId String @unique
+
+  device   String @default("")
+  platform String @default("")
+
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([expiresAt])
 }
 
 model Kitchen {
@@ -70,9 +140,9 @@ model Kitchen {
   reviewCount Int   @default(0)
 
   /// JSON string[] — derived from the kitchen's dishes.
-  tags        String  @default("[]")
-  ecoBadge    String  @default("Eco-Packaging")
-  isVerified  Boolean @default(false)
+  tags       String  @default("[]")
+  ecoBadge   String  @default("Eco-Packaging")
+  isVerified Boolean @default(false)
 
   area             String
   lat              Float
@@ -85,8 +155,8 @@ model Kitchen {
   suspendedReason String?
 
   /// KYC. 'pending' | 'approved' | 'rejected'
-  kycStatus   String    @default("pending")
-  kycNote     String?
+  kycStatus    String    @default("pending")
+  kycNote      String?
   kycDecidedAt DateTime?
   kycDecidedBy String?
 
@@ -94,13 +164,13 @@ model Kitchen {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  account  Account?  @relation(fields: [accountId], references: [id])
-  dishes   Dish[]
-  meals    Meal[]
-  store    Store?
-  orders   Order[]
-  offers   Offer[]
-  reviews  Review[]
+  account Account? @relation(fields: [accountId], references: [id])
+  dishes  Dish[]
+  meals   Meal[]
+  store   Store?
+  orders  Order[]
+  offers  Offer[]
+  reviews Review[]
 
   @@index([area])
   @@index([isVerified])
@@ -128,25 +198,25 @@ model Dish {
 // ---------------------------------------------------------------- commerce
 
 model Meal {
-  id           String @id @default(cuid())
-  code         String @unique
-  kitchenId    String
-  cookName     String
-  title        String
-  description  String
-  image        String
-  price        Int
-  capacity     Int
+  id          String @id @default(cuid())
+  code        String @unique
+  kitchenId   String
+  cookName    String
+  title       String
+  description String
+  image       String
+  price       Int
+  capacity    Int
 
   /// Local calendar day 'YYYY-MM-DD' in Asia/Dhaka. Never a UTC timestamp.
-  serveDate    String
+  serveDate String
   /// 'breakfast' | 'lunch' | 'dinner'
-  slot         String
-  deadline     DateTime
+  slot      String
+  deadline  DateTime
 
   /// 'delivery' | 'pickup'
-  handover     String  @default("delivery")
-  handoverNote String  @default("")
+  handover     String @default("delivery")
+  handoverNote String @default("")
 
   area             String
   lat              Float
@@ -172,14 +242,14 @@ model Meal {
 }
 
 model Store {
-  id          String  @id @default(cuid())
-  kitchenId   String  @unique
-  name        String  @default("")
-  tagline     String  @default("")
-  description String  @default("")
-  logo        String  @default("")
-  cover       String  @default("")
-  phone       String  @default("")
+  id          String @id @default(cuid())
+  kitchenId   String @unique
+  name        String @default("")
+  tagline     String @default("")
+  description String @default("")
+  logo        String @default("")
+  cover       String @default("")
+  phone       String @default("")
 
   area             String  @default("")
   lat              Float?
@@ -224,16 +294,16 @@ model Product {
   /// JSON string[]
   images      String  @default("[]")
 
-  price  Int @default(0)
-  stock  Int @default(0)
-  minQty Int @default(1)
+  price  Int  @default(0)
+  stock  Int  @default(0)
+  minQty Int  @default(1)
   maxQty Int?
 
   active   Boolean @default(true)
   preorder Boolean @default(false)
 
-  prepTime     String @default("")
-  deliveryNote String @default("")
+  prepTime     String  @default("")
+  deliveryNote String  @default("")
   /// JSON {label, price}[] | null
   options      String?
 
@@ -267,12 +337,12 @@ model TaxonomyCategory {
 // -------------------------------------------------- requests and bidding
 
 model Request {
-  id          String  @id @default(cuid())
-  code        String  @unique
+  id          String @id @default(cuid())
+  code        String @unique
   customerKey String
   title       String
-  description String  @default("")
-  quantity    Int     @default(1)
+  description String @default("")
+  quantity    Int    @default(1)
   budget      Int?
 
   /// 'all' for a broadcast, otherwise a kitchenId.
@@ -399,6 +469,7 @@ model Order {
   store   Store?        @relation(fields: [storeId], references: [id])
   ledger  LedgerEntry[]
   dispute Dispute?
+  threads ChatThread[]
 
   @@index([kind])
   @@index([status])
@@ -431,8 +502,8 @@ model LedgerEntry {
   fromRef String?
   toRef   String?
 
-  mealId  String?
-  orderId String?
+  mealId      String?
+  orderId     String?
   /// Set on payout entries so a run can be reconciled.
   payoutRunId String?
 
@@ -456,15 +527,15 @@ model LedgerEntry {
 
 /// A batch of cook payouts. Gap #8.
 model PayoutRun {
-  id        String @id @default(cuid())
-  code      String @unique
+  id     String @id @default(cuid())
+  code   String @unique
   /// 'draft' | 'paid' | 'cancelled'
-  status    String @default("draft")
-  method    String @default("bKash")
-  note      String @default("")
+  status String @default("draft")
+  method String @default("bKash")
+  note   String @default("")
 
-  total     Int    @default(0)
-  cookCount Int    @default(0)
+  total     Int @default(0)
+  cookCount Int @default(0)
 
   createdBy String
   createdAt DateTime  @default(now())
@@ -497,11 +568,11 @@ model TopUp {
   method      String @default("bKash")
 
   /// 'matched' | 'orphan' | 'disputed'
-  reconciled  String  @default("orphan")
+  reconciled String  @default("orphan")
   /// The payment-service-provider reference, when there is one.
-  pspRef      String?
-  pspAmount   Int?
-  note        String  @default("")
+  pspRef     String?
+  pspAmount  Int?
+  note       String  @default("")
 
   ledgerEntryId String?
   at            DateTime @default(now())
@@ -518,16 +589,16 @@ model Dispute {
   orderId String @unique
 
   /// 'open' | 'investigating' | 'resolved'
-  status String @default("open")
+  status   String @default("open")
   /// 'customer' | 'cook' | 'admin'
   openedBy String @default("admin")
   reason   String
 
   /// 'refund' | 'release' | 'split' | 'no-action'
-  resolution      String?
-  resolutionNote  String?
-  refundAmount    Int?
-  releaseAmount   Int?
+  resolution     String?
+  resolutionNote String?
+  refundAmount   Int?
+  releaseAmount  Int?
 
   /// JSON [{ at, by, text }]
   notes String @default("[]")
@@ -555,10 +626,10 @@ model Review {
   text        String
 
   /// Moderation. Hidden reviews are excluded from the kitchen's rating.
-  hidden      Boolean   @default(false)
-  hiddenBy    String?
-  hiddenAt    DateTime?
-  hiddenNote  String?
+  hidden     Boolean   @default(false)
+  hiddenBy   String?
+  hiddenAt   DateTime?
+  hiddenNote String?
 
   date      String
   createdAt DateTime @default(now())
@@ -605,15 +676,15 @@ model Notification {
 
 /// A delivery zone. Replaces the hardcoded KNOWN_AREAS array. Gap #4.
 model Zone {
-  id       String  @id @default(cuid())
-  name     String  @unique
-  active   Boolean @default(true)
+  id          String  @id @default(cuid())
+  name        String  @unique
+  active      Boolean @default(true)
   /// Per-zone overrides. Null falls back to the platform Setting.
   deliveryFee Int?
   platformFee Int?
-  lat      Float?
-  lng      Float?
-  order    Int     @default(0)
+  lat         Float?
+  lng         Float?
+  order       Int     @default(0)
 
   createdAt DateTime @default(now())
 
@@ -664,10 +735,10 @@ model AdminUser {
 /// Every state-changing action in the panel writes one of these.
 /// Money actions are worthless without it.
 model AuditLog {
-  id          String @id @default(cuid())
-  actorId     String?
-  actorEmail  String
-  actorRole   String
+  id         String  @id @default(cuid())
+  actorId    String?
+  actorEmail String
+  actorRole  String
 
   action     String
   targetType String
@@ -687,4 +758,113 @@ model AuditLog {
   @@index([targetType, targetId])
   @@index([actorEmail])
   @@index([action])
+}
+
+/**
+ * ------------------------------------------------------------------ *
+ * chat
+ * Three lanes, one shape:
+ * order    — a customer and the cook working on one order
+ * request  — a customer and one cook agreeing a bespoke job
+ * support  — either of them and the platform
+ * A thread is not a chat room with people in it; it is a subject with two
+ * sides. Who those sides are falls out of `customerKey` and `kitchenId`,
+ * which is what makes authorisation a query rather than a membership check —
+ * the same trick `requestLogic` uses to keep one cook out of another's offer.
+ * ------------------------------------------------------------------
+ */
+
+model ChatThread {
+  id   String @id @default(cuid())
+  code String @unique
+
+  /// 'order' | 'request' | 'support'
+  kind String
+
+  orderId   String?
+  requestId String?
+
+  /// The two sides. `kitchenId` is null on a support thread opened by a
+  /// customer, and `customerKey` is the cook's own key when a cook opens one.
+  customerKey String
+  kitchenId   String?
+
+  /// Who opened it — 'customer' | 'cook'. A support thread reads differently
+  /// depending which side is asking.
+  openedBy String @default("customer")
+
+  subject String @default("")
+
+  /// 'open' | 'closed'
+  status   String    @default("open")
+  closedAt DateTime?
+  closedBy String?
+
+  /// Denormalised for the inbox. A list of threads that has to open every
+  /// thread to render is a list nobody scrolls.
+  lastMessageAt   DateTime @default(now())
+  lastMessageBody String   @default("")
+  lastMessageFrom String   @default("")
+
+  /// Per-side unread counts, kept by the send path. Counting on read would
+  /// be a query per row per inbox render.
+  unreadCustomer Int @default(0)
+  unreadCook     Int @default(0)
+  unreadAdmin    Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order    Order?        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@index([customerKey, lastMessageAt])
+  @@index([kitchenId, lastMessageAt])
+  @@index([kind, status, lastMessageAt])
+  @@index([orderId])
+}
+
+/// One message.
+///
+/// Append-only in the sense that matters: no edit, no delete. A chat that can
+/// be rewritten is not evidence, and these threads are what a dispute is
+/// settled on. A moderator can hide a message; the row stays.
+model ChatMessage {
+  id       String @id @default(cuid())
+  threadId String
+
+  /// 'customer' | 'cook' | 'admin' | 'system'
+  senderType String
+  /// customerKey, kitchenId, or an operator's email. Null for system.
+  senderRef  String?
+  senderName String  @default("")
+
+  body String @default("")
+
+  /// JSON [{ url, kind, width, height }] — photos on a dispute.
+  attachments String @default("[]")
+
+  /// Set on a system message: 'order-status', 'thread-opened', 'price-agreed'.
+  systemKind String?
+
+  /// The sender's own id for this message, generated before it left the
+  /// device. An offline outbox replays on reconnect, and this is what stops
+  /// the replay from posting the message twice.
+  clientId String @unique
+
+  sentAt DateTime @default(now())
+
+  readByCustomerAt DateTime?
+  readByCookAt     DateTime?
+  readByAdminAt    DateTime?
+
+  hidden     Boolean   @default(false)
+  hiddenBy   String?
+  hiddenAt   DateTime?
+  hiddenNote String?
+
+  thread ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, sentAt])
+  @@index([hidden])
 }

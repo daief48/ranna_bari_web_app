@@ -8,6 +8,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import Screen, { Container } from '../../src/components/Screen';
 import Icon from '../../src/components/Icon';
 import Reveal from '../../src/components/Reveal';
+import ChatLauncher from '../../src/components/ChatLauncher';
 import Button from '../../src/components/Button';
 import { IconTile } from '../../src/components/Surfaces';
 import { Body, GradientText, Heading, Price } from '../../src/components/Typography';
@@ -428,6 +429,12 @@ export default function OrderScreen() {
               <Price size={22}>{isCod ? 'Due in cash' : 'Total'}</Price>
               <Price size={22}>৳{n(order.total)}</Price>
             </View>
+          </View>
+        </Reveal>
+
+        <Reveal delay={3}>
+          <View style={{ marginTop: 16 }}>
+            <ChatLauncher spec={{ kind: 'order', orderId: order.id }} />
           </View>
         </Reveal>
 

@@ -1,12 +1,18 @@
 import 'server-only';
 
 import { cookies } from 'next/headers';
-import { SignJWT, jwtVerify } from 'jose';
 import { randomBytes, scrypt as _scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
 import { db } from './db';
 import { can, type Role } from './domain';
+import {
+  SESSION_COOKIE,
+  SESSION_MAX_AGE,
+  createSession,
+  readSession,
+  type Session,
+} from './auth-shared';
 
 const scrypt = promisify(_scrypt) as (
   password: string,
@@ -14,19 +20,10 @@ const scrypt = promisify(_scrypt) as (
   keylen: number,
 ) => Promise<Buffer>;
 
-export { SESSION_COOKIE } from './auth-shared';
-import { SESSION_COOKIE } from './auth-shared';
-const MAX_AGE = 60 * 60 * 8; // eight hours — one shift
-
-function secret(): Uint8Array {
-  const value = process.env.AUTH_SECRET;
-  if (!value || value.length < 32) {
-    throw new Error(
-      'AUTH_SECRET is missing or too short. Set a 32+ character secret in .env.',
-    );
-  }
-  return new TextEncoder().encode(value);
-}
+/* The token primitives live in `auth-shared` so the custom server and the
+   request gate can verify a session without pulling in cookies or Prisma. */
+export { SESSION_COOKIE, createSession, readSession };
+export type { Session };
 
 /* ------------------------------------------------------------------ *
  * passwords
@@ -58,37 +55,6 @@ export async function verifyPassword(password: string, stored: string): Promise<
  * session
  * ------------------------------------------------------------------ */
 
-export type Session = {
-  sub: string;
-  email: string;
-  name: string;
-  role: Role;
-};
-
-export async function createSession(user: Session): Promise<string> {
-  return new SignJWT({ email: user.email, name: user.name, role: user.role })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setSubject(user.sub)
-    .setIssuedAt()
-    .setExpirationTime(`${MAX_AGE}s`)
-    .sign(secret());
-}
-
-export async function readSession(token: string | undefined): Promise<Session | null> {
-  if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, secret());
-    return {
-      sub: String(payload.sub),
-      email: String(payload.email),
-      name: String(payload.name),
-      role: payload.role as Role,
-    };
-  } catch {
-    return null;
-  }
-}
-
 export async function setSessionCookie(token: string) {
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, {
@@ -96,7 +62,7 @@ export async function setSessionCookie(token: string) {
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    maxAge: MAX_AGE,
+    maxAge: SESSION_MAX_AGE,
   });
 }
 

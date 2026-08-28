@@ -18,6 +18,7 @@ import { useCart } from '../../src/store/CartContext';
 import { useOrders } from '../../src/store/OrdersContext';
 import { useKitchen } from '../../src/store/KitchenContext';
 import { useCommerce } from '../../src/store/CommerceContext';
+import { useChat } from '../../src/store/ChatContext';
 import { customerKeyOf } from '../../src/lib/ledger';
 import { useLang } from '../../src/i18n/LanguageContext';
 
@@ -32,6 +33,7 @@ export default function ProfileScreen() {
   const { t, n } = useLang();
 
   const unread = unreadFor('customer');
+  const { unreadTotal: chatUnread } = useChat();
   const openRequests = requestsForCustomer(customerKeyOf(account)).filter(
     (r) => r.status === 'open' || r.status === 'selected' || r.status === 'agreed',
   ).length;
@@ -152,6 +154,16 @@ export default function ProfileScreen() {
                 : t('Meals near you, and your order updates')
             }
             onPress={() => router.push('/notifications')}
+          />
+          <Row
+            icon="chefHat"
+            title={t('Messages')}
+            sub={
+              chatUnread
+                ? t('{n} unread', { n: n(chatUnread) })
+                : t('Your cook, and our support desk')
+            }
+            onPress={() => router.push('/chat')}
           />
           <Row
             icon="sparkles"

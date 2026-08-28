@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import CookScreen from '../../../src/components/CookScreen';
+import ChatLauncher from '../../../src/components/ChatLauncher';
 import { Container } from '../../../src/components/Screen';
 import Icon from '../../../src/components/Icon';
 import Reveal from '../../../src/components/Reveal';
@@ -210,6 +211,25 @@ export default function CookOrderScreen() {
                     <Icon name="phone" size={19} color={colors.sage} />
                   </Pressable>
                 ) : null}
+              </View>
+
+              {/* A call interrupts a cook mid-service and leaves no record.
+                  A message does neither, and it is the only channel the
+                  customer can start themselves. */}
+              <View
+                style={{
+                  paddingHorizontal: 16,
+                  paddingBottom: 16,
+                  borderTopWidth: 1,
+                  borderTopColor: colors.line2,
+                  paddingTop: 14,
+                }}
+              >
+                <ChatLauncher
+                  spec={{ kind: 'order', orderId: order.id }}
+                  label={t('Message the customer')}
+                  compact
+                />
               </View>
 
               <View

@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
 
-import { SESSION_COOKIE } from './lib/auth-shared';
+import { SESSION_COOKIE, readSession } from './lib/auth-shared';
 
 /**
  * The gate. `proxy` is what Next 16 renamed `middleware` to.
@@ -15,16 +14,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
-  let signedIn = false;
-
-  if (token && process.env.AUTH_SECRET) {
-    try {
-      await jwtVerify(token, new TextEncoder().encode(process.env.AUTH_SECRET));
-      signedIn = true;
-    } catch {
-      signedIn = false;
-    }
-  }
+  const signedIn = !!(await readSession(token));
 
   if (pathname === '/login') {
     return signedIn ? NextResponse.redirect(new URL('/', request.url)) : NextResponse.next();

@@ -35,6 +35,8 @@ import { OrdersProvider, useOrders } from '../src/store/OrdersContext';
 import { KitchenProvider, useKitchen } from '../src/store/KitchenContext';
 import { CommerceProvider } from '../src/store/CommerceContext';
 import { LanguageProvider } from '../src/i18n/LanguageContext';
+import { SessionProvider } from '../src/store/SessionContext';
+import { ChatProvider } from '../src/store/ChatContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -122,6 +124,12 @@ function Root() {
         <Stack.Screen name="requests/new" />
         <Stack.Screen name="requests/[id]" />
         <Stack.Screen name="request-order/[id]" options={{ animation: 'fade' }} />
+        {/* ---- live chat ---- */}
+        <Stack.Screen name="chat/index" />
+        <Stack.Screen name="chat/verify" />
+        {/* A conversation draws its own header and pins its own composer, so
+            it slides in over everything rather than sitting in the shell. */}
+        <Stack.Screen name="chat/[id]" />
       </Stack>
     </>
   );
@@ -168,16 +176,20 @@ export default function RootLayout() {
         <LanguageProvider>
         <ThemeProvider>
           <AuthProvider>
+            <SessionProvider>
             <OrdersProvider>
               <KitchenProvider>
                 <CommerceProvider>
                   <CartProvider>
-                    <KitchenSync />
-                    <Root />
+                    <ChatProvider>
+                      <KitchenSync />
+                      <Root />
+                    </ChatProvider>
                   </CartProvider>
                 </CommerceProvider>
               </KitchenProvider>
             </OrdersProvider>
+            </SessionProvider>
           </AuthProvider>
         </ThemeProvider>
         </LanguageProvider>

@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# scratch — headless browser drives and their screenshots
+.smoke/
+.exportcheck/

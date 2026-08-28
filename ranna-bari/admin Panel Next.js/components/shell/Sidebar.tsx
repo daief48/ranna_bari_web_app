@@ -15,7 +15,7 @@ import { can } from '@/lib/domain';
  */
 export const NAV: {
   group: string;
-  items: { href: string; label: string; cap: string; badge?: 'kyc' | 'disputes' | 'escrow' }[];
+  items: { href: string; label: string; cap: string; badge?: 'kyc' | 'disputes' | 'escrow' | 'chat' }[];
 }[] = [
   {
     group: 'Overview',
@@ -34,6 +34,7 @@ export const NAV: {
     group: 'Demand',
     items: [
       { href: '/orders', label: 'Orders', cap: 'order.read' },
+      { href: '/chat', label: 'Live chat', cap: 'order.read', badge: 'chat' },
       { href: '/requests', label: 'Requests & offers', cap: 'request.read' },
       { href: '/reviews', label: 'Reviews', cap: 'kitchen.read' },
     ],
@@ -63,7 +64,7 @@ export function Sidebar({
   counts,
 }: {
   role: string;
-  counts: { kyc: number; disputes: number; escrow: number };
+  counts: { kyc: number; disputes: number; escrow: number; chat: number };
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);

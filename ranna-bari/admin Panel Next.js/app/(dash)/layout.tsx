@@ -26,15 +26,18 @@ export default async function DashLayout({ children }: { children: React.ReactNo
   const settings = await getSettings();
   const cutoff = new Date(Date.now() - settings.escrowAutoReleaseDays * 86_400_000);
 
-  /* The three counts the sidebar badges. All work that is waiting on a
-     person: an unreviewed cook, an unresolved dispute, and money that has sat
-     in escrow past the release window. */
-  const [kyc, disputes, escrow] = await Promise.all([
+  /* The four counts the sidebar badges. All work that is waiting on a
+     person: an unreviewed cook, an unresolved dispute, money that has sat in
+     escrow past the release window, and somebody mid-sentence. */
+  const [kyc, disputes, escrow, chat] = await Promise.all([
     db.kitchen.count({ where: { kycStatus: 'pending' } }),
     db.dispute.count({ where: { status: { in: ['open', 'investigating'] } } }),
     db.order.count({
       where: { payment: 'held', status: 'delivered', deliveredAt: { lt: cutoff } },
     }),
+    db.chatThread
+      .aggregate({ _sum: { unreadAdmin: true } })
+      .then((row) => row._sum.unreadAdmin ?? 0),
   ]);
 
   async function signOut() {
@@ -45,7 +48,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
 
   return (
     <div className="flex min-h-screen bg-canvas">
-      <Sidebar role={user.role} counts={{ kyc, disputes, escrow }} />
+      <Sidebar role={user.role} counts={{ kyc, disputes, escrow, chat }} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-[57px] shrink-0 items-center justify-end gap-3 border-b border-line bg-canvas/85 px-4 backdrop-blur lg:px-6">
