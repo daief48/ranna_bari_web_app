@@ -1127,6 +1127,9 @@ export const bn = {
   'Home shops': 'ঘরোয়া দোকান',
   'That photo could not be saved. Try again.': 'ছবিটি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
   'RannaBari — your kitchen': 'রান্নাবাড়ি — আপনার রান্নাঘর',
+  /* Adding items to a custom request. */
+  'Add this item': 'এই আইটেমটি যোগ করুন',
+  'Remove {name}': '{name} সরান',
   /* The address book. */
   'Delivery addresses': 'ডেলিভারি ঠিকানা',
   '{n} saved · delivering to {label}': '{n}টি সংরক্ষিত · {label}-এ যাচ্ছে',

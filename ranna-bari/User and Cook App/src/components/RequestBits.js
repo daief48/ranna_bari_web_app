@@ -155,6 +155,53 @@ export function RequestSummary({ request, category, compact }) {
         {request.title}
       </Text>
 
+      {/*
+       * The lines behind the headline, in full, on the detail view only.
+       *
+       * `title` is those same items joined with commas, which is right for a
+       * list where one line is all there is room for — and wrong on the
+       * screen where a cook decides whether to bid. Four things comma-joined
+       * read as one long sentence; stacked, they read as a job with four
+       * parts, which is what it is.
+       *
+       * Skipped when there is only one, because a bulleted list of one is a
+       * heading repeated.
+       */}
+      {!compact && (request.items?.length ?? 0) > 1 ? (
+        <View style={{ gap: 6, marginTop: 2 }}>
+          {request.items.map((item, i) => (
+            <View
+              key={`${item.name}-${i}`}
+              style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}
+            >
+              <Text
+                style={{
+                  fontFamily: font.uiBold,
+                  fontSize: type.sm,
+                  color: colors.primary,
+                  minWidth: 22,
+                  fontVariant: ['tabular-nums'],
+                }}
+              >
+                {n(item.qty ?? 1)}×
+              </Text>
+              <Text
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  fontFamily: font.ui,
+                  fontSize: type.sm + 1,
+                  lineHeight: (type.sm + 1) * 1.45,
+                  color: colors.text,
+                }}
+              >
+                {item.name}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       {facts.length ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {facts.map((f) => (

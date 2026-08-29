@@ -395,7 +395,38 @@ const requestSchema = new Schema(
   {
     code: { type: String, required: true, unique: true },
     customerKey: { type: String, required: true, index: true },
+    /**
+     * The headline, derived from `items` when there are any.
+     *
+     * Kept, and kept required, because a great deal reads it: every offer, the
+     * order a selected offer becomes, the customer's list, the cook's inbox
+     * and the operator's console. Making all of those iterate a list to build
+     * a sentence would be the same string composed five different ways.
+     */
     title: { type: String, required: true },
+
+    /**
+     * What was actually asked for, line by line.
+     *
+     * A custom order is rarely one thing — a party is a cake *and* twenty
+     * samosas *and* a tray of biryani — and the single title line forced all
+     * of that into one sentence a cook then had to parse and price as a
+     * whole. Listing them lets a cook see the shape of the job.
+     *
+     * Empty for the older single-line requests, which is why `title` is still
+     * the thing to read when you want one string.
+     */
+    items: {
+      type: [
+        {
+          _id: false,
+          name: { type: String, required: true },
+          qty: { type: Number, default: 1 },
+        },
+      ],
+      default: [],
+    },
+
     description: { type: String, default: '' },
     quantity: { type: Number, default: 1 },
     budget: { type: Number, default: null },

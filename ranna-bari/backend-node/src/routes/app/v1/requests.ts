@@ -202,21 +202,53 @@ async function broadcastTo(
  * pocket sends; the logic layer renames them onto the columns. Accepting the
  * column names too costs one line each and saves a migration nobody can time.
  */
+/*
+ * `null` means "not given", the same as leaving it out.
+ *
+ * `z.coerce.number().optional()` accepts `undefined` and rejects `null`, and
+ * `z.coerce` turns a `null` into `0` before any `.nullable()` could catch it.
+ * The app sends explicit nulls — `budget: null` for a blank budget, and null
+ * coordinates for anybody whose address the server never had — so a request
+ * with the optional budget left empty was refused outright with
+ * `amount-invalid`, on a field whose own label says "(optional)".
+ *
+ * Blank strings go the same way: an untouched text field is not a value.
+ */
+const blankToUndefined = (value: unknown) =>
+  value === null || value === '' ? undefined : value;
+
+const optionalText = z.preprocess(blankToUndefined, z.string().optional());
+const optionalCount = z.preprocess(
+  blankToUndefined,
+  z.coerce.number().int().positive().optional(),
+);
+const optionalAmount = z.preprocess(
+  blankToUndefined,
+  z.coerce.number().positive().optional(),
+);
+const optionalCoord = z.preprocess(blankToUndefined, z.coerce.number().optional());
+
 const draftSchema = z.object({
-  title: z.string().min(1),
-  details: z.string().optional(),
-  description: z.string().optional(),
-  quantity: z.coerce.number().int().positive().optional(),
-  budget: z.coerce.number().positive().optional(),
+  /* Optional now: a request may name its items instead, and the logic layer
+     composes the title from them. One of the two has to be there, which it
+     enforces — a schema cannot express "either" as readably. */
+  title: z.string().optional(),
+  items: z
+    .array(z.object({ name: z.string(), qty: z.coerce.number().optional() }))
+    .optional(),
+  details: optionalText,
+  description: optionalText,
+  quantity: optionalCount,
+  budget: optionalAmount,
   /** 'all' for a broadcast, otherwise the one kitchen being asked. */
-  target: z.string().min(1).optional(),
-  wantedDate: z.string().optional(),
-  wantedFor: z.string().optional(),
-  categoryId: z.string().optional(),
-  category: z.string().optional(),
-  area: z.string().optional(),
-  lat: z.coerce.number().optional(),
-  lng: z.coerce.number().optional(),
+  target: optionalText,
+  wantedDate: optionalText,
+  wantedFor: optionalText,
+  categoryId: optionalText,
+  category: optionalText,
+  area: optionalText,
+  lat: optionalCoord,
+  lng: optionalCoord,
 });
 
 /** A refused body still deserves the right word for what was wrong with it. */

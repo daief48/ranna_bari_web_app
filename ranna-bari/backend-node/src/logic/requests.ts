@@ -164,6 +164,7 @@ type RequestRow = {
   code: string;
   customerKey: string;
   title: string;
+  items?: { name: string; qty: number }[];
   description: string;
   quantity: number;
   budget: number | null;
@@ -225,6 +226,10 @@ function shapeRequest(row: RequestRow) {
     code: row.code,
     customerKey: row.customerKey,
     title: row.title,
+    /* The lines behind the headline. Empty for a request written before the
+       app could list them, which is why `title` remains the one field a
+       reader can always count on. */
+    items: row.items ?? [],
     details: row.description ?? '',
     quantity: row.quantity,
     budget: row.budget ?? null,
@@ -530,7 +535,9 @@ export function turnOf(
  * ------------------------------------------------------------------ */
 
 export type RequestDraft = {
-  title: string;
+  title?: string;
+  /** What was asked for, line by line.  is derived from it. */
+  items?: { name?: string; qty?: number | string }[] | null;
   /** The app's name for it; the column is `description`. */
   details?: string | null;
   description?: string | null;
@@ -580,7 +587,27 @@ export async function createRequest(
 ): Promise<Result<RequestView>> {
   const draft = args.request ?? ({} as RequestDraft);
 
-  const title = String(draft.title ?? '').trim();
+  /*
+   * Items first, then the headline.
+   *
+   * A request may arrive either way: the app's newer screen sends a list, and
+   * anything older sends one title line. Both are valid, so the list is
+   * cleaned up and `title` is composed from it when there is one — which
+   * keeps every reader of `title` (offers, the order it becomes, both
+   * inboxes, the operator console) working on a single string, unchanged.
+   */
+  const items = (draft.items ?? [])
+    .map((item) => ({
+      name: String(item?.name ?? '').trim(),
+      qty: Math.max(1, Math.round(Number(item?.qty) || 1)),
+    }))
+    .filter((item) => item.name);
+
+  const headline = items.length
+    ? items.map((item) => (item.qty > 1 ? item.qty + ' × ' + item.name : item.name)).join(', ')
+    : String(draft.title ?? '').trim();
+
+  const title = headline;
   if (!title) return fail(ERR.NAME_REQUIRED);
 
   const quantity = Math.max(1, Math.round(Number(draft.quantity) || 1));
@@ -602,6 +629,7 @@ export async function createRequest(
             code: makeCode(),
             customerKey,
             title,
+            items,
             description: String(draft.details ?? draft.description ?? '').trim(),
             quantity,
             budget,

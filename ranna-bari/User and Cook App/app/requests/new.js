@@ -20,6 +20,7 @@ import FloatLabelInput, { FormNote } from '../../src/components/FloatLabelInput'
 import { Body, Heading } from '../../src/components/Typography';
 import { errorText } from '../../src/components/MealBits';
 import { Label } from '../../src/components/RequestBits';
+import { QtyStepper } from '../../src/components/StoreBits';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, type } from '../../src/theme/tokens';
@@ -48,6 +49,8 @@ export default function NewRequest() {
 
   const [target, setTarget] = useState(incoming ?? 'all');
   const [title, setTitle] = useState(DEMO_REQUEST.title);
+  /* The lines added so far. The box above holds whatever is being typed. */
+  const [items, setItems] = useState([]);
   const [details, setDetails] = useState(DEMO_REQUEST.description);
   const [quantity, setQuantity] = useState('1');
   const [budget, setBudget] = useState(DEMO_REQUEST.budget);
@@ -90,18 +93,47 @@ export default function NewRequest() {
     [t, lang],
   );
 
+  /** Move what is typed into the list, and clear the box for the next one. */
+  const addItem = () => {
+    const name = title.trim();
+    if (!name) return;
+    setItems((prev) => [...prev, { name, qty: 1 }]);
+    setTitle('');
+  };
+
+  const setItemQty = (index, qty) =>
+    setItems((prev) => prev.map((item, i) => (i === index ? { ...item, qty } : item)));
+
+  const removeItem = (index) => setItems((prev) => prev.filter((_, i) => i !== index));
+
   const submit = async () => {
-    if (!title.trim()) {
+    /*
+     * Whatever is still in the box counts.
+     *
+     * Somebody who wants one thing types it and taps the button at the bottom
+     * — they have no reason to notice a separate "add" step, and losing their
+     * request to a rule about it would be indefensible. So the typed line is
+     * folded in here rather than being demanded first.
+     */
+    const pending = title.trim();
+    const list = pending ? [...items, { name: pending, qty: 1 }] : items;
+
+    if (!list.length) {
       alert.error(t('Say what you are looking for.'));
       return;
     }
+
     const out = await shop.createRequest(
       {
         customerKey: customerKeyOf(account),
         customerName: account?.name ?? '',
         phone: account?.phone ?? '',
         address: account?.address ?? account?.area ?? '',
-        title: title.trim(),
+        items: list,
+        /* The headline the server composes from `items` is what every reader
+           of a request shows; this is the fallback for anything that has not
+           learned about the list yet. */
+        title: list.map((i) => (i.qty > 1 ? `${i.qty} × ${i.name}` : i.name)).join(', '),
         details: details.trim(),
         categoryId,
         quantity,
@@ -246,12 +278,110 @@ export default function NewRequest() {
         {/* ---- what ---- */}
         <Reveal delay={3}>
           <View style={{ gap: 14 }}>
-            <FloatLabelInput
-              label={t('What do you want?')}
-              value={title}
-              onChangeText={setTitle}
-              placeholder={t('2 pound chocolate cake')}
-            />
+            {/*
+             * What you want, as a list.
+             *
+             * It was one line, which meant a party — a cake *and* twenty
+             * samosas *and* a tray of biryani — had to be squeezed into one
+             * sentence for a cook to read, parse and price as a lump. Adding
+             * them one at a time lets a cook see the shape of the job, and
+             * lets you change your mind about one thing without retyping the
+             * rest.
+             *
+             * The typed line is still submitted if it was never added, so
+             * somebody who wants one thing and taps straight to the bottom is
+             * not stopped by a step they had no reason to notice.
+             */}
+            <View style={{ gap: 10 }}>
+              <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+                <FloatLabelInput
+                  label={t('What do you want?')}
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholder={t('2 pound chocolate cake')}
+                  onSubmitEditing={addItem}
+                  returnKeyType={items.length ? 'done' : 'next'}
+                  style={{ flex: 1, marginBottom: 0 }}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('Add this item')}
+                  onPress={addItem}
+                  disabled={!title.trim()}
+                  style={({ pressed }) => ({
+                    width: 52,
+                    height: 56,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: radius.sm,
+                    backgroundColor: title.trim() ? colors.primary50 : colors.sunken,
+                    borderWidth: 1,
+                    borderColor: title.trim() ? colors.primary100 : colors.line,
+                    opacity: pressed ? 0.75 : 1,
+                  })}
+                >
+                  <Icon
+                    name="plus"
+                    size={20}
+                    color={title.trim() ? colors.primary : colors.textLight}
+                    strokeWidth={2.4}
+                  />
+                </Pressable>
+              </View>
+
+              {items.length ? (
+                <View style={{ gap: 8 }}>
+                  {items.map((item, i) => (
+                    <View
+                      key={`${item.name}-${i}`}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 10,
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                        borderRadius: radius.sm,
+                        backgroundColor: colors.sunken,
+                        borderWidth: 1,
+                        borderColor: colors.line,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          fontFamily: font.ui,
+                          fontSize: type.sm + 1,
+                          color: colors.text,
+                        }}
+                        numberOfLines={2}
+                      >
+                        {item.name}
+                      </Text>
+
+                      {/* Per item, because "two cakes and one tray" is the
+                          normal shape of an order like this. */}
+                      <QtyStepper
+                        small
+                        value={item.qty}
+                        min={1}
+                        max={99}
+                        onChange={(qty) => setItemQty(i, qty)}
+                      />
+
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t('Remove {name}', { name: item.name })}
+                        hitSlop={8}
+                        onPress={() => removeItem(i)}
+                      >
+                        <Icon name="x" size={16} color={colors.textLight} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
             <FloatLabelInput
               label={t('Anything the cook should know')}
               value={details}
