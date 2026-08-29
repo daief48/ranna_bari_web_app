@@ -12,7 +12,7 @@
  * is the loudest thing on the screen the moment it applies and absent the
  * rest of the time.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -28,6 +28,7 @@ import { font, radius, tracking, type } from '../theme/tokens';
 import { useCommerce } from '../store/CommerceContext';
 import { formatOrderDate } from '../store/OrdersContext';
 import { flowFor, stepIndexIn } from '../lib/ledger';
+import { formatAddress } from '../lib/address';
 import { useLang } from '../i18n/LanguageContext';
 
 export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
@@ -40,7 +41,14 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
   const [asking, setAsking] = useState(null); // 'receive' | 'cancel'
   const [flash, setFlash] = useState(null);
 
-  const order = shop.orders.find((o) => o.id === String(orderId));
+  /* The list is capped, so an order older than the last fifty is real,
+     openable by link and absent from state until this asks for it. */
+  const { ensureOrder } = shop;
+  useEffect(() => {
+    if (orderId) ensureOrder(String(orderId));
+  }, [orderId, ensureOrder]);
+
+  const order = shop.orders.find((o) => String(o.id) === String(orderId));
 
   const flow = useMemo(
     () => flowFor(order?.handover, { preorder: order?.preorder }),
@@ -72,16 +80,16 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
      started cooking it. */
   const canCancel = ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status);
 
-  const receive = () => {
-    const out = shop.confirmReceived(order.id);
+  const receive = async () => {
+    const out = await shop.confirmReceived(order.id);
     setAsking(null);
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setError(null);
     setFlash(t('৳{n} has been released to the cook.', { n: n(out.result) }));
   };
 
-  const cancel = () => {
-    const out = shop.cancelOrder(order.id, 'customer', 'Cancelled by the customer');
+  const cancel = async () => {
+    const out = await shop.cancelOrder(order.id, 'customer', 'Cancelled by the customer');
     setAsking(null);
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setError(null);
@@ -368,7 +376,10 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
           />
           <Row
             label={order.handover === 'pickup' ? t('Collection') : t('Delivery')}
-            value={order.address || (order.handover === 'pickup' ? t('At the kitchen') : '—')}
+            value={
+              formatAddress(order.address) ||
+              (order.handover === 'pickup' ? t('At the kitchen') : '—')
+            }
           />
           <Row label={t('Booked')} value={formatOrderDate(order.createdAt, lang)} />
         </View>

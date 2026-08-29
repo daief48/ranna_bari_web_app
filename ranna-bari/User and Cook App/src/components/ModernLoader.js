@@ -3,6 +3,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  Image,
   Platform,
   StyleSheet,
   Text,
@@ -10,28 +11,28 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Path, G, Defs, RadialGradient, Stop } from 'react-native-svg';
 
 import { useTheme } from '../theme/ThemeProvider';
 import { font, radius } from '../theme/tokens';
 import { useLang } from '../i18n/LanguageContext';
 
+const LOGO_LIGHT = require('../../assets/logo.png');
+const LOGO_DARK = require('../../assets/logo-dark.png');
+
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const BENGALI_QUOTES = [
-  'হাঁড়ির ঢাকনা খোলা হচ্ছে…',
-  'খাবারের সুবাস ছড়িয়ে পড়ছে…',
-  'হোম কিচেনের তাজা স্বাদ লোড হচ্ছে…',
-  'রসনা তৃপ্তির প্রস্তুতি চলছে…',
-  'রান্নাঘর থেকে গরম গরম খাবার আসছে…',
+  'আপনার এলাকার সেরা হোম শেফদের সংযুক্ত করা হচ্ছে…',
+  'ঘরের তৈরি তাজা ও স্বাস্থ্যকর খাবারের মেনু সাজানো হচ্ছে…',
+  'খাঁটি উপকরণ আর পরম ভালোবাসায় তৈরি খাবারের স্বাদ…',
+  'রান্নাবাড়ির ঐতিহ্যবাহী স্বাদে আপনাকে স্বাগতম…',
 ];
 
 const ENGLISH_QUOTES = [
-  'Opening the pot of aromas…',
-  'Gathering authentic home flavours…',
-  'Simmering fresh dishes for you…',
-  'Crafting handcrafted culinary love…',
-  'Serving fresh from neighbourhood kitchens…',
+  'Connecting authentic home chefs in your neighbourhood…',
+  'Curating fresh homemade daily menus for you…',
+  'Crafted with authentic ingredients, care & love…',
+  'Welcome to the warmth of authentic home-cooked meals…',
 ];
 
 /**
@@ -104,7 +105,6 @@ export default function ModernLoader({
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(visible ? 1 : 0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
   const spinAnim = useRef(new Animated.Value(0)).current;
   const potBounce = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -118,7 +118,7 @@ export default function ModernLoader({
     if (!visible) return;
     const interval = setInterval(() => {
       setQuoteIdx((prev) => (prev + 1) % BENGALI_QUOTES.length);
-    }, 2200);
+    }, 2400);
     return () => clearInterval(interval);
   }, [visible]);
 
@@ -238,31 +238,28 @@ export default function ModernLoader({
 
   if (!visible) return null;
 
+  const solidBg = isDark ? '#121613' : '#FAF7F0';
+
   return (
     <Animated.View
       pointerEvents={visible ? 'auto' : 'none'}
       style={[
         styles.overlay,
         {
+          backgroundColor: solidBg,
           opacity: fadeAnim,
         },
       ]}
     >
-      <BlurView
-        intensity={Platform.OS === 'android' ? 50 : 35}
-        tint={isDark ? 'dark' : 'light'}
-        style={StyleSheet.absoluteFill}
-      />
-
-      {/* Radial ambient warmth backdrop */}
+      {/* Solid Rich Ambient Radial Gradient */}
       <LinearGradient
         colors={[
-          isDark ? 'rgba(217, 119, 6, 0.22)' : 'rgba(217, 119, 6, 0.14)',
-          isDark ? 'rgba(180, 83, 9, 0.08)' : 'rgba(245, 158, 11, 0.06)',
-          isDark ? 'rgba(18, 22, 19, 0.88)' : 'rgba(250, 247, 240, 0.85)',
+          isDark ? '#1C241E' : '#FFFDF9',
+          isDark ? '#141A15' : '#FAF7F0',
+          isDark ? '#0F1310' : '#F4EEE2',
         ]}
-        locations={[0, 0.45, 1]}
-        start={{ x: 0.5, y: 0.35 }}
+        locations={[0, 0.55, 1]}
+        start={{ x: 0.5, y: 0.2 }}
         end={{ x: 0.5, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
@@ -291,7 +288,7 @@ export default function ModernLoader({
           ]}
         >
           <View style={[styles.spiceDot, { top: 0, left: '50%', backgroundColor: colors.saffron || '#D97706' }]} />
-          <View style={[styles.spiceDot, { bottom: 0, left: '50%', backgroundColor: colors.primary || '#B45309' }]} />
+          <View style={[styles.spiceDot, { bottom: 0, left: '50%', backgroundColor: colors.primary || '#C7381A' }]} />
           <View style={[styles.spiceDot, { left: 0, top: '50%', backgroundColor: colors.sage || '#059669', width: 6, height: 6 }]} />
           <View style={[styles.spiceDot, { right: 0, top: '50%', backgroundColor: '#F59E0B', width: 5, height: 5 }]} />
         </Animated.View>
@@ -299,100 +296,107 @@ export default function ModernLoader({
         {/* Floating Steam Particles */}
         <View style={styles.steamContainer}>
           <SteamParticle delay={0} xOffset={-10} style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(217,119,6,0.6)' }} />
-          <SteamParticle delay={450} xOffset={0} style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.85)' : 'rgba(180,83,9,0.7)' }} />
+          <SteamParticle delay={450} xOffset={0} style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.85)' : 'rgba(199,56,26,0.7)' }} />
           <SteamParticle delay={900} xOffset={12} style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(245,158,11,0.6)' }} />
         </View>
 
-        {/* Central Glowing Culinary Pot Icon */}
+        {/* Central Glowing Culinary Logo Card */}
         <Animated.View
           style={[
             styles.potCard,
             {
-              backgroundColor: isDark ? 'rgba(34, 40, 36, 0.92)' : 'rgba(255, 255, 255, 0.95)',
-              borderColor: isDark ? 'rgba(217, 119, 6, 0.35)' : 'rgba(217, 119, 6, 0.25)',
+              backgroundColor: isDark ? '#1E2620' : '#FFFFFF',
+              borderColor: isDark ? 'rgba(217, 119, 6, 0.45)' : 'rgba(199, 56, 26, 0.2)',
               transform: [{ translateY: potBounce }],
             },
           ]}
         >
-          <Svg width={54} height={54} viewBox="0 0 24 24" fill="none">
-            {/* Pot Body */}
-            <Path
-              d="M3.6 10.8h16.8v2.4a7.2 7.2 0 0 1-7.2 7.2h-2.4a7.2 7.2 0 0 1-7.2-7.2Z"
-              stroke={colors.primary || '#D97706'}
-              strokeWidth={1.9}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill={isDark ? 'rgba(217,119,6,0.15)' : 'rgba(217,119,6,0.08)'}
-            />
-            {/* Pot Rim */}
-            <Path
-              d="M2 10.8h20"
-              stroke={colors.primary || '#D97706'}
-              strokeWidth={2.1}
-              strokeLinecap="round"
-            />
-            {/* Pot Handles */}
-            <Path
-              d="M1.5 12.5C1.5 14 2.8 15 3.6 15"
-              stroke={colors.primary || '#D97706'}
-              strokeWidth={1.7}
-              strokeLinecap="round"
-            />
-            <Path
-              d="M22.5 12.5C22.5 14 21.2 15 20.4 15"
-              stroke={colors.primary || '#D97706'}
-              strokeWidth={1.7}
-              strokeLinecap="round"
-            />
-            {/* Rising Steam Curves */}
-            <Path
-              d="M8.5 7.5c0-1.4 1.1-1.8 1.1-3"
-              stroke={colors.saffron || '#F59E0B'}
-              strokeWidth={1.6}
-              strokeLinecap="round"
-            />
-            <Path
-              d="M12 7c0-1.5 1.2-1.9 1.2-3.2"
-              stroke={colors.saffron || '#F59E0B'}
-              strokeWidth={1.8}
-              strokeLinecap="round"
-            />
-            <Path
-              d="M15.5 7.5c0-1.4 1.1-1.8 1.1-3"
-              stroke={colors.saffron || '#F59E0B'}
-              strokeWidth={1.6}
-              strokeLinecap="round"
-            />
-          </Svg>
+          <Image
+            source={isDark ? LOGO_DARK : LOGO_LIGHT}
+            style={{
+              width: 66,
+              height: 66,
+              borderRadius: 18,
+            }}
+            resizeMode="contain"
+          />
         </Animated.View>
 
-        {/* Brand Title */}
+        {/* Brand Title Lockup & Meaningful Text */}
         <View style={styles.textContainer}>
-          <Text
-            style={[
-              styles.brandName,
-              {
-                color: colors.primary || '#D97706',
-                fontFamily: font.displayBold || 'Fraunces_700Bold',
-              },
-            ]}
-          >
-            RannaBari
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <Text
+              style={[
+                styles.brandName,
+                {
+                  color: colors.text || (isDark ? '#FFFFFF' : '#1F1D1A'),
+                  fontFamily: font.displayBold || 'Fraunces_700Bold',
+                },
+              ]}
+            >
+              Ranna
+            </Text>
+            <Text
+              style={[
+                styles.brandName,
+                {
+                  color: colors.primary || '#C7381A',
+                  fontFamily: font.displayBold || 'Fraunces_700Bold',
+                },
+              ]}
+            >
+              Bari
+            </Text>
+            <View
+              style={{
+                width: 5,
+                height: 5,
+                borderRadius: 2.5,
+                backgroundColor: colors.primary || '#C7381A',
+                marginLeft: 3,
+                marginTop: 6,
+              }}
+            />
+          </View>
 
-          {/* Dynamic Bengali / English Quote */}
+          {/* Meaningful Sub-header Tagline */}
           <Text
-            key={quoteText}
             style={[
-              styles.quoteText,
+              styles.tagline,
               {
-                color: colors.ink || (isDark ? '#E5E7EB' : '#1F2937'),
+                color: isDark ? '#A1A89F' : '#6B685F',
                 fontFamily: font.uiMedium || 'Inter_500Medium',
               },
             ]}
           >
-            {quoteText}
+            {lang === 'bn'
+              ? 'খাঁটি ঘরের স্বাদ • পরম যত্নে তৈরি'
+              : 'Authentic Homemade Taste • Crafted with Love'}
           </Text>
+
+          {/* Dynamic Status / Meaningful Quote */}
+          <View
+            style={[
+              styles.quoteBadge,
+              {
+                backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(199, 56, 26, 0.05)',
+                borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(199, 56, 26, 0.1)',
+              },
+            ]}
+          >
+            <Text
+              key={quoteText}
+              style={[
+                styles.quoteText,
+                {
+                  color: colors.ink || (isDark ? '#E5E7EB' : '#2D2821'),
+                  fontFamily: font.uiSemi || 'Inter_600SemiBold',
+                },
+              ]}
+            >
+              {quoteText}
+            </Text>
+          </View>
 
           {subtext ? (
             <Text
@@ -414,7 +418,7 @@ export default function ModernLoader({
           style={[
             styles.progressTrack,
             {
-              backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+              backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
             },
           ]}
         >
@@ -497,7 +501,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.22,
     shadowRadius: 18,
     elevation: 8,
-    marginBottom: 22,
+    marginBottom: 20,
   },
   textContainer: {
     alignItems: 'center',
@@ -505,20 +509,31 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   brandName: {
-    fontSize: 22,
+    fontSize: 24,
     letterSpacing: -0.4,
-    marginBottom: 6,
+  },
+  tagline: {
+    fontSize: 12.5,
+    textAlign: 'center',
+    letterSpacing: 0.2,
+    marginBottom: 14,
+  },
+  quoteBadge: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    maxWidth: 290,
   },
   quoteText: {
-    fontSize: 14,
+    fontSize: 13,
     textAlign: 'center',
-    lineHeight: 20,
-    minHeight: 22,
+    lineHeight: 18.5,
   },
   subtext: {
     fontSize: 12,
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 6,
   },
   progressTrack: {
     width: 120,
@@ -532,3 +547,4 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
 });
+

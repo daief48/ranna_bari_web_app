@@ -58,6 +58,38 @@ export async function buildApp(): Promise<FastifyInstance> {
     maxAge: 86_400,
   });
 
+  /**
+   * An empty body is `{}`, not a 400.
+   *
+   * Fastify's own JSON parser refuses a zero-length body whenever the caller
+   * announced `content-type: application/json`, and the refusal happens
+   * before any handler runs — so the reply is a parser message rather than
+   * one of this API's codes.
+   *
+   * Half the writes here are a verb with no payload: mark a dish sold out,
+   * advance an order, empty the basket, withdraw an offer. A client that sets
+   * the header on every request is doing something ordinary, and the honest
+   * reading of "no body" for those routes is an empty object — every one of
+   * them parses its body with a schema that is happy with `{}`.
+   */
+  app.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (_request, payload, done) => {
+      const raw = String(payload ?? '').trim();
+      if (!raw) return done(null, {});
+      try {
+        done(null, JSON.parse(raw));
+      } catch {
+        /* A malformed body is still a 400 — the caller sent something and got
+           it wrong, which is not the same as sending nothing. */
+        const error = new Error('bad-json') as Error & { statusCode?: number };
+        error.statusCode = 400;
+        done(error, undefined);
+      }
+    },
+  );
+
   /* One error shape for the whole surface: a code the clients can branch on,
      and a sentence for anything that has not been taught that code yet. */
   app.setErrorHandler((error: Error & { statusCode?: number }, request, reply) => {

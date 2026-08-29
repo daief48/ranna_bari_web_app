@@ -6,7 +6,7 @@
  * here is a fixed taxonomy, because a cook who sells cake and achar has
  * nothing in common with one who sells pitha and nimki.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -47,6 +47,13 @@ export default function StoreScreen() {
   const [flash, setFlash] = useState(null);
   const [error, setError] = useState(null);
 
+  /* The directory carries the shop; the shelves are a second request,
+     made when somebody actually walks in. */
+  const { ensureStore } = shop;
+  useEffect(() => {
+    ensureStore(String(id));
+  }, [id, ensureStore]);
+
   const store = shop.storeById(String(id));
   const key = customerKeyOf(account);
 
@@ -86,9 +93,9 @@ export default function StoreScreen() {
       : null;
   const away = formatDistance(km, t, n);
 
-  const add = (product) => {
+  const add = async (product) => {
     if (!isSignedIn) return router.push('/auth');
-    const out = shop.addToCart(key, product.id, 1, null);
+    const out = await shop.addToCart(key, product.id, 1, null);
     if (!out.ok) {
       setFlash(null);
       setError(errorText(out.error, t, n, { ...out, productName: product.name }));

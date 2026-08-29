@@ -6,7 +6,7 @@
  * they cost the customer different things -- one arrives, the other has to be
  * agreed to first -- so they never share a button, a colour or a sentence.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -33,6 +33,14 @@ export default function ProductScreen() {
   const router = useRouter();
   const { account, isSignedIn } = useAuth();
   const shop = useCommerce();
+
+  /* Reachable by link, so the shelf this sits on may never have been
+     fetched. `ensureProduct` brings the shop with it, because availability
+     is a reading of the two together. */
+  const { ensureProduct } = shop;
+  useEffect(() => {
+    ensureProduct(String(id));
+  }, [id, ensureProduct]);
 
   const product = shop.productById(String(id));
   const store = product ? shop.storeById(product.storeId) : null;
@@ -74,9 +82,9 @@ export default function ProductScreen() {
   const images = product.images?.length ? product.images : [''];
   const max = product.maxQty ?? (availability === 'in-stock' ? product.stock : null);
 
-  const add = (thenGo) => {
+  const add = async (thenGo) => {
     if (!isSignedIn) return router.push('/auth');
-    const out = shop.addToCart(key, product.id, qty, option);
+    const out = await shop.addToCart(key, product.id, qty, option);
     if (!out.ok) {
       return setError(errorText(out.error, t, n, { ...out, productName: product.name }));
     }

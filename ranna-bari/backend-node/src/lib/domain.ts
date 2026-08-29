@@ -65,6 +65,10 @@ export type ErrCode = (typeof ERR)[keyof typeof ERR];
 
 /** What an operator reads when a transition refuses. */
 export const ERR_TEXT: Record<string, string> = {
+  /* Not one of the transition codes — this comes from the body parser, before
+     any handler runs. It has a sentence for the same reason the others do:
+     the client shows whatever `message` it is handed. */
+  'bad-json': 'That request body was not valid JSON.',
   [ERR.NO_MEAL]: 'That meal no longer exists.',
   [ERR.MEAL_CLOSED]: 'This meal is not taking orders.',
   [ERR.PAST_DEADLINE]: 'The ordering deadline has passed.',

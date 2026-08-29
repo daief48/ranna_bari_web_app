@@ -36,6 +36,7 @@ import { font, radius, tracking, type } from '../../../src/theme/tokens';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { COOK_ADVANCES } from '../../../src/lib/mealLogic';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import { formatAddress } from '../../../src/lib/address';
 
 /** What the bulk button says when everything is sitting at `status`. */
 const BULK_LABEL = {
@@ -78,7 +79,7 @@ export default function CookMealScreen() {
   }
 
   const confirmed = orders.length;
-  const interested = meal.interested?.length ?? 0;
+  const interested = meal.interestCount ?? 0;
   const left = meals.remaining(meal);
   const live = orders.filter((o) => o.status !== 'completed');
   const held = orders
@@ -95,42 +96,45 @@ export default function CookMealScreen() {
     (status) => table[status] && live.some((o) => o.status === status),
   );
 
-  const advanceAll = () => {
+  const advanceAll = async () => {
     setError(null);
     const targets = live.filter((o) => o.status === batch).map((o) => o.id);
     let moved = 0;
     for (const orderId of targets) {
-      // Each call re-validates against the state the previous one produced.
-      if (meals.advanceOrder(orderId).ok) moved += 1;
+      /* One at a time, not `Promise.all`: each order is its own transition
+         and the server refuses one that is already past this step. Firing
+         them together would have the batch race its own refreshes. */
+      const out = await meals.advanceOrder(orderId);
+      if (out.ok) moved += 1;
     }
     setFlash(t('{n} orders moved on.', { n: n(moved) }));
   };
 
-  const advanceOne = (orderId) => {
-    const out = meals.advanceOrder(orderId);
+  const advanceOne = async (orderId) => {
+    const out = await meals.advanceOrder(orderId);
     if (!out.ok) setError(errorText(out.error, t, n, out));
   };
 
   /* One customer's plate called off -- they ran out of an ingredient, or the
      order cannot be delivered. Their money goes straight back; the rest of
      the service carries on. */
-  const cancelOne = (orderId) => {
-    const out = meals.cancelOrder(orderId, 'cook', 'Cancelled by the kitchen');
+  const cancelOne = async (orderId) => {
+    const out = await meals.cancelOrder(orderId, 'cook', 'Cancelled by the kitchen');
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setError(null);
     setFlash(t('Order cancelled. ৳{n} refunded.', { n: n(out.result) }));
   };
 
-  const close = () => {
+  const close = async () => {
     setAsking(null);
-    const out = meals.closeMeal(meal.id);
+    const out = await meals.closeMeal(meal.id);
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setFlash(t('Closed. Existing orders are unaffected.'));
   };
 
-  const cancel = () => {
+  const cancel = async () => {
     setAsking(null);
-    const out = meals.cancelMeal(meal.id, 'Cancelled by the kitchen');
+    const out = await meals.cancelMeal(meal.id, 'Cancelled by the kitchen');
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setFlash(t('Cancelled. ৳{n} refunded to customers.', { n: n(out.result.refunded) }));
   };
@@ -429,7 +433,7 @@ function OrderRow({ order, next, onAdvance, onCancel }) {
             style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
           >
             {order.code}
-            {order.address ? ` · ${order.address}` : ''}
+            {formatAddress(order.address) ? ` · ${formatAddress(order.address)}` : ''}
           </Text>
         </View>
         <Price size={16}>৳{n(order.amount)}</Price>

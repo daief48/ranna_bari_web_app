@@ -626,6 +626,23 @@ export function errorText(error, t, n, extra = {}) {
     case 'offer-not-agreed':
       return t('Agree a price first.');
 
+    /* ---- refusals only a server can make ----
+       The transitions these come from used to run on the device, where there
+       was no network to drop, no session to expire and no kitchen the app had
+       not heard of. Now that they run on the server, all three are things a
+       customer can actually hit, and each needs its own sentence: "something
+       went wrong" tells somebody with no signal to try again forever. */
+    case 'network':
+      return t('We could not reach the server. Check your connection.');
+    case 'unauthenticated':
+      return t('Sign in to do that.');
+    case 'kitchen-missing':
+      return t('That kitchen is no longer listed.');
+    case 'duplicate-request':
+      return t('You have already sent that.');
+    case 'bad-json':
+      return t('Something went wrong. Try again.');
+
     default:
       return t('Something went wrong. Try again.');
   }
@@ -653,7 +670,7 @@ export function notificationText(nt, { mealById, orders, t, n }) {
     // or how many portions the cook now has to cook.
     n: n(
       nt.kind === 'interest'
-        ? (meal?.interested?.length ?? 0)
+        ? (meal?.interestCount ?? 0)
         : orders.filter((o) => o.mealId === nt.mealId && o.status !== 'cancelled').length,
     ),
   };

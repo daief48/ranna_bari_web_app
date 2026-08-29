@@ -8,7 +8,7 @@
  * and one button. Showing all three at once would be a form; showing them in
  * turn is a conversation.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -42,6 +42,14 @@ export default function RequestScreen() {
   const router = useRouter();
   const { account } = useAuth();
   const shop = useCommerce();
+
+  /* The board carries the request; the offers on it are a second request,
+     and which offers come back is the server's decision -- a customer reads
+     every price, a cook reads only their own. */
+  const { ensureRequest } = shop;
+  useEffect(() => {
+    ensureRequest(String(id));
+  }, [id, ensureRequest]);
 
   const [error, setError] = useState(null);
   const [flash, setFlash] = useState(null);
@@ -99,30 +107,30 @@ export default function RequestScreen() {
   const affordable = agreed != null && balance >= agreed;
   const myTurn = selected ? turnOf(selected) === 'customer' : false;
 
-  const choose = (offer) => {
-    const out = shop.selectOffer(request.id, offer.id);
+  const choose = async (offer) => {
+    const out = await shop.selectOffer(request.id, offer.id);
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setError(null);
     setFlash(t('You picked {who}. The other cooks were told.', { who: offer.cookName }));
   };
 
-  const send = () => {
-    const out = shop.counterOffer(selected.id, 'customer', counter);
+  const send = async () => {
+    const out = await shop.counterOffer(selected.id, 'customer', counter);
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setError(null);
     setCounter('');
   };
 
-  const accept = () => {
-    const out = shop.acceptPrice(selected.id, 'customer');
+  const accept = async () => {
+    const out = await shop.acceptPrice(selected.id, 'customer');
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setError(null);
     setFlash(t('Agreed at ৳{n}. Pay to confirm.', { n: n(standing(selected).amount) }));
   };
 
-  const pay = () => {
+  const pay = async () => {
     setAsking(null);
-    const out = shop.payForRequest(request.id, {
+    const out = await shop.payForRequest(request.id, {
       name: account?.name ?? '',
       phone: account?.phone ?? '',
       address: account?.address ?? account?.area ?? '',
@@ -133,17 +141,17 @@ export default function RequestScreen() {
 
   /* Leaving one negotiation without abandoning the request. The other
      offers come back, so this is a much smaller step than withdrawing. */
-  const walkAway = () => {
+  const walkAway = async () => {
     setAsking(null);
-    const out = shop.rejectOffer(selected.id, 'The customer went elsewhere');
+    const out = await shop.rejectOffer(selected.id, 'The customer went elsewhere');
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setError(null);
     setFlash(t('Back to the other offers.'));
   };
 
-  const cancel = () => {
+  const cancel = async () => {
     setAsking(null);
-    const out = shop.cancelRequest(request.id);
+    const out = await shop.cancelRequest(request.id);
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     router.replace('/requests');
   };

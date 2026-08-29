@@ -3,7 +3,9 @@
 Node · TypeScript · Fastify · MongoDB (Mongoose) · `ws`
 
 The platform's source of truth. Serves two consumers — the admin panel, which
-integrates with it, and the Expo app, which is being wired onto it now.
+integrates with it, and the Expo app, which reads and writes everything
+through it — every screen in the app, customer and cook, renders rows from
+here rather than from AsyncStorage.
 
 
 ---
@@ -35,7 +37,7 @@ stores survives the process.
 ```bash
 npm test                  # 57 assertions + the session checker
 npm run seed:local        # seed a throwaway replica set and print the books
-npm run routes            # what actually registered — 98 routes today
+npm run routes            # what actually registered — 103 routes today
 npm run check:sessions    # every in-transaction query passes { session }
 ```
 
@@ -56,7 +58,7 @@ npm run build && npm start
 | `npm test` | **57 passed** — money invariants, HTTP surface, ported transitions |
 | `npm run check:sessions` | clean across 29 files |
 | `npm run seed:local` | 20 kitchens, 380 orders, 510 ledger entries, **zero drift** |
-| `npm run routes` | 98 routes across two prefixes |
+| `npm run routes` | 103 routes across two prefixes |
 | `GET /health` | reports whether transactions are actually possible |
 
 What the tests actually assert, rather than assume:
@@ -148,8 +150,10 @@ than from a customer.
 | `ChatMessage` | collection | unbounded — a busy thread would burst a document |
 | `Meal.interested` | `MealInterest` collection | capacity is bounded; *interest* is not |
 
-The app holds `interested` as an array on the meal, which is right for a
-device. The API shape stays an array either way.
+The app used to hold `interested` as an array on the meal. It no longer
+gets one: `/meals` returns `interested` as a boolean — whether *you* are —
+plus an `interestCount`. Who else is interested is nobody's business, and a
+list that is never sent cannot leak.
 
 **Two id spaces, both real.** The app ships kitchens numbered 1–20; Mongo
 gives everything an `_id`. `Kitchen.legacyId` bridges them, and
@@ -240,5 +244,7 @@ Named so the gaps are known rather than discovered:
   is the single seam where Redis goes.
 - **TOTP is implemented, not enforced.** No enrolment endpoint, so
   `totpEnabled` is false for every seeded operator.
-- **No per-dish endpoint for a cook's own menu**, so the app keeps its menu
-  on the device. Everything else it owns now round-trips.
+- **No offline queue for writes.** Reads are cached on the device and
+  painted before the network answers; writes are not replayed. Money moving
+  is not something to guess about, and a refusal the customer never saw is
+  worse than a button that says it could not reach the server.

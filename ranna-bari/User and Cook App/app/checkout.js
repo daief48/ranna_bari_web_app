@@ -86,7 +86,7 @@ function CheckoutForm() {
     [items],
   );
 
-  const submit = () => {
+  const submit = async () => {
     if (!name.trim() || !phone.trim() || !line.trim()) {
       setNote(t('We need a name, a phone number and a street address to deliver.'));
       return;
@@ -101,7 +101,7 @@ function CheckoutForm() {
     /* A basket spanning two kitchens is two orders -- two cooks, two queues,
        two receipts. `placeOrder` does that split, so this gets a list back
        however many kitchens were involved. */
-    const placed = placeOrder({
+    const out = await placeOrder({
       paymentMethod: method,
       items,
       subtotal,
@@ -119,9 +119,23 @@ function CheckoutForm() {
       },
     });
 
-    // The cart is emptied only after the order exists, so a failure here
-    // could never lose the basket.
+    setPlacing(false);
+
+    /* The order is the server's now, so this can genuinely fail -- a kitchen
+       it has never heard of, or a network that dropped. The basket is left
+       exactly as it was so the customer can press the button again. */
+    if (!out.ok) {
+      setNote(
+        out.error === 'network'
+          ? t('We could not reach the server. Check your connection and try again.')
+          : t('Something went wrong. Try again.'),
+      );
+      return;
+    }
+
+    // Emptied only after the orders exist, so a failure could never lose it.
     clear();
+    const placed = out.result;
     // One kitchen gets its receipt; several go to the list, because no single
     // receipt would be honest about the others.
     router.replace(placed.length === 1 ? `/order/${placed[0].id}` : '/orders');

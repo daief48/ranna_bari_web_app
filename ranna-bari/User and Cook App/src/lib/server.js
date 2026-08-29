@@ -104,7 +104,11 @@ export async function api(path, { method = 'GET', token, body, signal } = {}) {
     const response = await fetch(`${API_BASE}/api/app/v1${path}`, {
       method,
       headers: {
-        'content-type': 'application/json',
+        /* Only when there is one. Half the writes in this app are a verb with
+           no payload — mark a dish sold out, advance an order, empty the
+           basket — and announcing a JSON body that was never sent makes the
+           server reject the request before it reaches the handler. */
+        ...(body ? { 'content-type': 'application/json' } : {}),
         ...(token ? { authorization: `Bearer ${token}` } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,

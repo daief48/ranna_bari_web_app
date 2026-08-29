@@ -6,7 +6,7 @@
  * answered -- there is no read in `requestLogic` that would tell this screen,
  * which is where that guarantee has to live.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -35,6 +35,7 @@ import { OFFER_STATUS, REQUEST_STATUS, standing, turnOf } from '../../../src/lib
 import { COOK_ADVANCES } from '../../../src/lib/ledger';
 import { MealStatusPill, PaymentPill } from '../../../src/components/MealBits';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import { formatAddress } from '../../../src/lib/address';
 
 export default function CookRequestScreen() {
   const { id } = useLocalSearchParams();
@@ -43,6 +44,14 @@ export default function CookRequestScreen() {
   const router = useRouter();
   const { kitchen } = useKitchen();
   const shop = useCommerce();
+
+  /* The board carries the request; the offers on it are a second request,
+     and which offers come back is the server's decision -- a customer reads
+     every price, a cook reads only their own. */
+  const { ensureRequest } = shop;
+  useEffect(() => {
+    ensureRequest(String(id));
+  }, [id, ensureRequest]);
 
   const [price, setPrice] = useState('');
   const [note, setNote] = useState('');
@@ -91,8 +100,8 @@ export default function CookRequestScreen() {
     request.status === REQUEST_STATUS.CANCELLED ||
     ['not-selected', 'withdrawn'].includes(offer?.status);
 
-  const submit = () => {
-    const out = shop.submitOffer(
+  const submit = async () => {
+    const out = await shop.submitOffer(
       request.id,
       {
         kitchenId: kitchen.id,
@@ -118,36 +127,36 @@ export default function CookRequestScreen() {
     setPrice('');
   };
 
-  const send = () => {
-    const out = shop.counterOffer(offer.id, 'cook', counter);
+  const send = async () => {
+    const out = await shop.counterOffer(offer.id, 'cook', counter);
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setError(null);
     setCounter('');
   };
 
-  const accept = () => {
-    const out = shop.acceptPrice(offer.id, 'cook');
+  const accept = async () => {
+    const out = await shop.acceptPrice(offer.id, 'cook');
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setError(null);
     setFlash(t('Agreed at ৳{n}. Waiting for payment.', { n: n(standing(offer).amount) }));
   };
 
-  const advance = () => {
-    const out = shop.advanceOrder(order.id);
+  const advance = async () => {
+    const out = await shop.advanceOrder(order.id);
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setError(null);
   };
 
   /* The other half of "interested": a cook who cannot take it says so, and
      the request leaves their board instead of sitting there unanswered. */
-  const decline = () => {
-    const out = shop.declineRequest(request.id, kitchen.id);
+  const decline = async () => {
+    const out = await shop.declineRequest(request.id, kitchen.id);
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     router.replace('/cook/requests');
   };
 
-  const withdraw = () => {
-    const out = shop.withdrawOffer(offer.id);
+  const withdraw = async () => {
+    const out = await shop.withdrawOffer(offer.id);
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     router.replace('/cook/requests');
   };
@@ -198,7 +207,9 @@ export default function CookRequestScreen() {
 
           <View style={{ gap: 5, paddingTop: 4 }}>
             <Detail icon="user" text={request.customerName || t('A customer')} />
-            {request.address ? <Detail icon="pin" text={request.address} /> : null}
+            {formatAddress(request.address) ? (
+              <Detail icon="pin" text={formatAddress(request.address)} />
+            ) : null}
             <Detail icon="clock" text={formatOrderDate(request.createdAt, lang)} />
             <Detail
               icon={request.target === 'all' ? 'sparkles' : 'chefHat'}
@@ -424,7 +435,7 @@ export default function CookRequestScreen() {
                     style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
                   >
                     {order.code}
-                    {order.address ? ` · ${order.address}` : ''}
+                    {formatAddress(order.address) ? ` · ${formatAddress(order.address)}` : ''}
                   </Text>
                 </View>
                 <Text

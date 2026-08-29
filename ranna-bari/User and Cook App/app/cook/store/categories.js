@@ -43,21 +43,21 @@ export default function StoreCategories() {
   const store = kitchen ? shop.storeForKitchen(kitchen.id) : null;
   const categories = store ? shop.categoriesOf(store.id) : [];
 
-  const add = () => {
-    const out = shop.addCategory(store.id, name, emoji);
+  const add = async () => {
+    const out = await shop.addCategory(store.id, name, emoji);
     if (!out.ok) return setNote(errorText(out.error, t, n, out));
     setNote(null);
     setName('');
   };
 
-  const rename = (id, value) => {
-    const out = shop.updateCategory(id, { name: value });
+  const rename = async (id, value) => {
+    const out = await shop.updateCategory(id, { name: value });
     if (!out.ok) setNote(errorText(out.error, t, n, out));
     else setNote(null);
   };
 
-  const remove = (id) => {
-    const out = shop.removeCategory(id);
+  const remove = async (id) => {
+    const out = await shop.removeCategory(id);
     if (!out.ok) return setNote(errorText(out.error, t, n, out));
     setNote(null);
   };

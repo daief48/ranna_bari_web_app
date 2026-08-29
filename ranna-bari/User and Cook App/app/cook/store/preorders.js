@@ -29,6 +29,7 @@ import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { formatOrderDate, timeAgo } from '../../../src/store/OrdersContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import { formatAddress } from '../../../src/lib/address';
 
 export default function StorePreorders() {
   const { colors, shadow } = useTheme();
@@ -57,15 +58,15 @@ export default function StorePreorders() {
       .slice(0, 8);
   }, [shop, store]);
 
-  const accept = (order) => {
-    const out = shop.acceptPreorder(order.id);
+  const accept = async (order) => {
+    const out = await shop.acceptPreorder(order.id);
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setError(null);
     setFlash(t('Accepted. {customer} has been told.', { customer: order.customerName }));
   };
 
-  const reject = (order) => {
-    const out = shop.rejectPreorder(order.id, 'Declined by the kitchen');
+  const reject = async (order) => {
+    const out = await shop.rejectPreorder(order.id, 'Declined by the kitchen');
     if (!out.ok) return setError(errorText(out.error, t, n, out));
     setError(null);
     setFlash(t('Declined. ৳{n} went back to {customer}.', {
@@ -264,7 +265,9 @@ function Request({ order, onAccept, onReject }) {
         {order.phone ? (
           <Detail icon="phone" text={order.phone} />
         ) : null}
-        {order.address ? <Detail icon="pin" text={order.address} /> : null}
+        {formatAddress(order.address) ? (
+          <Detail icon="pin" text={formatAddress(order.address)} />
+        ) : null}
         <Detail icon="clock" text={formatOrderDate(order.createdAt, lang)} />
       </View>
 

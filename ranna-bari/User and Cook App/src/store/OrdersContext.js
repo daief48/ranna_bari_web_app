@@ -2,13 +2,11 @@ import React, {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useState,
 } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const KEY = 'rannabari_orders';
+import { call } from '../lib/server';
+import { useCommerce } from './CommerceContext';
+import { useSession } from './SessionContext';
 
 /**
  * The lifecycle a COD order moves through.
@@ -78,289 +76,127 @@ function makeCode() {
   return `RB-${out}`;
 }
 
-/** Minutes before now, as an ISO string — used to age the seeded orders. */
-const minutesAgo = (m) => new Date(Date.now() - m * 60_000).toISOString();
-
 const OrdersContext = createContext(null);
 
 export function OrdersProvider({ children }) {
-  const [orders, setOrders] = useState([]);
-  const [hydrated, setHydrated] = useState(false);
+  /* Orders live in one place now -- `CommerceContext` fetches `/orders`, which
+     returns every row this account is on whatever kind it is. This provider
+     kept its own copy while orders were a device thing; keeping a second one
+     against a server would mean two lists that disagree about a status the
+     cook just changed. So it projects rather than stores. */
+  const shop = useCommerce();
+  const { token } = useSession();
 
-  useEffect(() => {
-    let alive = true;
-    AsyncStorage.getItem(KEY)
-      .then((raw) => {
-        if (!alive || !raw) return;
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) setOrders(parsed);
-      })
-      .catch(() => {})
-      .finally(() => alive && setHydrated(true));
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  // Persist only after hydration, so the initial empty array never wipes
-  // stored orders during the first render pass.
-  useEffect(() => {
-    if (!hydrated) return;
-    AsyncStorage.setItem(KEY, JSON.stringify(orders)).catch(() => {});
-  }, [orders, hydrated]);
+  /* Cash on delivery only. Meals, shop baskets and won requests are escrow
+     orders and have their own screens; this rail is the one the rider walks. */
+  const orders = useMemo(
+    () => shop.orders.filter((o) => o.kind === 'cod'),
+    [shop.orders],
+  );
 
   /**
    * Turn a checkout draft into orders — one per kitchen.
    *
-   * The cart groups its rows by kitchen already, and a basket spanning two
-   * kitchens is two separate cooks with two separate queues. Splitting here
-   * is what lets a cook see only their own work.
-   *
-   * The delivery and platform lines are charged once per basket, not once
-   * per kitchen, so they ride on the first order and the rest carry zero.
-   * The sum across the split matches the total the customer was shown, and a
-   * cook's payout reads off `subtotal`, which is untouched either way.
-   *
-   * @param {object} draft  items, totals, contact and address from checkout
-   * @returns {object[]} the created orders, newest-kitchen-first
+   * The split is still made here, because it is a fact about the basket
+   * rather than about the server: a basket spanning two kitchens is two
+   * cooks with two queues, and the delivery and platform lines are charged
+   * once per basket rather than once per kitchen. `POST /orders` takes the
+   * whole array and answers per row, so one kitchen refusing does not lose
+   * the other.
    */
-  const placeOrder = useCallback((draft) => {
-    const byKitchen = new Map();
-    for (const item of draft.items) {
-      const key = String(item.chefId ?? 'unknown');
-      if (!byKitchen.has(key)) byKitchen.set(key, []);
-      byKitchen.get(key).push(item);
-    }
+  const placeOrder = useCallback(
+    async (draft) => {
+      const byKitchen = new Map();
+      for (const item of draft.items) {
+        const key = String(item.chefId ?? 'unknown');
+        if (!byKitchen.has(key)) byKitchen.set(key, []);
+        byKitchen.get(key).push(item);
+      }
 
-    const createdAt = new Date().toISOString();
-    const created = Array.from(byKitchen.entries()).map(([chefId, items], i) => {
-      const subtotal = items.reduce((s, it) => s + it.price * it.qty, 0);
-      const deliveryFee = i === 0 ? draft.deliveryFee : 0;
-      const platformFee = i === 0 ? draft.platformFee : 0;
+      const createdAt = new Date().toISOString();
+      const drafts = Array.from(byKitchen.entries()).map(([chefId, items], i) => {
+        const subtotal = items.reduce((s, it) => s + it.price * it.qty, 0);
+        const deliveryFee = i === 0 ? draft.deliveryFee : 0;
+        const platformFee = i === 0 ? draft.platformFee : 0;
 
+        return {
+          /* The app's own code is the idempotency key on the server, so a
+             retry after a dropped connection returns the order that already
+             exists rather than making a second one. */
+          code: makeCode(),
+          kind: 'cod',
+          chefId,
+          chefName: items[0]?.chefName ?? '',
+          title: items[0]?.name,
+          image: items[0]?.image,
+          items,
+          subtotal,
+          deliveryFee,
+          platformFee,
+          total: subtotal + deliveryFee + platformFee,
+          status: 'placed',
+          contact: draft.contact,
+          address: draft.address,
+          createdAt,
+          history: [{ status: 'placed', at: createdAt }],
+        };
+      });
+
+      const out = await call('/orders', { method: 'POST', token, body: { orders: drafts } });
+      if (!out.ok) return out;
+
+      const results = out.result.results ?? [];
+      const failed = results.find((row) => !row.ok);
+      /* Every row refused is a failure worth reporting; a partial success is
+         not, because the orders that were taken are real and the customer has
+         to be shown them. */
+      if (failed && results.every((row) => !row.ok)) {
+        return { ok: false, error: failed.error };
+      }
+
+      await shop.refresh();
+
+      const ids = new Set(results.filter((r) => r.ok).map((r) => r.orderId));
       return {
-        id: makeCode(),
-        createdAt,
-        status: 'placed',
-        paymentMethod: draft.paymentMethod ?? 'cod',
-        items,
-        chefId: chefId === 'unknown' ? null : chefId,
-        chefName: items[0]?.chefName ?? '',
-        subtotal,
-        deliveryFee,
-        platformFee,
-        total: subtotal + deliveryFee + platformFee,
-        contact: draft.contact,
-        address: draft.address,
-        /* Every status change is stamped, so both the customer timeline and
-           the cook's history can say when rather than just what. */
-        history: [{ status: 'placed', at: createdAt }],
+        ok: true,
+        result: results
+          .filter((r) => r.ok)
+          .map((r) => ({ id: r.orderId, code: r.code })),
+        ids,
       };
-    });
-
-    setOrders((prev) => [...created, ...prev]);
-    return created;
-  }, []);
+    },
+    [token, shop],
+  );
 
   const getOrder = useCallback(
-    (id) => orders.find((o) => o.id === id) ?? null,
+    (id) => orders.find((o) => String(o.id) === String(id)) ?? null,
     [orders],
   );
 
-  /** Stamp a status change and record it on the order's history. */
-  const applyStatus = useCallback((id, status, extra) => {
-    const at = new Date().toISOString();
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === id
-          ? {
-              ...o,
-              ...extra,
-              status,
-              history: [...(o.history ?? []), { status, at }],
-            }
-          : o,
-      ),
-    );
-  }, []);
-
   /** Customer-side. Only an order the kitchen has not accepted can be pulled. */
   const cancelOrder = useCallback(
-    (id) => {
-      setOrders((prev) =>
-        prev.map((o) => {
-          if (o.id !== id || o.status !== 'placed') return o;
-          const at = new Date().toISOString();
-          return {
-            ...o,
-            status: 'cancelled',
-            cancelledAt: at,
-            history: [...(o.history ?? []), { status: 'cancelled', at }],
-          };
-        }),
-      );
-    },
-    [],
+    (id, reason = 'Cancelled by the customer') =>
+      shop.cancelOrder(id, 'customer', reason),
+    [shop],
   );
 
   /** Cook-side. Move the order one step along the rail. */
-  const advanceOrder = useCallback(
-    (id) => {
-      setOrders((prev) => {
-        const order = prev.find((o) => o.id === id);
-        const next = order && NEXT_STEP[order.status];
-        if (!next) return prev;
-        const at = new Date().toISOString();
-        return prev.map((o) =>
-          o.id === id
-            ? {
-                ...o,
-                status: next,
-                history: [...(o.history ?? []), { status: next, at }],
-                ...(next === 'delivered' ? { deliveredAt: at } : null),
-              }
-            : o,
-        );
-      });
-    },
-    [],
-  );
+  const advanceOrder = useCallback((id) => shop.advanceOrder(id), [shop]);
 
-  /** Cook-side. A kitchen turning an order down is not the same as a customer
-      cancelling it, so it gets its own terminal status and keeps the reason. */
+  /** A kitchen turning an order down. The server refunds nothing on a COD
+      order — the rider never collected — but it still tells the customer. */
   const rejectOrder = useCallback(
-    (id, reason) => {
-      applyStatus(id, 'rejected', {
-        rejectedAt: new Date().toISOString(),
-        rejectReason: reason || 'The kitchen could not take this order.',
-      });
-    },
-    [applyStatus],
+    (id, reason) =>
+      shop.cancelOrder(id, 'cook', reason || 'The kitchen could not take this order.'),
+    [shop],
   );
 
   /** Every order that belongs to one kitchen, newest first. */
   const ordersForKitchen = useCallback(
     (kitchenId) =>
-      kitchenId
-        ? orders.filter((o) => String(o.chefId) === String(kitchenId))
-        : [],
+      kitchenId ? orders.filter((o) => String(o.kitchenId) === String(kitchenId)) : [],
     [orders],
   );
-
-  /**
-   * Give a brand-new kitchen a queue to work with.
-   *
-   * Without a backend there is nobody else on this device to place an order,
-   * so a cook would sign up into an empty dashboard with nothing to press.
-   * These four cover every state the panel renders: one waiting to be
-   * accepted, one mid-cook, one out for delivery, one already done.
-   *
-   * Runs once — the `isDemo` flag on the rows is the guard.
-   */
-  const seedKitchenOrders = useCallback((kitchen) => {
-    if (!kitchen?.dishes?.length) return;
-
-    setOrders((prev) => {
-      if (prev.some((o) => o.isDemo)) return prev;
-
-      const dish = (i) => kitchen.dishes[i % kitchen.dishes.length];
-      const line = (i, qty) => {
-        const d = dish(i);
-        return {
-          id: d.id,
-          name: d.name,
-          description: d.description,
-          price: d.price,
-          image: d.image,
-          chefId: kitchen.id,
-          chefName: kitchen.name,
-          qty,
-        };
-      };
-
-      const drafts = [
-        {
-          minutes: 4,
-          status: 'placed',
-          items: [line(0, 1), line(2, 2)],
-          contact: { name: 'Tanvir Ahmed', phone: '+8801711223344' },
-          address: {
-            label: 'Home',
-            line: 'House 41, Road 9/A, Flat 2C',
-            area: 'Dhanmondi, Dhaka',
-            instructions: 'Please ring the bell twice, the gate bell is broken.',
-          },
-        },
-        {
-          minutes: 26,
-          status: 'cooking',
-          items: [line(1, 1)],
-          contact: { name: 'Nusrat Jahan', phone: '+8801812334455' },
-          address: {
-            label: 'Office',
-            line: 'Level 6, Rangs Babylonia, Bijoy Sarani',
-            area: 'Tejgaon, Dhaka',
-            instructions: '',
-          },
-        },
-        {
-          minutes: 58,
-          status: 'on_the_way',
-          items: [line(0, 2), line(1, 1)],
-          contact: { name: 'Imran Hossain', phone: '+8801913445566' },
-          address: {
-            label: 'Home',
-            line: 'House 7, Road 3, Shukrabad',
-            area: 'Dhanmondi, Dhaka',
-            instructions: 'Leave with the guard if nobody answers.',
-          },
-        },
-        {
-          minutes: 1_580,
-          status: 'delivered',
-          items: [line(2, 3)],
-          contact: { name: 'Farhana Rahman', phone: '+8801614556677' },
-          address: {
-            label: 'Home',
-            line: 'Apt 5B, 22 Green Road',
-            area: 'Dhanmondi, Dhaka',
-            instructions: '',
-          },
-        },
-      ];
-
-      const seeded = drafts.map((d) => {
-        const subtotal = d.items.reduce((s, it) => s + it.price * it.qty, 0);
-        const createdAt = minutesAgo(d.minutes);
-        const reached = ORDER_STEPS.slice(0, stepIndex(d.status) + 1);
-
-        return {
-          id: makeCode(),
-          createdAt,
-          status: d.status,
-          paymentMethod: 'cod',
-          items: d.items,
-          chefId: kitchen.id,
-          chefName: kitchen.name,
-          subtotal,
-          deliveryFee: 40,
-          platformFee: 10,
-          total: subtotal + 50,
-          contact: d.contact,
-          address: d.address,
-          isDemo: true,
-          /* Back-date each step it has already passed, evenly across the
-             order's age, so the timeline is not four identical stamps. */
-          history: reached.map((s, i) => ({
-            status: s.key,
-            at: minutesAgo(d.minutes - (d.minutes / reached.length) * i),
-          })),
-        };
-      });
-
-      return [...prev, ...seeded];
-    });
-  }, []);
 
   const value = useMemo(
     () => ({
@@ -373,8 +209,8 @@ export function OrdersProvider({ children }) {
       advanceOrder,
       rejectOrder,
       ordersForKitchen,
-      seedKitchenOrders,
-      hydrated,
+      refresh: shop.refresh,
+      hydrated: shop.hydrated,
     }),
     [
       orders,
@@ -384,13 +220,14 @@ export function OrdersProvider({ children }) {
       advanceOrder,
       rejectOrder,
       ordersForKitchen,
-      seedKitchenOrders,
-      hydrated,
+      shop.refresh,
+      shop.hydrated,
     ],
   );
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>;
 }
+
 
 export function useOrders() {
   const ctx = useContext(OrdersContext);

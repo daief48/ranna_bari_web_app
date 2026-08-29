@@ -80,8 +80,11 @@ export default function MealScreen() {
 
   const left = meals.remaining(meal);
   const confirmed = meals.confirmedCount(meal.id);
-  const interested = meal.interested?.length ?? 0;
-  const isInterested = (meal.interested ?? []).includes(key);
+  const interested = meal.interestCount ?? 0;
+  /* The server answers this per caller: `interested` is whether *you*
+     are, not the list of everyone who is. The list is nobody else's business
+     and is never sent. */
+  const isInterested = !!meal.interested;
   const open = meals.isOpen(meal);
   const balance = meals.wallet.customer;
   const affordable = balance >= meal.price;
@@ -98,9 +101,9 @@ export default function MealScreen() {
     setConfirming(true);
   };
 
-  const doConfirm = () => {
+  const doConfirm = async () => {
     setBusy(true);
-    const out = meals.confirmOrder(meal.id, {
+    const out = await meals.confirmOrder(meal.id, {
       key,
       name: account?.name ?? '',
       phone: account?.phone ?? '',

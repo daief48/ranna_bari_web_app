@@ -431,6 +431,37 @@ export async function storeRoutes(app: FastifyInstance) {
     };
   });
 
+  /**
+   * One product, and the shop it sits in.
+   *
+   * The product screen is reachable by link — from a notification, or a
+   * shared URL — so it cannot assume the customer walked in through the shop
+   * and has its catalogue already. The store travels with the product because
+   * `availability` is a reading of the two together: a jar in stock in a shop
+   * that is shut is not something anybody can buy.
+   *
+   * An inactive product is a draft, and only its owner gets it back.
+   */
+  app.get('/products/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const product = await productById(id);
+    if (!product) return fail(reply, ERR.NO_PRODUCT, 404);
+
+    const store = await storeById(String(product.storeId));
+    if (!store) return fail(reply, ERR.NO_STORE, 404);
+
+    const caller = await callerOf(request);
+    const mine = !!caller?.kitchenId && String(caller.kitchenId) === String(store.kitchenId);
+    if (!product.active && !mine) return fail(reply, ERR.NO_PRODUCT, 404);
+
+    return {
+      product: shapeProduct(product, store),
+      store: shapeStore(store),
+      mine,
+    };
+  });
+
   /* ---------------- the cook's own shop ---------------- */
 
   /**

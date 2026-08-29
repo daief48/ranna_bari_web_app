@@ -44,10 +44,10 @@ export default function StoreCheckoutScreen() {
   const blocked = priced.problems.length > 0;
   const affordable = balance >= priced.total;
 
-  const place = () => {
+  const place = async () => {
     if (!isSignedIn) return router.push('/auth');
     setBusy(true);
-    const out = shop.checkout(key, {
+    const out = await shop.checkout(key, {
       name: account?.name ?? '',
       phone: account?.phone ?? '',
       address: account?.address ?? account?.area ?? '',
@@ -270,7 +270,21 @@ export default function StoreCheckoutScreen() {
 function Line({ line, onQty, onRemove, onOpen }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
-  const product = line.product;
+
+  /* The server denormalises what this row draws onto the line itself, and for
+     the reason this component demonstrates: a line whose product has since
+     been delisted still has to render as something the customer can identify
+     well enough to remove. `line.product` was the local basket's nested copy
+     and is not sent; these fields are. */
+  const product = {
+    /* `null` rather than `''`, so the "no longer listed" fallback below is
+       reached — `??` does not treat an empty string as missing. */
+    name: line.name || null,
+    images: line.image ? [line.image] : [],
+    stock: line.stock,
+    minQty: line.minQty,
+    maxQty: line.maxQty,
+  };
 
   return (
     <View

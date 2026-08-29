@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -31,11 +31,11 @@ import NotoSansBengali_800ExtraBold from '@expo-google-fonts/noto-sans-bengali/8
 import { ThemeProvider, useTheme } from '../src/theme/ThemeProvider';
 import { CartProvider } from '../src/store/CartContext';
 import { AuthProvider, useAuth } from '../src/store/AuthContext';
-import { OrdersProvider, useOrders } from '../src/store/OrdersContext';
+import { OrdersProvider } from '../src/store/OrdersContext';
 import { KitchenProvider, useKitchen } from '../src/store/KitchenContext';
 import { CommerceProvider } from '../src/store/CommerceContext';
 import { LanguageProvider } from '../src/i18n/LanguageContext';
-import { SessionProvider } from '../src/store/SessionContext';
+import { SessionProvider, useSession } from '../src/store/SessionContext';
 import { ChatProvider } from '../src/store/ChatContext';
 import { SyncProvider } from '../src/store/SyncContext';
 import { ConfigProvider } from '../src/store/ConfigContext';
@@ -44,31 +44,46 @@ import { LoadingProvider } from '../src/store/LoadingContext';
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 /**
- * Keeps the local kitchen in step with the account.
+ * Keeps the cook's kitchen in step with the account.
  *
  * A cook's kitchen is derived state -- signing up as a cook implies one, and
  * nothing else in the app is in a position to create it. This is the one
  * place that watches for that, so no screen has to remember to.
  *
- * It deliberately does not tear the kitchen down on sign-out: a listed
- * kitchen does not stop existing because its cook closed the app, and a menu
- * built over several sessions should survive one.
+ * Registering it is a round trip now, so the guard is a ref rather than the
+ * absence of a kitchen: `kitchen` stays null for as long as the request is in
+ * flight, and re-running on that would file a second registration for every
+ * render in between.
+ *
+ * It deliberately does not tear the kitchen down on sign-out. A listed
+ * kitchen does not stop existing because its cook closed the app -- it is a
+ * server row, and signing out only drops this device's cached copy of it.
  */
 function KitchenSync() {
   const { account, hydrated: authReady } = useAuth();
-  const { kitchen, hydrated: kitchenReady, ensureKitchen } = useKitchen();
-  const { seedKitchenOrders, hydrated: ordersReady } = useOrders();
+  const { kitchen, hydrated: kitchenReady, loaded, ensureKitchen } = useKitchen();
+  const { isVerified } = useSession();
+
+  const asked = useRef(false);
 
   useEffect(() => {
     if (!authReady || !kitchenReady) return;
-    if (account?.role !== 'cook' || kitchen) return;
-    ensureKitchen(account);
-  }, [authReady, kitchenReady, account, kitchen, ensureKitchen]);
+    /* Registering needs a token: the server decides which account the kitchen
+       belongs to from it, and will not take the device's word for it. */
+    if (!isVerified) return;
+    /* And it needs the server's answer, not merely the absence of one. A cook
+       signing in on a new device has no cached kitchen for as long as the
+       first read takes, and registering into that gap would overwrite the
+       real kitchen with a draft built from their profile. */
+    if (!loaded) return;
+    if (account?.role !== 'cook' || kitchen || asked.current) return;
 
-  useEffect(() => {
-    if (!ordersReady || !kitchen) return;
-    seedKitchenOrders(kitchen);
-  }, [ordersReady, kitchen, seedKitchenOrders]);
+    asked.current = true;
+    ensureKitchen(account).catch(() => {
+      // Let the next sign-in try again rather than wedging on a dead network.
+      asked.current = false;
+    });
+  }, [authReady, kitchenReady, loaded, isVerified, account, kitchen, ensureKitchen]);
 
   return null;
 }
@@ -180,23 +195,29 @@ export default function RootLayout() {
         <ThemeProvider>
           <ConfigProvider>
           <AuthProvider>
+            {/* The nesting is the dependency graph, and it changed when the
+                data moved to the server. `KitchenProvider` reads the session
+                to know which kitchen is the caller's; `CommerceProvider`
+                needs both; and `OrdersProvider` is now a projection over
+                Commerce's single copy of `/orders` rather than a second list
+                of its own, so it has to sit inside it. */}
             <SessionProvider>
-            <OrdersProvider>
               <KitchenProvider>
                 <CommerceProvider>
-                  <CartProvider>
-                    <SyncProvider>
-                    <ChatProvider>
-                      <LoadingProvider>
-                        <KitchenSync />
-                        <Root />
-                      </LoadingProvider>
-                    </ChatProvider>
-                    </SyncProvider>
-                  </CartProvider>
+                  <OrdersProvider>
+                    <CartProvider>
+                      <SyncProvider>
+                      <ChatProvider>
+                        <LoadingProvider>
+                          <KitchenSync />
+                          <Root />
+                        </LoadingProvider>
+                      </ChatProvider>
+                      </SyncProvider>
+                    </CartProvider>
+                  </OrdersProvider>
                 </CommerceProvider>
               </KitchenProvider>
-            </OrdersProvider>
             </SessionProvider>
           </AuthProvider>
           </ConfigProvider>

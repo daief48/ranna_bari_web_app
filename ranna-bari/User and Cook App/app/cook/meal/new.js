@@ -112,7 +112,7 @@ export default function NewMeal() {
     setImage(dish.image ?? PLACEHOLDER);
   };
 
-  const publish = () => {
+  const publish = async () => {
     const value = Number(price);
     const cap = capacity.trim() ? Number(capacity) : null;
 
@@ -151,7 +151,7 @@ export default function NewMeal() {
           )
         : true;
 
-    const out = meals.publishMeal(
+    const out = await meals.publishMeal(
       {
         kitchenId: kitchen.id,
         cookName: kitchen.name,

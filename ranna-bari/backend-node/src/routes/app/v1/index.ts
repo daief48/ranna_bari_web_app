@@ -21,10 +21,10 @@ import {
   unreadTotal,
   type Viewer,
 } from '../../../logic/chat.js';
-import { ordersFor, recordOrder, registerKitchen } from '../../../logic/sync.js';
+import { orderFor, ordersFor, recordOrder, registerKitchen } from '../../../logic/sync.js';
 import { publish, isOnline } from '../../../realtime/hub.js';
 import { Dish, Kitchen, Notification, Offer, TaxonomyCategory, Zone } from '../../../models/index.js';
-import { errText } from '../../../lib/domain.js';
+import { ERR, errText } from '../../../lib/domain.js';
 
 /**
  * The Expo client's API.
@@ -40,6 +40,45 @@ const fail = (reply: { status: (n: number) => { send: (b: unknown) => unknown } 
 
 const callerOf = (request: FastifyRequest) =>
   identify(bearerFrom(request.headers.authorization));
+
+/**
+ * The caller, only if they cook.
+ *
+ * Answers the reply itself and returns null, so a handler is one `if` rather
+ * than two — and so "no kitchen" and "no token" cannot be told apart by a
+ * caller probing for which accounts have kitchens.
+ */
+async function cookOf(request: FastifyRequest, reply: Parameters<typeof fail>[0]) {
+  const caller = await callerOf(request);
+  if (!caller) {
+    fail(reply, 'unauthenticated', 401);
+    return null;
+  }
+  if (!caller.kitchenId) {
+    fail(reply, ERR.NO_KITCHEN, 403);
+    return null;
+  }
+  return caller as typeof caller & { kitchenId: string };
+}
+
+/** A menu row, the shape `chefs.json` menus already have. */
+const shapeDish = (dish: {
+  _id: unknown;
+  name: string;
+  description?: string;
+  price: number;
+  image?: string;
+  tags?: string[];
+  available?: boolean;
+}) => ({
+  id: String(dish._id),
+  name: dish.name,
+  description: dish.description ?? '',
+  price: dish.price,
+  image: dish.image ?? '',
+  tags: dish.tags ?? [],
+  available: dish.available ?? true,
+});
 
 /**
  * Who is calling, as a chat viewer.
@@ -217,6 +256,131 @@ export async function appRoutes(app: FastifyInstance) {
     return out.result;
   });
 
+  /* ---------------- the cook's own menu ---------------- */
+
+  /**
+   * A cook's kitchen and every dish on it — the unavailable ones included.
+   *
+   * `/kitchens?menus=1` is the shopper's view and filters to `available`,
+   * which is right for a directory and wrong for the screen the cook manages
+   * the menu from: a dish taken off the menu has to still be there to put
+   * back. That difference is the whole reason this is a separate endpoint
+   * rather than a flag on the other.
+   */
+  app.get('/kitchens/mine', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    const kitchen = await Kitchen.findOne({ accountId: caller.accountId }).lean();
+    if (!kitchen) return { kitchen: null, dishes: [] };
+
+    const dishes = await Dish.find({ kitchenId: String(kitchen._id) })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    return {
+      kitchen: {
+        id: String(kitchen._id),
+        name: kitchen.name,
+        ownerName: kitchen.ownerName,
+        avatar: kitchen.avatar,
+        coverImage: kitchen.coverImage,
+        specialty: kitchen.specialty,
+        description: kitchen.description,
+        rating: kitchen.rating,
+        reviewCount: kitchen.reviewCount,
+        tags: kitchen.tags ?? [],
+        ecoBadge: kitchen.ecoBadge,
+        isVerified: kitchen.isVerified,
+        kycStatus: kitchen.kycStatus,
+        area: kitchen.area,
+        lat: kitchen.lat,
+        lng: kitchen.lng,
+        deliveryRadiusKm: kitchen.deliveryRadiusKm,
+        isOpen: kitchen.isOpen,
+      },
+      dishes: dishes.map(shapeDish),
+    };
+  });
+
+  /**
+   * Add a dish, or edit one.
+   *
+   * One route for both, keyed on whether `dishId` came with the body, because
+   * the app's dish editor is one screen either way — `/cook/dish/new` and
+   * `/cook/dish/:id` differ by a parameter and nothing else.
+   *
+   * The kitchen comes from the token, never the body: a cook editing a dish
+   * cannot name somebody else's kitchen as its home, and the update is scoped
+   * to `kitchenId` so an id belonging to another kitchen matches nothing.
+   */
+  app.post('/kitchens/mine/dishes', async (request, reply) => {
+    const cook = await cookOf(request, reply);
+    if (!cook) return;
+
+    const body = z
+      .object({
+        dishId: z.string().optional(),
+        name: z.string().trim().min(1).optional(),
+        description: z.string().optional(),
+        price: z.coerce.number().finite().positive().optional(),
+        image: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        available: z.boolean().optional(),
+      })
+      .safeParse(request.body ?? {});
+    if (!body.success) return fail(reply, ERR.NAME_REQUIRED);
+
+    const { dishId, ...patch } = body.data;
+
+    if (dishId) {
+      const dish = await Dish.findOneAndUpdate(
+        { _id: dishId, kitchenId: cook.kitchenId },
+        patch,
+        { new: true },
+      )
+        .lean()
+        .catch(() => null);
+      if (!dish) return fail(reply, ERR.NO_PRODUCT, 404);
+      return { dish: shapeDish(dish) };
+    }
+
+    /* A new dish needs the two fields a menu row cannot render without. The
+       update path does not, because it is patching a row that already has
+       them. */
+    if (!patch.name || patch.price == null) return fail(reply, ERR.NAME_REQUIRED);
+
+    const created = await Dish.create({ ...patch, kitchenId: cook.kitchenId });
+    return { dish: shapeDish(created.toObject()) };
+  });
+
+  app.post('/dishes/:id/toggle', async (request, reply) => {
+    const cook = await cookOf(request, reply);
+    if (!cook) return;
+
+    const { id } = request.params as { id: string };
+    const dish = await Dish.findOne({ _id: id, kitchenId: cook.kitchenId })
+      .catch(() => null);
+    if (!dish) return fail(reply, ERR.NO_PRODUCT, 404);
+
+    dish.available = !dish.available;
+    await dish.save();
+    return { dish: shapeDish(dish.toObject()) };
+  });
+
+  app.post('/dishes/:id/remove', async (request, reply) => {
+    const cook = await cookOf(request, reply);
+    if (!cook) return;
+
+    const { id } = request.params as { id: string };
+    const out = await Dish.deleteOne({ _id: id, kitchenId: cook.kitchenId }).catch(
+      () => null,
+    );
+    if (!out?.deletedCount) return fail(reply, ERR.NO_PRODUCT, 404);
+
+    return { ok: true };
+  });
+
   /* ---------------- auth ---------------- */
 
   app.post('/auth/request-otp', async (request, reply) => {
@@ -279,6 +443,26 @@ export async function appRoutes(app: FastifyInstance) {
     const caller = await callerOf(request);
     if (!caller) return fail(reply, 'unauthenticated', 401);
     return { orders: await ordersFor(caller) };
+  });
+
+  /**
+   * One order, whole.
+   *
+   * The app's tracker draws the rail, the receipt and the refund line off a
+   * single object, so this returns the whole document rather than the list's
+   * row. Scoped in the query: an id that is neither this customer's nor this
+   * kitchen's is a 404, which is also the honest answer to an id somebody
+   * guessed.
+   */
+  app.get('/orders/:id', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    const { id } = request.params as { id: string };
+    const order = await orderFor(caller, id);
+    if (!order) return fail(reply, ERR.NO_ORDER, 404);
+
+    return { order };
   });
 
   /**

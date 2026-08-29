@@ -152,7 +152,7 @@ export default function MealsScreen() {
                     meal={meal}
                     km={km}
                     remaining={remaining(meal)}
-                    interested={meal.interested?.length ?? 0}
+                    interested={meal.interestCount ?? 0}
                     onPress={() => router.push(`/meals/${meal.id}`)}
                   />
                 </Reveal>

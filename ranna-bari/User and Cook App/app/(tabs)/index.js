@@ -559,7 +559,7 @@ export default function HomeScreen() {
                 meal={meal}
                 km={km}
                 remaining={mealRemaining(meal)}
-                interested={meal.interested?.length ?? 0}
+                interested={meal.interestCount ?? 0}
                 wide
                 onPress={() => router.push(`/meals/${meal.id}`)}
               />

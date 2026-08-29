@@ -55,7 +55,7 @@ export default function CookDashboard() {
     0,
   );
   const interestTomorrow = tomorrow.reduce(
-    (sum, m) => sum + (m.interested?.length ?? 0),
+    (sum, m) => sum + (m.interestCount ?? 0),
     0,
   );
   const unread = meals.unreadFor('cook');

@@ -62,10 +62,10 @@ export default function CookStoreHub() {
                 label={busy ? t('Opening…') : t('Open your shop')}
                 icon="arrowRight"
                 disabled={busy || !kitchen}
-                onPress={() => {
+                onPress={async () => {
                   if (!kitchen) return;
                   setBusy(true);
-                  const out = shop.saveStore(kitchen.id, {
+                  const out = await shop.saveStore(kitchen.id, {
                     name: kitchen.name,
                     logo: kitchen.avatar,
                     cover: kitchen.coverImage,

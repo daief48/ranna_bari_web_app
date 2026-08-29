@@ -9,6 +9,8 @@ import React, {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { normaliseArea } from '../lib/areas';
+import { call, hasServer } from '../lib/server';
+import { useSession } from './SessionContext';
 
 const KEY = 'rannabari_kitchen';
 
@@ -252,10 +254,31 @@ export function kitchenFromAccount(account) {
 
 const KitchenContext = createContext(null);
 
+/**
+ * The cook's kitchen, as the server holds it.
+ *
+ * This used to be a record that existed only on the device, with dish ids
+ * like `local-1-3` that meant nothing anywhere else. That is why a customer
+ * could not message a cook who had not "registered" — there was nothing to
+ * address. The kitchen is a server row now, and the menu with it, so a dish
+ * the cook adds is on the directory the moment it saves.
+ *
+ * `GET /kitchens/mine` is a separate endpoint from `/kitchens?menus=1` for one
+ * reason: the shopper's view filters to available dishes, and the cook needs
+ * to see the ones they have taken off in order to put them back.
+ */
 export function KitchenProvider({ children }) {
+  const { token, identity, isVerified } = useSession();
+
   const [kitchen, setKitchen] = useState(null);
   const [hydrated, setHydrated] = useState(false);
+  const [saving, setSaving] = useState(false);
+  /* Whether the server has actually answered, as opposed to not been asked. */
+  const [loaded, setLoaded] = useState(false);
 
+  /* Paint the cached kitchen first: a cook opening the panel on a bad
+     connection should see their menu, not an empty one that reads as "your
+     dishes are gone". */
   useEffect(() => {
     let alive = true;
     AsyncStorage.getItem(KEY)
@@ -270,8 +293,6 @@ export function KitchenProvider({ children }) {
     };
   }, []);
 
-  // Persist after hydration only, so the initial null never clears a stored
-  // kitchen during the first render pass.
   useEffect(() => {
     if (!hydrated) return;
     if (kitchen) AsyncStorage.setItem(KEY, JSON.stringify(kitchen)).catch(() => {});
@@ -279,78 +300,147 @@ export function KitchenProvider({ children }) {
   }, [kitchen, hydrated]);
 
   /**
-   * Create the kitchen from a freshly signed-in cook account, once. Calling
-   * it again with a kitchen already stored is a no-op -- signing back in
-   * must not wipe a menu.
+   * Read the kitchen and its whole menu back.
+   *
+   * `loaded` is what the answer *was*, not whether one is on the way: until
+   * the server has been asked, "no kitchen here" and "not asked yet" look
+   * identical, and treating the second as the first is how a cook signing in
+   * on a new device gets their kitchen overwritten by a blank one.
    */
-  const ensureKitchen = useCallback((account) => {
-    let created = null;
-    setKitchen((prev) => {
-      if (prev) return prev;
-      created = kitchenFromAccount(account);
-      return created;
-    });
-    return created;
-  }, []);
+  const reload = useCallback(async () => {
+    if (!token || !hasServer) return null;
+    const out = await call('/kitchens/mine', { token });
+    if (!out.ok) return null;
 
-  const updateKitchen = useCallback((patch) => {
-    setKitchen((prev) => (prev ? { ...prev, ...patch } : prev));
-  }, []);
+    setLoaded(true);
 
-  const toggleOpen = useCallback(() => {
-    setKitchen((prev) => (prev ? { ...prev, isOpen: !prev.isOpen } : prev));
-  }, []);
+    if (!out.result.kitchen) {
+      setKitchen(null);
+      return null;
+    }
 
-  const addDish = useCallback((dish) => {
-    setKitchen((prev) => {
-      if (!prev) return prev;
-      const seq = prev.nextDishSeq ?? prev.dishes.length + 1;
-      const next = {
-        ...dish,
-        id: `${LOCAL_KITCHEN_ID}-${seq}`,
-        available: dish.available ?? true,
-      };
-      const dishes = [...prev.dishes, next];
-      return { ...prev, dishes, tags: tagsFromDishes(dishes), nextDishSeq: seq + 1 };
-    });
-  }, []);
+    const next = {
+      ...out.result.kitchen,
+      dishes: out.result.dishes ?? [],
+      /* Derived from the menu rather than stored, so a cook who lists three
+         biryanis is tagged for biryani without having said so. */
+      tags: tagsFromDishes(out.result.dishes ?? []),
+    };
+    setKitchen(next);
+    return next;
+  }, [token]);
 
-  const updateDish = useCallback((id, patch) => {
-    setKitchen((prev) => {
-      if (!prev) return prev;
-      const dishes = prev.dishes.map((d) => (d.id === id ? { ...d, ...patch } : d));
-      return { ...prev, dishes, tags: tagsFromDishes(dishes) };
-    });
-  }, []);
+  /* The account's own kitchen changes when it is registered, and when a cook
+     signs in on a second device. Both are `identity.kitchenId` moving. */
+  useEffect(() => {
+    if (!hydrated || !isVerified) return;
+    reload();
+  }, [hydrated, isVerified, identity?.kitchenId, reload]);
 
-  const removeDish = useCallback((id) => {
-    setKitchen((prev) => {
-      if (!prev) return prev;
-      const dishes = prev.dishes.filter((d) => d.id !== id);
-      return { ...prev, dishes, tags: tagsFromDishes(dishes) };
-    });
-  }, []);
+  /* ---------------- writes ---------------- */
+
+  const save = useCallback(
+    async (patch) => {
+      if (!token) return { ok: false, error: 'unauthenticated' };
+      setSaving(true);
+      try {
+        const out = await call('/kitchens/mine', { method: 'POST', token, body: patch });
+        if (!out.ok) return out;
+        await reload();
+        return { ok: true, result: out.result };
+      } finally {
+        setSaving(false);
+      }
+    },
+    [token, reload],
+  );
+
+  /**
+   * Register the kitchen a freshly signed-up cook implies.
+   *
+   * `registerKitchen` upserts on the account, which is what makes calling
+   * this twice safe — but an upsert is also why the server has to be *asked*
+   * first. A cook signing in on a second device has a kitchen and an empty
+   * `kitchen` here for as long as the first read takes, and posting a draft
+   * built from their account in that window would rename the real one to
+   * whatever their profile says.
+   *
+   * So: ask, and only register if the answer was genuinely nothing.
+   */
+  const ensureKitchen = useCallback(
+    async (account) => {
+      if (kitchen) return kitchen;
+
+      const existing = await reload();
+      if (existing) return existing;
+
+      const { dishes, nextDishSeq, createdAt, id, ...draft } = kitchenFromAccount(account);
+      const out = await save(draft);
+      if (!out.ok) return null;
+
+      /* The starter menu is what stops a new kitchen from being one that
+         cannot take an order. Posted as real dishes rather than bundled onto
+         the kitchen, because that is what they are now. */
+      for (const dish of dishes) {
+        await call('/kitchens/mine/dishes', {
+          method: 'POST',
+          token,
+          body: {
+            name: dish.name,
+            description: dish.description,
+            price: dish.price,
+            image: dish.image,
+            tags: dish.tags,
+          },
+        });
+      }
+      return reload();
+    },
+    [kitchen, reload, save, token],
+  );
+
+  const updateKitchen = useCallback((patch) => save(patch), [save]);
+
+  const toggleOpen = useCallback(
+    () => save({ isOpen: !(kitchen?.isOpen ?? false) }),
+    [save, kitchen],
+  );
+
+  const dishWrite = useCallback(
+    async (path, body) => {
+      if (!token) return { ok: false, error: 'unauthenticated' };
+      const out = await call(path, { method: 'POST', token, body });
+      if (out.ok) await reload();
+      return out;
+    },
+    [token, reload],
+  );
+
+  const addDish = useCallback((dish) => dishWrite('/kitchens/mine/dishes', dish), [dishWrite]);
+
+  const updateDish = useCallback(
+    (id, patch) => dishWrite('/kitchens/mine/dishes', { dishId: id, ...patch }),
+    [dishWrite],
+  );
+
+  const removeDish = useCallback((id) => dishWrite(`/dishes/${id}/remove`), [dishWrite]);
 
   /** Sold out for today, without deleting the dish. */
-  const toggleDish = useCallback((id) => {
-    setKitchen((prev) => {
-      if (!prev) return prev;
-      const dishes = prev.dishes.map((d) =>
-        d.id === id ? { ...d, available: !d.available } : d,
-      );
-      return { ...prev, dishes };
-    });
-  }, []);
+  const toggleDish = useCallback((id) => dishWrite(`/dishes/${id}/toggle`), [dishWrite]);
 
-  /** Signing out of a cook account drops the kitchen from this device. */
+  /** Signing out drops the cached copy. The kitchen itself stays on the
+      server -- a listed kitchen does not close because its cook signed out. */
   const clearKitchen = useCallback(() => setKitchen(null), []);
 
   const value = useMemo(
     () => ({
       kitchen,
       hydrated,
+      loaded,
+      saving,
+      reload,
       /** Only a listed, available dish reaches a customer. */
-      liveDishes: kitchen ? kitchen.dishes.filter((d) => d.available) : [],
+      liveDishes: kitchen ? (kitchen.dishes ?? []).filter((d) => d.available) : [],
       ensureKitchen,
       updateKitchen,
       toggleOpen,
@@ -363,6 +453,9 @@ export function KitchenProvider({ children }) {
     [
       kitchen,
       hydrated,
+      loaded,
+      saving,
+      reload,
       ensureKitchen,
       updateKitchen,
       toggleOpen,

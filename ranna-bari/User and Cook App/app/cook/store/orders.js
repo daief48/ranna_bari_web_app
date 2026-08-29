@@ -29,6 +29,7 @@ import useResponsive from '../../../src/theme/useResponsive';
 import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
+import { formatAddress } from '../../../src/lib/address';
 import { timeAgo } from '../../../src/store/OrdersContext';
 import { COOK_ADVANCES } from '../../../src/lib/ledger';
 import { ORDER_FILTERS, filterOrders } from '../../../src/lib/storeLogic';
@@ -57,8 +58,8 @@ export default function StoreOrders() {
   const all = useMemo(() => (store ? shop.storeOrders(store.id) : []), [shop, store]);
   const orders = useMemo(() => filterOrders(all, filter), [all, filter]);
 
-  const advance = (orderId) => {
-    const out = shop.advanceOrder(orderId);
+  const advance = async (orderId) => {
+    const out = await shop.advanceOrder(orderId);
     if (!out.ok) setError(errorText(out.error, t, n, out));
     else setError(null);
   };
@@ -262,14 +263,14 @@ function OrderCard({ order, onAdvance, onPreorders }) {
 
       <OrderLines lines={order.lines ?? []} />
 
-      {order.address ? (
+      {formatAddress(order.address) ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Icon name="pin" size={13} color={colors.textLight} />
           <Text
             numberOfLines={1}
             style={{ flex: 1, fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
           >
-            {order.address}
+            {formatAddress(order.address)}
           </Text>
         </View>
       ) : null}

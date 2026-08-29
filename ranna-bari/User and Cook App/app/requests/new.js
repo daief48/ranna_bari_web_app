@@ -88,12 +88,12 @@ export default function NewRequest() {
     [t, lang],
   );
 
-  const submit = () => {
+  const submit = async () => {
     if (!title.trim()) {
       setNote(t('Say what you are looking for.'));
       return;
     }
-    const out = shop.createRequest(
+    const out = await shop.createRequest(
       {
         customerKey: customerKeyOf(account),
         customerName: account?.name ?? '',

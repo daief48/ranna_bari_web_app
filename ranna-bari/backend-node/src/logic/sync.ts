@@ -1,4 +1,4 @@
-import { Account, Kitchen, Order } from '../models/index.js';
+import { Account, Kitchen, Order, type OrderDoc } from '../models/index.js';
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
 import type { AppIdentity } from '../auth/app-auth.js';
 
@@ -215,6 +215,61 @@ export async function recordOrder(
   return ok({ orderId: String(order._id), code, created: true });
 }
 
+/**
+ * One order, whole.
+ *
+ * The app's order tracker draws the rail, the receipt and the refund line off
+ * a single object — `history` for the timestamps under each step, `lines` and
+ * `subtotal` for the receipt, `payment` and `cancelReason` for what happened
+ * to the money. A summary shape would mean the tracker fetching each of those
+ * separately or, worse, rendering a step with no time against it.
+ *
+ * `lines` and `history` are bounded — a basket and a six-step rail — which is
+ * why they are embedded in the document and can be sent with it.
+ */
+export function shapeOrder(row: OrderDoc & { _id: unknown }) {
+  return {
+    id: String(row._id),
+    code: row.code,
+    kind: row.kind,
+
+    mealId: row.mealId ?? null,
+    storeId: row.storeId ?? null,
+    requestId: row.requestId ?? null,
+    offerId: row.offerId ?? null,
+
+    kitchenId: row.kitchenId,
+    cookName: row.cookName,
+    title: row.title,
+    image: row.image,
+
+    customerKey: row.customerKey,
+    customerName: row.customerName,
+    phone: row.phone,
+    address: row.address,
+
+    handover: row.handover,
+    serveDate: row.serveDate ?? null,
+    slot: row.slot ?? null,
+
+    lines: row.lines ?? [],
+    subtotal: row.subtotal,
+    deliveryFee: row.deliveryFee,
+    platformFee: row.platformFee,
+    amount: row.amount,
+
+    preorder: row.preorder,
+    status: row.status,
+    payment: row.payment,
+
+    rejectReason: row.rejectReason ?? null,
+    cancelReason: row.cancelReason ?? null,
+
+    history: row.history ?? [],
+    createdAt: row.createdAt,
+  };
+}
+
 /** Every order this caller is on — as the customer, or as the kitchen. */
 export async function ordersFor(caller: AppIdentity, take = 50) {
   const rows = await Order.find(
@@ -226,16 +281,26 @@ export async function ordersFor(caller: AppIdentity, take = 50) {
     .limit(take)
     .lean();
 
-  return rows.map((row) => ({
-    id: String(row._id),
-    code: row.code,
-    kind: row.kind,
-    status: row.status,
-    title: row.title,
-    cookName: row.cookName,
-    customerName: row.customerName,
-    kitchenId: row.kitchenId,
-    amount: row.amount,
-    createdAt: row.createdAt,
-  }));
+  return rows.map((row) => shapeOrder(row as unknown as OrderDoc & { _id: unknown }));
+}
+
+/**
+ * One order by id, or null if it is not this caller's to read.
+ *
+ * The ownership test is in the query rather than after it: a caller who is
+ * neither the customer nor the kitchen gets no document at all, so there is no
+ * branch in which a fetched-then-rejected order could be returned by a later
+ * edit that forgets the check.
+ */
+export async function orderFor(caller: AppIdentity, id: string) {
+  const row = await Order.findOne({
+    _id: id,
+    ...(caller.kitchenId
+      ? { $or: [{ customerKey: caller.customerKey }, { kitchenId: caller.kitchenId }] }
+      : { customerKey: caller.customerKey }),
+  })
+    .lean()
+    .catch(() => null);
+
+  return row ? shapeOrder(row as unknown as OrderDoc & { _id: unknown }) : null;
 }

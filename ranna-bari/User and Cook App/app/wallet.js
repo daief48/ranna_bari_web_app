@@ -59,10 +59,10 @@ export default function WalletScreen() {
     return t('Transaction');
   };
 
-  const topUp = (value) => {
+  const topUp = async (value) => {
     setError(null);
     setDone(null);
-    const out = meals.topUp(value, 'bKash');
+    const out = await meals.topUp(value, 'bKash');
     if (!out.ok) {
       setError(errorText(out.error, t, n, out));
       return;

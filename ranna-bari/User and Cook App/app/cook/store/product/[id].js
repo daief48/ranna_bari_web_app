@@ -107,8 +107,8 @@ function Form({ store, product, isNew }) {
     }
   };
 
-  const save = () => {
-    const out = shop.saveProduct({
+  const save = async () => {
+    const out = await shop.saveProduct({
       productId: product?.id,
       storeId: store.id,
       patch: {

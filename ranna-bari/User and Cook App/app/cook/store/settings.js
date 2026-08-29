@@ -84,8 +84,8 @@ function Form({ store, kitchenId }) {
     if (!res.canceled && res.assets?.[0]?.uri) setter(res.assets[0].uri);
   };
 
-  const save = () => {
-    const out = shop.saveStore(kitchenId, {
+  const save = async () => {
+    const out = await shop.saveStore(kitchenId, {
       name: name.trim(),
       tagline: tagline.trim(),
       description: description.trim(),
