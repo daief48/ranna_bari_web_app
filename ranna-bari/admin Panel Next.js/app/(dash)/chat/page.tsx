@@ -1,8 +1,7 @@
-import { db } from '@/lib/db';
+import { get } from '@/lib/backend';
 import { requirePage } from '@/lib/guard';
-import { threadsFor, messagesFor, type Viewer } from '@/lib/logic/chat';
 import { Card, Grid, GapNote, PageHeader, Stat } from '@/components/ui';
-import { ChatDesk } from './desk';
+import { ChatDesk, type Message, type Thread } from './desk';
 
 export const metadata = { title: 'Live chat · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
@@ -15,14 +14,14 @@ export const dynamic = 'force-dynamic';
  * paint is real data rather than a spinner, and everything after it arrives
  * without asking.
  *
- * Still on Prisma, and deliberately so. `backend-node` serves chat under
- * `/api/app/v1/chat/*` — one set of endpoints for the phone and the desk, told
- * apart by which credential the caller presents — while `lib/backend.ts` only
- * ever reaches `/api/admin/v1`, because a panel that could call the app's
- * routes is a panel that can present itself as a customer. Widening the client
- * to close that gap is a decision about the trust boundary, not a migration
- * step, so the desk waits for either an admin-prefixed chat surface or an
- * explicit exception. The three counters below have no admin route at all.
+ * On the backend now, through `/api/admin/v1/chat/*`. That surface was the
+ * open question this file used to describe: chat is served to the phone under
+ * `/api/app/v1/chat/*` and told apart by credential, while `lib/backend.ts`
+ * only ever reaches `/api/admin/v1` — because a panel that can call the app's
+ * routes is a panel that can present itself as a customer. Rather than widen
+ * the client, the backend grew an admin-prefixed desk: the same
+ * `logic/chat.ts` underneath, the same `visibleTo()` authorisation, and no
+ * path through it that can construct a customer viewer.
  */
 export default async function ChatPage({
   searchParams,
@@ -32,24 +31,32 @@ export default async function ChatPage({
   const user = await requirePage('order.read');
   const params = await searchParams;
 
-  const viewer: Viewer = { side: 'admin', email: user.email, name: user.name };
+  const query = new URLSearchParams({ take: '80' });
+  if (params.kind) query.set('kind', params.kind);
 
-  const threads = await threadsFor(viewer, { kind: params.kind, take: 80 });
+  const [inbox, stats] = await Promise.all([
+    get<{ threads: Thread[] }>(`/chat/threads?${query}`),
+    get<{ waiting: number; openSupport: number; today: number }>('/chat/stats'),
+  ]);
+
+  const threads = inbox.threads;
 
   // Default to whatever is most recent, so the desk opens on work rather
   // than on an empty pane.
   const activeId = params.thread ?? threads[0]?.id ?? null;
-  const active = activeId ? threads.find((t) => t.id === activeId) ?? null : null;
+  const active = activeId ? (threads.find((t) => t.id === activeId) ?? null) : null;
 
-  const transcript = activeId ? await messagesFor(viewer, activeId, { take: 80 }) : null;
+  /* A thread id from the query string may be one this operator cannot read,
+     or one that has since been deleted — the surface answers 404 either way,
+     and an unreadable thread is an empty pane rather than a crash. */
+  const transcript = activeId
+    ? await get<{ messages: Message[] }>(
+        `/chat/messages?threadId=${encodeURIComponent(activeId)}&take=80`,
+      )
+        .then((out) => out.messages)
+        .catch(() => null)
+    : null;
 
-  const [waiting, openSupport, todayCount] = await Promise.all([
-    db.chatThread.aggregate({ _sum: { unreadAdmin: true } }),
-    db.chatThread.count({ where: { kind: 'support', status: 'open' } }),
-    db.chatMessage.count({
-      where: { sentAt: { gte: new Date(Date.now() - 86_400_000) } },
-    }),
-  ]);
 
   return (
     <>
@@ -70,47 +77,24 @@ export default async function ChatPage({
       <Grid cols={3}>
         <Stat
           label="Waiting on the desk"
-          value={waiting._sum.unreadAdmin ?? 0}
-          tone={(waiting._sum.unreadAdmin ?? 0) > 0 ? 'warn' : 'good'}
+          value={stats.waiting}
+          tone={stats.waiting > 0 ? 'warn' : 'good'}
         />
-        <Stat label="Open support threads" value={openSupport} />
-        <Stat label="Messages in 24 hours" value={todayCount} />
+        <Stat label="Open support threads" value={stats.openSupport} />
+        <Stat label="Messages in 24 hours" value={stats.today} />
       </Grid>
 
       <Card className="mt-3" pad={false}>
         <ChatDesk
           me={{ email: user.email, name: user.name }}
-          threads={threads.map((thread) => ({
-            id: thread.id,
-            code: thread.code,
-            kind: thread.kind,
-            subject: thread.subject,
-            status: thread.status,
-            customerKey: thread.customerKey,
-            kitchenId: thread.kitchenId,
-            unread: thread.unreadAdmin,
-            lastMessageAt: thread.lastMessageAt.toISOString(),
-            lastMessageBody: thread.lastMessageBody,
-            lastMessageFrom: thread.lastMessageFrom,
-            orderCode: thread.order?.code ?? null,
-            orderId: thread.order?.id ?? null,
-          }))}
+          /* Passed through rather than remapped: shapeThread() on the backend
+             already answers in the shape this component renders, and a second
+             mapping here is a second place for the two to drift. */
+          threads={threads}
           activeId={activeId}
           activeSubject={active?.subject ?? ''}
           activeStatus={active?.status ?? 'open'}
-          initialMessages={
-            transcript?.ok
-              ? (transcript.result.messages as {
-                  id: string;
-                  senderType: string;
-                  senderName: string;
-                  body: string;
-                  sentAt: string;
-                  hidden: boolean;
-                  systemKind: string | null;
-                }[])
-              : []
-          }
+          initialMessages={transcript ?? []}
         />
       </Card>
     </>

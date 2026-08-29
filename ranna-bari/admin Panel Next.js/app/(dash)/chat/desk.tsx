@@ -19,7 +19,7 @@ import { fmtDateTime, timeAgo } from '@/lib/format';
  * for delivery.
  */
 
-type Thread = {
+export type Thread = {
   id: string;
   code: string;
   kind: string;
@@ -35,7 +35,7 @@ type Thread = {
   orderId: string | null;
 };
 
-type Message = {
+export type Message = {
   id: string;
   senderType: string;
   senderName: string;

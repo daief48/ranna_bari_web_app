@@ -1,38 +1,49 @@
 import { NextResponse } from 'next/server';
 
-import { viewerFor, jsonError, unauthorized, readJson } from '@/lib/api';
-import { markRead, threadFor } from '@/lib/logic/chat';
-import { publish } from '@/lib/realtime';
+import { post, BackendError } from '@/lib/backend';
+import { currentUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Mark a thread read, and tell the other side.
+ * Mark a thread read, on behalf of the desk.
  *
- * The read receipt is fanned out because "they have seen it" is most of what
- * a person wants from a chat after "it sent" — and on a marketplace it is
- * also the difference between a cook who is ignoring you and a cook who is
- * cooking.
+ * A thin proxy onto `/api/admin/v1/chat/read`, and thin on purpose: the
+ * chat desk is a client component, the backend authenticates the panel with
+ * a shared secret, and a secret cannot travel to a browser. So this route
+ * exists to be the server the desk can reach and the client the backend will
+ * talk to — nothing more. It holds no rules of its own.
+ *
+ * It reads and writes nothing locally. The read receipt, its authorisation
+ * and the socket fan-out all happen in `logic/chat.ts` on the backend, which
+ * is the same code path the phone goes through.
  */
 export async function POST(request: Request) {
-  const viewer = await viewerFor(request);
-  if (!viewer) return unauthorized();
+  /* Session, not service token: this is an operator acting. Without one the
+     desk is somebody who found the URL. */
+  const user = await currentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  }
 
-  const body = await readJson<{ threadId?: string }>(request);
-  if (!body?.threadId) return jsonError('name-required');
+  let body: { threadId?: string } | null = null;
+  try {
+    body = await request.json();
+  } catch {
+    body = null;
+  }
+  if (!body?.threadId) {
+    return NextResponse.json({ error: 'name-required' }, { status: 400 });
+  }
 
-  const thread = await threadFor(viewer, body.threadId);
-  if (!thread) return jsonError('admin-forbidden', 403);
-
-  const out = await markRead(viewer, body.threadId);
-  if (!out.ok) return jsonError(out.error, 403);
-
-  publish(
-    { customerKey: thread.customerKey, kitchenId: thread.kitchenId },
-    { type: 'read', threadId: thread.id, side: viewer.side, at: new Date().toISOString() },
-  );
-
-  return NextResponse.json({ ok: true });
+  try {
+    return NextResponse.json(await post('/chat/read', { threadId: body.threadId }));
+  } catch (error) {
+    if (error instanceof BackendError) {
+      return NextResponse.json({ error: error.code }, { status: error.status || 502 });
+    }
+    throw error;
+  }
 }
 
 /** Preflight. The headers themselves come from `next.config.ts`. */

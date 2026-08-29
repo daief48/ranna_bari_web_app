@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { currentUser, clearSessionCookie } from '@/lib/auth';
-import { db, ensureAppendOnly } from '@/lib/db';
-import { getSettings } from '@/lib/settings';
+import { get } from '@/lib/backend';
 import { ROLE_LABEL } from '@/lib/domain';
 import { Sidebar, PageContext } from '@/components/shell/Sidebar';
 import CommandPalette from '@/components/shell/CommandPalette';
@@ -14,32 +13,41 @@ export const dynamic = 'force-dynamic';
 /**
  * The shell.
  *
- * Also where the append-only triggers get re-applied — `prisma db push`
- * rebuilds the schema and drops them with it, so leaving that to a migration
- * means the ledger silently loses its guard the first time the schema moves.
+ * It used to re-apply the append-only triggers on every render, because
+ * `prisma db push` rebuilt the panel's own schema and dropped them with it.
+ * The ledger is not here any more — it is in Mongo, behind the backend, where
+ * the guard is Mongoose middleware plus an Atlas role that refuses the write.
+ * There is nothing left for this file to protect.
  */
 export default async function DashLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
   if (!user) redirect('/login');
 
-  await ensureAppendOnly();
-
-  const settings = await getSettings();
-  const cutoff = new Date(Date.now() - settings.escrowAutoReleaseDays * 86_400_000);
-
-  /* The four counts the sidebar badges. All work that is waiting on a
-     person: an unreviewed cook, an unresolved dispute, money that has sat in
-     escrow past the release window, and somebody mid-sentence. */
-  const [kyc, disputes, escrow, chat] = await Promise.all([
-    db.kitchen.count({ where: { kycStatus: 'pending' } }),
-    db.dispute.count({ where: { status: { in: ['open', 'investigating'] } } }),
-    db.order.count({
-      where: { payment: 'held', status: 'delivered', deliveredAt: { lt: cutoff } },
-    }),
-    db.chatThread
-      .aggregate({ _sum: { unreadAdmin: true } })
-      .then((row) => row._sum.unreadAdmin ?? 0),
+  /*
+   * The four counts the sidebar badges, from the backend.
+   *
+   * All work that is waiting on a person: an unreviewed cook, an unresolved
+   * dispute, money that has sat in escrow past the release window, and
+   * somebody mid-sentence. Three of them come folded out of `/overview`,
+   * which is already computing them for the dashboard — counting them twice
+   * against two different clocks is how a badge and the page it opens end up
+   * disagreeing.
+   *
+   * `.catch` rather than a guard: the shell has to render even when the
+   * backend is down, or an operator gets a stack trace instead of the page
+   * that would have told them it is down.
+   */
+  const [board, chatStats] = await Promise.all([
+    get<{ attention: { kyc: number; disputes: number; escrowAged: number } }>(
+      '/overview',
+    ).catch(() => null),
+    get<{ waiting: number }>('/chat/stats').catch(() => null),
   ]);
+
+  const kyc = board?.attention.kyc ?? 0;
+  const disputes = board?.attention.disputes ?? 0;
+  const escrow = board?.attention.escrowAged ?? 0;
+  const chat = chatStats?.waiting ?? 0;
 
   async function signOut() {
     'use server';
