@@ -29,11 +29,13 @@ import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/mealLogic';
 import { distanceKm, formatDistance } from '../../src/lib/geo';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { useAlert } from '../../src/components/Alert';
 
 export default function MealScreen() {
   const { id } = useLocalSearchParams();
   const { colors, shadow } = useTheme();
   const { t, n, lang } = useLang();
+  const alert = useAlert();
   const router = useRouter();
   const { account, isSignedIn } = useAuth();
   const meals = useCommerce();
@@ -91,13 +93,11 @@ export default function MealScreen() {
 
   const onInterest = () => {
     if (!isSignedIn) return router.push('/auth');
-    setError(null);
     meals.toggleInterest(meal.id, key);
   };
 
   const onConfirm = () => {
     if (!isSignedIn) return router.push('/auth');
-    setError(null);
     setConfirming(true);
   };
 
@@ -113,7 +113,7 @@ export default function MealScreen() {
     setConfirming(false);
 
     if (!out.ok) {
-      setError(errorText(out.error, t, n, out));
+      alert.error(errorText(out.error, t, n, out));
       return;
     }
     router.replace(`/meal-order/${out.result.id}`);

@@ -26,6 +26,7 @@ import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../../src/theme/tokens';
 import { SPECIALTIES, useKitchen } from '../../../src/store/KitchenContext';
 import { useAuth } from '../../../src/store/AuthContext';
+import { useSession } from '../../../src/store/SessionContext';
 import { useOrders } from '../../../src/store/OrdersContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
@@ -61,6 +62,7 @@ function KitchenForm({ kitchen }) {
   const router = useRouter();
   const { updateKitchen, liveDishes } = useKitchen();
   const { account, setViewMode, signOut } = useAuth();
+  const { signOutServer } = useSession();
   const { ordersForKitchen } = useOrders();
 
   const [name, setName] = useState(kitchen.name ?? '');
@@ -565,7 +567,8 @@ function KitchenForm({ kitchen }) {
                          does not bounce between two panels while the account
                          is being cleared. */
                       await setViewMode('customer');
-                      await signOut();
+                      // The token goes with the account, not after it.
+                      await Promise.all([signOut(), signOutServer()]);
                       router.replace('/');
                     }}
                   />

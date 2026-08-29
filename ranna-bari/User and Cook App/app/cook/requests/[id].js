@@ -36,11 +36,13 @@ import { COOK_ADVANCES } from '../../../src/lib/ledger';
 import { MealStatusPill, PaymentPill } from '../../../src/components/MealBits';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { formatAddress } from '../../../src/lib/address';
+import { useAlert } from '../../../src/components/Alert';
 
 export default function CookRequestScreen() {
   const { id } = useLocalSearchParams();
   const { colors, shadow } = useTheme();
   const { t, n, lang } = useLang();
+  const alert = useAlert();
   const router = useRouter();
   const { kitchen } = useKitchen();
   const shop = useCommerce();
@@ -117,9 +119,8 @@ export default function CookRequestScreen() {
       note.trim(),
       prepTime.trim(),
     );
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
-    setFlash(
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+    alert.success(
       price.trim()
         ? t('Your price is with the customer.')
         : t('You are on the list. Add a price when you know it.'),
@@ -129,35 +130,32 @@ export default function CookRequestScreen() {
 
   const send = async () => {
     const out = await shop.counterOffer(offer.id, 'cook', counter);
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     setCounter('');
   };
 
   const accept = async () => {
     const out = await shop.acceptPrice(offer.id, 'cook');
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
-    setFlash(t('Agreed at ৳{n}. Waiting for payment.', { n: n(standing(offer).amount) }));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+    alert.success(t('Agreed at ৳{n}. Waiting for payment.', { n: n(standing(offer).amount) }));
   };
 
   const advance = async () => {
     const out = await shop.advanceOrder(order.id);
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
   };
 
   /* The other half of "interested": a cook who cannot take it says so, and
      the request leaves their board instead of sitting there unanswered. */
   const decline = async () => {
     const out = await shop.declineRequest(request.id, kitchen.id);
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     router.replace('/cook/requests');
   };
 
   const withdraw = async () => {
     const out = await shop.withdrawOffer(offer.id);
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     router.replace('/cook/requests');
   };
 

@@ -30,10 +30,12 @@ import { formatOrderDate } from '../store/OrdersContext';
 import { flowFor, stepIndexIn } from '../lib/ledger';
 import { formatAddress } from '../lib/address';
 import { useLang } from '../i18n/LanguageContext';
+import { useAlert } from './Alert';
 
 export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
   const { colors, shadow } = useTheme();
   const { t, n, lang } = useLang();
+  const alert = useAlert();
   const router = useRouter();
   const shop = useCommerce();
 
@@ -83,17 +85,15 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
   const receive = async () => {
     const out = await shop.confirmReceived(order.id);
     setAsking(null);
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
-    setFlash(t('৳{n} has been released to the cook.', { n: n(out.result) }));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+    alert.success(t('৳{n} has been released to the cook.', { n: n(out.result) }));
   };
 
   const cancel = async () => {
     const out = await shop.cancelOrder(order.id, 'customer', 'Cancelled by the customer');
     setAsking(null);
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
-    setFlash(t('৳{n} has been refunded to your wallet.', { n: n(out.result) }));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+    alert.success(t('৳{n} has been refunded to your wallet.', { n: n(out.result) }));
   };
 
   return (

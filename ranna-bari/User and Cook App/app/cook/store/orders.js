@@ -34,6 +34,7 @@ import { timeAgo } from '../../../src/store/OrdersContext';
 import { COOK_ADVANCES } from '../../../src/lib/ledger';
 import { ORDER_FILTERS, filterOrders } from '../../../src/lib/storeLogic';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import { useAlert } from '../../../src/components/Alert';
 
 /** What the cook's button says at each stage. */
 const NEXT_LABEL = {
@@ -46,6 +47,7 @@ const NEXT_LABEL = {
 export default function StoreOrders() {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
+  const alert = useAlert();
   const r = useResponsive();
   const router = useRouter();
   const { kitchen } = useKitchen();
@@ -60,7 +62,7 @@ export default function StoreOrders() {
 
   const advance = async (orderId) => {
     const out = await shop.advanceOrder(orderId);
-    if (!out.ok) setError(errorText(out.error, t, n, out));
+    if (!out.ok) alert.error(errorText(out.error, t, n, out));
     else setError(null);
   };
 

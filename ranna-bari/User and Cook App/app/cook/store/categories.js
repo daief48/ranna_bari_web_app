@@ -24,6 +24,7 @@ import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { DEMO_STORE_CATEGORY } from '../../../src/lib/demoData';
+import { useAlert } from '../../../src/components/Alert';
 
 /** Fallbacks, for a shelf the platform list has no word for. */
 const EMOJI = ['🎂', '🥮', '🫙', '🍪', '🍰', '🍛', '🎁', '🍞', '🍯', '🥧', '🍮', '🧁'];
@@ -31,6 +32,7 @@ const EMOJI = ['🎂', '🥮', '🫙', '🍪', '🍰', '🍛', '🎁', '🍞', '
 export default function StoreCategories() {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
+  const alert = useAlert();
   const router = useRouter();
   const { kitchen } = useKitchen();
   const shop = useCommerce();
@@ -45,20 +47,20 @@ export default function StoreCategories() {
 
   const add = async () => {
     const out = await shop.addCategory(store.id, name, emoji);
-    if (!out.ok) return setNote(errorText(out.error, t, n, out));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     setNote(null);
     setName('');
   };
 
   const rename = async (id, value) => {
     const out = await shop.updateCategory(id, { name: value });
-    if (!out.ok) setNote(errorText(out.error, t, n, out));
+    if (!out.ok) alert.error(errorText(out.error, t, n, out));
     else setNote(null);
   };
 
   const remove = async (id) => {
     const out = await shop.removeCategory(id);
-    if (!out.ok) return setNote(errorText(out.error, t, n, out));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     setNote(null);
   };
 

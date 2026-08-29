@@ -14,6 +14,7 @@ import { Body, Heading } from '../../src/components/Typography';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
+import { useSession } from '../../src/store/SessionContext';
 import { useCart } from '../../src/store/CartContext';
 import { useOrders } from '../../src/store/OrdersContext';
 import { useKitchen } from '../../src/store/KitchenContext';
@@ -26,6 +27,10 @@ export default function ProfileScreen() {
   const { colors, shadow, isDark, toggle } = useTheme();
   const router = useRouter();
   const { account, isSignedIn, isCook, setViewMode, signOut } = useAuth();
+  /* Signing out has to drop the server session too, or the next person on
+     this handset inherits a token that can still spend the last one's
+     wallet. */
+  const { signOutServer } = useSession();
   const { count } = useCart();
   const { orders, activeOrders } = useOrders();
   const { wallet, unreadFor, requestsForCustomer } = useCommerce();
@@ -272,9 +277,9 @@ export default function ProfileScreen() {
                   <Button
                     label={t('Log out')}
                     small
-                    onPress={() => {
-                      signOut();
+                    onPress={async () => {
                       setConfirmOut(false);
+                      await Promise.all([signOut(), signOutServer()]);
                     }}
                     style={{ flex: 1 }}
                   />

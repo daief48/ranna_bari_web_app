@@ -19,6 +19,7 @@ import { useCommerce } from '../src/store/CommerceContext';
 import { formatOrderDate } from '../src/store/OrdersContext';
 import { useLang } from '../src/i18n/LanguageContext';
 import { DEMO_TOPUP } from '../src/lib/demoData';
+import { useAlert } from '../src/components/Alert';
 
 /** Round numbers people actually top up with. */
 const PRESETS = [200, 500, 1000, 2000];
@@ -26,6 +27,7 @@ const PRESETS = [200, 500, 1000, 2000];
 export default function WalletScreen() {
   const { colors, shadow } = useTheme();
   const { t, n, lang } = useLang();
+  const alert = useAlert();
   const router = useRouter();
   const { isSignedIn } = useAuth();
   const meals = useCommerce();
@@ -60,15 +62,13 @@ export default function WalletScreen() {
   };
 
   const topUp = async (value) => {
-    setError(null);
-    setDone(null);
     const out = await meals.topUp(value, 'bKash');
     if (!out.ok) {
-      setError(errorText(out.error, t, n, out));
+      alert.error(errorText(out.error, t, n, out));
       return;
     }
     setAmount('');
-    setDone(t('৳{n} added to your wallet.', { n: n(out.result) }));
+    alert.success(t('৳{n} added to your wallet.', { n: n(out.result) }));
   };
 
   return (

@@ -37,6 +37,7 @@ import { useCommerce } from '../../../src/store/CommerceContext';
 import { COOK_ADVANCES } from '../../../src/lib/mealLogic';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { formatAddress } from '../../../src/lib/address';
+import { useAlert } from '../../../src/components/Alert';
 
 /** What the bulk button says when everything is sitting at `status`. */
 const BULK_LABEL = {
@@ -50,6 +51,7 @@ export default function CookMealScreen() {
   const { id } = useLocalSearchParams();
   const { colors, shadow } = useTheme();
   const { t, n, lang } = useLang();
+  const alert = useAlert();
   const router = useRouter();
   const meals = useCommerce();
 
@@ -97,7 +99,6 @@ export default function CookMealScreen() {
   );
 
   const advanceAll = async () => {
-    setError(null);
     const targets = live.filter((o) => o.status === batch).map((o) => o.id);
     let moved = 0;
     for (const orderId of targets) {
@@ -107,12 +108,12 @@ export default function CookMealScreen() {
       const out = await meals.advanceOrder(orderId);
       if (out.ok) moved += 1;
     }
-    setFlash(t('{n} orders moved on.', { n: n(moved) }));
+    alert.success(t('{n} orders moved on.', { n: n(moved) }));
   };
 
   const advanceOne = async (orderId) => {
     const out = await meals.advanceOrder(orderId);
-    if (!out.ok) setError(errorText(out.error, t, n, out));
+    if (!out.ok) alert.error(errorText(out.error, t, n, out));
   };
 
   /* One customer's plate called off -- they ran out of an ingredient, or the
@@ -120,23 +121,22 @@ export default function CookMealScreen() {
      the service carries on. */
   const cancelOne = async (orderId) => {
     const out = await meals.cancelOrder(orderId, 'cook', 'Cancelled by the kitchen');
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
-    setFlash(t('Order cancelled. ৳{n} refunded.', { n: n(out.result) }));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+    alert.success(t('Order cancelled. ৳{n} refunded.', { n: n(out.result) }));
   };
 
   const close = async () => {
     setAsking(null);
     const out = await meals.closeMeal(meal.id);
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setFlash(t('Closed. Existing orders are unaffected.'));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+    alert.success(t('Closed. Existing orders are unaffected.'));
   };
 
   const cancel = async () => {
     setAsking(null);
     const out = await meals.cancelMeal(meal.id, 'Cancelled by the kitchen');
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setFlash(t('Cancelled. ৳{n} refunded to customers.', { n: n(out.result.refunded) }));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+    alert.success(t('Cancelled. ৳{n} refunded to customers.', { n: n(out.result.refunded) }));
   };
 
   return (

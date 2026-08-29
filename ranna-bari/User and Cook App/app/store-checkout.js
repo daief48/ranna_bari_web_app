@@ -26,10 +26,12 @@ import { useAuth } from '../src/store/AuthContext';
 import { useCommerce } from '../src/store/CommerceContext';
 import { customerKeyOf } from '../src/lib/ledger';
 import { useLang } from '../src/i18n/LanguageContext';
+import { useAlert } from '../src/components/Alert';
 
 export default function StoreCheckoutScreen() {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
+  const alert = useAlert();
   const router = useRouter();
   const { account, isSignedIn } = useAuth();
   const shop = useCommerce();
@@ -54,8 +56,7 @@ export default function StoreCheckoutScreen() {
     });
     setBusy(false);
 
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     router.replace(`/store-order/${out.result[0].id}`);
   };
 

@@ -28,6 +28,7 @@ import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { DEMO_STORE } from '../../../src/lib/demoData';
+import { useAlert } from '../../../src/components/Alert';
 
 export default function StoreSettings() {
   const { kitchen } = useKitchen();
@@ -52,6 +53,7 @@ export default function StoreSettings() {
 function Form({ store, kitchenId }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
+  const alert = useAlert();
   const router = useRouter();
   const shop = useCommerce();
 
@@ -72,7 +74,7 @@ function Form({ store, kitchenId }) {
   const pick = async (setter, aspect) => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      setNote(t('RannaBari needs photo access to set a shop photo.'));
+      alert.error(t('RannaBari needs photo access to set a shop photo.'));
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -98,7 +100,7 @@ function Form({ store, kitchenId }) {
     });
     if (!out.ok) {
       setSaved(false);
-      setNote(errorText(out.error, t, n, out));
+      alert.error(errorText(out.error, t, n, out));
       return;
     }
     setNote(null);

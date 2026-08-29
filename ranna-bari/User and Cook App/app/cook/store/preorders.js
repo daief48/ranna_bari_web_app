@@ -30,10 +30,12 @@ import { useCommerce } from '../../../src/store/CommerceContext';
 import { formatOrderDate, timeAgo } from '../../../src/store/OrdersContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { formatAddress } from '../../../src/lib/address';
+import { useAlert } from '../../../src/components/Alert';
 
 export default function StorePreorders() {
   const { colors, shadow } = useTheme();
   const { t, n, lang } = useLang();
+  const alert = useAlert();
   const router = useRouter();
   const { kitchen } = useKitchen();
   const shop = useCommerce();
@@ -60,16 +62,14 @@ export default function StorePreorders() {
 
   const accept = async (order) => {
     const out = await shop.acceptPreorder(order.id);
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
-    setFlash(t('Accepted. {customer} has been told.', { customer: order.customerName }));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+    alert.success(t('Accepted. {customer} has been told.', { customer: order.customerName }));
   };
 
   const reject = async (order) => {
     const out = await shop.rejectPreorder(order.id, 'Declined by the kitchen');
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
-    setFlash(t('Declined. ৳{n} went back to {customer}.', {
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+    alert.success(t('Declined. ৳{n} went back to {customer}.', {
       n: n(out.result),
       customer: order.customerName,
     }));

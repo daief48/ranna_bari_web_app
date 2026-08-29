@@ -34,11 +34,13 @@ import { useCommerce } from '../../src/store/CommerceContext';
 import { REQUEST_STATUS, isLiveOffer, standing, turnOf } from '../../src/lib/requestLogic';
 import { distanceKm } from '../../src/lib/geo';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { useAlert } from '../../src/components/Alert';
 
 export default function RequestScreen() {
   const { id } = useLocalSearchParams();
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
+  const alert = useAlert();
   const router = useRouter();
   const { account } = useAuth();
   const shop = useCommerce();
@@ -109,23 +111,20 @@ export default function RequestScreen() {
 
   const choose = async (offer) => {
     const out = await shop.selectOffer(request.id, offer.id);
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
-    setFlash(t('You picked {who}. The other cooks were told.', { who: offer.cookName }));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+    alert.success(t('You picked {who}. The other cooks were told.', { who: offer.cookName }));
   };
 
   const send = async () => {
     const out = await shop.counterOffer(selected.id, 'customer', counter);
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     setCounter('');
   };
 
   const accept = async () => {
     const out = await shop.acceptPrice(selected.id, 'customer');
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
-    setFlash(t('Agreed at ৳{n}. Pay to confirm.', { n: n(standing(selected).amount) }));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+    alert.success(t('Agreed at ৳{n}. Pay to confirm.', { n: n(standing(selected).amount) }));
   };
 
   const pay = async () => {
@@ -135,7 +134,7 @@ export default function RequestScreen() {
       phone: account?.phone ?? '',
       address: account?.address ?? account?.area ?? '',
     });
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     router.replace(`/request-order/${out.result.id}`);
   };
 
@@ -144,15 +143,14 @@ export default function RequestScreen() {
   const walkAway = async () => {
     setAsking(null);
     const out = await shop.rejectOffer(selected.id, 'The customer went elsewhere');
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
-    setError(null);
-    setFlash(t('Back to the other offers.'));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+    alert.success(t('Back to the other offers.'));
   };
 
   const cancel = async () => {
     setAsking(null);
     const out = await shop.cancelRequest(request.id);
-    if (!out.ok) return setError(errorText(out.error, t, n, out));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     router.replace('/requests');
   };
 

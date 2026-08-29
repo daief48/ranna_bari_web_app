@@ -12,9 +12,10 @@
  */
 
 /** The account the Sign in tab opens with. */
+/* Sign-in is a phone and a one-time code now, so the demo credential is a
+   number rather than an id and a password. */
 export const DEMO_CREDENTIALS = {
-  id: 'jubair@example.com',
-  password: 'Sup3rSecret!x',
+  phone: '01712345678',
 };
 
 /** Step 2 of Create account, customer side. */

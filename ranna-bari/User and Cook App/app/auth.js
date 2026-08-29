@@ -23,12 +23,13 @@ import { useTheme } from '../src/theme/ThemeProvider';
 import useResponsive from '../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
+import { useSession } from '../src/store/SessionContext';
+import { useAlert } from '../src/components/Alert';
 import {
   DEMO_ADDRESS,
   DEMO_CREDENTIALS,
   DEMO_KITCHEN,
   DEMO_SIGNUP,
-  demoAccount,
 } from '../src/lib/demoData';
 import { useLang } from '../src/i18n/LanguageContext';
 
@@ -83,6 +84,8 @@ export default function AuthScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { signIn } = useAuth();
+  const { requestCode, verifyCode } = useSession();
+  const alert = useAlert();
 
   /* become-cook.js is step 1 of the same funnel: it collects a name, a phone,
      a zone and an NID, then hands over. Reading them here is what keeps that
@@ -96,9 +99,13 @@ export default function AuthScreen() {
   const [tab, setTab] = useState(fromCookFunnel ? 'signup' : 'signin');
 
   /* ---- sign in ---- */
-  const [siId, setSiId] = useState(DEMO_CREDENTIALS.id);
-  const [siPw, setSiPw] = useState(DEMO_CREDENTIALS.password);
-  const [siNote, setSiNote] = useState('');
+  /* Sign in is a phone and a code now, not an id and a password: the server
+     has no passwords, and an account here is a handset that proved it holds
+     its own number. */
+  const [siPhone, setSiPhone] = useState(DEMO_CREDENTIALS.phone ?? '');
+  const [siCode, setSiCode] = useState('');
+  const [siStage, setSiStage] = useState('phone'); // 'phone' | 'code'
+  const [siBusy, setSiBusy] = useState(false);
 
   /* ---- sign up ---- */
   // Arriving from the cook funnel means the role question is already answered.
@@ -107,6 +114,10 @@ export default function AuthScreen() {
   const [roleNote, setRoleNote] = useState('');
   const [detailsNote, setDetailsNote] = useState('');
   const [locNote, setLocNote] = useState('');
+  /* The last step of signing up is proving the number, same as signing in. */
+  const [suStage, setSuStage] = useState('form'); // 'form' | 'code'
+  const [suCode, setSuCode] = useState('');
+  const [suBusy, setSuBusy] = useState(false);
 
   const [name, setName] = useState(param('name', DEMO_SIGNUP.name));
   const [phone, setPhone] = useState(param('phone', DEMO_SIGNUP.phone));
@@ -185,39 +196,131 @@ export default function AuthScreen() {
     setStep(target);
   };
 
+  /**
+   * Finish signing up — which means proving the number first.
+   *
+   * The three steps before this collect a profile, and a profile is not an
+   * account: everything the new user is about to do (book a meal, open a
+   * kitchen, hold money) is a write the server will refuse without a token.
+   * So the last step is the same one-time code the sign-in tab uses, and the
+   * profile is only stored once it comes back verified.
+   */
   const submit = async () => {
     if (!place) {
-      setLocNote(t('Drop your pin on the map so we know where to find you.'));
-      return;
+      return alert.error(t('Drop your pin on the map so we know where to find you.'));
+    }
+    if (!phone.trim()) {
+      return alert.error(t('We need your mobile number to send a code.'));
     }
     setLocNote('');
 
-    await signIn({
-      role,
-      name: name.trim(),
-      phone: phone.trim(),
-      email: email.trim(),
-      kitchen: kitchen.trim(),
-      specialty,
-      area: place.address,
-      lat: place.lat,
-      lng: place.lng,
-      addressDetail: detail.trim(),
-      addressLabel,
-      deliveryRadiusKm: role === 'cook' ? radiusKm : null,
-    });
+    if (suStage === 'form') {
+      setSuBusy(true);
+      try {
+        const out = await requestCode(phone.trim());
+        setSuStage('code');
+        if (out.devCode) setSuCode(String(out.devCode));
+      } catch (error) {
+        alert.error(error?.message ?? t('Could not send a code.'));
+      } finally {
+        setSuBusy(false);
+      }
+      return;
+    }
 
-    setStep(4);
+    if (!suCode.trim()) {
+      return alert.error(t('Enter the six-digit code.'));
+    }
+
+    setSuBusy(true);
+    try {
+      const identity = await verifyCode(phone.trim(), suCode.trim(), name.trim());
+
+      await signIn({
+        /* The profile the three steps collected, kept because it is real and
+           the server holds none of it: an area, a pin, a door number. */
+        role,
+        name: name.trim(),
+        phone: identity.phone ?? phone.trim(),
+        email: email.trim(),
+        kitchen: kitchen.trim(),
+        specialty,
+        area: place.address,
+        lat: place.lat,
+        lng: place.lng,
+        addressDetail: detail.trim(),
+        addressLabel,
+        deliveryRadiusKm: role === 'cook' ? radiusKm : null,
+        accountId: identity.accountId,
+        kitchenId: identity.kitchenId,
+      });
+
+      setStep(4);
+    } catch (error) {
+      alert.error(error?.message ?? t('That code did not work.'));
+    } finally {
+      setSuBusy(false);
+    }
+  };
+
+  /**
+   * Sign in, for real this time.
+   *
+   * This used to build an account out of whatever string was typed and throw
+   * the password away — which was survivable while nothing left the device.
+   * It is not survivable now: every meal, order and taka in the app is a row
+   * on a server that decides what this account may touch, and it decides from
+   * a token. Without one, every write comes back `unauthenticated` and the
+   * screen shows "something went wrong".
+   *
+   * So it is one number and one code. No password — it is one more thing to
+   * lose, and the account was already keyed on a phone number.
+   */
+  const askCode = async () => {
+    if (!siPhone.trim()) {
+      return alert.error(t('Enter your mobile number.'));
+    }
+    setSiBusy(true);
+    try {
+      const out = await requestCode(siPhone.trim());
+      setSiStage('code');
+      /* With no SMS provider wired in the server hands the code back so the
+         flow can be walked end to end. It refuses to once one is configured,
+         so this cannot reach production by accident. */
+      if (out.devCode) setSiCode(String(out.devCode));
+    } catch (error) {
+      alert.error(error?.message ?? t('Could not send a code.'));
+    } finally {
+      setSiBusy(false);
+    }
   };
 
   const doSignIn = async () => {
-    if (!siId.trim() || !siPw) {
-      setSiNote(t('Enter your email or phone and your password.'));
-      return;
+    if (siStage === 'phone') return askCode();
+
+    if (!siCode.trim()) {
+      return alert.error(t('Enter the six-digit code.'));
     }
-    setSiNote('');
-    const acct = await signIn(demoAccount(siId));
-    router.replace(acct.role === 'cook' ? '/cook' : '/profile');
+    setSiBusy(true);
+    try {
+      const identity = await verifyCode(siPhone.trim(), siCode.trim());
+      /* The server decides the role: an account with a kitchen is a cook,
+         whatever this device previously believed about itself. */
+      const acct = await signIn({
+        role: identity.kitchenId ? 'cook' : 'user',
+        accountId: identity.accountId,
+        kitchenId: identity.kitchenId,
+        kitchen: identity.kitchenName ?? '',
+        name: identity.name ?? '',
+        phone: identity.phone,
+      });
+      alert.success(t('Signed in.'));
+      router.replace(acct.role === 'cook' ? '/cook' : '/profile');
+    } catch (error) {
+      alert.error(error?.message ?? t('That code did not work.'));
+    } finally {
+      setSiBusy(false);
+    }
   };
 
   return (
@@ -423,12 +526,17 @@ export default function AuthScreen() {
 
             {tab === 'signin' ? (
               <SignInView
-                siId={siId}
-                setSiId={setSiId}
-                siPw={siPw}
-                setSiPw={setSiPw}
-                note={siNote}
+                phone={siPhone}
+                setPhone={setSiPhone}
+                code={siCode}
+                setCode={setSiCode}
+                stage={siStage}
+                busy={siBusy}
                 onSubmit={doSignIn}
+                onBack={() => {
+                  setSiStage('phone');
+                  setSiCode('');
+                }}
                 onSwitch={() => setTab('signup')}
               />
             ) : (
@@ -442,6 +550,11 @@ export default function AuthScreen() {
                 roleNote={roleNote}
                 detailsNote={detailsNote}
                 locNote={locNote}
+                suStage={suStage}
+                setSuStage={setSuStage}
+                suCode={suCode}
+                setSuCode={setSuCode}
+                suBusy={suBusy}
                 goStep={goStep}
                 submit={submit}
                 fields={{
@@ -544,10 +657,9 @@ function AsideTitle({ title, emphasis }) {
 /* ---------------------------------------------------------
    Sign in
    --------------------------------------------------------- */
-function SignInView({ siId, setSiId, siPw, setSiPw, note, onSubmit, onSwitch }) {
+function SignInView({ phone, setPhone, code, setCode, stage, busy, note, onSubmit, onBack, onSwitch }) {
   const { colors, shadow } = useTheme();
   const { t } = useLang();
-  const [keepSignedIn, setKeepSignedIn] = useState(true);
 
   return (
     <Animated.View entering={FadeInDown.duration(400)}>
@@ -579,9 +691,9 @@ function SignInView({ siId, setSiId, siPw, setSiPw, note, onSubmit, onSwitch }) 
       <View style={[cardStyle(colors), shadow.md]}>
         <FormNote text={note} />
 
-        {/* The fields arrive filled with a working demo account, so the
-            primary button is live on the first tap. Say so, rather than
-            letting it look like a browser autofilled someone's password. */}
+        {/* No password field: the server has none. An account here is a
+            handset that proved it holds its own number, so the whole of
+            signing in is that number and the code sent to it. */}
         <View
           style={{
             flexDirection: 'row',
@@ -603,59 +715,64 @@ function SignInView({ siId, setSiId, siPw, setSiPw, note, onSubmit, onSwitch }) 
               color: colors.textMuted,
             }}
           >
-            {t('Demo account is pre-filled — just tap {button}.', { button: t('Sign in') })}
+            {stage === 'phone'
+              ? t('We send a six-digit code to your phone. No password to remember.')
+              : t('We sent a six-digit code to {phone}.', { phone })}
           </Text>
         </View>
 
         <FloatLabelInput
-          label={t('Email or phone')}
-          value={siId}
-          onChangeText={setSiId}
-          placeholder={t('you@example.com or +880 1XXXXXXXXX')}
-          keyboardType="email-address"
+          label={t('Mobile number')}
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="01712 345678"
+          keyboardType="phone-pad"
           autoCapitalize="none"
-          autoComplete="username"
+          autoComplete="tel"
+          editable={stage === 'phone'}
           style={{ marginBottom: 16 }}
         />
 
-        <FloatLabelInput
-          label={t('Password')}
-          value={siPw}
-          onChangeText={setSiPw}
-          placeholder={t('Your password')}
-          secureTextEntry
-          autoComplete="current-password"
-          style={{ marginBottom: 16 }}
-        />
-
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 16,
-            marginTop: 4,
-            marginBottom: 24,
-          }}
-        >
-          <Checkbox
-            checked={keepSignedIn}
-            onToggle={() => setKeepSignedIn((v) => !v)}
-            label={t('Keep me signed in')}
+        {stage === 'code' ? (
+          <FloatLabelInput
+            label={t('Six-digit code')}
+            value={code}
+            onChangeText={setCode}
+            placeholder="000000"
+            keyboardType="number-pad"
+            maxLength={6}
+            autoComplete="one-time-code"
+            style={{ marginBottom: 16 }}
           />
-          <Text
-            style={{
-              fontFamily: font.uiSemi,
-              fontSize: 13.5,
-              color: colors.primary,
-            }}
-          >
-            {t('Forgot password?')}
-          </Text>
-        </View>
+        ) : null}
 
-        <Button label={t('Sign in')} icon="arrowRight" block onPress={onSubmit} />
+        <View style={{ marginBottom: 24 }} />
+
+        <Button
+          label={
+            busy
+              ? t('Just a moment…')
+              : stage === 'phone'
+                ? t('Send code')
+                : t('Sign in')
+          }
+          icon="arrowRight"
+          block
+          disabled={busy}
+          onPress={onSubmit}
+        />
+
+        {stage === 'code' ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={onBack}
+            style={{ marginTop: 14, alignItems: 'center' }}
+          >
+            <Text style={{ fontFamily: font.uiSemi, fontSize: 13.5, color: colors.primary }}>
+              {t('Use a different number')}
+            </Text>
+          </Pressable>
+        ) : null}
 
         <Divider label={t('or continue with')} />
 
@@ -704,6 +821,11 @@ function SignUpView({
   roleNote,
   detailsNote,
   locNote,
+  suStage,
+  setSuStage,
+  suCode,
+  setSuCode,
+  suBusy,
   goStep,
   submit,
   fields,
@@ -997,10 +1119,45 @@ function SignUpView({
               />
             )}
 
+            {/* The number has to be proved before any of this becomes an
+                account — everything the new user does next is a write the
+                server refuses without a token. */}
+            {suStage === 'code' ? (
+              <View style={{ marginTop: 18 }}>
+                <FloatLabelInput
+                  label={t('Six-digit code')}
+                  value={suCode}
+                  onChangeText={setSuCode}
+                  placeholder="000000"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  autoComplete="one-time-code"
+                />
+                <Text
+                  style={{
+                    fontFamily: font.ui,
+                    fontSize: 12.5,
+                    lineHeight: 19,
+                    color: colors.textMuted,
+                    marginTop: 8,
+                  }}
+                >
+                  {t('We sent a six-digit code to {phone}.', { phone: fields.phone })}
+                </Text>
+              </View>
+            ) : null}
+
             <Actions
-              next={{ label: 'Create account', onPress: submit }}
+              next={{
+                label: suBusy
+                  ? 'Just a moment…'
+                  : suStage === 'form'
+                    ? 'Send code'
+                    : 'Create account',
+                onPress: submit,
+              }}
               backLabel="Back"
-              onBack={() => goStep(2)}
+              onBack={() => (suStage === 'code' ? setSuStage('form') : goStep(2))}
             />
           </Animated.View>
         ) : null}

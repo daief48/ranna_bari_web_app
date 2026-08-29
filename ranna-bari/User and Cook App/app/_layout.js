@@ -40,6 +40,7 @@ import { ChatProvider } from '../src/store/ChatContext';
 import { SyncProvider } from '../src/store/SyncContext';
 import { ConfigProvider } from '../src/store/ConfigContext';
 import { LoadingProvider } from '../src/store/LoadingContext';
+import { AlertProvider } from '../src/components/Alert';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -209,8 +210,13 @@ export default function RootLayout() {
                       <SyncProvider>
                       <ChatProvider>
                         <LoadingProvider>
-                          <KitchenSync />
-                          <Root />
+                          {/* Outermost of the UI providers so any screen can
+                              raise one, and so the dialog paints above the
+                              whole stack rather than inside a screen. */}
+                          <AlertProvider>
+                            <KitchenSync />
+                            <Root />
+                          </AlertProvider>
                         </LoadingProvider>
                       </ChatProvider>
                       </SyncProvider>

@@ -124,7 +124,12 @@ const EMPTY = {
   preorders: [],
   ledger: [],
   notifications: [],
-  wallet: { balance: 0, held: 0, earnings: 0 },
+  /* Named for the ledger accounts the app folds, because that is what every
+     screen reads: `wallet.customer` is spendable, `wallet.held` is in escrow
+     against orders not yet confirmed, `wallet.cook` is what a kitchen has
+     been paid. `balance` and `earnings` are kept as the server's own names
+     for the first and last of those. */
+  wallet: { customer: 0, held: 0, cook: 0, balance: 0, earnings: 0 },
   /** requestId -> the server's offer summary for it. */
   summaries: {},
   /** storeId -> the cook's own dashboard counts. */
@@ -159,6 +164,24 @@ function withCatalogue(state, storeId, { categories, products, overview }) {
       : [...state.loadedStores, id],
   };
 }
+
+/**
+ * The server's wallet, under the names the app reads it by.
+ *
+ * `balances()` in `lib/ledger.js` folded the ledger into
+ * `{ customer, held, cook }` and every screen has read those keys ever
+ * since. The server answers the same three questions and calls two of them
+ * something else, so this is where the two vocabularies meet — once, rather
+ * than in each of the six screens that show a balance.
+ */
+const walletOf = (out) => ({
+  customer: out?.balance ?? 0,
+  held: out?.held ?? 0,
+  cook: out?.earnings ?? 0,
+  // The server's own names, kept so nothing has to guess which is which.
+  balance: out?.balance ?? 0,
+  earnings: out?.earnings ?? 0,
+});
 
 /* ------------------------------------------------------------------ *
  * provider
@@ -302,11 +325,7 @@ export function CommerceProvider({ children }) {
 
     if (wallet.ok) {
       fields.ledger = wallet.result.entries ?? [];
-      fields.wallet = {
-        balance: wallet.result.balance ?? 0,
-        held: wallet.result.held ?? 0,
-        earnings: wallet.result.earnings ?? 0,
-      };
+      fields.wallet = walletOf(wallet.result);
     }
 
     if (Object.keys(fields).length) patch(fields);
@@ -561,7 +580,7 @@ export function CommerceProvider({ children }) {
    * else waits for the next full refresh.
    */
   const write = useCallback(
-    async (path, { method = 'POST', body, after } = {}) => {
+    async (path, { method = 'POST', body, after, shape } = {}) => {
       if (!hasServer) {
         return { ok: false, error: 'network', message: 'No server is configured.' };
       }
@@ -577,7 +596,12 @@ export function CommerceProvider({ children }) {
 
       setOffline(false);
       if (after) await after(out.result);
-      return { ok: true, result: out.result };
+      /* The two sides name the same thing differently — the server says
+         `mealId`, the screen reads `.id`; the server returns the whole
+         transition result, the screen wants the one number in it. `shape`
+         is where that translation lives, so no screen has to know which
+         vocabulary it is holding. */
+      return { ok: true, result: shape ? shape(out.result) : out.result };
     },
     [token],
   );
@@ -590,11 +614,7 @@ export function CommerceProvider({ children }) {
     if (!out.ok) return;
     patch({
       ledger: out.result.entries ?? [],
-      wallet: {
-        balance: out.result.balance ?? 0,
-        held: out.result.held ?? 0,
-        earnings: out.result.earnings ?? 0,
-      },
+      wallet: walletOf(out.result),
     });
   }, [token, patch]);
 
@@ -752,7 +772,11 @@ export function CommerceProvider({ children }) {
 
       /* ---- meals: writes ---- */
       publishMeal: (meal, notifyNearby) =>
-        write('/meals', { body: { ...meal, notifyNearby }, after: reloadMeals }),
+        write('/meals', {
+          body: { ...meal, notifyNearby },
+          after: reloadMeals,
+          shape: (r) => ({ ...r, id: r.mealId }),
+        }),
       closeMeal: (mealId) => write(`/meals/${mealId}/close`, { after: reloadMeals }),
       cancelMeal: (mealId, reason) =>
         write(`/meals/${mealId}/cancel`, {
@@ -769,6 +793,7 @@ export function CommerceProvider({ children }) {
           after: async () => {
             await Promise.all([reloadMeals(), reloadOrders(), reloadWallet()]);
           },
+          shape: (r) => ({ ...r, id: r.orderId }),
         }),
       advanceOrder: (orderId) =>
         write(`/orders/${orderId}/advance`, { after: reloadOrders }),
@@ -777,6 +802,8 @@ export function CommerceProvider({ children }) {
           after: async () => {
             await Promise.all([reloadOrders(), reloadWallet(), reloadNotifications()]);
           },
+          // "৳{n} has been released to the cook" — the order's amount.
+          shape: (r) => r.amount ?? 0,
         }),
       cancelOrder: (orderId, by, reason) =>
         write(`/orders/${orderId}/cancel`, {
@@ -784,9 +811,15 @@ export function CommerceProvider({ children }) {
           after: async () => {
             await Promise.all([reloadOrders(), reloadWallet()]);
           },
+          // The screens say "৳{n} was refunded" — the number, not the row.
+          shape: (r) => r.refunded ?? 0,
         }),
       topUp: (amount, method) =>
-        write('/wallet/topup', { body: { amount, method }, after: reloadWallet }),
+        write('/wallet/topup', {
+          body: { amount, method },
+          after: reloadWallet,
+          shape: (r) => r.amount ?? 0,
+        }),
       markRead: (audience) =>
         write('/notifications/read', { body: { audience }, after: reloadNotifications }),
       clearNotifications: (audience) =>
@@ -879,6 +912,9 @@ export function CommerceProvider({ children }) {
           after: async () => {
             await Promise.all([reloadCart(), reloadOrders(), reloadWallet()]);
           },
+          /* A basket spanning two shops comes back as two orders, and the
+             screen routes to the first one's receipt. */
+          shape: (r) => r.orders ?? [],
         }),
       acceptPreorder: (orderId) =>
         write(`/preorders/${orderId}/accept`, {
@@ -892,6 +928,7 @@ export function CommerceProvider({ children }) {
           after: async () => {
             await Promise.all([reloadOrders(), reloadWallet()]);
           },
+          shape: (r) => r.refunded ?? 0,
         }),
 
       /* ---- categories, as data ---- */
@@ -932,7 +969,11 @@ export function CommerceProvider({ children }) {
 
       /* ---- food requests: writes ---- */
       createRequest: (request) =>
-        write('/requests', { body: { request }, after: reloadRequests }),
+        write('/requests', {
+          body: { request },
+          after: reloadRequests,
+          shape: (r) => r.request ?? r,
+        }),
       cancelRequest: (requestId) =>
         write(`/requests/${requestId}/cancel`, { after: reloadRequests }),
       submitOffer: (requestId, cook, price, note, prepTime) =>
@@ -962,6 +1003,7 @@ export function CommerceProvider({ children }) {
           after: async () => {
             await Promise.all([reloadRequests(), reloadOrders(), reloadWallet()]);
           },
+          shape: (r) => r.order ?? r,
         }),
       declineRequest: (requestId) =>
         write(`/requests/${requestId}/decline`, { after: reloadRequests }),

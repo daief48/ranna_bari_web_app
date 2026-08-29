@@ -95,8 +95,14 @@ export function SessionProvider({ children }) {
     return out;
   }, []);
 
-  /** Spend a code. On success the device is signed in until it is revoked. */
-  const verifyCode = useCallback(async (phone, code) => {
+  /**
+   * Spend a code. On success the device is signed in until it is revoked.
+   *
+   * `name` is only read when the account is new — the server keeps the one it
+   * already has for a returning number, so signing in cannot rename somebody
+   * by typing something else into the field.
+   */
+  const verifyCode = useCallback(async (phone, code, name) => {
     setChecking(true);
     try {
       const out = await api('/auth/verify-otp', {
@@ -104,6 +110,7 @@ export function SessionProvider({ children }) {
         body: {
           phone,
           code,
+          ...(name ? { name } : {}),
           device: { name: 'RannaBari', platform: 'expo' },
         },
       });

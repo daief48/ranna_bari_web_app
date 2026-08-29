@@ -24,11 +24,13 @@ import { useAuth } from '../../src/store/AuthContext';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/ledger';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { useAlert } from '../../src/components/Alert';
 
 export default function ProductScreen() {
   const { id } = useLocalSearchParams();
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
+  const alert = useAlert();
   const r = useResponsive();
   const router = useRouter();
   const { account, isSignedIn } = useAuth();
@@ -86,9 +88,8 @@ export default function ProductScreen() {
     if (!isSignedIn) return router.push('/auth');
     const out = await shop.addToCart(key, product.id, qty, option);
     if (!out.ok) {
-      return setError(errorText(out.error, t, n, { ...out, productName: product.name }));
+      return alert.error(errorText(out.error, t, n, { ...out, productName: product.name }));
     }
-    setError(null);
     if (thenGo) router.push('/store-checkout');
     else router.back();
   };

@@ -28,6 +28,7 @@ import { useKitchen } from '../../../../src/store/KitchenContext';
 import { useCommerce } from '../../../../src/store/CommerceContext';
 import { useLang } from '../../../../src/i18n/LanguageContext';
 import { DEMO_PRODUCT } from '../../../../src/lib/demoData';
+import { useAlert } from '../../../../src/components/Alert';
 
 const PLACEHOLDER =
   'https://images.unsplash.com/photo-1486427944299-d1955d23e34d?w=800&h=600&fit=crop';
@@ -38,6 +39,7 @@ export default function ProductEditor() {
   const shop = useCommerce();
   const router = useRouter();
   const { t } = useLang();
+  const alert = useAlert();
 
   const isNew = String(id) === 'new';
   const store = kitchen ? shop.storeForKitchen(kitchen.id) : null;
@@ -91,7 +93,7 @@ function Form({ store, product, isNew }) {
   const addImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      setNote(t('RannaBari needs photo access to set a product photo.'));
+      alert.error(t('RannaBari needs photo access to set a product photo.'));
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -126,7 +128,7 @@ function Form({ store, product, isNew }) {
         deliveryNote: deliveryNote.trim(),
       },
     });
-    if (!out.ok) return setNote(errorText(out.error, t, n, out));
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     router.replace('/cook/store/products');
   };
 

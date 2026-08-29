@@ -24,7 +24,7 @@ import Reveal from '../../../src/components/Reveal';
 import Button from '../../../src/components/Button';
 import FloatLabelInput, { FormNote } from '../../../src/components/FloatLabelInput';
 import { Body, Heading } from '../../../src/components/Typography';
-import { deadlineLabel } from '../../../src/components/MealBits';
+import { deadlineLabel , errorText } from '../../../src/components/MealBits';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../../src/theme/tokens';
 import { useAuth } from '../../../src/store/AuthContext';
@@ -41,6 +41,7 @@ import { distanceKm } from '../../../src/lib/geo';
 import { deliversTo } from '../../../src/lib/kitchen';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { DEMO_MEAL } from '../../../src/lib/demoData';
+import { useAlert } from '../../../src/components/Alert';
 
 const PLACEHOLDER =
   'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&h=600&fit=crop';
@@ -48,6 +49,7 @@ const PLACEHOLDER =
 export default function NewMeal() {
   const { colors, shadow } = useTheme();
   const { t, n, lang } = useLang();
+  const alert = useAlert();
   const router = useRouter();
   const { account } = useAuth();
   const { kitchen } = useKitchen();
@@ -92,7 +94,7 @@ export default function NewMeal() {
   const pickImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      setNote(t('RannaBari needs photo access to set a meal photo.'));
+      alert.error(t('RannaBari needs photo access to set a meal photo.'));
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -117,23 +119,23 @@ export default function NewMeal() {
     const cap = capacity.trim() ? Number(capacity) : null;
 
     if (!kitchen) {
-      setNote(t('Set your kitchen up first.'));
+      alert.error(t('Set your kitchen up first.'));
       return;
     }
     if (!title.trim()) {
-      setNote(t('Give the meal a name.'));
+      alert.error(t('Give the meal a name.'));
       return;
     }
     if (!Number.isFinite(value) || value <= 0) {
-      setNote(t('Set a price above zero, in taka.'));
+      alert.error(t('Set a price above zero, in taka.'));
       return;
     }
     if (cap != null && (!Number.isFinite(cap) || cap <= 0)) {
-      setNote(t('Leave the quantity blank for no limit, or set it above zero.'));
+      alert.error(t('Leave the quantity blank for no limit, or set it above zero.'));
       return;
     }
     if (new Date(deadline).getTime() <= Date.now()) {
-      setNote(t('That service has already closed. Pick a later date or sitting.'));
+      alert.error(t('That service has already closed. Pick a later date or sitting.'));
       return;
     }
 
@@ -174,7 +176,11 @@ export default function NewMeal() {
     );
 
     if (!out.ok) {
-      setNote(t('Something went wrong. Try again.'));
+      /* The server's own reason, not a shrug. "Something went wrong" is the
+         same sentence whether the network dropped, the session expired or
+         the deadline has already passed — and only one of those is worth
+         retrying. */
+      alert.error(errorText(out.error, t, n, out));
       return;
     }
     router.replace(`/cook/meal/${out.result.id}`);

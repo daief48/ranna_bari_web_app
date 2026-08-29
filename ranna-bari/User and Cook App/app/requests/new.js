@@ -30,10 +30,12 @@ import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/ledger';
 import { addDays, dayKey } from '../../src/store/CommerceContext';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { useAlert } from '../../src/components/Alert';
 
 export default function NewRequest() {
   const { colors, shadow } = useTheme();
   const { t, n, lang } = useLang();
+  const alert = useAlert();
   const r = useResponsive();
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -90,7 +92,7 @@ export default function NewRequest() {
 
   const submit = async () => {
     if (!title.trim()) {
-      setNote(t('Say what you are looking for.'));
+      alert.error(t('Say what you are looking for.'));
       return;
     }
     const out = await shop.createRequest(
@@ -112,7 +114,7 @@ export default function NewRequest() {
       eligible,
     );
     if (!out.ok) {
-      setNote(errorText(out.error, t, n, out));
+      alert.error(errorText(out.error, t, n, out));
       return;
     }
     router.replace(`/requests/${out.result.id}`);

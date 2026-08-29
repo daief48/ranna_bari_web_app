@@ -33,11 +33,13 @@ import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/ledger';
 import { distanceKm, formatDistance } from '../../src/lib/geo';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { useAlert } from '../../src/components/Alert';
 
 export default function StoreScreen() {
   const { id } = useLocalSearchParams();
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
+  const alert = useAlert();
   const r = useResponsive();
   const router = useRouter();
   const { account, isSignedIn } = useAuth();
@@ -97,12 +99,10 @@ export default function StoreScreen() {
     if (!isSignedIn) return router.push('/auth');
     const out = await shop.addToCart(key, product.id, 1, null);
     if (!out.ok) {
-      setFlash(null);
-      setError(errorText(out.error, t, n, { ...out, productName: product.name }));
+      alert.error(errorText(out.error, t, n, { ...out, productName: product.name }));
       return;
     }
-    setError(null);
-    setFlash(
+    alert.success(
       shop.availability(product, store) === 'preorder'
         ? t('{name} added as a pre-order.', { name: product.name })
         : t('{name} added to your basket.', { name: product.name }),
