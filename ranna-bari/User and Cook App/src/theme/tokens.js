@@ -57,6 +57,23 @@ const light = {
   /* White clears AA on light-mode vermilion (5.2:1) */
   onPrimary: '#FFFFFF',
 
+  /*
+   * The floating navbar's glass, and the controls sitting on it.
+   *
+   * These are palette decisions, not component ones, because the bar carries
+   * the logo — and the logo is a fixed warm vermilion-to-saffron in both
+   * themes. Whatever it sits on has to belong to it.
+   *
+   * In light that was never in question: the canvas is a warm cream and the
+   * mark's badge already carried a vermilion tint.
+   */
+  glass: 'rgba(255, 255, 255, 0.88)',
+  glassLine: 'rgba(31, 29, 26, 0.08)',
+  glassFill: 'rgba(31, 29, 26, 0.035)',
+  glassEdge: 'rgba(31, 29, 26, 0.07)',
+  glassMark: 'rgba(199, 56, 26, 0.06)',
+  glassMarkEdge: 'rgba(199, 56, 26, 0.12)',
+
   surfaceSolid: '#FFFFFF',
   surfaceHover: '#FFFFFF',
 
@@ -110,6 +127,32 @@ const dark = {
   /* Dark-mode vermilion is bright enough that white drops to 3.1:1 and fails
      AA, so text on a primary fill flips to sumi (5.5:1). */
   onPrimary: '#221A15',
+
+  /*
+   * The navbar's glass — sumi, not nori.
+   *
+   * The rest of the dark theme is a green-black on purpose, and it stays
+   * that way. The bar is the one surface where that reading breaks, because
+   * it is the one surface carrying the logo: a warm vermilion-and-saffron
+   * mark on a green-black ground shares no pigment with what it sits on, and
+   * the two just sit there refusing each other.
+   *
+   * So the green comes out of this one plate and it settles to a warm sumi —
+   * R over G over B, the same family as `onPrimary` and `scrim`, both of
+   * which are already the warm dark this palette reaches for when something
+   * warm has to sit on it. It stays near-black, so against the canvas behind
+   * it this reads as the glass being warmer, not as a second black.
+   *
+   * The mark's badge then goes further and takes an actual vermilion tint,
+   * mirroring what light mode always did. That is the part that makes the
+   * logo look placed rather than pasted.
+   */
+  glass: 'rgba(31, 26, 22, 0.86)',
+  glassLine: 'rgba(236, 234, 225, 0.13)',
+  glassFill: 'rgba(236, 234, 225, 0.06)',
+  glassEdge: 'rgba(236, 234, 225, 0.10)',
+  glassMark: 'rgba(239, 106, 61, 0.16)',
+  glassMarkEdge: 'rgba(239, 106, 61, 0.30)',
 
   surfaceSolid: '#1A211C',
   surfaceHover: '#232B25',

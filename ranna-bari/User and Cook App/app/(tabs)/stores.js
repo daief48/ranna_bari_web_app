@@ -17,20 +17,22 @@ import Icon from '../../src/components/Icon';
 import Button from '../../src/components/Button';
 import Reveal from '../../src/components/Reveal';
 import SectionHeader from '../../src/components/SectionHeader';
-import { EmptyState } from '../../src/components/MealBits';
+import { EmptyState, errorText } from '../../src/components/MealBits';
 import { Skeleton, StoreCard } from '../../src/components/StoreBits';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { useAlert } from '../../src/components/Alert';
 
 export default function StoresScreen() {
   const { colors } = useTheme();
-  const { t } = useLang();
+  const { t, n } = useLang();
+  const alert = useAlert();
   const router = useRouter();
-  const { account } = useAuth();
-  const { storesNearby, hydrated } = useCommerce();
+  const { account, isSignedIn } = useAuth();
+  const { storesNearby, hydrated, isStoreSaved, toggleSavedStore } = useCommerce();
 
   const origin = useMemo(
     () =>
@@ -41,6 +43,24 @@ export default function StoresScreen() {
   );
 
   const rows = useMemo(() => storesNearby(origin), [storesNearby, origin]);
+
+
+  /* The star on each card. A guest is sent to sign in rather than silently
+     failing, because the list is per-account and there is nowhere to put it
+     until there is an account. */
+  const save = async (store) => {
+    if (!isSignedIn) return router.push('/auth');
+    const out = await toggleSavedStore(store.id);
+    if (!out.ok) {
+      alert.error(errorText(out.error, t, n, out));
+      return;
+    }
+    alert.success(
+      out.saved
+        ? t('{name} saved. Find it in your profile.', { name: store.name })
+        : t('{name} removed from your saved shops.', { name: store.name }),
+    );
+  };
 
   return (
     <Screen>
@@ -90,6 +110,8 @@ export default function StoresScreen() {
                   store={store}
                   km={km}
                   products={products}
+                  saved={isStoreSaved(store.id)}
+                  onSave={() => save(store)}
                   onPress={() => router.push(`/stores/${store.id}`)}
                 />
               </Reveal>

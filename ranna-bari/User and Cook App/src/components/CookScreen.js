@@ -71,9 +71,11 @@ export function CookNavbar() {
             alignItems: 'center',
             justifyContent: 'space-between',
             paddingHorizontal: 14,
-            backgroundColor: isDark
-              ? `rgba(${colors.rgbRaised}, 0.76)`
-              : 'rgba(250, 247, 240, 0.72)',
+            /* The same glass as the customer bar. This one carries the logo
+               mark on its own, with no wordmark beside it to carry the
+               brand's warmth, so a green-black ground left it stranded more
+               plainly than it did over there. */
+            backgroundColor: colors.glass,
           }}
         >
           {/* Mark only: the status pill, the mode switch and the theme

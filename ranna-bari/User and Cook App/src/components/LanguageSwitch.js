@@ -17,7 +17,7 @@ import { font } from '../theme/tokens';
  * so it is legible as a choice even to someone who cannot read the other one.
  */
 export default function LanguageSwitch({ style, segment = false, first = false }) {
-  const { colors, shadow, isDark } = useTheme();
+  const { colors, shadow } = useTheme();
   const { isBn, toggleLang } = useLang();
 
   // Going to Bengali, or back to English.
@@ -58,15 +58,12 @@ export default function LanguageSwitch({ style, segment = false, first = false }
               borderRadius: 12,
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: pressed
-                ? colors.primary50
-                : isDark
-                ? 'rgba(255, 255, 255, 0.06)'
-                : 'rgba(31, 29, 26, 0.04)',
+              /* Same wash as the rail it usually lives in, so the standalone
+                 pill does not read as a slightly different grey when the two
+                 appear on one screen. */
+              backgroundColor: pressed ? colors.primary50 : colors.glassFill,
               borderWidth: 1,
-              borderColor: isDark
-                ? 'rgba(255, 255, 255, 0.08)'
-                : 'rgba(31, 29, 26, 0.06)',
+              borderColor: colors.glassEdge,
             },
         style,
       ]}

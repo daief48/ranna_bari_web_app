@@ -44,13 +44,13 @@ export default function Brand({ size, markSize = 36, markOnly = false }) {
             overflow: 'hidden',
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: isDark
-              ? 'rgba(255, 255, 255, 0.08)'
-              : 'rgba(199, 56, 26, 0.06)',
+            /* A vermilion wash in both themes now. Light always had one;
+               dark used a neutral white, which over a green-black bar read
+               grey-green and left the warm mark with nothing around it that
+               belonged to it. */
+            backgroundColor: colors.glassMark,
             borderWidth: 1,
-            borderColor: isDark
-              ? 'rgba(255, 255, 255, 0.12)'
-              : 'rgba(199, 56, 26, 0.12)',
+            borderColor: colors.glassMarkEdge,
           },
           shadow.xs,
         ]}

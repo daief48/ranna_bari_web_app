@@ -91,9 +91,16 @@ function KitchenForm({ kitchen }) {
     });
     if (!res.canceled && res.assets?.[0]?.uri) {
       /* Written straight through: a photograph is saved the moment it is
-         chosen, and always was — there is no draft here to keep. */
-      updateKitchen({ [field]: res.assets[0].uri });
+         chosen, and always was — there is no draft here to keep.
+
+         The verdict is read rather than discarded. This call was failing on
+         the server for months and nothing here noticed, so the picture simply
+         did not change and the screen said nothing about why. */
       setNote('');
+      const out = await updateKitchen({ [field]: res.assets[0].uri });
+      if (out && !out.ok) {
+        setNote(t('That photo could not be saved. Try again.'));
+      }
     }
   };
 

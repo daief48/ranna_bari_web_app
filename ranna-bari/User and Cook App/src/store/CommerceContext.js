@@ -136,6 +136,15 @@ const EMPTY = {
   overviews: {},
   /** Store ids whose catalogue has been fetched, so a miss is not a blank shop. */
   loadedStores: [],
+  /**
+   * Store ids this account has kept, newest first.
+   *
+   * Ids rather than whole shops: the shop rows already live in `stores`, and
+   * holding a second copy here would let the two drift — a saved shop that
+   * changed its name would keep the old one until something happened to
+   * refresh this list too.
+   */
+  savedStores: [],
 };
 
 /**
@@ -306,7 +315,7 @@ export function CommerceProvider({ children }) {
     if (!token) return false;
     const auth = { token };
 
-    const [meals, orders, wallet, notifications, requests, cart, mine, offers, preorders] =
+    const [meals, orders, wallet, notifications, requests, cart, saved, mine, offers, preorders] =
       await Promise.all([
         call('/meals', auth),
         call('/orders', auth),
@@ -314,6 +323,10 @@ export function CommerceProvider({ children }) {
         call('/notifications', auth),
         call('/requests', auth),
         call('/cart', auth),
+        /* The kept shops come down with everything else rather than when the
+           saved screen is opened, because the shop pages need the list too —
+           it is what the save button on each one is drawn from. */
+        call('/stores/saved', auth),
         /* A cook's own board carries the closed and cancelled services the
            public list hides -- that is what their panel is about. */
         kitchenId ? call(`/meals?kitchenId=${encodeURIComponent(kitchenId)}`, auth) : null,
@@ -345,6 +358,18 @@ export function CommerceProvider({ children }) {
     if (wallet.ok) {
       fields.ledger = wallet.result.entries ?? [];
       fields.wallet = walletOf(wallet.result);
+    }
+
+    if (saved.ok) {
+      const rows = saved.result.stores ?? [];
+      fields.savedStores = rows.map((s) => String(s.id));
+      /* Merged in rather than replacing: a kept shop may be one the public
+         directory leaves out — shut, or beyond the delivery radius — and the
+         saved screen still has to be able to draw it. Public rows win on a
+         collision, because they are the fresher read of the two. */
+      const known = new Set(live.current.stores.map((s) => String(s.id)));
+      const extra = rows.filter((s) => !known.has(String(s.id)));
+      if (extra.length) fields.stores = [...live.current.stores, ...extra];
     }
 
     if (Object.keys(fields).length) patch(fields);
@@ -400,7 +425,21 @@ export function CommerceProvider({ children }) {
       const promise = (async () => {
         const out = await call(`/stores/${id}`, { token });
         if (!out.ok) return null;
-        const next = withCatalogue(live.current, id, out.result);
+        const withSaved = out.result.saved
+          ? /* The shop says whether this account keeps it, so walking into one
+               is also how the saved list learns about it — a fresh install
+               that opens a shop by link draws the right button immediately. */
+            {
+              ...live.current,
+              savedStores: live.current.savedStores.includes(id)
+                ? live.current.savedStores
+                : [id, ...live.current.savedStores],
+            }
+          : {
+              ...live.current,
+              savedStores: live.current.savedStores.filter((s) => s !== id),
+            };
+        const next = withCatalogue(withSaved, id, out.result);
         /* The directory may not carry this shop -- a closed one, or the
            cook's own before it opened -- so the detail response is also how
            it gets into the list at all. */
@@ -637,6 +676,69 @@ export function CommerceProvider({ children }) {
     });
   }, [token, patch]);
 
+  /**
+   * The shops this account keeps.
+   *
+   * Fetched whole rather than derived from `stores`, because a saved shop
+   * may be one the directory does not carry — it closed, or it is outside
+   * the delivery radius the list is filtered by. Somebody's own list should
+   * not lose entries for either reason.
+   *
+   * The rows are merged into `stores` as well, so the saved screen can draw
+   * a shop the app has otherwise never seen.
+   */
+  const reloadSavedStores = useCallback(async () => {
+    if (!token) {
+      patch({ savedStores: [] });
+      return;
+    }
+    const out = await call('/stores/saved', { token });
+    if (!out.ok) return;
+
+    const rows = out.result.stores ?? [];
+    const ids = rows.map((s) => String(s.id));
+    const known = new Set(ids);
+
+    patch({
+      savedStores: ids,
+      stores: [
+        ...rows,
+        ...live.current.stores.filter((s) => !known.has(String(s.id))),
+      ],
+    });
+  }, [token, patch]);
+
+  /**
+   * Keep a shop, or stop keeping it.
+   *
+   * The list moves before the request does. Saving is a small, reversible,
+   * entirely personal act — nobody else sees it and nothing depends on it —
+   * so making somebody watch a spinner for it is the wrong trade. If the
+   * server disagrees the list goes back to what it said.
+   */
+  const toggleSavedStore = useCallback(
+    async (storeId) => {
+      const id = String(storeId);
+      if (!token) return { ok: false, error: 'unauthenticated' };
+
+      const before = live.current.savedStores;
+      const had = before.includes(id);
+      patch({ savedStores: had ? before.filter((s) => s !== id) : [id, ...before] });
+
+      const out = await call(`/stores/${id}/save`, { method: 'POST', token });
+      if (!out.ok) {
+        patch({ savedStores: before });
+        return out;
+      }
+
+      /* The server's list is the one that counts — another device may have
+         changed it since this one last looked. */
+      patch({ savedStores: (out.result.savedStores ?? []).map(String).reverse() });
+      return { ok: true, saved: out.result.saved };
+    },
+    [token, patch],
+  );
+
   const reloadMeals = useCallback(async () => {
     const [all, mine] = await Promise.all([
       call('/meals', { token }),
@@ -731,6 +833,8 @@ export function CommerceProvider({ children }) {
       /* ---- hydration, for the screens that show one thing ---- */
       ensureStore,
       ensureProduct,
+      toggleSavedStore,
+      reloadSavedStores,
       ensureRequest,
       ensureMeal,
       ensureOrder,
@@ -882,6 +986,30 @@ export function CommerceProvider({ children }) {
           }))
           .filter(({ store, km }) => deliversTo(store, km))
           .sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity)),
+
+      /** Is this shop on the account's list? */
+      isStoreSaved: (id) => state.savedStores.includes(String(id)),
+
+      /**
+       * The kept shops, in the order they were kept.
+       *
+       * Deliberately *not* filtered by `deliversTo`, unlike the directory. A
+       * shop somebody chose to keep is on their list because they chose it;
+       * dropping it for being a few kilometres out, or shut this evening,
+       * would be the app editing their list for them. The card shows the
+       * distance and the closed state instead, and lets them decide.
+       */
+      savedStoresList: () =>
+        state.savedStores
+          .map((id) => state.stores.find((s) => String(s.id) === String(id)))
+          .filter(Boolean)
+          .map((store) => ({
+            store,
+            products:
+              store.productCount ??
+              state.products.filter((p) => String(p.storeId) === String(store.id) && p.active)
+                .length,
+          })),
 
       /* ---- cook stores: the basket ---- */
       cartOf: () => state.cart.lines,
@@ -1041,6 +1169,8 @@ export function CommerceProvider({ children }) {
     cartWrite,
     ensureStore,
     ensureProduct,
+    toggleSavedStore,
+    reloadSavedStores,
     ensureRequest,
     ensureMeal,
     ensureOrder,

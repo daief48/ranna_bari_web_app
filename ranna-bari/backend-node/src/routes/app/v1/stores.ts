@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { Types } from 'mongoose';
 
 import { bearerFrom, identify, type AppIdentity } from '../../../auth/app-auth.js';
 import { ERR, errText } from '../../../lib/domain.js';
@@ -32,7 +33,7 @@ import {
   toggleStoreOpen,
   updateCategory,
 } from '../../../logic/stores.js';
-import { Kitchen, Product, Store } from '../../../models/index.js';
+import { Account, Kitchen, Product, Store } from '../../../models/index.js';
 
 /**
  * Cook stores over HTTP — the shop, its shelves, the basket and checkout.
@@ -438,6 +439,103 @@ export async function storeRoutes(app: FastifyInstance) {
   });
 
   /**
+   * The shops this account has kept.
+   *
+   * Registered before `/stores/:id` so the intent is legible at a glance —
+   * Fastify prefers a static segment over a parameter either way, but a
+   * reader should not have to know that to be sure `saved` is not being
+   * looked up as a store id.
+   *
+   * A saved shop that has since closed still comes back, marked `isOpen:
+   * false` like anywhere else. Dropping it would be the app quietly editing
+   * a list the person made, and "the shop I saved is gone" is a worse answer
+   * than "the shop I saved is shut today".
+   */
+  app.get('/stores/saved', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    const account = await Account.findOne({ customerKey: caller.customerKey })
+      .select({ savedStores: 1 })
+      .lean();
+    const ids = (account?.savedStores ?? []).filter((id) => Types.ObjectId.isValid(id));
+    if (!ids.length) return { stores: [] };
+
+    const stores = await Store.find({ _id: { $in: ids } }).lean();
+
+    /* Same two lookups the directory does — the product count under each
+       name, and the kitchen face the shop borrows. A list of blank tiles
+       with no counts would not be the same screen. */
+    const storeIds = stores.map((store) => String(store._id));
+    const [counts, kitchens] = await Promise.all([
+      Product.aggregate<{ _id: string; n: number }>([
+        { $match: { storeId: { $in: storeIds }, active: true } },
+        { $group: { _id: '$storeId', n: { $sum: 1 } } },
+      ]),
+      Kitchen.find({ _id: { $in: stores.map((store) => store.kitchenId) } })
+        .select({ avatar: 1, coverImage: 1, lat: 1, lng: 1, deliveryRadiusKm: 1 })
+        .lean(),
+    ]);
+
+    const countBy = new Map(counts.map((row) => [row._id, row.n]));
+    const kitchenBy = new Map(kitchens.map((k) => [String(k._id), k]));
+
+    /* In the order they were saved, newest first — the list is a record of
+       what somebody did, so it reads back the way they built it rather than
+       alphabetically. */
+    const order = new Map(ids.map((id, i) => [id, i]));
+    stores.sort((a, b) => (order.get(String(b._id)) ?? 0) - (order.get(String(a._id)) ?? 0));
+
+    return {
+      stores: stores.map((store) => ({
+        ...shapeStore(store, kitchenBy.get(String(store.kitchenId))),
+        productCount: countBy.get(String(store._id)) ?? 0,
+        saved: true,
+      })),
+    };
+  });
+
+  /**
+   * Keep a shop, or stop keeping it.
+   *
+   * A toggle rather than separate save and unsave routes: the button is one
+   * control with one meaning — "this shop is on my list, or it is not" — and
+   * two endpoints would let the two sides disagree about which.
+   *
+   * `$addToSet` and `$pull` rather than reading, editing and writing the
+   * array back: two taps racing each other on a slow connection would
+   * otherwise have the second overwrite the first with a stale list.
+   */
+  app.post('/stores/:id/save', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    const { id } = request.params as { id: string };
+    if (!Types.ObjectId.isValid(id)) return fail(reply, ERR.NO_STORE, 404);
+
+    const store = await storeById(id);
+    if (!store) return fail(reply, ERR.NO_STORE, 404);
+
+    const account = await Account.findOne({ customerKey: caller.customerKey })
+      .select({ savedStores: 1 })
+      .lean();
+    if (!account) return fail(reply, 'unauthenticated', 401);
+
+    const already = (account.savedStores ?? []).some((s) => String(s) === id);
+
+    await Account.updateOne(
+      { customerKey: caller.customerKey },
+      already ? { $pull: { savedStores: id } } : { $addToSet: { savedStores: id } },
+    );
+
+    const after = await Account.findOne({ customerKey: caller.customerKey })
+      .select({ savedStores: 1 })
+      .lean();
+
+    return { saved: !already, savedStores: after?.savedStores ?? [] };
+  });
+
+  /**
    * One shop, its shelves and everything on them.
    *
    * Public, but not identical for everybody: a product the cook has taken off
@@ -463,9 +561,22 @@ export async function storeRoutes(app: FastifyInstance) {
 
     const visible = mine ? products : products.filter((product) => product.active);
 
+    /* Whether *this* caller keeps this shop. It comes down with the shop
+       rather than being asked for separately, so the save button is drawn in
+       its right state on first paint instead of flicking from off to on a
+       moment later. A signed-out visitor is simply never saved. */
+    const saved = caller
+      ? !!(
+          await Account.findOne({ customerKey: caller.customerKey })
+            .select({ savedStores: 1 })
+            .lean()
+        )?.savedStores?.some((s) => String(s) === String(store._id))
+      : false;
+
     return {
       store: shapeStore(store, kitchen),
       mine,
+      saved,
       categories: categories.map(shapeCategory),
       products: visible.map((product) => shapeProduct(product, store)),
       /* The counts the cook's dashboard draws, in the same round trip as the

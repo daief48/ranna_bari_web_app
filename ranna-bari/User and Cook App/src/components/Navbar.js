@@ -50,7 +50,7 @@ export function useNavbarOffset() {
 const SEGMENT_W = 32;
 
 function Rail({ children }) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
 
   return (
     <View
@@ -60,8 +60,8 @@ function Rail({ children }) {
         height: 36,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: isDark ? 'rgba(255, 255, 255, 0.09)' : 'rgba(31, 29, 26, 0.07)',
-        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(31, 29, 26, 0.035)',
+        borderColor: colors.glassEdge,
+        backgroundColor: colors.glassFill,
         /* Not `hidden`: the notification badge has to escape. */
         overflow: 'visible',
       }}
@@ -222,9 +222,7 @@ export default function Navbar() {
           borderRadius: radius.lg,
           overflow: 'hidden',
           borderWidth: 1,
-          borderColor: isDark
-            ? 'rgba(236, 234, 225, 0.12)'
-            : 'rgba(31, 29, 26, 0.08)',
+          borderColor: colors.glassLine,
           zIndex: 100,
         },
         shadow.md,
@@ -243,9 +241,7 @@ export default function Navbar() {
             alignItems: 'center',
             justifyContent: 'space-between',
             paddingHorizontal: 12,
-            backgroundColor: isDark
-              ? 'rgba(26, 33, 28, 0.84)'
-              : 'rgba(255, 255, 255, 0.88)',
+            backgroundColor: colors.glass,
           }}
         >
           {/* The brand yields first and truncates rather than pushing. */}

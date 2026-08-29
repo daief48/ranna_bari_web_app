@@ -70,10 +70,23 @@ export async function registerKitchen(
     isOpen?: boolean;
   },
 ): Promise<Result<{ kitchenId: string; created: boolean }>> {
-  const name = String(kitchen.name ?? '').trim();
-  if (!name) return fail(ERR.NAME_REQUIRED);
-
   const existing = await Kitchen.findOne({ accountId: caller.accountId });
+
+  /*
+   * A name is required to *create* a kitchen, not to touch one.
+   *
+   * This checked the body before looking anything up, so it demanded a name
+   * on every call — including the partial patches this endpoint also serves.
+   * Flipping "open for orders", or picking a new cover photograph, posts one
+   * field and nothing else, and each of those came back `name-required` and
+   * did nothing. The toggle looked broken because it was.
+   *
+   * `name` now falls back to the stored one exactly as every other field
+   * below already did; it is only missing, and only refused, when there is no
+   * kitchen yet to take it from.
+   */
+  const name = String(kitchen.name ?? '').trim() || String(existing?.name ?? '').trim();
+  if (!name) return fail(ERR.NAME_REQUIRED);
 
   /* Only the fields a cook actually edits are taken. Verification, rating and
      suspension are the platform's answers, not the device's — letting a

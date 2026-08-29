@@ -42,6 +42,19 @@ const accountSchema = new Schema(
     deliveryRadiusKm: { type: Number, default: null },
     avatar: { type: String, default: null },
 
+    /**
+     * Shops this account has kept.
+     *
+     * On the account rather than in a join collection: it is a short list a
+     * person curates by hand, it is read on every shop page to draw one
+     * button, and it has no attributes of its own — no note, no rank, nothing
+     * a row would carry. A collection would buy a query per shop view and
+     * nothing else.
+     *
+     * Store ids as strings, matching how `storeId` is held everywhere else.
+     */
+    savedStores: { type: [String], default: [] },
+
     suspended: { type: Boolean, default: false, index: true },
     suspendedReason: { type: String, default: null },
 

@@ -407,7 +407,20 @@ export function QtyStepper({ value, min = 1, max, onChange, small }) {
  * ------------------------------------------------------------------ */
 
 /** A shop, as it appears in the discovery list. */
-export function StoreCard({ store, km, products, onPress }) {
+/**
+ * A shop in a list.
+ *
+ * `onSave` is optional. Given one, the card grows a star on its cover — the
+ * same control the shop's own page carries, in the same place and the same
+ * colours, so keeping a shop from the directory and keeping it from inside
+ * are visibly one action rather than two features.
+ *
+ * It sits *over* the cover rather than in the row of text below, because the
+ * whole card is already a link: a button inline with the name would be a tap
+ * target inside a tap target, and on a phone the two would be a coin toss.
+ * Up on the cover it has its own corner and its own hit area.
+ */
+export function StoreCard({ store, km, products, onPress, onSave, saved = false }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
   const away = formatDistance(km, t, n);
@@ -428,12 +441,49 @@ export function StoreCard({ store, km, products, onPress }) {
         shadow.sm,
       ]}
     >
-      <Image
-        source={{ uri: store.cover }}
-        contentFit="cover"
-        transition={200}
-        style={{ width: '100%', height: 110, backgroundColor: colors.sunken }}
-      />
+      <View>
+        <Image
+          source={{ uri: store.cover }}
+          contentFit="cover"
+          transition={200}
+          style={{ width: '100%', height: 110, backgroundColor: colors.sunken }}
+        />
+
+        {onSave ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: saved }}
+            accessibilityLabel={
+              saved
+                ? `${store.name} — ${t('Saved — tap to remove')}`
+                : `${store.name} — ${t('Save this shop')}`
+            }
+            onPress={onSave}
+            /* Generous, because it is a 34px circle sitting on a card that is
+               itself pressable — a near miss should not open the shop. */
+            hitSlop={10}
+            style={({ pressed }) => ({
+              position: 'absolute',
+              top: 10,
+              right: 10,
+              width: 34,
+              height: 34,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 17,
+              backgroundColor: saved ? colors.saffron : 'rgba(20, 16, 14, 0.5)',
+              transform: [{ scale: pressed ? 0.9 : 1 }],
+            })}
+          >
+            <Icon
+              name="star"
+              size={16}
+              color={saved ? colors.onDark : '#FFFFFF'}
+              strokeWidth={saved ? 2.4 : 2}
+            />
+          </Pressable>
+        ) : null}
+      </View>
 
       <View style={{ flexDirection: 'row', gap: 12, padding: 14 }}>
         <Image

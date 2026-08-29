@@ -7,7 +7,7 @@
  * nothing in common with one who sells pitha and nimki.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -33,6 +33,7 @@ import { useAuth } from '../../src/store/AuthContext';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/ledger';
 import { distanceKm, formatDistance } from '../../src/lib/geo';
+import { expand } from '../../src/lib/search';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { useAlert } from '../../src/components/Alert';
 import { useNavbarOffset } from '../../src/components/Navbar';
@@ -50,6 +51,7 @@ export default function StoreScreen() {
   const shop = useCommerce();
 
   const [category, setCategory] = useState(null);
+  const [query, setQuery] = useState('');
   const [flash, setFlash] = useState(null);
   const [error, setError] = useState(null);
 
@@ -96,6 +98,33 @@ export default function StoreScreen() {
          because it may be pre-orderable and it tells you what they make. */
       .filter((p) => p.active);
   }, [shop, store, category]);
+
+  /*
+   * Searching this shop's shelf.
+   *
+   * On the device, over the rows already loaded — the whole catalogue came
+   * down with the shop, so a round trip per keystroke would be slower and
+   * would stop working the moment the network did.
+   *
+   * `expand()` is the app's own matcher, the one Browse uses: it folds case,
+   * handles the Bengali spellings of a Latin-typed word and the reverse, so
+   * "achar" finds আচার and "আম" finds "Aam er achar". A plain `includes` here
+   * would have made this box the one place in the app where typing in Bengali
+   * finds nothing.
+   */
+  const results = useMemo(() => {
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return products;
+
+    /* Every word has to match something, any of its spellings will do. "aam
+       achar" should find the mango pickle and not every pickle on the shelf,
+       which an any-word match would give. */
+    const forms = words.map((w) => expand(w));
+    return products.filter((p) => {
+      const hay = `${p.name ?? ''} ${p.description ?? ''}`.toLowerCase();
+      return forms.every((variants) => variants.some((f) => hay.includes(f)));
+    });
+  }, [products, query]);
 
   if (!store) {
     /* Still asking. The shelf skeleton rather than a spinner, because it is
@@ -149,6 +178,24 @@ export default function StoreScreen() {
 
   const basket = shop.cartOf(key).reduce((sum, l) => sum + l.qty, 0);
 
+  const saved = shop.isStoreSaved(store.id);
+
+  /* Signing in is the price of a list that follows you between devices, so
+     the button says so rather than failing silently for a guest. */
+  const toggleSave = async () => {
+    if (!isSignedIn) return router.push('/auth');
+    const out = await shop.toggleSavedStore(store.id);
+    if (!out.ok) {
+      alert.error(errorText(out.error, t, n, out));
+      return;
+    }
+    alert.success(
+      out.saved
+        ? t('{name} saved. Find it in your profile.', { name: store.name })
+        : t('{name} removed from your saved shops.', { name: store.name }),
+    );
+  };
+
   return (
     <Screen contentStyle={{ paddingTop: 0 }}>
       {/* ---- cover ---- */}
@@ -182,6 +229,38 @@ export default function StoreScreen() {
           }}
         >
           <Icon name="arrowLeft" size={18} color="#FFFFFF" strokeWidth={2} />
+        </Pressable>
+
+        {/* ---- keep this shop ----
+            Opposite the back chip, on the cover, because it belongs to the
+            shop rather than to any one shelf — and because this is the first
+            thing on screen, which is where somebody decides they like a
+            place. It fills with saffron when kept, so the state is readable
+            at a glance without the label a 38px circle has no room for. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: saved }}
+          accessibilityLabel={saved ? t('Saved — tap to remove') : t('Save this shop')}
+          onPress={toggleSave}
+          style={({ pressed }) => ({
+            position: 'absolute',
+            top: backTop,
+            right: 16,
+            width: 38,
+            height: 38,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 19,
+            backgroundColor: saved ? colors.saffron : 'rgba(20, 16, 14, 0.5)',
+            transform: [{ scale: pressed ? 0.92 : 1 }],
+          })}
+        >
+          <Icon
+            name="star"
+            size={18}
+            color={saved ? colors.onDark : '#FFFFFF'}
+            strokeWidth={saved ? 2.4 : 2}
+          />
         </Pressable>
       </View>
 
@@ -322,8 +401,62 @@ export default function StoreScreen() {
         {error ? <Flash tone="primary" icon="alertCircle" text={error} /> : null}
       </Container>
 
-      {/* ---- the cook's own categories ---- */}
-      {categories.length ? (
+      {/* ---- searching the shelf ----
+          Above the categories, because it searches across all of them: a
+          filter that sat below the category row would look like it only
+          applied to the one selected. */}
+      <Container style={{ paddingTop: 20, paddingBottom: 0 }}>
+        <View
+          style={[
+            {
+              flexDirection: 'row',
+              alignItems: 'center',
+              height: 48,
+              paddingRight: 6,
+              borderRadius: radius.pill,
+              backgroundColor: colors.surfaceSolid,
+              borderWidth: 1,
+              borderColor: colors.line,
+            },
+            shadow.sm,
+          ]}
+        >
+          <Icon name="search" size={17} color={colors.textMuted} style={{ marginLeft: 15 }} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('Search in this shop…')}
+            placeholderTextColor={colors.textLight}
+            returnKeyType="search"
+            accessibilityLabel={t('Search in this shop…')}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontFamily: font.ui,
+              fontSize: 15.5,
+              color: colors.text,
+              paddingHorizontal: 11,
+            }}
+          />
+          {query ? (
+            <Pressable
+              onPress={() => setQuery('')}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={t('Clear search')}
+              style={{ paddingHorizontal: 8 }}
+            >
+              <Icon name="x" size={16} color={colors.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
+      </Container>
+
+      {/* ---- the cook's own categories ----
+          Hidden while searching: the search runs across the whole shelf, so
+          leaving a category selected beside it would show two filters where
+          only one is being applied. */}
+      {categories.length && !query ? (
         <View style={{ marginTop: 24 }}>
           <CategoryTabs
             categories={categories}
@@ -337,7 +470,11 @@ export default function StoreScreen() {
       {/* ---- the shelves ---- */}
       <Container style={{ paddingTop: 24 }}>
         <BlockLabel
-          text={t('{n} products', { n: n(products.length) })}
+          text={
+            query
+              ? t('{n} found', { n: n(results.length) })
+              : t('{n} products', { n: n(products.length) })
+          }
           right={
             basket ? (
               <Pressable
@@ -358,9 +495,9 @@ export default function StoreScreen() {
 
         {!shop.hydrated ? (
           <ProductGridSkeleton />
-        ) : products.length ? (
+        ) : results.length ? (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-            {products.map((product, i) => (
+            {results.map((product, i) => (
               <Reveal
                 key={product.id}
                 delay={(i % 5) + 1}

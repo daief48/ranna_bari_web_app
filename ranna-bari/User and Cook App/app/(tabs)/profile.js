@@ -33,7 +33,7 @@ export default function ProfileScreen() {
   const { signOutServer } = useSession();
   const { count } = useCart();
   const { orders, activeOrders } = useOrders();
-  const { wallet, unreadFor, requestsForCustomer } = useCommerce();
+  const { wallet, unreadFor, requestsForCustomer, savedStoresList } = useCommerce();
   const [confirmOut, setConfirmOut] = useState(false);
   const { t, n } = useLang();
 
@@ -42,6 +42,7 @@ export default function ProfileScreen() {
   const openRequests = requestsForCustomer(customerKeyOf(account)).filter(
     (r) => r.status === 'open' || r.status === 'selected' || r.status === 'agreed',
   ).length;
+  const savedCount = savedStoresList().length;
 
   return (
     <Screen glow="both">
@@ -187,6 +188,17 @@ export default function ProfileScreen() {
             title={t('Home shops')}
             sub={t('Cakes, pitha, achar and gifts')}
             onPress={() => router.push('/stores')}
+          />
+          <Row
+            icon="star"
+            variant="saffron"
+            title={t('Saved shops')}
+            sub={
+              savedCount
+                ? t('{n} kept', { n: n(savedCount) })
+                : t('Keep the shops you buy from again')
+            }
+            onPress={() => router.push('/saved-shops')}
           />
           <Row
             icon="map"

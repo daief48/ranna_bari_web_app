@@ -1125,6 +1125,23 @@ export const bn = {
   BASKET: 'ঝুড়ি',
   'Your shop': 'আপনার দোকান',
   'Home shops': 'ঘরোয়া দোকান',
+  'That photo could not be saved. Try again.': 'ছবিটি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
+  /* Saved shops, and searching inside one. */
+  'Saved shops': 'সংরক্ষিত দোকান',
+  'Save this shop': 'এই দোকানটি সংরক্ষণ করুন',
+  'Saved — tap to remove': 'সংরক্ষিত — সরাতে চাপ দিন',
+  '{name} saved. Find it in your profile.': '{name} সংরক্ষিত হয়েছে। প্রোফাইলে পাবেন।',
+  '{name} removed from your saved shops.': '{name} সংরক্ষিত দোকান থেকে সরানো হয়েছে।',
+  'Keep the shops you buy from again': 'যে দোকান থেকে আবার কিনবেন সেগুলো রাখুন',
+  '{n} kept': '{n}টি রাখা আছে',
+  'No saved shops yet': 'এখনো কোনো দোকান সংরক্ষিত নেই',
+  'Tap the star on any shop to keep it here.': 'যেকোনো দোকানের তারায় চাপ দিলে এখানে জমা হবে।',
+  'The shops you kept, in the order you kept them.': 'আপনার রাখা দোকানগুলো, যে ক্রমে রেখেছেন।',
+  'Sign in to keep shops': 'দোকান সংরক্ষণ করতে সাইন ইন করুন',
+  'Your saved shops follow your account, so they are there on any device.': 'সংরক্ষিত দোকান আপনার অ্যাকাউন্টের সাথে থাকে, তাই যেকোনো ডিভাইসে পাবেন।',
+  'SAVED': 'সংরক্ষিত',
+  'Search in this shop…': 'এই দোকানে খুঁজুন…',
+  '{n} found': '{n}টি পাওয়া গেছে',
   /* The bottom tab. One word, because seven labels share a phone's width
      and the long form truncates to something unreadable. */
   Shops: 'দোকান',
