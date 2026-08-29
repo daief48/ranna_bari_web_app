@@ -38,6 +38,8 @@ import * as R from '../lib/requestLogic';
 import * as X from '../lib/taxonomy';
 import { isOpenNow } from '../lib/kitchen';
 import { useKitchen } from './KitchenContext';
+import { useSession } from './SessionContext';
+import { api, hasServer } from '../lib/server';
 
 const KEY = 'rannabari_meals';
 
@@ -375,8 +377,19 @@ export function CommerceProvider({ children }) {
      on this device -- which is the one kitchen that must never be answered
      for automatically. */
   const { kitchen } = useKitchen();
+  const { token, isVerified } = useSession();
   const [state, setState] = useState(L.EMPTY);
   const [hydrated, setHydrated] = useState(false);
+  const [serverWallet, setServerWallet] = useState(null);
+  /* Server kitchen list for eligibleKitchens — loaded from the cache that
+     useServerChefs writes, so the two stay in sync without an extra fetch. */
+  const [serverChefs, setServerChefs] = useState(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem('rannabari_server_chefs')
+      .then((raw) => { if (raw) setServerChefs(JSON.parse(raw)); })
+      .catch(() => {});
+  }, []);
 
   /* The authoritative copy. React state is for rendering; this is what
      validation reads, so two taps in the same frame cannot both see a world
@@ -439,6 +452,23 @@ export function CommerceProvider({ children }) {
   }, [hydrated]);
 
   /**
+   * Fetch the real wallet balance from the server when signed in.
+   *
+   * The local ledger still works offline; this supplements it with the
+   * authoritative balance so a reinstall or a second device sees the right
+   * number. `serverWallet` merges into the value below without touching any
+   * of the local commerce state.
+   */
+  useEffect(() => {
+    if (!isVerified || !hasServer) return;
+    api('/wallet', { token }).then((out) => {
+      if (out && typeof out.balance === 'number') {
+        setServerWallet(out);
+      }
+    }).catch(() => {});
+  }, [isVerified, token]);
+
+  /**
    * Run one transition and report what happened.
    *
    * Synchronous on purpose: the caller needs the verdict to decide what to
@@ -454,7 +484,19 @@ export function CommerceProvider({ children }) {
   }, []);
 
   const value = useMemo(() => {
-    const wallet = L.balances(state.ledger);
+    /* The local ledger balance for offline use; the server balance wins when
+       we have it, because it is the canonical source after a reinstall or
+       a multi-device session. */
+    const localWallet = L.balances(state.ledger);
+    const wallet = serverWallet
+      ? {
+          ...localWallet,
+          balance: serverWallet.balance,
+          held: serverWallet.held ?? localWallet.held,
+          earnings: serverWallet.earnings ?? localWallet.earnings,
+          serverEntries: serverWallet.entries ?? [],
+        }
+      : localWallet;
 
     return {
       hydrated,
@@ -592,20 +634,23 @@ export function CommerceProvider({ children }) {
 
       /**
        * Kitchens a broadcast should reach: open, and willing to come this
-       * far. The same rule browse uses, so a request cannot go to a cook
-       * whose food the customer could never have been shown.
+       * far. Uses live server kitchen list when available (from AsyncStorage
+       * cache), falling back to bundled chefs.json. The same rule browse
+       * uses, so a request cannot go to a cook the customer was never shown.
        */
-      eligibleKitchens: (origin) =>
-        [
+      eligibleKitchens: (origin) => {
+        const allChefs = serverChefs ?? chefs;
+        return [
           ...(kitchen ? [kitchen] : []),
-          ...chefs,
+          ...allChefs,
         ]
           .filter((c) => isOpenNow(c))
           .filter((c) => {
             if (!origin || typeof c.lat !== 'number') return true;
             return deliversTo(c, distanceKm(origin, { lat: c.lat, lng: c.lng }));
           })
-          .map((c) => String(c.id)),
+          .map((c) => String(c.id));
+      },
 
       /* ---- food requests: writes ---- */
       createRequest: (request, eligible) => {
@@ -636,7 +681,7 @@ export function CommerceProvider({ children }) {
         mutate(R.declineRequest, { requestId, kitchenId }),
       rejectOffer: (offerId, reason) => mutate(R.rejectOffer, { offerId, reason }),
     };
-  }, [state, hydrated, mutate, kitchen]);
+  }, [state, hydrated, mutate, kitchen, serverWallet, serverChefs]);
 
   return <CommerceContext.Provider value={value}>{children}</CommerceContext.Provider>;
 }

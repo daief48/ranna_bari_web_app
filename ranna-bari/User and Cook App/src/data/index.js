@@ -8,14 +8,21 @@
  * be writable, and the hooks below merge it in so Browse, Map and the kitchen
  * page see one list and never learn the difference. A dish a cook adds in the
  * cook panel is on the customer side the moment they switch modes.
+ *
+ * `useServerChefs` and `useServerMenus` are the live equivalents: they fetch
+ * from the backend and fall back to the bundled data when the server is
+ * unreachable. Both follow the same offline-first pattern as the rest of the
+ * app: show what you have, update when the server answers.
  */
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import chefs from './chefs.json';
 import menus from './menus.json';
 import reviews from './reviews.json';
 import { useKitchen } from '../store/KitchenContext';
 import { normaliseArea } from '../lib/areas';
+import { api, hasServer } from '../lib/server';
 
 export { chefs, menus, reviews };
 
@@ -59,96 +66,210 @@ const asChef = (kitchen) => {
 };
 
 /**
- * Every kitchen a customer can see, the local one first.
+ * Every kitchen a customer can see — live from the server, local cook first.
  *
- * It leads the list because on this device it is the only kitchen whose menu
- * is real — everything behind it is seed data.
+ * Delegates to `useServerChefs` which fetches from MongoDB with bundled JSON
+ * as the offline fallback. All screens that imported `useChefs` now get live
+ * data without any change at the call site.
  */
 export function useChefs() {
-  const { kitchen } = useKitchen();
-  return useMemo(
-    () => (kitchen ? [asChef(kitchen), ...chefs] : chefs),
-    [kitchen],
-  );
-}
-
-/** One kitchen by id, local or bundled. */
-export function useChef(id) {
-  const { kitchen } = useKitchen();
-  return useMemo(() => {
-    if (kitchen && String(kitchen.id) === String(id)) return asChef(kitchen);
-    return getChef(id);
-  }, [kitchen, id]);
+  return useServerChefs();
 }
 
 /**
- * A kitchen's menu. The local kitchen only ever shows dishes it has marked
- * available — "sold out for today" has to mean something on the customer
- * side or the toggle is decoration.
+ * Every menu — live from the server, local kitchen menu merged in.
+ *
+ * Delegates to `useServerMenus` which fetches kitchens with their dishes in
+ * one request. Bundled menus.json is the offline fallback.
+ */
+export function useMenus() {
+  return useServerMenus();
+}
+
+/** One kitchen by id — checks server data first, then bundled. */
+export function useChef(id) {
+  return useServerChef(id);
+}
+
+/**
+ * A kitchen's menu — live from server.
+ *
+ * The local cook's kitchen always shows only available dishes; server menus
+ * are whatever the backend returned.
  */
 export function useMenu(chefId) {
-  const { kitchen } = useKitchen();
-  return useMemo(() => {
-    if (kitchen && String(kitchen.id) === String(chefId)) {
-      return kitchen.dishes.filter((d) => d.available);
-    }
-    return getMenu(chefId);
-  }, [kitchen, chefId]);
-}
-
-/** Every menu, in the `{ chefId, items }` shape the cart's pairing logic wants. */
-export function useMenus() {
-  const { kitchen } = useKitchen();
-  return useMemo(() => {
-    if (!kitchen) return menus;
-    return [
-      { chefId: kitchen.id, items: kitchen.dishes.filter((d) => d.available) },
-      ...menus,
-    ];
-  }, [kitchen]);
+  return useServerMenu(chefId);
 }
 
 /**
- * One dish and the kitchen that cooks it.
+ * One dish and the kitchen that cooks it — searched across live menus.
  *
- * A dish id is only unique in the context of its menu, and nothing in the
- * data links back the other way, so the lookup walks the menus rather than
- * indexing by dish. Eighty dishes is small enough that the walk costs less
- * than keeping an index in sync with a menu the cook can edit.
+ * A dish id is only unique in the context of its menu, so the lookup walks
+ * the full (server) menu list rather than indexing by dish id.
  */
 export function useDish(id) {
-  const menus = useMenus();
-  const chefs = useChefs();
+  const allMenus = useServerMenus();
+  const allChefs = useServerChefs();
 
   return useMemo(() => {
     if (!id) return null;
     const key = String(id);
-    for (const menu of menus) {
+    for (const menu of allMenus) {
       const dish = (menu.items ?? []).find((d) => String(d.id) === key);
       if (!dish) continue;
-      const chef = chefs.find((c) => String(c.id) === String(menu.chefId));
+      const chef = allChefs.find((c) => String(c.id) === String(menu.chefId));
       return chef ? { dish, chef } : null;
     }
     return null;
-  }, [id, menus, chefs]);
+  }, [id, allMenus, allChefs]);
 }
 
 /**
- * Areas for the browse picker, including wherever the local cook is.
+ * Areas for the browse picker — derived from live server kitchen list.
  *
- * Alphabetical, not in data order: the picker has a filter box above it now,
- * and a list you can predict the position of is worth more than one that
- * happens to put the seeded kitchens first.
+ * Delegates to `useServerAreas` which includes all MongoDB kitchens, not just
+ * the twenty the bundle ships with.
  */
 export function useAreas() {
-  const list = useChefs();
+  return useServerAreas();
+}
+
+
+/* ------------------------------------------------------------------ *
+ * Live server hooks — backend data with bundled fallback
+ * ------------------------------------------------------------------ */
+
+const CHEFS_CACHE_KEY = 'rannabari_server_chefs';
+const MENUS_CACHE_KEY = 'rannabari_server_menus';
+
+/**
+ * Every kitchen from the server, with the local cook's kitchen merged in.
+ *
+ * On first render returns the bundled list (or cached server list) so the
+ * screen is never blank. Updates in the background when the server answers.
+ *
+ * The local kitchen leads the list — on this device it is the one kitchen
+ * whose menu the cook can edit, and it should be first regardless of rating.
+ */
+export function useServerChefs() {
+  const { kitchen } = useKitchen();
+  const [serverChefs, setServerChefs] = useState(null);
+  const fetchedRef = useRef(false);
+
+  /* Restore cached server list on mount */
+  useEffect(() => {
+    AsyncStorage.getItem(CHEFS_CACHE_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setServerChefs(parsed);
+      })
+      .catch(() => {});
+  }, []);
+
+  /* Fetch from server */
+  useEffect(() => {
+    if (!hasServer || fetchedRef.current) return;
+    fetchedRef.current = true;
+
+    api('/kitchens')
+      .then((out) => {
+        const list = (out.chefs ?? []).map((k) => ({
+          ...k,
+          area: normaliseArea(k.area || 'Dhaka'),
+        }));
+        setServerChefs(list);
+        AsyncStorage.setItem(CHEFS_CACHE_KEY, JSON.stringify(list)).catch(() => {});
+      })
+      .catch(() => {
+        /* Network down — bundled/cached data stays */
+      });
+  }, []);
+
+  return useMemo(() => {
+    const base = serverChefs ?? chefs;
+    if (!kitchen) return base;
+    const { dishes, nextDishSeq, createdAt, ownerName, ...localChef } = kitchen;
+    const asChef = { ...localChef, area: normaliseArea(localChef.area) };
+    return [asChef, ...base.filter((c) => String(c.id) !== String(kitchen.id))];
+  }, [serverChefs, kitchen]);
+}
+
+/**
+ * Menus from the server (kitchens + their dishes), local kitchen merged in.
+ *
+ * Uses `?menus=1` to get both chefs and their dishes in one request.
+ */
+export function useServerMenus() {
+  const { kitchen } = useKitchen();
+  const [serverMenus, setServerMenus] = useState(null);
+  const fetchedRef = useRef(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(MENUS_CACHE_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setServerMenus(parsed);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!hasServer || fetchedRef.current) return;
+    fetchedRef.current = true;
+
+    api('/kitchens?menus=1')
+      .then((out) => {
+        const list = out.menus ?? [];
+        setServerMenus(list);
+        AsyncStorage.setItem(MENUS_CACHE_KEY, JSON.stringify(list)).catch(() => {});
+      })
+      .catch(() => {});
+  }, []);
+
+  return useMemo(() => {
+    const base = serverMenus ?? menus;
+    if (!kitchen) return base;
+    const localMenu = { chefId: kitchen.id, items: kitchen.dishes.filter((d) => d.available) };
+    return [localMenu, ...base.filter((m) => String(m.chefId) !== String(kitchen.id))];
+  }, [serverMenus, kitchen]);
+}
+
+/**
+ * One kitchen by id, checking server data first, then bundled.
+ */
+export function useServerChef(id) {
+  const allChefs = useServerChefs();
+  return useMemo(() => {
+    if (!id) return null;
+    return allChefs.find((c) => String(c.id) === String(id)) ?? null;
+  }, [allChefs, id]);
+}
+
+/**
+ * One kitchen's menu from server data.
+ */
+export function useServerMenu(chefId) {
+  const allMenus = useServerMenus();
+  return useMemo(() => {
+    if (!chefId) return [];
+    return allMenus.find((m) => String(m.chefId) === String(chefId))?.items ?? [];
+  }, [allMenus, chefId]);
+}
+
+/**
+ * Areas from server kitchens (includes all MongoDB kitchens, not just bundled ones).
+ */
+export function useServerAreas() {
+  const allChefs = useServerChefs();
   return useMemo(
     () => [
       'all',
-      ...Array.from(new Set(list.map((c) => c.area))).sort((a, b) =>
+      ...Array.from(new Set(allChefs.map((c) => c.area))).sort((a, b) =>
         a.localeCompare(b),
       ),
     ],
-    [list],
+    [allChefs],
   );
 }

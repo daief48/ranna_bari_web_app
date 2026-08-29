@@ -9,7 +9,7 @@
  * send from and no device token to send to. These are the same events a push
  * notification would carry, delivered where they can be: in the app.
  */
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -21,6 +21,8 @@ import { useTheme } from '../src/theme/ThemeProvider';
 import { font, radius, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
 import { useCommerce } from '../src/store/CommerceContext';
+import { useSession } from '../src/store/SessionContext';
+import { api, hasServer } from '../src/lib/server';
 import { timeAgo } from '../src/store/OrdersContext';
 import { useLang } from '../src/i18n/LanguageContext';
 
@@ -53,16 +55,42 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const { isCookMode } = useAuth();
   const meals = useCommerce();
+  const { token, isVerified } = useSession();
 
   const audience = isCookMode ? 'cook' : 'customer';
-  const rows = meals.notificationsFor(audience);
+  const localRows = meals.notificationsFor(audience);
+
+  /* Pull server notifications when signed in — they carry real events from
+     other devices and the backend's own automations (payment releases, etc). */
+  const [serverRows, setServerRows] = useState([]);
+  const fetchServerNotifs = useCallback(async () => {
+    if (!isVerified || !hasServer) return;
+    try {
+      const out = await api('/notifications', { token });
+      setServerRows(out.notifications ?? []);
+    } catch {
+      /* offline — keep local rows */
+    }
+  }, [isVerified, token]);
+
+  useEffect(() => { fetchServerNotifs(); }, [fetchServerNotifs]);
+
+  /* Merge: server rows first (most recent real events), then local rows that
+     aren't duplicated by a server entry with the same kind + timestamp. */
+  const serverKinds = new Set(serverRows.map((r) => r.key || r.kind));
+  const uniqueLocal = localRows.filter((r) => !serverKinds.has(r.key || r.kind));
+  const rows = [...serverRows, ...uniqueLocal];
 
   /* Opening the list is reading it. Marking on unmount instead would leave a
      badge sitting over a screen the person is looking at. */
   const { markRead } = meals;
   useEffect(() => {
     markRead(audience);
-  }, [markRead, audience]);
+    /* Also mark read on the server */
+    if (isVerified && hasServer) {
+      api('/notifications/read', { method: 'POST', token, body: {} }).catch(() => {});
+    }
+  }, [markRead, audience, isVerified, token]);
 
   const open = (nt) => {
     if (nt.orderId) {

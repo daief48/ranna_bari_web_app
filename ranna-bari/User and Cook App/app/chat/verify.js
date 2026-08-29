@@ -46,8 +46,12 @@ export default function VerifyNumber() {
       setStage('code');
       /* With no SMS provider wired in, the server hands the code back so the
          flow can be walked end to end. It refuses to do that once one is
-         configured, so this cannot survive into production by accident. */
-      if (out.devCode) setDevCode(out.devCode);
+         configured, so this cannot survive into production by accident.
+         Auto-fill the field so the user does not have to copy it manually. */
+      if (out.devCode) {
+        setDevCode(out.devCode);
+        setCode(String(out.devCode));
+      }
       setTimeout(() => codeRef.current?.focus(), 250);
     } catch (error) {
       setNote(error?.message ?? t('Could not send a code.'));

@@ -1,12 +1,3 @@
-/**
- * The customer's wallet.
- *
- * Two numbers, and they are not the same number: what you can spend, and
- * what has already left you but has not reached a cook. Meals are paid for
- * from the first and sit in the second until you say the food arrived, so
- * showing only the balance would make a day of ordering look like money
- * vanishing.
- */
 import React, { useMemo, useState } from 'react';
 import { Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -43,17 +34,20 @@ export default function WalletScreen() {
   const [error, setError] = useState(null);
   const [done, setDone] = useState(null);
 
-  /* Everything that touched this wallet, newest first. The cook's side of
-     the same ledger is deliberately excluded -- it is the same device but a
-     different account of the money. */
-  const rows = useMemo(
-    () =>
-      meals.ledger
-        .filter((tx) => tx.from === 'customer' || tx.to === 'customer')
-        .slice()
-        .reverse(),
-    [meals.ledger],
-  );
+  /* If the server returned real ledger entries, show those (authoritative).
+     Otherwise fall back to the local ledger filter. Server entries are stored
+     in `wallet.serverEntries` by CommerceContext when a session is active. */
+  const rows = useMemo(() => {
+    const serverEntries = meals.wallet?.serverEntries;
+    if (serverEntries && serverEntries.length > 0) {
+      return [...serverEntries].reverse();
+    }
+    return meals.ledger
+      .filter((tx) => tx.from === 'customer' || tx.to === 'customer')
+      .slice()
+      .reverse();
+  }, [meals.ledger, meals.wallet]);
+
 
   const titleFor = (tx) => {
     const order = meals.orders.find((o) => o.id === tx.orderId);

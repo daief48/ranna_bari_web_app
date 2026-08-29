@@ -38,6 +38,7 @@ import { LanguageProvider } from '../src/i18n/LanguageContext';
 import { SessionProvider } from '../src/store/SessionContext';
 import { ChatProvider } from '../src/store/ChatContext';
 import { SyncProvider } from '../src/store/SyncContext';
+import { ConfigProvider } from '../src/store/ConfigContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -176,6 +177,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <LanguageProvider>
         <ThemeProvider>
+          <ConfigProvider>
           <AuthProvider>
             <SessionProvider>
             <OrdersProvider>
@@ -194,6 +196,7 @@ export default function RootLayout() {
             </OrdersProvider>
             </SessionProvider>
           </AuthProvider>
+          </ConfigProvider>
         </ThemeProvider>
         </LanguageProvider>
       </SafeAreaProvider>
