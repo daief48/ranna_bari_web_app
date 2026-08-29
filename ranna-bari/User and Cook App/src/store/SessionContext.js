@@ -9,6 +9,9 @@ import React, {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { api, hasServer, ApiError } from '../lib/server';
+/* Auth is the outer provider, so this one can read it — the mirror of the
+   server's profile lands in the account every screen already uses. */
+import { useAuth } from './AuthContext';
 
 const TOKEN_KEY = 'rannabari_token';
 const IDENTITY_KEY = 'rannabari_identity';
@@ -34,6 +37,7 @@ const SessionContext = createContext(null);
  * address does not.
  */
 export function SessionProvider({ children }) {
+  const { updateAccount } = useAuth();
   const [token, setToken] = useState(null);
   const [identity, setIdentity] = useState(null);
   const [hydrated, setHydrated] = useState(false);
@@ -128,7 +132,84 @@ export function SessionProvider({ children }) {
     }
   }, []);
 
+  /* ---- the profile, on the server ---- */
+
+  /**
+   * Every write below answers with the whole account, and every one of them
+   * ends here: the server's copy replaces the local one.
+   *
+   * That direction matters. The profile editor used to write to AsyncStorage
+   * and stop, so the address a customer typed lived on one handset — gone on
+   * reinstall, absent on a second device, and invisible to the server that
+   * decides which kitchens can reach them. Mirroring the response back keeps
+   * `useAuth().account` the same shape every screen already reads, while the
+   * database becomes the thing that actually holds it.
+   */
+  const adopt = useCallback(
+    async (account) => {
+      if (!account) return null;
+      setAddresses(account.addresses ?? []);
+      await updateAccount(account);
+      return account;
+    },
+    [updateAccount],
+  );
+
+  const [addresses, setAddresses] = useState([]);
+
+  /** Read the full profile — more than the token's few claims. */
+  const loadProfile = useCallback(async () => {
+    if (!token || !hasServer) return null;
+    try {
+      const out = await api('/account', { token });
+      return adopt(out.account);
+    } catch {
+      /* An unreachable server leaves the cached profile alone; it is better
+         than blanking somebody's address because the wifi dropped. */
+      return null;
+    }
+  }, [token, adopt]);
+
+  /* On sign-in, and whenever the token changes. */
+  useEffect(() => {
+    if (token) loadProfile();
+  }, [token, loadProfile]);
+
+  const write = useCallback(
+    async (path, body) => {
+      if (!token || !hasServer) return { ok: false, error: 'unauthenticated' };
+      try {
+        const out = await api(path, { method: 'POST', token, body });
+        await adopt(out.account);
+        return { ok: true, account: out.account };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof ApiError ? error.code : 'network',
+          message: error?.message,
+        };
+      }
+    },
+    [token, adopt],
+  );
+
+  const saveProfile = useCallback((patch) => write('/account', patch), [write]);
+
+  /** Add an address, or edit one — `id` decides which. */
+  const saveAddress = useCallback((entry) => write('/account/addresses', entry), [write]);
+
+  const selectAddress = useCallback(
+    (id) => write(`/account/addresses/${encodeURIComponent(id)}/select`),
+    [write],
+  );
+
+  const removeAddress = useCallback(
+    (id) => write(`/account/addresses/${encodeURIComponent(id)}/remove`),
+    [write],
+  );
+
   const signOutServer = useCallback(async () => {
+    setAddresses([]);
     setToken(null);
     setIdentity(null);
     await AsyncStorage.multiRemove([TOKEN_KEY, IDENTITY_KEY]).catch(() => {});
@@ -146,8 +227,28 @@ export function SessionProvider({ children }) {
       requestCode,
       verifyCode,
       signOutServer,
+      addresses,
+      loadProfile,
+      saveProfile,
+      saveAddress,
+      selectAddress,
+      removeAddress,
     }),
-    [token, identity, hydrated, checking, requestCode, verifyCode, signOutServer],
+    [
+      token,
+      identity,
+      hydrated,
+      checking,
+      requestCode,
+      verifyCode,
+      signOutServer,
+      addresses,
+      loadProfile,
+      saveProfile,
+      saveAddress,
+      selectAddress,
+      removeAddress,
+    ],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

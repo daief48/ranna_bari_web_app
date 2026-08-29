@@ -34,13 +34,48 @@ const accountSchema = new Schema(
     specialty: { type: String, default: null },
     /** National ID. KYC only — never returned on a customer-facing endpoint. */
     nid: { type: String, default: null },
+    /*
+     * The delivery address, flat.
+     *
+     * These stay, and stay authoritative, because orders, the meals board and
+     * the shop directory all read them and all mean "where this person is
+     * right now". They are kept as a projection of whichever entry in
+     * `addresses` is selected — one place to read, one place to choose.
+     */
     area: { type: String, default: null },
     lat: { type: Number, default: null },
     lng: { type: Number, default: null },
     addressDetail: { type: String, default: null },
     addressLabel: { type: String, default: null },
+
+    /**
+     * Every address this account has saved.
+     *
+     * Home and office is the ordinary case in food delivery, and the single
+     * flat address above could not express it — `addressLabel` said "HOME"
+     * with nothing to contrast against. `selected` marks which one the flat
+     * fields currently mirror.
+     */
+    addresses: {
+      type: [
+        {
+          _id: false,
+          id: { type: String, required: true },
+          label: { type: String, default: 'Home' },
+          area: { type: String, default: '' },
+          detail: { type: String, default: '' },
+          instructions: { type: String, default: '' },
+          lat: { type: Number, default: null },
+          lng: { type: Number, default: null },
+          selected: { type: Boolean, default: false },
+        },
+      ],
+      default: [],
+    },
+
     deliveryRadiusKm: { type: Number, default: null },
     avatar: { type: String, default: null },
+    bio: { type: String, default: '' },
 
     /**
      * Shops this account has kept.

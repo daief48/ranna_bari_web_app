@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 
 import {
   bearerFrom,
@@ -23,7 +24,15 @@ import {
 } from '../../../logic/chat.js';
 import { orderFor, ordersFor, recordOrder, registerKitchen } from '../../../logic/sync.js';
 import { publish, isOnline } from '../../../realtime/hub.js';
-import { Dish, Kitchen, Notification, Offer, TaxonomyCategory, Zone } from '../../../models/index.js';
+import {
+  Account,
+  Dish,
+  Kitchen,
+  Notification,
+  Offer,
+  TaxonomyCategory,
+  Zone,
+} from '../../../models/index.js';
 import { ERR, errText } from '../../../lib/domain.js';
 
 /**
@@ -40,6 +49,91 @@ const fail = (reply: { status: (n: number) => { send: (b: unknown) => unknown } 
 
 const callerOf = (request: FastifyRequest) =>
   identify(bearerFrom(request.headers.authorization));
+
+/* ------------------------------------------------------------------ *
+ * the account's profile
+ * ------------------------------------------------------------------ */
+
+/**
+ * One saved address, as this file handles it.
+ *
+ * Named rather than inferred from the schema: Mongoose types an array of
+ * subdocuments as `DocumentArray`, which cannot be assigned plain objects
+ * even after `.lean()`. The list is rebuilt whole on every write, so plain is
+ * what it actually is.
+ */
+type SavedAddress = {
+  id: string;
+  label: string;
+  area: string;
+  detail: string;
+  instructions: string;
+  lat?: number | null;
+  lng?: number | null;
+  selected?: boolean;
+};
+
+/** The account as the app reads it. `nid` is KYC's and never leaves here. */
+const shapeAccount = (account: {
+  _id: unknown;
+  customerKey: string;
+  role: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  avatar?: string | null;
+  bio?: string;
+  area?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  addressDetail?: string | null;
+  addressLabel?: string | null;
+  addresses?: unknown[];
+}) => ({
+  id: String(account._id),
+  customerKey: account.customerKey,
+  role: account.role,
+  name: account.name,
+  phone: account.phone ?? '',
+  email: account.email ?? '',
+  avatar: account.avatar ?? '',
+  bio: account.bio ?? '',
+  /* The selected address, flat — the shape every existing screen reads. */
+  area: account.area ?? '',
+  lat: account.lat ?? null,
+  lng: account.lng ?? null,
+  addressDetail: account.addressDetail ?? '',
+  addressLabel: account.addressLabel ?? '',
+  addresses: account.addresses ?? [],
+});
+
+/**
+ * Write the address list, and mirror the selected one into the flat fields.
+ *
+ * The mirroring is the whole point. Orders, the meals board and the shop
+ * directory all read `account.lat` and always have; making them read into a
+ * list instead would mean changing every one of them and getting the "which
+ * one" question wrong in a new place each time. So the list is what a person
+ * curates and the flat fields are what the platform reads, kept in step here
+ * — the one function that can move either.
+ */
+async function saveAddresses(customerKey: string, list: SavedAddress[]) {
+  const chosen = list.find((a) => a.selected) ?? list[0] ?? null;
+
+  await Account.updateOne(
+    { customerKey },
+    {
+      $set: {
+        addresses: list,
+        area: chosen?.area ?? null,
+        addressDetail: chosen?.detail ?? null,
+        addressLabel: chosen?.label ?? null,
+        lat: chosen?.lat ?? null,
+        lng: chosen?.lng ?? null,
+      },
+    },
+  );
+}
 
 /**
  * The caller, only if they cook.
@@ -293,6 +387,11 @@ export async function appRoutes(app: FastifyInstance) {
         ecoBadge: kitchen.ecoBadge,
         isVerified: kitchen.isVerified,
         kycStatus: kitchen.kycStatus,
+        /* The reason, and when. A cook told only "rejected" has been given a
+           verdict and no way to act on it; the note is what an operator
+           wrote for exactly this purpose and it was going nowhere. */
+        kycNote: kitchen.kycNote,
+        kycDecidedAt: kitchen.kycDecidedAt,
         area: kitchen.area,
         lat: kitchen.lat,
         lng: kitchen.lng,
@@ -435,6 +534,180 @@ export async function appRoutes(app: FastifyInstance) {
     const caller = await callerOf(request);
     if (!caller) return fail(reply, 'unauthenticated', 401);
     return { account: caller };
+  });
+
+  /* ---------------- the account's own profile ---------------- */
+
+  /**
+   * The full profile, which `/auth/me` deliberately is not.
+   *
+   * `/auth/me` answers "is this token alive and whose is it" and is kept to
+   * the few claims a token carries. This is the record behind it — the name,
+   * the contact details, and every saved address.
+   *
+   * It needed to exist because none of that was on the server at all. The
+   * profile editor wrote to AsyncStorage and stopped there, so a customer's
+   * delivery address lived on one handset: it did not survive a reinstall,
+   * did not follow them to a second device, and — worse — was invisible to
+   * the server that computes what can reach them. Every account row in the
+   * database had a null `lat`, which is why the meals board could measure a
+   * distance from nowhere and quietly show nothing.
+   */
+  app.get('/account', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    const account = await Account.findOne({ customerKey: caller.customerKey }).lean();
+    if (!account) return fail(reply, 'unauthenticated', 401);
+
+    return { account: shapeAccount(account) };
+  });
+
+  /**
+   * Save the profile.
+   *
+   * Only the fields a person edits about themselves. `role`, `customerKey`,
+   * `suspended` and the kitchen link are the platform's, and a body naming
+   * them is not rejected — it is not read.
+   */
+  app.post('/account', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    const body = z
+      .object({
+        name: z.string().optional(),
+        email: z.string().optional(),
+        avatar: z.string().optional(),
+        bio: z.string().optional(),
+      })
+      .safeParse(request.body ?? {});
+    if (!body.success) return fail(reply, 'name-required');
+
+    const patch: Record<string, unknown> = {};
+    for (const key of ['name', 'email', 'avatar', 'bio'] as const) {
+      const value = body.data[key];
+      if (typeof value === 'string') patch[key] = value.trim();
+    }
+    /* An empty name would leave somebody nameless on every order they place;
+       the rest may legitimately be cleared. */
+    if (patch.name === '') delete patch.name;
+
+    if (Object.keys(patch).length) {
+      await Account.updateOne({ customerKey: caller.customerKey }, { $set: patch });
+    }
+
+    const account = await Account.findOne({ customerKey: caller.customerKey }).lean();
+    return { account: shapeAccount(account!) };
+  });
+
+  /**
+   * Add an address, or edit one.
+   *
+   * One route for both, keyed on whether an `id` came with the body — the
+   * editor is the same screen either way. A new address is selected on
+   * arrival when it is the only one, because a list of one with nothing
+   * chosen is a state nobody meant to create.
+   */
+  app.post('/account/addresses', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    const body = z
+      .object({
+        id: z.string().optional(),
+        label: z.string().default('Home'),
+        area: z.string().default(''),
+        detail: z.string().default(''),
+        instructions: z.string().default(''),
+        lat: z.coerce.number().nullable().optional(),
+        lng: z.coerce.number().nullable().optional(),
+        select: z.boolean().optional(),
+      })
+      .safeParse(request.body ?? {});
+    if (!body.success) return fail(reply, 'name-required');
+
+    /* `.lean()`: the list is rebuilt and written whole by `saveAddresses`,
+       so plain objects are what is wanted — a hydrated DocumentArray cannot
+       be assigned to from one. */
+    const account = await Account.findOne({ customerKey: caller.customerKey }).lean();
+    if (!account) return fail(reply, 'unauthenticated', 401);
+
+    const list = [...((account.addresses ?? []) as SavedAddress[])];
+    const id = body.data.id ?? randomUUID();
+    const at = list.findIndex((a) => a.id === id);
+
+    const entry = {
+      id,
+      label: body.data.label.trim() || 'Home',
+      area: body.data.area.trim(),
+      detail: body.data.detail.trim(),
+      instructions: body.data.instructions.trim(),
+      lat: body.data.lat ?? (at >= 0 ? list[at]!.lat : null),
+      lng: body.data.lng ?? (at >= 0 ? list[at]!.lng : null),
+      selected: at >= 0 ? !!list[at]!.selected : false,
+    };
+
+    if (at >= 0) list[at] = entry;
+    else list.push(entry);
+
+    /* Selected when asked, or when it is the only one there is. */
+    const select = body.data.select || list.length === 1;
+    if (select) for (const a of list) a.selected = a.id === id;
+
+    await saveAddresses(caller.customerKey, list);
+
+    const after = await Account.findOne({ customerKey: caller.customerKey }).lean();
+    return { account: shapeAccount(after!) };
+  });
+
+  /** Deliver here from now on. */
+  app.post('/account/addresses/:id/select', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    const { id } = request.params as { id: string };
+    /* `.lean()`: the list is rebuilt and written whole by `saveAddresses`,
+       so plain objects are what is wanted — a hydrated DocumentArray cannot
+       be assigned to from one. */
+    const account = await Account.findOne({ customerKey: caller.customerKey }).lean();
+    if (!account) return fail(reply, 'unauthenticated', 401);
+
+    const list = [...((account.addresses ?? []) as SavedAddress[])];
+    if (!list.some((a) => a.id === id)) return fail(reply, 'not-found', 404);
+
+    for (const a of list) a.selected = a.id === id;
+    await saveAddresses(caller.customerKey, list);
+
+    const after = await Account.findOne({ customerKey: caller.customerKey }).lean();
+    return { account: shapeAccount(after!) };
+  });
+
+  /**
+   * Forget an address.
+   *
+   * Removing the selected one promotes whatever is left rather than leaving
+   * the account with addresses and none chosen — the flat fields have to
+   * mirror *something*, and an order placed against nothing is not an order.
+   */
+  app.post('/account/addresses/:id/remove', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    const { id } = request.params as { id: string };
+    /* `.lean()`: the list is rebuilt and written whole by `saveAddresses`,
+       so plain objects are what is wanted — a hydrated DocumentArray cannot
+       be assigned to from one. */
+    const account = await Account.findOne({ customerKey: caller.customerKey }).lean();
+    if (!account) return fail(reply, 'unauthenticated', 401);
+
+    const list = ((account.addresses ?? []) as SavedAddress[]).filter((a) => a.id !== id);
+    if (list.length && !list.some((a) => a.selected)) list[0]!.selected = true;
+
+    await saveAddresses(caller.customerKey, list);
+
+    const after = await Account.findOne({ customerKey: caller.customerKey }).lean();
+    return { account: shapeAccount(after!) };
   });
 
   /* ---------------- orders ---------------- */

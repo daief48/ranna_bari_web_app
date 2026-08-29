@@ -23,6 +23,7 @@ import { Body, Heading } from '../src/components/Typography';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
+import { useSession } from '../src/store/SessionContext';
 import { useLang } from '../src/i18n/LanguageContext';
 
 const SPECIALTIES = [
@@ -90,6 +91,7 @@ function EditProfileForm({ account }) {
   const { t } = useLang();
   const router = useRouter();
   const { updateAccount } = useAuth();
+  const { saveProfile } = useSession();
 
   /* Every field here is one the sign-in or signup flow already collected, so
      the form opens on the stored values rather than on blanks. */
@@ -198,6 +200,12 @@ function EditProfileForm({ account }) {
     }
 
     setNote('');
+    /* To the server first, then the device. The profile used to stop at
+       AsyncStorage, which is why an address never survived a reinstall and
+       why the server — the thing that decides which kitchens reach you —
+       had never heard of one. */
+    await saveProfile({ name: name.trim(), email: email.trim(), avatar, bio: bio.trim() });
+
     await updateAccount({
       avatar,
       lat: coords?.lat ?? account?.lat ?? null,

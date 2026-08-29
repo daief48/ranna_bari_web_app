@@ -30,7 +30,7 @@ export default function ProfileScreen() {
   /* Signing out has to drop the server session too, or the next person on
      this handset inherits a token that can still spend the last one's
      wallet. */
-  const { signOutServer } = useSession();
+  const { signOutServer, addresses } = useSession();
   const { count } = useCart();
   const { orders, activeOrders } = useOrders();
   const { wallet, unreadFor, requestsForCustomer, savedStoresList } = useCommerce();
@@ -43,6 +43,7 @@ export default function ProfileScreen() {
     (r) => r.status === 'open' || r.status === 'selected' || r.status === 'agreed',
   ).length;
   const savedCount = savedStoresList().length;
+  const addressCount = addresses.length;
 
   return (
     <Screen glow="both">
@@ -188,6 +189,20 @@ export default function ProfileScreen() {
             title={t('Home shops')}
             sub={t('Cakes, pitha, achar and gifts')}
             onPress={() => router.push('/stores')}
+          />
+          <Row
+            icon="pin"
+            variant="sage"
+            title={t('Delivery addresses')}
+            sub={
+              addressCount
+                ? t('{n} saved · delivering to {label}', {
+                    n: n(addressCount),
+                    label: t(account?.addressLabel || 'Home'),
+                  })
+                : t('Add where your food should go')
+            }
+            onPress={() => router.push('/addresses')}
           />
           <Row
             icon="star"

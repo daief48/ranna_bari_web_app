@@ -67,8 +67,14 @@ export function AuthProvider({ children }) {
   const updateAccount = useCallback(async (patch) => {
     let next = null;
     setAccount((prev) => {
-      if (!prev) return prev;
-      next = { ...prev, ...patch, updatedAt: new Date().toISOString() };
+      /* Adopted wholesale when there is nothing to merge over. The server is
+         the source of the profile now, and it answers before the local copy
+         necessarily exists — a fresh sign-in, or a reinstall restoring a
+         token. Returning `prev` there would throw the real profile away and
+         leave the app running on whatever the token happened to carry. */
+      next = prev
+        ? { ...prev, ...patch, updatedAt: new Date().toISOString() }
+        : { ...patch, updatedAt: new Date().toISOString() };
       return next;
     });
     // setAccount's updater runs synchronously here, so `next` is populated

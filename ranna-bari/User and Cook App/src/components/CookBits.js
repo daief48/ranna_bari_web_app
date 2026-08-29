@@ -414,3 +414,104 @@ export function RadiusSlider({ value, onChange }) {
     </View>
   );
 }
+
+/**
+ * Where a cook's verification stands.
+ *
+ * The platform decides this — an operator approves or rejects a kitchen in
+ * the KYC queue, and rejecting requires them to write a reason. None of that
+ * reached the cook. `kycStatus` was on the wire and no screen read it, so a
+ * kitchen could sit pending for a week, or be turned down for a fixable
+ * reason, and the only thing its owner saw was a missing badge they had never
+ * been told to expect.
+ *
+ * Approved renders nothing. A permanent green bar saying everything is fine
+ * is noise on a screen a cook opens every day, and the badge on the listing
+ * already says it. This speaks when there is something to say.
+ */
+export function KycBanner({ status, note, onContact, style }) {
+  const { colors } = useTheme();
+  const { t } = useLang();
+
+  if (status !== 'pending' && status !== 'rejected') return null;
+
+  const rejected = status === 'rejected';
+  const tone = rejected
+    ? { fg: colors.primary, bg: colors.primary50, edge: colors.primary100, icon: 'alertCircle' }
+    : { fg: colors.sage, bg: colors.sage50, edge: colors.sage100, icon: 'clock' };
+
+  return (
+    <View
+      style={[
+        {
+          flexDirection: 'row',
+          gap: 13,
+          padding: 15,
+          borderRadius: radius.md,
+          backgroundColor: tone.bg,
+          borderWidth: 1,
+          borderColor: tone.edge,
+        },
+        style,
+      ]}
+    >
+      <Icon name={tone.icon} size={19} color={tone.fg} strokeWidth={2} />
+
+      <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+        <Text
+          style={{
+            fontFamily: font.uiBold,
+            fontSize: type.sm,
+            color: tone.fg,
+          }}
+        >
+          {rejected ? t('Verification needs your attention') : t('Verification in progress')}
+        </Text>
+
+        <Text
+          style={{
+            fontFamily: font.ui,
+            fontSize: type.xs + 1,
+            lineHeight: (type.xs + 1) * 1.55,
+            color: colors.textMuted,
+          }}
+        >
+          {rejected
+            ? note ||
+              t('We could not verify your kitchen. Message us and we will sort it out.')
+            : t(
+                'You can take orders now. The verified badge appears on your listing once we have checked your details.',
+              )}
+        </Text>
+
+        {/* Only when there is something to do about it. A pending cook has
+            nothing to act on and a button would imply otherwise. */}
+        {rejected && onContact ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('Message support')}
+            onPress={onContact}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 4,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Text
+              style={{
+                fontFamily: font.uiBold,
+                fontSize: type.xs + 1,
+                color: tone.fg,
+              }}
+            >
+              {t('Message support')}
+            </Text>
+            <Icon name="arrowRight" size={14} color={tone.fg} strokeWidth={2.2} />
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}

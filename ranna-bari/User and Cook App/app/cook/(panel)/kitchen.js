@@ -20,7 +20,7 @@ import Reveal from '../../../src/components/Reveal';
 import Button from '../../../src/components/Button';
 import SectionHeader from '../../../src/components/SectionHeader';
 import { FormNote } from '../../../src/components/FloatLabelInput';
-import { ActionRow } from '../../../src/components/CookBits';
+import { ActionRow, KycBanner } from '../../../src/components/CookBits';
 import { Body, Heading } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../../src/theme/tokens';
@@ -122,6 +122,16 @@ function KitchenForm({ kitchen }) {
            * displayed, and the tap would look like it simply did nothing.
            */}
           <FormNote text={note} />
+
+          {/* Above the listing card, because it changes how to read it: a
+              kitchen still waiting on verification looks identical to one
+              that passed, and this is the only thing that says which. */}
+          <KycBanner
+            status={kitchen.kycStatus}
+            note={kitchen.kycNote}
+            onContact={() => router.push('/chat')}
+            style={{ marginBottom: 18 }}
+          />
 
           {/* ---- The listing, as a customer sees it ---- */}
           <Reveal delay={1}>
