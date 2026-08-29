@@ -816,6 +816,7 @@ export const bn = {
   'Most expensive': 'বেশি দামেরটা আগে',
   Availability: 'খোলা আছে কি না',
   'Open now': 'এখন খোলা',
+  'Some map tiles did not load.': 'ম্যাপের কিছু অংশ লোড হয়নি।',
   'Price per dish': 'পদপ্রতি দাম',
   'Any price': 'যেকোনো দাম',
   'Under ৳200': '৳২০০-এর নিচে',

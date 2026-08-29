@@ -48,6 +48,12 @@ export function buildMapHtml({ chefs, theme, colors }) {
       specialty: esc(c.specialty),
       avatar: esc(c.avatar),
       area: esc(c.area),
+      /* Whether the kitchen is trading, and how far it will come. The pin is
+         drawn grey when shut and rings its radius when tapped, so both have
+         to travel with the point rather than being looked up again. */
+      isOpen: c.isOpen !== false,
+      deliveryRadiusKm:
+        typeof c.deliveryRadiusKm === 'number' ? c.deliveryRadiusKm : null,
     }));
 
   return `<!DOCTYPE html>
@@ -57,6 +63,7 @@ export function buildMapHtml({ chefs, theme, colors }) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <style>
   html, body { height: 100%; margin: 0; background: ${colors.canvas}; }
   #map { position: absolute; inset: 0; }
@@ -112,6 +119,44 @@ export function buildMapHtml({ chefs, theme, colors }) {
   }
   .map-marker.is-dim { opacity: 0.32; }
 
+  /*
+   * A kitchen that is shut.
+   *
+   * Drawn, not hidden: a customer scanning their neighbourhood should see
+   * that a cook exists there and is closed right now, which is a different
+   * answer from "nobody cooks here". Grey rather than dimmed, because dim
+   * already means "not part of this search".
+   */
+  .map-marker.is-shut {
+    background: linear-gradient(145deg, #b9b3a6, #8c877c);
+    box-shadow: 0 8px 20px -8px rgba(31, 29, 26, 0.4);
+  }
+
+  /*
+   * The cluster bubble.
+   *
+   * One shape, sized by how much it is holding, rather than markercluster's
+   * default three-tier green/yellow/orange — that palette means nothing here
+   * and would collide with the status colours the rest of the app uses.
+   */
+  .cluster {
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: linear-gradient(145deg, ${colors.primary300}, ${colors.primary600});
+    border: 3px solid ${colors.raised};
+    box-shadow: 0 10px 26px -8px rgba(${colors.rgbPrimary}, 0.45);
+    color: #fff;
+    font-family: -apple-system, system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .cluster.s { width: 38px; height: 38px; font-size: 13px; }
+  .cluster.m { width: 46px; height: 46px; font-size: 14.5px; }
+  .cluster.l { width: 56px; height: 56px; font-size: 16px; }
+  .cluster.is-hit { box-shadow: 0 0 0 4px rgba(${colors.rgbPrimary}, 0.28), 0 12px 30px -8px rgba(${colors.rgbPrimary}, 0.5); }
+  .cluster.is-dim { opacity: 0.32; }
+  .marker-cluster { background: transparent; }
+
   /* ---------- "You are here" ---------- */
   .me-marker {
     width: 20px; height: 20px; border-radius: 50%;
@@ -164,6 +209,7 @@ export function buildMapHtml({ chefs, theme, colors }) {
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
 (function () {
   var KEY = ${JSON.stringify(MAPTILER_KEY)};
@@ -242,23 +288,126 @@ export function buildMapHtml({ chefs, theme, colors }) {
    * also throw the map back to its default view each time, so the list is
    * sent over the bridge instead and only the markers are rebuilt.
    */
+  /*
+   * One group, so overlapping pins collapse into a countable bubble.
+   *
+   * Spiderfying is off: it fans coincident markers out on a little web,
+   * which is clever on a desktop and unusable under a thumb. Tapping a
+   * cluster zooms to its bounds instead, the same gesture the rest of the
+   * map already answers to.
+   */
+  var cluster = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    spiderfyOnMaxZoom: false,
+    zoomToBoundsOnClick: true,
+    maxClusterRadius: 46,
+    iconCreateFunction: function (c) {
+      var n = c.getChildCount();
+      var size = n < 10 ? 's' : n < 50 ? 'm' : 'l';
+
+      /*
+       * A bubble says whether the answer is inside it.
+       *
+       * Without this a search can match six kitchens, zoom to them, and show
+       * a plain "6" — the results are on screen and none of them look like
+       * results. The count of matches is shown rather than the total, because
+       * that is the number the search was asked for.
+       */
+      var kids = c.getAllChildMarkers();
+      var found = 0;
+      for (var i = 0; i < kids.length; i++) {
+        if (kids[i].__rbId && hitIds[kids[i].__rbId]) found++;
+      }
+      var state = !hitAny ? '' : found ? ' is-hit' : ' is-dim';
+      var label = hitAny && found ? found + '/' + n : String(n);
+
+      return L.divIcon({
+        html: '<div class="cluster ' + size + state + '">' + label + '</div>',
+        className: 'marker-cluster',
+        iconSize: null
+      });
+    }
+  }).addTo(map);
+
+  /** The radius ring for whichever kitchen's popup is open, if any. */
+  var radiusRing = null;
+
+  function clearRadius() {
+    if (radiusRing) { map.removeLayer(radiusRing); radiusRing = null; }
+  }
+
+  /*
+   * The list baked in at build time went through esc() on the way here; a
+   * list that arrives over the bridge has not, and both end up in the same
+   * innerHTML. Escaping at the point of use covers whichever way a kitchen
+   * reached this function.
+   */
+  function safe(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   function setChefs(list) {
-    Object.keys(markers).forEach(function (id) { map.removeLayer(markers[id]); });
+    cluster.clearLayers();
+    clearRadius();
     markers = {};
 
     (list || []).forEach(function (c) {
       if (typeof c.lat !== 'number' || typeof c.lng !== 'number') return;
-      var m = L.marker([c.lat, c.lng], { icon: chefIcon }).addTo(map);
+
+      var shut = c.isOpen === false;
+      var icon = L.divIcon({
+        className: 'custom-map-marker',
+        html: '<div class="map-marker' + (shut ? ' is-shut' : '') + '">' + HAT + '</div>',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+        popupAnchor: [0, -22]
+      });
+
+      var m = L.marker([c.lat, c.lng], { icon: icon });
+      /* The cluster bubble counts its matches, and a Leaflet marker carries
+         no id of its own. */
+      m.__rbId = c.id;
       markers[c.id] = m;
+
       m.bindPopup(
         '<div class="pop">' +
-          '<img src="' + (c.avatar || '') + '" alt="">' +
-          '<h4>' + (c.name || '') + '</h4>' +
-          '<p>' + (c.specialty || '') + ' &middot; ' + (c.area || '') + '</p>' +
+          '<img src="' + safe(c.avatar) + '" alt="">' +
+          '<h4>' + safe(c.name) + '</h4>' +
+          '<p>' + safe(c.specialty) + ' &middot; ' + safe(c.area) +
+            (shut ? ' &middot; <b>Closed now</b>' : '') + '</p>' +
           '<button onclick="window.__openChef(' + JSON.stringify(c.id) + ')">View Menu &amp; Order</button>' +
         '</div>',
         { minWidth: 200 }
       );
+
+      /*
+       * How far this kitchen will actually come.
+       *
+       * The delivery rule is what decides whether an order is even
+       * possible, and until now the customer met it at checkout. Drawing it
+       * when the popup opens answers "will they deliver to me" at the moment
+       * the question is being asked.
+       */
+      m.on('popupopen', function () {
+        clearRadius();
+        if (typeof c.deliveryRadiusKm !== 'number' || c.deliveryRadiusKm <= 0) return;
+        radiusRing = L.circle([c.lat, c.lng], {
+          radius: c.deliveryRadiusKm * 1000,
+          color: ${JSON.stringify(colors.primary)},
+          weight: 1.5,
+          opacity: 0.55,
+          fillColor: ${JSON.stringify(colors.primary)},
+          fillOpacity: 0.07,
+          interactive: false
+        }).addTo(map);
+      });
+      m.on('popupclose', clearRadius);
+
+      cluster.addLayer(m);
     });
   }
 
@@ -271,20 +420,44 @@ export function buildMapHtml({ chefs, theme, colors }) {
    * "no search running" and "a search that matched nothing" have to look
    * different, and only the first of them is a map you can still read.
    */
-  function highlight(ids) {
-    var wanted = {};
-    (ids || []).forEach(function (id) { wanted[id] = true; });
-    var any = (ids || []).length > 0;
+  /**
+   * Which kitchens the current search matched. Kept, not just applied.
+   *
+   * A marker inside a collapsed cluster has no element in the document, so
+   * painting the class once only reaches whatever happens to be visible at
+   * that moment — and the rest come back unmarked as the user zooms in. The
+   * set is the state; painting is how it reaches the screen, and it runs
+   * again every time the cluster layer rebuilds.
+   */
+  var hitIds = {};
+  var hitAny = false;
 
+  function paintHighlight() {
     Object.keys(markers).forEach(function (id) {
       var el = markers[id].getElement();
       if (!el) return;
       var dot = el.querySelector('.map-marker');
       if (!dot) return;
-      dot.classList.toggle('is-hit', any && !!wanted[id]);
-      dot.classList.toggle('is-dim', any && !wanted[id]);
+      dot.classList.toggle('is-hit', hitAny && !!hitIds[id]);
+      dot.classList.toggle('is-dim', hitAny && !hitIds[id]);
     });
   }
+
+  function highlight(ids) {
+    hitIds = {};
+    (ids || []).forEach(function (id) { hitIds[id] = true; });
+    hitAny = (ids || []).length > 0;
+
+    /* Rebuild the bubbles so a cluster hiding a match says so, then paint
+       whatever is now on screen. */
+    if (cluster.refreshClusters) cluster.refreshClusters();
+    paintHighlight();
+  }
+
+  /* Zooming, panning and cluster animations all swap marker elements in and
+     out, and every one of them would otherwise drop the search's rings. */
+  cluster.on('animationend', paintHighlight);
+  map.on('zoomend moveend', paintHighlight);
 
   // The popup CTA is a real navigation in the app, so it hands the id back
   // to React Native rather than following an href.

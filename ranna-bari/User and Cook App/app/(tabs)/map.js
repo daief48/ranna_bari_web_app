@@ -19,6 +19,7 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useChefs } from '../../src/data';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { deliversTo, isOpenNow } from '../../src/lib/kitchen';
 import { buildMapHtml } from '../../src/lib/mapHtml';
 import { distanceKm, formatDistance } from '../../src/lib/geo';
 
@@ -42,6 +43,11 @@ export default function MapScreen() {
   const [query, setQuery] = useState('');
   const [locState, setLocState] = useState('idle'); // idle | locating | active
   const [panel, setPanel] = useState(null); // null | {title, kind, ...}
+  /* The basemap failed to load. Sticky rather than a panel: it is a
+     condition of the whole screen, not an answer to something tapped. */
+  const [tilesFailed, setTilesFailed] = useState(false);
+  /* Kitchens that are shut are still drawn, in grey — this hides them. */
+  const [openOnly, setOpenOnly] = useState(false);
 
   // Reveal the canvas even if the document never posts back, so a missing
   // bridge degrades to "map, possibly empty" rather than an endless spinner.
@@ -56,6 +62,13 @@ export default function MapScreen() {
   const html = useMemo(
     () => buildMapHtml({ chefs, theme: mode, colors }),
     [mode, colors],
+  );
+
+  /* One list, so the map and the search can never disagree about which
+     kitchens are on screen. */
+  const visible = useMemo(
+    () => (openOnly ? chefs.filter(isOpenNow) : chefs),
+    [chefs, openOnly],
   );
 
   const send = useCallback((msg) => {
@@ -77,8 +90,8 @@ export default function MapScreen() {
    */
   useEffect(() => {
     if (!ready) return;
-    send({ type: 'setChefs', chefs });
-  }, [ready, chefs, send]);
+    send({ type: 'setChefs', chefs: visible });
+  }, [ready, visible, send]);
 
   useEffect(() => {
     if (!ready) return;
@@ -86,7 +99,7 @@ export default function MapScreen() {
       type: 'setChrome',
       /* Nothing of the app's sits at the top any more now that zoom has moved
          down, so this only has to clear the search bar itself. */
-      top: barTop + 62,
+      top: barTop + 108,
       /* Stacked up the right edge, in the order a thumb meets them: the tab
          bar, the locate pill, then zoom. Plus the sheet when it is open, so
          the buttons ride above the results rather than under them. */
@@ -109,6 +122,17 @@ export default function MapScreen() {
         router.push(`/chef/${msg.id}`);
       } else if (msg.type === 'error') {
         setPanel({ kind: 'error', title: 'Map unavailable', text: msg.message, raw: true });
+      } else if (msg.type === 'tileerror') {
+        /*
+         * The basemap could not load.
+         *
+         * The document has always reported this and nothing ever listened,
+         * so a failed tile fetch left pins floating on blank paper with no
+         * explanation — the one failure that looks most like the app being
+         * broken. Said once: tiles fail in bursts, and one notice per missing
+         * square would be a flood.
+         */
+        setTilesFailed(true);
       }
     },
     [router],
@@ -144,10 +168,22 @@ export default function MapScreen() {
 
       send({ type: 'setMe', ...me, accuracy: pos.coords.accuracy });
 
-      const ranked = chefs
+      /*
+       * Nearest, but reachable first.
+       *
+       * Straight-line distance on its own puts a kitchen 1km away that only
+       * delivers 500m above one 2km away that would actually come — and the
+       * customer only finds out at checkout. Every cook sets a radius and
+       * `deliversTo` is the rule that reads it, so it decides the order and
+       * distance breaks the tie inside each group.
+       */
+      const ranked = visible
         .filter((c) => typeof c.lat === 'number' && typeof c.lng === 'number')
-        .map((c) => ({ chef: c, km: distanceKm(me, { lat: c.lat, lng: c.lng }) }))
-        .sort((a, b) => a.km - b.km);
+        .map((c) => {
+          const km = distanceKm(me, { lat: c.lat, lng: c.lng });
+          return { chef: c, km, reachable: deliversTo(c, km) };
+        })
+        .sort((a, b) => Number(b.reachable) - Number(a.reachable) || a.km - b.km);
 
       if (!ranked.length) {
         setLocState('active');
@@ -180,7 +216,7 @@ export default function MapScreen() {
         text: 'Your location could not be determined right now.',
       });
     }
-  }, [send, chefs]);
+  }, [send, visible]);
 
   /**
    * Search shows every kitchen that matches, not the first one.
@@ -200,7 +236,7 @@ export default function MapScreen() {
 
     const has = (value) => String(value ?? '').toLowerCase().includes(q);
 
-    const hits = chefs.filter(
+    const hits = visible.filter(
       (c) =>
         typeof c.lat === 'number' &&
         typeof c.lng === 'number' &&
@@ -242,7 +278,7 @@ export default function MapScreen() {
          a distance — see the pill in the list below. */
       items: hits.map((chef) => ({ chef, km: null })),
     });
-  }, [query, send, chefs, t, n]);
+  }, [query, send, visible, t, n]);
 
 
   return (
@@ -349,6 +385,96 @@ export default function MapScreen() {
             {t('Search')}
           </Text>
         </Pressable>
+      </View>
+
+      {/* ---- Open now, and the tile warning ----
+              A row under the search bar rather than a sheet: both are facts
+              about what the map is currently showing, and neither is an
+              answer to something that was tapped. */}
+      <View
+        style={{
+          position: 'absolute',
+          top: barTop + 62,
+          left: 10,
+          right: 10,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+        }}
+        pointerEvents="box-none"
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('Open now')}
+          accessibilityState={{ selected: openOnly }}
+          aria-pressed={openOnly}
+          onPress={() => setOpenOnly((v) => !v)}
+          style={({ pressed }) => [
+            {
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 7,
+              paddingVertical: 8,
+              paddingHorizontal: 13,
+              borderRadius: radius.pill,
+              backgroundColor: openOnly ? colors.primary : colors.surfaceSolid,
+              borderWidth: 1,
+              borderColor: openOnly ? 'transparent' : colors.line,
+              transform: [{ scale: pressed ? 0.97 : 1 }],
+            },
+            openOnly ? shadow.primary : shadow.sm,
+          ]}
+        >
+          <Icon
+            name="clock"
+            size={14}
+            color={openOnly ? '#FFFFFF' : colors.textMuted}
+          />
+          <Text
+            style={{
+              fontFamily: font.uiSemi,
+              fontSize: type.xs + 1,
+              color: openOnly ? '#FFFFFF' : colors.text,
+            }}
+          >
+            {t('Open now')}
+          </Text>
+        </Pressable>
+
+        {/* Sits beside the chip rather than over the map, so a map that is
+            merely patchy stays usable while it says so. */}
+        {tilesFailed ? (
+          <View
+            style={[
+              {
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 7,
+                paddingVertical: 7,
+                paddingHorizontal: 11,
+                borderRadius: radius.pill,
+                backgroundColor: colors.saffron50,
+                borderWidth: 1,
+                borderColor: colors.saffron100,
+              },
+              shadow.sm,
+            ]}
+          >
+            <Icon name="alertCircle" size={13} color={colors.saffron} />
+            <Text
+              numberOfLines={1}
+              style={{
+                flex: 1,
+                fontFamily: font.ui,
+                fontSize: type.xs,
+                color: colors.text,
+              }}
+            >
+              {t('Some map tiles did not load.')}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {/* ---- Locate button ---- */}
