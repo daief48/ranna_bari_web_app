@@ -418,7 +418,7 @@
 }
 
 /*
- * The one sanctioned exemption, and it lives up here rather than with the
+ * The sanctioned exemptions, and they live up here rather than with the
  * controls so the whole focus story is legible in one place: a field trades
  * the outline for the ring below it, because an offset outline *around* a
  * 3px ring is two rings. It is a swap, never a removal.
@@ -426,6 +426,21 @@
 .field:focus-visible,
 .field-sm:focus-visible,
 .select:focus-visible {
+  outline: none;
+}
+
+/*
+ * The command palette's field is the second, and it is a swap too — the
+ * indicator is just larger than the input.
+ *
+ * The dialog opened *because* of a keystroke, it holds exactly one focusable
+ * control, and it is the only thing on the screen not behind a scrim. Focus
+ * could not be anywhere else and nothing is left to disambiguate. Drawing a
+ * vermilion box around the input on top of all that does not say "you are
+ * here" — it is the panel's error colour at full strength, so it says
+ * "this is wrong", which is the one thing it does not mean.
+ */
+.cmd-input:focus-visible {
   outline: none;
 }
 

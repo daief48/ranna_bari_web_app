@@ -11,7 +11,18 @@ import {
   moneyOverview,
   overview,
 } from '@/lib/queries';
-import { Card, Grid, GapNote, PageHeader, Stat, Badge, Money, Table, EmptyRow } from '@/components/ui';
+import {
+  AttentionBoard,
+  Card,
+  Grid,
+  GapNote,
+  PageHeader,
+  Stat,
+  Badge,
+  Money,
+  Table,
+  EmptyRow,
+} from '@/components/ui';
 import { GmvChart, KindBars, EscrowAgeChart } from '@/components/Charts';
 
 export const metadata = { title: 'Dashboard · RannaBari Admin' };
@@ -119,15 +130,40 @@ export default async function Dashboard({
 
   const driftTotal = Object.values(books.drift).reduce((s, v) => s + Math.abs(v), 0);
 
+  /*
+   * The month's shape, and whether it is going the right way.
+   *
+   * Two halves of the same window rather than this month against last: the
+   * series is thirty days long and that is all there is, so comparing the
+   * back fifteen to the front fifteen is the only honest movement available
+   * from it. Undefined when the earlier half is empty — a percentage against
+   * zero is infinity dressed up as insight.
+   */
+  const gmvSpark = series.map((d) => d.gmv);
+  const half = Math.floor(gmvSpark.length / 2);
+  const earlier = gmvSpark.slice(0, half).reduce((s, v) => s + v, 0);
+  const later = gmvSpark.slice(half).reduce((s, v) => s + v, 0);
+  const gmvDelta = earlier > 0 ? Math.round(((later - earlier) / earlier) * 100) : undefined;
+
+  /*
+   * Tones, and they are a judgement rather than a decoration.
+   *
+   * `bad` is money that is already wrong or stuck: escrow past its window is
+   * a customer who paid and a cook who has not been paid, a dispute is a
+   * case nobody has answered, and an orphan top-up is a balance with no
+   * payment behind it. `warn` is a person waiting on us — a cook outside
+   * KYC cannot trade, a pre-order expires unanswered. `neutral` is
+   * housekeeping that will still be true tomorrow.
+   */
   const attentionRows = [
-    { label: 'Cooks awaiting KYC', value: attention.kycPending, href: '/kyc' },
-    { label: 'Escrow past release window', value: attention.escrowAged, href: '/ledger?view=aged' },
-    { label: 'Open disputes', value: attention.disputesOpen, href: '/disputes' },
-    { label: 'Pre-orders waiting on a cook', value: attention.preordersWaiting, href: '/orders?status=pending' },
-    { label: 'Meals open past their serve date', value: attention.staleMeals, href: '/meals?view=stale' },
-    { label: 'Products stuck at zero stock', value: attention.stockZero, href: '/stores?view=stock' },
-    { label: 'Top-ups with no payment behind them', value: attention.orphanTopups, href: '/topups' },
-    { label: 'Broadcasts that reached nobody', value: dead.total, href: '/requests?view=dead' },
+    { label: 'Escrow past release window', value: attention.escrowAged, href: '/ledger?view=aged', tone: 'bad' as const, note: 'Paid for, not yet released' },
+    { label: 'Open disputes', value: attention.disputesOpen, href: '/disputes', tone: 'bad' as const, note: 'Waiting on a decision' },
+    { label: 'Top-ups with no payment behind them', value: attention.orphanTopups, href: '/topups', tone: 'bad' as const, note: 'Unmatched credit' },
+    { label: 'Cooks awaiting KYC', value: attention.kycPending, href: '/kyc', tone: 'warn' as const, note: 'Cannot trade until checked' },
+    { label: 'Pre-orders waiting on a cook', value: attention.preordersWaiting, href: '/orders?status=pending', tone: 'warn' as const, note: 'Customer is waiting' },
+    { label: 'Meals open past their serve date', value: attention.staleMeals, href: '/meals?view=stale', tone: 'warn' as const, note: 'Taking orders for nothing' },
+    { label: 'Products stuck at zero stock', value: attention.stockZero, href: '/stores?view=stock', tone: 'neutral' as const },
+    { label: 'Broadcasts that reached nobody', value: dead.total, href: '/requests?view=dead', tone: 'neutral' as const },
     /* A null is a queue this role may not read, not an empty one. It drops
        out here the same way a zero does, because a line an operator cannot
        open is not work waiting on them. */
@@ -153,43 +189,38 @@ export default async function Dashboard({
         className="mb-5"
         pad={false}
       >
-        {attentionRows.length === 0 ? (
-          <p className="px-4 py-8 text-center text-[13px] text-sage">
-            Nothing is waiting. Every queue is clear.
-          </p>
-        ) : (
-          <ul className="divide-y divide-line2">
-            {attentionRows.map((row) => (
-              <li key={row.label}>
-                <Link
-                  href={row.href}
-                  className="flex items-center justify-between gap-4 px-4 py-2.5 transition-colors hover:bg-sunken"
-                >
-                  <span className="text-[13px] text-ink">{row.label}</span>
-                  <span className="tnum shrink-0 rounded-full bg-saffron-50 px-2 py-0.5 text-[12px] font-bold text-saffron">
-                    {row.value}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        <AttentionBoard
+          items={attentionRows.map((row) => ({ ...row, value: row.value ?? 0 }))}
+        />
       </Card>
 
       <Grid cols={4}>
-        <Stat label="GMV · 30 days" value={taka(money.gmv)} sub={`${money.orders} orders`} />
+        {/* The tiles carry the shape of the last month, not just its total.
+            `Stat` has taken a sparkline and a delta since it was written; the
+            dashboard simply never passed them, so four numbers sat on the
+            page with no way to tell a good month from a bad one. */}
+        <Stat
+          label="GMV · 30 days"
+          value={taka(money.gmv)}
+          sub={`${money.orders} orders`}
+          delta={gmvDelta}
+          deltaLabel={gmvDelta === undefined ? undefined : `${Math.abs(gmvDelta)}% vs prior 15d`}
+          spark={gmvSpark}
+          href="/orders"
+        />
         <Stat
           label="Platform revenue"
           value={taka(money.revenue)}
           tone="good"
           sub={`${taka(money.commission)} posted · ${taka(money.codCommission)} implied on COD`}
+          href="/ledger"
         />
         <Stat
           label="Held in escrow"
           value={taka(bal.held)}
           tone={attention.escrowAged > 0 ? 'warn' : 'neutral'}
           sub={`${heldOrders.length} orders · ${attention.escrowAged} past ${window} days`}
-          href="/ledger"
+          href="/ledger?view=aged"
         />
         <Stat
           label="Owed to cooks"

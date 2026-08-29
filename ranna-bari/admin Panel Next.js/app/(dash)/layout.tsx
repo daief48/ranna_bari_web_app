@@ -5,6 +5,7 @@ import { db, ensureAppendOnly } from '@/lib/db';
 import { getSettings } from '@/lib/settings';
 import { ROLE_LABEL } from '@/lib/domain';
 import { Sidebar, PageContext } from '@/components/shell/Sidebar';
+import CommandPalette from '@/components/shell/CommandPalette';
 import { ThemeToggle } from '@/components/ui/client';
 import { Avatar, BTN } from '@/components/ui';
 
@@ -49,6 +50,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
   return (
     <div className="flex min-h-screen bg-canvas">
       <Sidebar role={user.role} counts={{ kyc, disputes, escrow, chat }} />
+      <CommandPalette role={user.role} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-[57px] shrink-0 items-center gap-3 border-b border-line bg-canvas/85 px-4 backdrop-blur lg:px-6">
@@ -59,11 +61,19 @@ export default async function DashLayout({ children }: { children: React.ReactNo
 
           {/* The rail shortcut is worth advertising: this is a desk tool and
               nobody discovers a bare-key binding by accident. */}
-          <div className="hidden items-center gap-1.5 text-[11.5px] text-ink3 xl:flex">
-            <kbd className="rounded-[5px] border border-line bg-sunken px-1.5 py-px font-sans text-[10.5px] font-semibold text-ink2">
-              [
-            </kbd>
-            <span>sidebar</span>
+          <div className="hidden items-center gap-3 text-[11.5px] text-ink3 xl:flex">
+            <span className="flex items-center gap-1.5">
+              <kbd className="rounded-[5px] border border-line bg-sunken px-1.5 py-px font-sans text-[10.5px] font-semibold text-ink2">
+                ⌘K
+              </kbd>
+              <span>go to</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <kbd className="rounded-[5px] border border-line bg-sunken px-1.5 py-px font-sans text-[10.5px] font-semibold text-ink2">
+                [
+              </kbd>
+              <span>sidebar</span>
+            </span>
           </div>
 
           <span className="hidden h-6 w-px shrink-0 bg-line sm:block" aria-hidden />

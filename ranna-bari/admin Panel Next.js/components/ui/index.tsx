@@ -370,6 +370,87 @@ export function Stat({
   );
 }
 
+/**
+ * The work queue, as a board rather than a list.
+ *
+ * This was eight identical rows with eight identical saffron pills, which
+ * gave an operator opening the console no idea where to start: thirty-three
+ * escrow holds past their release window — money sitting in limbo that the
+ * app will never resolve on its own — looked exactly like one open dispute.
+ * A queue that does not rank itself is a queue somebody has to read twice.
+ *
+ * So each row carries a tone, and the board sorts on it. The legend is the
+ * one `globals.css` already fixed for the whole console, so nothing new has
+ * to be learned to read this: vermilion is money at risk, saffron needs a
+ * human, ink3 is inert. Size follows the same order — the worst thing on the
+ * platform is also the biggest thing on the page.
+ *
+ * Every tile is a link, because every one of these is a place to go.
+ */
+export function AttentionBoard({
+  items,
+  empty = 'Nothing is waiting. Every queue is clear.',
+}: {
+  items: { label: string; value: number; href: string; tone?: Tone; note?: string }[];
+  empty?: string;
+}) {
+  if (!items.length) {
+    return (
+      <p className="px-4 py-10 text-center text-[13px] text-sage">{empty}</p>
+    );
+  }
+
+  /* Worst first, then largest. A tile's tone is assigned by the caller —
+     only it knows whether a number is money or housekeeping. */
+  const order: Record<string, number> = { bad: 0, warn: 1, info: 2, neutral: 3, good: 4 };
+  const sorted = [...items].sort(
+    (a, b) =>
+      (order[a.tone ?? 'neutral'] ?? 3) - (order[b.tone ?? 'neutral'] ?? 3) ||
+      b.value - a.value,
+  );
+
+  return (
+    <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 xl:grid-cols-4">
+      {sorted.map((item) => {
+        const tone = item.tone ?? 'neutral';
+        return (
+          <Link
+            key={item.label}
+            href={item.href}
+            className="group relative overflow-hidden rounded-sm border border-line bg-raised p-3 shadow-xs transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-sunken hover:shadow-sm"
+          >
+            <span aria-hidden className={`absolute inset-y-0 left-0 w-[3px] ${TONE_FILL[tone]}`} />
+            <span
+              aria-hidden
+              className={`pointer-events-none absolute inset-y-0 left-0 w-2/3 bg-linear-to-r to-transparent opacity-60 ${TONE_WASH[tone]}`}
+            />
+
+            <div className="relative">
+              <div className="flex items-start justify-between gap-2">
+                <div
+                  className={`tnum font-display text-[26px] leading-none font-bold ${TONE_TEXT[tone]}`}
+                >
+                  {item.value.toLocaleString('en-US')}
+                </div>
+                <span
+                  aria-hidden
+                  className="shrink-0 text-[13px] leading-none text-ink3 opacity-0 transition-opacity group-hover:opacity-100"
+                >
+                  →
+                </span>
+              </div>
+              <div className="mt-1.5 text-[12.5px] leading-snug text-ink">{item.label}</div>
+              {item.note ? (
+                <div className="mt-0.5 text-[11.5px] leading-snug text-ink3">{item.note}</div>
+              ) : null}
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 /** A stat whose value is money. Kept apart so ৳ is never hand-typed. */
 export function MoneyStat(props: Omit<Parameters<typeof Stat>[0], 'value'> & { amount: number }) {
   const { amount, ...rest } = props;
