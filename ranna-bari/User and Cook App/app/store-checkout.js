@@ -19,7 +19,7 @@ import Button from '../src/components/Button';
 import SectionHeader from '../src/components/SectionHeader';
 import { Body } from '../src/components/Typography';
 import { EmptyState, errorText } from '../src/components/MealBits';
-import { QtyStepper, Totals } from '../src/components/StoreBits';
+import { QtyStepper, Totals, Placeholder } from '../src/components/StoreBits';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { font, radius, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
@@ -303,12 +303,21 @@ function Line({ line, onQty, onRemove, onOpen }) {
       ]}
     >
       <Pressable accessibilityRole="link" onPress={onOpen}>
-        <Image
-          source={{ uri: product?.images?.[0] }}
-          contentFit="cover"
-          transition={200}
-          style={{ width: 62, height: 62, borderRadius: 18, backgroundColor: colors.sunken }}
-        />
+        {product?.images?.[0] ? (
+          <Image
+            source={{ uri: product.images[0] }}
+            contentFit="cover"
+            transition={200}
+            style={{ width: 62, height: 62, borderRadius: 18, backgroundColor: colors.sunken }}
+          />
+        ) : (
+          <Placeholder
+            name={product?.name}
+            height={62}
+            radius={18}
+            style={{ width: 62 }}
+          />
+        )}
       </Pressable>
 
       <View style={{ flex: 1, minWidth: 0, gap: 6 }}>

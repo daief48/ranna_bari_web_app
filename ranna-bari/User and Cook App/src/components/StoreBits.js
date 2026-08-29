@@ -95,6 +95,62 @@ export function StockPill({ availability, stock, style }) {
  * than greys out when there is nothing to add: a dead button invites a tap
  * that teaches nothing.
  */
+/**
+ * What a photograph's absence should look like.
+ *
+ * A cook listing a jar of achar at eleven at night does not always have a
+ * photograph of it, and an `<Image>` with no source renders as a flat grey
+ * rectangle — which reads as *broken*, not as *no picture yet*. This is the
+ * same space, deliberately filled: a soft tinted ground and the first letter
+ * of the thing's name, so a shelf of unphotographed products still looks like
+ * a shelf.
+ *
+ * Tinted from the name rather than at random, so the same product is the same
+ * colour on every screen and every launch.
+ */
+const TINTS = ['primary', 'sage', 'saffron'];
+
+export function Placeholder({ name, height = 120, radius: r = 0, style }) {
+  const { colors } = useTheme();
+
+  let hash = 0;
+  for (const ch of String(name ?? '')) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  const tint = TINTS[hash % TINTS.length];
+
+  const letter = String(name ?? '').trim().charAt(0).toUpperCase();
+
+  return (
+    <View
+      style={[
+        {
+          height,
+          width: '100%',
+          borderRadius: r,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors[`${tint}50`] ?? colors.sunken,
+        },
+        style,
+      ]}
+    >
+      {letter ? (
+        <Text
+          style={{
+            fontFamily: font.displayExtra,
+            fontSize: Math.max(20, height * 0.34),
+            color: colors[tint] ?? colors.textLight,
+            opacity: 0.45,
+          }}
+        >
+          {letter}
+        </Text>
+      ) : (
+        <Icon name="cart" size={Math.max(16, height * 0.22)} color={colors.textLight} />
+      )}
+    </View>
+  );
+}
+
 export function ProductCard({ product, availability, onPress, onAdd, wide }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
@@ -124,12 +180,16 @@ export function ProductCard({ product, availability, onPress, onAdd, wide }) {
       ]}
     >
       <View>
-        <Image
-          source={{ uri: image }}
-          contentFit="cover"
-          transition={200}
-          style={{ width: '100%', height: 120, backgroundColor: colors.sunken }}
-        />
+        {image ? (
+          <Image
+            source={{ uri: image }}
+            contentFit="cover"
+            transition={200}
+            style={{ width: '100%', height: 120, backgroundColor: colors.sunken }}
+          />
+        ) : (
+          <Placeholder name={product.name} height={120} />
+        )}
         <View style={{ position: 'absolute', top: 8, left: 8 }}>
           <StockPill availability={availability} stock={product.stock} />
         </View>

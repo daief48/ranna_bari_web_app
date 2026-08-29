@@ -409,8 +409,17 @@ export async function seed() {
       );
     }
 
-    for (let i = 0; i < between(4, 9); i++) {
-      const [name, price, description] = GOODS[(productCount + i) % GOODS.length]!;
+    /* One shelf, one of each. The index used to be `productCount + i` while
+       both were incrementing, so it strode through GOODS two at a time and
+       came back round every third product — a shop listing "Garam masala"
+       twice, which reads as a broken page rather than as seed data. Rotating
+       a distinct slice keeps the shops different from each other without any
+       shop repeating itself. */
+    const offset = stores.length % GOODS.length;
+    const shelf = Array.from({ length: GOODS.length }, (_, k) => GOODS[(offset + k) % GOODS.length]!);
+    const listing = shelf.slice(0, between(4, GOODS.length));
+
+    for (const [name, price, description] of listing) {
       /* A handful land at zero stock while still active — exactly the row the
          stock alarm exists to surface, and it has to exist to test. */
       const stock = chance(0.22) ? 0 : between(3, 60);

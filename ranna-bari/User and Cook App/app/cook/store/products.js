@@ -18,7 +18,7 @@ import Reveal from '../../../src/components/Reveal';
 import Button from '../../../src/components/Button';
 import { Body, Heading, Price } from '../../../src/components/Typography';
 import { EmptyState } from '../../../src/components/MealBits';
-import { QtyStepper, StockPill } from '../../../src/components/StoreBits';
+import { QtyStepper, StockPill, Placeholder } from '../../../src/components/StoreBits';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import useResponsive from '../../../src/theme/useResponsive';
 import { font, radius, type } from '../../../src/theme/tokens';
@@ -235,12 +235,21 @@ function Row({ product, category, onOpen, onStock, onToggle }) {
         onPress={onOpen}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
       >
-        <Image
-          source={{ uri: product.images?.[0] }}
-          contentFit="cover"
-          transition={200}
-          style={{ width: 58, height: 58, borderRadius: 16, backgroundColor: colors.sunken }}
-        />
+        {product.images?.[0] ? (
+          <Image
+            source={{ uri: product.images[0] }}
+            contentFit="cover"
+            transition={200}
+            style={{ width: 58, height: 58, borderRadius: 16, backgroundColor: colors.sunken }}
+          />
+        ) : (
+          <Placeholder
+            name={product.name}
+            height={58}
+            radius={16}
+            style={{ width: 58 }}
+          />
+        )}
         <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
           <Text
             numberOfLines={1}

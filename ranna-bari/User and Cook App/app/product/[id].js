@@ -16,7 +16,7 @@ import Icon from '../../src/components/Icon';
 import Button from '../../src/components/Button';
 import { Body, Heading, Price } from '../../src/components/Typography';
 import { EmptyState, errorText } from '../../src/components/MealBits';
-import { QtyStepper, StockPill } from '../../src/components/StoreBits';
+import { QtyStepper, StockPill, Placeholder } from '../../src/components/StoreBits';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
@@ -109,15 +109,24 @@ export default function ProductScreen() {
             setShot(Math.round(e.nativeEvent.contentOffset.x / r.width))
           }
         >
-          {images.map((uri, i) => (
-            <Image
-              key={i}
-              source={{ uri }}
-              contentFit="cover"
-              transition={250}
-              style={{ width: r.width, height: 300, backgroundColor: colors.sunken }}
-            />
-          ))}
+          {images.map((uri, i) =>
+            uri ? (
+              <Image
+                key={i}
+                source={{ uri }}
+                contentFit="cover"
+                transition={250}
+                style={{ width: r.width, height: 300, backgroundColor: colors.sunken }}
+              />
+            ) : (
+              <Placeholder
+                key={i}
+                name={product.name}
+                height={300}
+                style={{ width: r.width }}
+              />
+            ),
+          )}
         </ScrollView>
 
         <Pressable
