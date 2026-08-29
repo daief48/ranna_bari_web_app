@@ -130,3 +130,47 @@ export async function api(path, { method = 'GET', token, body, signal } = {}) {
     signal?.removeEventListener('abort', onAbort);
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * verdicts
+ * ------------------------------------------------------------------ */
+
+/**
+ * A request that answers instead of throwing.
+ *
+ * Every transition in `mealLogic`, `storeLogic` and `requestLogic` returns
+ * `{ ok, result, error }`, and every screen branches on exactly that. The
+ * backend was ported from those modules and answers in the same error
+ * vocabulary — `meal-sold-out`, `wallet-low-balance`, `offer-not-your-turn` —
+ * so a server refusal can be handed to the same `errorText()` the local
+ * transition's refusal went to. This is the adapter that makes that true:
+ * one shape in, one shape out, and no screen has to know which side decided.
+ *
+ * The one code the logic modules never produce is `network`, because on a
+ * device the transition simply ran. It is separated out rather than folded
+ * into a generic failure so a screen can say "you are offline" instead of
+ * "that did not work", and so a caller can tell a refusal it should not retry
+ * from a request that never arrived.
+ */
+export async function call(path, options = {}) {
+  try {
+    return { ok: true, result: await api(path, options) };
+  } catch (error) {
+    const code = error instanceof ApiError ? error.code : null;
+    return {
+      ok: false,
+      /* A refusal carries the server's own code; anything that never got an
+         answer is the network, whatever the cause underneath. */
+      error: code ?? 'network',
+      message: error?.message ?? 'Could not reach the server.',
+      status: error instanceof ApiError ? error.status : 0,
+      retryable: error instanceof ApiError ? error.retryable : true,
+    };
+  }
+}
+
+/** `call`, for a request whose failure is not worth telling anybody about. */
+export async function quiet(path, options = {}) {
+  const out = await call(path, options);
+  return out.ok ? out.result : null;
+}

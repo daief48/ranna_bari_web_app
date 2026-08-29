@@ -39,6 +39,7 @@ import { SessionProvider } from '../src/store/SessionContext';
 import { ChatProvider } from '../src/store/ChatContext';
 import { SyncProvider } from '../src/store/SyncContext';
 import { ConfigProvider } from '../src/store/ConfigContext';
+import { LoadingProvider } from '../src/store/LoadingContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -186,8 +187,10 @@ export default function RootLayout() {
                   <CartProvider>
                     <SyncProvider>
                     <ChatProvider>
-                      <KitchenSync />
-                      <Root />
+                      <LoadingProvider>
+                        <KitchenSync />
+                        <Root />
+                      </LoadingProvider>
                     </ChatProvider>
                     </SyncProvider>
                   </CartProvider>

@@ -32,7 +32,7 @@ import {
   toggleStoreOpen,
   updateCategory,
 } from '../../../logic/stores.js';
-import { Store } from '../../../models/index.js';
+import { Product, Store } from '../../../models/index.js';
 
 /**
  * Cook stores over HTTP — the shop, its shelves, the basket and checkout.
@@ -373,8 +373,25 @@ export async function storeRoutes(app: FastifyInstance) {
       .sort({ name: 1 })
       .lean();
 
+    /* The shop directory draws "12 items" under every name. Counting here is
+       one grouped query; the alternative is the app fetching each shop's
+       catalogue to count it, which is the directory's length in round trips
+       to render a number. Only `active` rows, because that is what a shopper
+       would find on the shelf if they tapped through. */
+    const ids = stores.map((store) => String(store._id));
+    const counts = await Product.aggregate<{ _id: string; n: number }>([
+      { $match: { storeId: { $in: ids }, active: true } },
+      { $group: { _id: '$storeId', n: { $sum: 1 } } },
+    ]);
+    const countBy = new Map(counts.map((row) => [row._id, row.n]));
+
     reply.header('cache-control', 'public, max-age=30, stale-while-revalidate=120');
-    return { stores: stores.map(shapeStore) };
+    return {
+      stores: stores.map((store) => ({
+        ...shapeStore(store),
+        productCount: countBy.get(String(store._id)) ?? 0,
+      })),
+    };
   });
 
   /**
