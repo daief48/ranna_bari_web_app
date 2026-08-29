@@ -27,6 +27,8 @@ import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import LocationPicker from '../../../src/components/LocationPicker';
+import { RadiusSlider } from '../../../src/components/CookBits';
 import { DEMO_STORE } from '../../../src/lib/demoData';
 import { useAlert } from '../../../src/components/Alert';
 
@@ -57,6 +59,14 @@ function Form({ store, kitchenId }) {
   const router = useRouter();
   const shop = useCommerce();
 
+  /* Null until the cook moves the pin. Null means "leave whatever is stored",
+     which for a shop with none is the kitchen's — so opening this screen and
+     saving does not silently pin the shop to wherever the map happened to
+     open. */
+  const [pin, setPin] = useState(null);
+  const [radiusKm, setRadiusKm] = useState(
+    store.deliveryRadiusKm ?? DEMO_STORE.deliveryRadiusKm ?? 3,
+  );
   const [name, setName] = useState(store.name || DEMO_STORE.name);
   const [tagline, setTagline] = useState(store.tagline || DEMO_STORE.tagline);
   const [description, setDescription] = useState(store.description || DEMO_STORE.description);
@@ -97,6 +107,9 @@ function Form({ store, kitchenId }) {
       cover,
       deliveryFee: Math.max(0, Math.round(Number(fee) || 0)),
       freeDeliveryOver: freeOver.trim() ? Math.round(Number(freeOver)) : null,
+      deliveryRadiusKm: radiusKm,
+      /* Only sent when the pin was actually moved. */
+      ...(pin ? { lat: pin.lat, lng: pin.lng } : {}),
     });
     if (!out.ok) {
       setSaved(false);
@@ -284,6 +297,33 @@ function Form({ store, kitchenId }) {
                 style={{ flex: 1 }}
               />
             </View>
+
+            {/* ---- where the shop actually is ----
+                A shop with no pin of its own borrows the kitchen's, which is
+                right by default and wrong for a cook who bakes at home and
+                keeps the shelf at a second address. Until now that was not
+                sayable: the field existed on the server and nothing on the
+                device could set it. */}
+            <View style={{ marginTop: 18 }}>
+              <BlockLabel text={t('Where the shop is')} />
+              <Body muted size={13} style={{ marginBottom: 10 }}>
+                {pin
+                  ? t('Customers see this pin and measure delivery from it.')
+                  : t('Using your kitchen’s location. Move the pin to set its own.')}
+              </Body>
+              <LocationPicker
+                height={220}
+                center={
+                  typeof store.lat === 'number'
+                    ? { lat: store.lat, lng: store.lng, zoom: 16 }
+                    : undefined
+                }
+                onChange={(place) => {
+                  setPin(place);
+                  setSaved(false);
+                }}
+              />
+            </View>
           </View>
         </Reveal>
 
@@ -306,6 +346,20 @@ function Form({ store, kitchenId }) {
                 keyboardType="number-pad"
                 placeholder={t('Never')}
                 style={{ flex: 1 }}
+              />
+            </View>
+
+            {/* How far the shelf travels, which is not necessarily how far a
+                hot meal will: a jar of achar posts further than a plate of
+                bhuna. The shop kept inheriting the kitchen's radius with no
+                way to say otherwise. */}
+            <View style={{ marginTop: 18 }}>
+              <RadiusSlider
+                value={radiusKm}
+                onChange={(v) => {
+                  setRadiusKm(v);
+                  setSaved(false);
+                }}
               />
             </View>
             <Text

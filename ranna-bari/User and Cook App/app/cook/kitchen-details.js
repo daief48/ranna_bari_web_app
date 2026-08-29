@@ -27,6 +27,7 @@ import Reveal from '../../src/components/Reveal';
 import Button from '../../src/components/Button';
 import FloatLabelInput, { FormNote } from '../../src/components/FloatLabelInput';
 import { Body, Heading } from '../../src/components/Typography';
+import { RadiusSlider } from '../../src/components/CookBits';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { SPECIALTIES, useKitchen } from '../../src/store/KitchenContext';
@@ -259,98 +260,5 @@ function DetailsForm({ kitchen }) {
         </Container>
       </KeyboardAvoidingView>
     </CookScreen>
-  );
-}
-
-function RadiusSlider({ value, onChange }) {
-  const { colors, shadow } = useTheme();
-  const { t, n } = useLang();
-  const [width, setWidth] = useState(0);
-
-  const MIN = 1;
-  const MAX = 12;
-  const pct = (value - MIN) / (MAX - MIN);
-
-  const setFromX = (x) => {
-    if (!width) return;
-    const ratio = Math.max(0, Math.min(1, x / width));
-    // step: 0.5
-    onChange(Math.round((MIN + ratio * (MAX - MIN)) * 2) / 2);
-  };
-
-  return (
-    <View style={{ marginBottom: 8 }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          gap: 12,
-          marginBottom: 10,
-        }}
-      >
-        <Text
-          style={{
-            fontFamily: font.uiSemi,
-            fontSize: type.micro,
-            letterSpacing: type.micro * tracking.label,
-            textTransform: 'uppercase',
-            color: colors.textMuted,
-          }}
-        >
-          {t('Delivery radius')}
-        </Text>
-        <Text
-          style={{
-            fontFamily: font.uiBold,
-            fontSize: 15,
-            color: colors.sage,
-            fontVariant: ['tabular-nums'],
-          }}
-        >
-          {n(value.toFixed(1))} km
-        </Text>
-      </View>
-
-      <View
-        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => true}
-        onResponderGrant={(e) => setFromX(e.nativeEvent.locationX)}
-        onResponderMove={(e) => setFromX(e.nativeEvent.locationX)}
-        style={{ paddingVertical: 12 }}
-        accessibilityRole="adjustable"
-        accessibilityLabel={t('Delivery radius')}
-        accessibilityValue={{ min: MIN, max: MAX, now: value }}
-      >
-        <View style={{ height: 6, borderRadius: 999, backgroundColor: colors.line }}>
-          <View
-            style={{
-              width: `${pct * 100}%`,
-              height: '100%',
-              borderRadius: 999,
-              backgroundColor: colors.sage,
-            }}
-          />
-          <View
-            style={[
-              {
-                position: 'absolute',
-                top: -8,
-                left: `${pct * 100}%`,
-                marginLeft: -11,
-                width: 22,
-                height: 22,
-                borderRadius: 11,
-                backgroundColor: colors.raised,
-                borderWidth: 3,
-                borderColor: colors.sage,
-              },
-              shadow.sm,
-            ]}
-          />
-        </View>
-      </View>
-    </View>
   );
 }

@@ -18,6 +18,10 @@ const TABS = [
   { name: 'orders', icon: 'receipt', label: 'Orders' },
   { name: 'meals', icon: 'pot', label: 'Meals' },
   { name: 'menu', icon: 'utensils', label: 'Menu' },
+  /* The shelf, beside the menu. A cook's two catalogues — what they cook to
+     order and what they sell off the shelf — were one tap apart and a whole
+     navigation apart: the shop lived at a URL with nothing pointing at it. */
+  { name: 'store', icon: 'box', label: 'Shop' },
   { name: 'earnings', icon: 'banknote', label: 'Earnings' },
   { name: 'kitchen', icon: 'chefHat', label: 'Kitchen' },
 ];
@@ -203,6 +207,10 @@ export default function CookPanelLayout() {
       <Tabs.Screen name="orders" options={{ title: 'Orders' }} />
       <Tabs.Screen name="meals" options={{ title: 'Meals' }} />
       <Tabs.Screen name="menu" options={{ title: 'Menu' }} />
+      {/* `(panel)` is a group, so this is still `/cook/store` — the rows and
+          links already pointing there keep working, and the sub-pages under
+          `cook/store/` still serve their own paths. */}
+      <Tabs.Screen name="store" options={{ title: 'Shop' }} />
       <Tabs.Screen name="earnings" options={{ title: 'Earnings' }} />
       <Tabs.Screen name="kitchen" options={{ title: 'Kitchen' }} />
     </Tabs>

@@ -1126,6 +1126,10 @@ export const bn = {
   'Your shop': 'আপনার দোকান',
   'Home shops': 'ঘরোয়া দোকান',
   'That photo could not be saved. Try again.': 'ছবিটি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
+  /* The shop's own pin and reach. */
+  'Where the shop is': 'দোকান কোথায়',
+  'Customers see this pin and measure delivery from it.': 'ক্রেতারা এই পিন দেখে এবং এখান থেকেই ডেলিভারি মাপা হয়।',
+  'Using your kitchen’s location. Move the pin to set its own.': 'আপনার রান্নাঘরের অবস্থান ব্যবহার হচ্ছে। আলাদা করতে পিন সরান।',
   /* Saved shops, and searching inside one. */
   'Saved shops': 'সংরক্ষিত দোকান',
   'Save this shop': 'এই দোকানটি সংরক্ষণ করুন',
