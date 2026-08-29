@@ -244,7 +244,12 @@ export function Sidebar({
           <img
             src="/logo.png"
             alt="RannaBari"
-            className="h-8 w-8 shrink-0 object-contain rounded-[8px] border border-line bg-raised shadow-xs"
+            className="h-8 w-8 shrink-0 object-contain rounded-[8px] border border-line bg-raised shadow-xs dark:hidden"
+          />
+          <img
+            src="/logo-dark.png"
+            alt="RannaBari"
+            className="h-8 w-8 shrink-0 object-contain rounded-[8px] border border-line bg-raised shadow-xs hidden dark:block"
           />
           <div className={`min-w-0 ${rail ? 'lg:hidden' : ''}`}>
             <div className="flex items-center">

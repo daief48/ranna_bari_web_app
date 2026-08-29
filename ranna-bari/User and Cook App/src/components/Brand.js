@@ -6,7 +6,8 @@ import { useTheme } from '../theme/ThemeProvider';
 import useResponsive from '../theme/useResponsive';
 import { font } from '../theme/tokens';
 
-const LOGO_IMG = require('../../assets/logo.png');
+const LOGO_LIGHT = require('../../assets/logo.png');
+const LOGO_DARK = require('../../assets/logo-dark.png');
 
 /**
  * Modern, high-end brand lockup.
@@ -50,7 +51,7 @@ export default function Brand({ size, markSize = 36, markOnly = false }) {
         ]}
       >
         <Image
-          source={LOGO_IMG}
+          source={isDark ? LOGO_DARK : LOGO_LIGHT}
           style={{
             width: markSize,
             height: markSize,

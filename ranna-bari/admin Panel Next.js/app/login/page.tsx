@@ -86,7 +86,12 @@ export default async function LoginPage({
             <img
               src="/logo.png"
               alt="RannaBari"
-              className="h-11 w-11 shrink-0 object-contain rounded-[12px] border border-line bg-raised shadow-sm"
+              className="h-11 w-11 shrink-0 object-contain rounded-[12px] border border-line bg-raised shadow-sm dark:hidden"
+            />
+            <img
+              src="/logo-dark.png"
+              alt="RannaBari"
+              className="h-11 w-11 shrink-0 object-contain rounded-[12px] border border-line bg-raised shadow-sm hidden dark:block"
             />
             <div>
               <div className="flex items-center">
