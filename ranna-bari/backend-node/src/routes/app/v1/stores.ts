@@ -32,7 +32,7 @@ import {
   toggleStoreOpen,
   updateCategory,
 } from '../../../logic/stores.js';
-import { Product, Store } from '../../../models/index.js';
+import { Kitchen, Product, Store } from '../../../models/index.js';
 
 /**
  * Cook stores over HTTP — the shop, its shelves, the basket and checkout.
@@ -175,23 +175,56 @@ async function myPreorder(cook: Cook, orderId: string): Promise<OrderDoc | null>
  * response shapes
  * ------------------------------------------------------------------ */
 
-const shapeStore = (store: StoreDoc) => ({
+/** The fields a shop borrows from its kitchen when it has none of its own. */
+type KitchenFace = {
+  avatar?: string;
+  coverImage?: string;
+  lat?: number | null;
+  lng?: number | null;
+  deliveryRadiusKm?: number | null;
+} | null;
+
+/**
+ * A shop, and what it inherits from the kitchen it belongs to.
+ *
+ * A cook opening a shop does not upload a second set of photographs, so
+ * `logo` and `cover` start empty — and a shop page rendering two empty image
+ * boxes looks broken rather than new. The kitchen behind it already has a
+ * portrait and a cover, and it is the same cook and the same premises, so the
+ * shop shows those until it is given its own.
+ *
+ * The same argument applies to the map: a shop with no coordinates cannot be
+ * told how far away it is, and the kitchen's pin is where the food is coming
+ * from. Falling back here rather than at each of the four call sites means a
+ * shop cannot be shown with a blank face by a screen that forgot.
+ *
+ * Only *blank* is replaced. A cook who has set their own logo keeps it, and a
+ * shop deliberately pinned somewhere other than the kitchen stays there.
+ */
+const shapeStore = (store: StoreDoc, kitchen?: KitchenFace) => ({
   id: String(store._id),
   kitchenId: store.kitchenId,
   name: store.name,
   tagline: store.tagline,
   description: store.description,
-  logo: store.logo,
-  cover: store.cover,
+  logo: store.logo || kitchen?.avatar || '',
+  cover: store.cover || kitchen?.coverImage || '',
   phone: store.phone,
   area: store.area,
-  lat: store.lat,
-  lng: store.lng,
-  deliveryRadiusKm: store.deliveryRadiusKm,
+  lat: store.lat ?? kitchen?.lat ?? null,
+  lng: store.lng ?? kitchen?.lng ?? null,
+  deliveryRadiusKm: store.deliveryRadiusKm ?? kitchen?.deliveryRadiusKm ?? null,
   deliveryFee: store.deliveryFee,
   freeDeliveryOver: store.freeDeliveryOver,
   isOpen: store.isOpen,
 });
+
+/** The kitchen behind a shop, for the fields the shop borrows from it. */
+const faceOf = (kitchenId: string): Promise<KitchenFace> =>
+  Kitchen.findById(kitchenId)
+    .select({ avatar: 1, coverImage: 1, lat: 1, lng: 1, deliveryRadiusKm: 1 })
+    .lean()
+    .catch(() => null) as Promise<KitchenFace>;
 
 const shapeCategory = (category: CategoryDoc) => ({
   id: String(category._id),
@@ -377,18 +410,28 @@ export async function storeRoutes(app: FastifyInstance) {
        one grouped query; the alternative is the app fetching each shop's
        catalogue to count it, which is the directory's length in round trips
        to render a number. Only `active` rows, because that is what a shopper
-       would find on the shelf if they tapped through. */
+       would find on the shelf if they tapped through.
+
+       The kitchens come in the same shape of query, for the faces the shops
+       borrow — a directory of blank tiles is not a directory. */
     const ids = stores.map((store) => String(store._id));
-    const counts = await Product.aggregate<{ _id: string; n: number }>([
-      { $match: { storeId: { $in: ids }, active: true } },
-      { $group: { _id: '$storeId', n: { $sum: 1 } } },
+    const [counts, kitchens] = await Promise.all([
+      Product.aggregate<{ _id: string; n: number }>([
+        { $match: { storeId: { $in: ids }, active: true } },
+        { $group: { _id: '$storeId', n: { $sum: 1 } } },
+      ]),
+      Kitchen.find({ _id: { $in: stores.map((store) => store.kitchenId) } })
+        .select({ avatar: 1, coverImage: 1, lat: 1, lng: 1, deliveryRadiusKm: 1 })
+        .lean(),
     ]);
+
     const countBy = new Map(counts.map((row) => [row._id, row.n]));
+    const kitchenBy = new Map(kitchens.map((k) => [String(k._id), k]));
 
     reply.header('cache-control', 'public, max-age=30, stale-while-revalidate=120');
     return {
       stores: stores.map((store) => ({
-        ...shapeStore(store),
+        ...shapeStore(store, kitchenBy.get(String(store.kitchenId))),
         productCount: countBy.get(String(store._id)) ?? 0,
       })),
     };
@@ -412,15 +455,16 @@ export async function storeRoutes(app: FastifyInstance) {
     const caller = await callerOf(request);
     const mine = !!caller?.kitchenId && String(caller.kitchenId) === String(store.kitchenId);
 
-    const [categories, products] = await Promise.all([
+    const [categories, products, kitchen] = await Promise.all([
       categoriesOf(String(store._id)),
       productsOf(String(store._id)),
+      faceOf(store.kitchenId),
     ]);
 
     const visible = mine ? products : products.filter((product) => product.active);
 
     return {
-      store: shapeStore(store),
+      store: shapeStore(store, kitchen),
       mine,
       categories: categories.map(shapeCategory),
       products: visible.map((product) => shapeProduct(product, store)),
@@ -457,7 +501,7 @@ export async function storeRoutes(app: FastifyInstance) {
 
     return {
       product: shapeProduct(product, store),
-      store: shapeStore(store),
+      store: shapeStore(store, await faceOf(store.kitchenId)),
       mine,
     };
   });

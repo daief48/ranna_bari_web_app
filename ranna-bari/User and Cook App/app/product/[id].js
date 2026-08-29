@@ -25,11 +25,14 @@ import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/ledger';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { useAlert } from '../../src/components/Alert';
+import { useNavbarOffset } from '../../src/components/Navbar';
 
 export default function ProductScreen() {
   const { id } = useLocalSearchParams();
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
+  /* The back chip clears the floating navbar on every device. */
+  const backTop = useNavbarOffset() - 18;
   const alert = useAlert();
   const r = useResponsive();
   const router = useRouter();
@@ -123,7 +126,9 @@ export default function ProductScreen() {
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/stores'))}
           style={{
             position: 'absolute',
-            top: 52,
+            /* Under the floating bar rather than at a guessed offset — 52
+               put it behind the brand pill on a notched phone. */
+            top: backTop,
             left: 16,
             width: 38,
             height: 38,
