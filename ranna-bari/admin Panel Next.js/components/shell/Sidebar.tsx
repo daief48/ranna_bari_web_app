@@ -37,6 +37,7 @@ export const NAV: {
       { href: '/chat', label: 'Live chat', cap: 'order.read', badge: 'chat' },
       { href: '/requests', label: 'Requests & offers', cap: 'request.read' },
       { href: '/reviews', label: 'Reviews', cap: 'kitchen.read' },
+      { href: '/search-terms', label: 'What people looked for', cap: 'kitchen.read' },
     ],
   },
   {
@@ -78,6 +79,7 @@ const ICON: Record<string, string> = {
   '/chat': 'M20 14.5a2 2 0 0 1-2 2H9l-4 3.5V6a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2z',
   '/requests': 'M4 10v4h3l6 4V6l-6 4zM17.5 9.2a4 4 0 0 1 0 5.6',
   '/reviews': 'M12 4.2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 9.9l5.4-.8z',
+  '/search-terms': 'M10.5 17a6.5 6.5 0 1 1 0-13 6.5 6.5 0 0 1 0 13M15.2 15.2 20 20',
   '/ledger': 'M5.5 4h13v16H7.5a2 2 0 0 1-2-2zM5.5 17.5h13M9.5 8h5M9.5 11.5h3.5',
   '/payouts': 'M12 4v11M8 11.5l4 4 4-4M4.5 19.5h15',
   '/topups': 'M12 20V9M8 12.5l4-4 4 4M4.5 4.5h15',

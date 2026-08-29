@@ -11,6 +11,7 @@ import {
   type Audience,
 } from '../../../logic/wallet.js';
 import { ERR, errText } from '../../../lib/domain.js';
+import { SearchTerm } from '../../../models/index.js';
 
 /**
  * The wallet, the shared category list, and the two notification writes.
@@ -105,6 +106,53 @@ export async function walletRoutes(app: FastifyInstance) {
     const out = await topUp(caller.customerKey, body.data.amount, body.data.method);
     if (!out.ok) return fail(reply, out.error);
     return out.result;
+  });
+
+  /* ---------------- what people looked for ---------------- */
+
+  /**
+   * Record a search.
+   *
+   * Fire-and-forget from the app's side, and deliberately unauthenticated:
+   * the most valuable search in this collection is the one somebody made
+   * before they had an account, gave up on, and left. Requiring a token would
+   * filter the record down to people who already stayed.
+   *
+   * What comes back is `{ ok: true }` and nothing else. The app has already
+   * drawn its results; this is bookkeeping, and a response the client waits
+   * on would make every search slower to serve a report nobody is reading
+   * right now.
+   */
+  app.post('/search-terms', async (request, reply) => {
+    const body = z
+      .object({
+        term: z.string().trim().min(2).max(80),
+        results: z.coerce.number().int().min(0).max(10_000).default(0),
+        area: z.string().trim().max(60).nullish(),
+      })
+      .safeParse(request.body ?? {});
+    /* A malformed record is dropped rather than refused. Nothing the customer
+       can see depends on it, and a 400 here would put an error in front of
+       somebody whose search worked perfectly. */
+    if (!body.success) return { ok: true };
+
+    const caller = await callerOf(request);
+
+    await SearchTerm.create({
+      term: body.data.term,
+      /* The same normalisation the app's matcher uses — lower-cased,
+         punctuation out, Bengali left alone — so "Biryani!" and "biryani"
+         are one row in the report rather than two. */
+      normalised: body.data.term
+        .toLowerCase()
+        .replace(/[^\wঀ-৿]+/g, ' ')
+        .trim(),
+      results: body.data.results,
+      area: body.data.area || null,
+      customerKey: caller?.customerKey ?? null,
+    }).catch(() => null);
+
+    return { ok: true };
   });
 
   /* ---------------- taxonomy ---------------- */

@@ -262,14 +262,33 @@ export function CommerceProvider({ children }) {
    * the app cannot render its first screen without one.
    */
   const loadPublic = useCallback(async () => {
-    const [stores, taxonomy] = await Promise.all([
+    const [stores, taxonomy, products] = await Promise.all([
       call('/stores'),
       call('/taxonomy'),
+      /* Every open shelf, so search can reach shop goods. Without this a
+         customer looking for "achar" is told the app has none, because the
+         catalogue was only ever fetched one shop at a time, when somebody
+         walked in — and a shop nobody had opened was unsearchable. */
+      call('/products'),
     ]);
 
     const fields = {};
     if (stores.ok) fields.stores = stores.result.stores ?? [];
     if (taxonomy.ok) fields.taxonomy = taxonomy.result.taxonomy ?? [];
+
+    if (products.ok) {
+      /* Merged, not replaced. A shop the customer has opened has its full
+         catalogue here — including the cook's own inactive drafts, if this is
+         their shop — and the search list carries only active rows. Replacing
+         would quietly empty the shelf they are standing in front of. */
+      const searchable = products.result.products ?? [];
+      const known = new Set(live.current.products.map((p) => String(p.id)));
+      fields.products = [
+        ...live.current.products,
+        ...searchable.filter((p) => !known.has(String(p.id))),
+      ];
+    }
+
     if (Object.keys(fields).length) patch(fields);
 
     return stores.ok || taxonomy.ok;

@@ -476,6 +476,66 @@ export async function storeRoutes(app: FastifyInstance) {
   });
 
   /**
+   * Everything on every open shelf, for search.
+   *
+   * The app searches on the device — instant, works offline, and at this
+   * catalogue size the whole thing fits in one response. But a shopper
+   * looking for "achar" was being told the app has none, because search only
+   * ever saw dishes and kitchens: shop goods were fetched one shop at a time,
+   * when somebody walked in, and a shop nobody had opened was unsearchable.
+   *
+   * So the shelves come down in one request. Closed shops are excluded rather
+   * than returned and filtered — a result that cannot be bought is not a
+   * result — and so are inactive products, which are drafts.
+   *
+   * The cap is real and the response says when it was hit, so a catalogue
+   * that outgrows one fetch reports it here rather than quietly searching a
+   * page and calling it the data.
+   */
+  app.get('/products', async (request, reply) => {
+    const query = z
+      .object({ take: z.coerce.number().min(1).max(1000).default(500) })
+      .safeParse(request.query ?? {});
+    if (!query.success) return fail(reply, ERR.BAD_AMOUNT);
+
+    const open = await Store.find({ isOpen: true }).select({ _id: 1 }).lean();
+    const storeIds = open.map((s) => String(s._id));
+
+    const rows = await Product.find({ storeId: { $in: storeIds }, active: true })
+      .sort({ createdAt: -1 })
+      .limit(query.data.take + 1)
+      .lean();
+
+    const truncated = rows.length > query.data.take;
+    const products = rows.slice(0, query.data.take);
+
+    reply.header('cache-control', 'public, max-age=30, stale-while-revalidate=120');
+    return {
+      /* Shaped without a store, so `availability` is left off rather than
+         computed against the wrong shop — the app pairs each row with the
+         store it already holds. */
+      products: products.map((product) => ({
+        id: String(product._id),
+        storeId: product.storeId,
+        categoryId: product.categoryId,
+        name: product.name,
+        description: product.description,
+        images: product.images ?? [],
+        price: product.price,
+        stock: product.stock,
+        minQty: product.minQty,
+        maxQty: product.maxQty,
+        active: product.active,
+        preorder: product.preorder,
+        prepTime: product.prepTime,
+        deliveryNote: product.deliveryNote,
+        options: product.options,
+      })),
+      truncated,
+    };
+  });
+
+  /**
    * One product, and the shop it sits in.
    *
    * The product screen is reachable by link — from a notification, or a

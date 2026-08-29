@@ -30,6 +30,7 @@ import {
   Product,
   Request,
   Review,
+  SearchTerm,
   Store,
   TopUp,
   Zone,
@@ -737,6 +738,86 @@ export async function operationRoutes(app: FastifyInstance) {
   });
 
   /* ---------------- top-ups ---------------- */
+
+  /* ---------------- what people looked for ---------------- */
+
+  /**
+   * The demand report: what customers searched for, and what they did not find.
+   *
+   * Grouped by the normalised term rather than listed row by row — a page of
+   * individual searches is a log, and what ops needs is a ranking. `misses`
+   * is the column the page is for: a term searched forty times that returned
+   * nothing every time is a cook to recruit, and it is the only place on the
+   * platform that fact is written down. The customer who found nothing placed
+   * no order, so no other collection ever heard about them.
+   *
+   * `people` counts distinct customers, which is what stops one person
+   * hammering a word from looking like a market.
+   */
+  app.get('/search-terms', async (request, reply) => {
+    const actor = await require(request, reply, 'kitchen.read');
+    if (!actor) return;
+
+    const query = z
+      .object({
+        /* Default to the empty ones: a term that already has results is
+           working, and the report exists for the ones that are not. */
+        only: z.enum(['misses', 'all']).default('misses'),
+        days: z.coerce.number().min(1).max(365).default(30),
+        area: z.string().optional(),
+        ...paging,
+      })
+      .parse(request.query ?? {});
+
+    const since = new Date(Date.now() - query.days * 86_400_000);
+    const where: Record<string, unknown> = { createdAt: { $gte: since } };
+    if (query.only === 'misses') where.results = 0;
+    if (query.area) where.area = query.area;
+
+    const grouped = await SearchTerm.aggregate<{
+      _id: string;
+      searches: number;
+      misses: number;
+      people: string[];
+      lastAt: Date;
+      spellings: string[];
+      areas: string[];
+    }>([
+      { $match: where },
+      {
+        $group: {
+          _id: '$normalised',
+          searches: { $sum: 1 },
+          misses: { $sum: { $cond: [{ $eq: ['$results', 0] }, 1, 0] } },
+          people: { $addToSet: '$customerKey' },
+          lastAt: { $max: '$createdAt' },
+          spellings: { $addToSet: '$term' },
+          areas: { $addToSet: '$area' },
+        },
+      },
+      { $sort: { searches: -1, lastAt: -1 } },
+      { $skip: query.skip },
+      { $limit: query.take },
+    ]);
+
+    const distinct = await SearchTerm.distinct('normalised', where);
+
+    return {
+      terms: grouped.map((row) => ({
+        term: row._id,
+        searches: row.searches,
+        misses: row.misses,
+        /* `$addToSet` keeps one null for every anonymous search, so it is
+           dropped rather than counted as a person. */
+        people: row.people.filter(Boolean).length,
+        spellings: row.spellings.slice(0, 6),
+        areas: row.areas.filter(Boolean).slice(0, 6),
+        lastAt: row.lastAt,
+      })),
+      total: distinct.length,
+      days: query.days,
+    };
+  });
 
   app.get('/topups', async (request, reply) => {
     const actor = await require(request, reply, 'ledger.read');

@@ -23,6 +23,15 @@ export const DEFAULT_FILTERS = {
   price: 'any',
   diet: [],
   minRating: 0,
+  /* A kitchen the platform has actually checked. Off by default: a new cook
+     who has not been through KYC yet is not a worse cook, and a filter that
+     hid them by default would make the directory a closed shop. */
+  verifiedOnly: false,
+  /* Shops only — a dish has no delivery threshold of its own. */
+  freeDelivery: false,
+  /* Shelf items only, and it means "include the ones you have to ask for",
+     which is why it reads as a widening rather than a narrowing. */
+  includePreorder: true,
 };
 
 export const SORTS = [
@@ -54,6 +63,18 @@ export const DIETS = [
   { key: 'diabetic', label: 'Diabetic-friendly' },
 ];
 
+/**
+ * The three that apply to some result types and not others.
+ *
+ * Named here rather than checked inline so the sheet can say which list each
+ * one narrows. A filter that silently does nothing to the section somebody is
+ * looking at is worse than one that is absent.
+ */
+export const SCOPED = [
+  { key: 'verifiedOnly', label: 'Verified kitchens only', icon: 'shieldCheck', scope: 'Kitchens and dishes' },
+  { key: 'freeDelivery', label: 'Free delivery available', icon: 'delivery', scope: 'Shops' },
+];
+
 export const RATINGS = [
   { key: 0, label: 'Any rating' },
   { key: 4, label: '4.0+' },
@@ -75,7 +96,12 @@ export function activeCount(f) {
     (f.openOnly ? 1 : 0) +
     (f.price !== 'any' ? 1 : 0) +
     f.diet.length +
-    (f.minRating > 0 ? 1 : 0)
+    (f.minRating > 0 ? 1 : 0) +
+    (f.verifiedOnly ? 1 : 0) +
+    (f.freeDelivery ? 1 : 0) +
+    /* Counted only when it is *off*, because on is the default and a badge
+       reading "1" on an unnarrowed list is what trains people to ignore it. */
+    (f.includePreorder === false ? 1 : 0)
   );
 }
 
@@ -201,13 +227,30 @@ export default function FilterSheet({
               <Note text={t('Add a delivery address to sort and filter by distance.')} />
             ) : null}
 
-            {/* ---- open now ---- */}
+            {/* ---- open now, and the two the API now supports ---- */}
             <Group label={t('Availability')}>
               <Choice
                 icon="clock"
                 label={t('Open now')}
                 active={value.openOnly}
                 onPress={() => set({ openOnly: !value.openOnly })}
+              />
+              {SCOPED.map((f) => (
+                <Choice
+                  key={f.key}
+                  icon={f.icon}
+                  label={t(f.label)}
+                  active={!!value[f.key]}
+                  onPress={() => set({ [f.key]: !value[f.key] })}
+                />
+              ))}
+              {/* Phrased as what it includes, because that is what the tap
+                  does: leaving it on is the wider list. */}
+              <Choice
+                icon="clock"
+                label={t('Include made-to-order')}
+                active={value.includePreorder !== false}
+                onPress={() => set({ includePreorder: value.includePreorder === false })}
               />
             </Group>
 

@@ -118,9 +118,109 @@ for (const group of GROUPS) {
   }
 }
 
-/** A token and every other way of writing it. */
+/* ------------------------------------------------------------------ *
+ * Bengali, for the words nobody listed
+ * ------------------------------------------------------------------ */
+
+/**
+ * Sound out a Bengali word in Latin letters.
+ *
+ * `GROUPS` above is a hand-written list, and a hand-written list is only ever
+ * as good as the day somebody last thought about it: type মাংস, or a dish
+ * name no one anticipated, and the whole ladder returns nothing. This is the
+ * general case behind the specific one — a rough phonetic rendering, matched
+ * against the menu's Latin spelling by the same fuzzy layer that already
+ * forgives typos.
+ *
+ * Rough is the point. Bengali orthography does not map cleanly onto Latin
+ * and the transcription people actually type is inconsistent anyway
+ * (mangsho / mangso / mangs). Getting within an edit or two of the menu is
+ * the whole job; anything more precise would match *fewer* of the spellings
+ * real people use.
+ *
+ * The inherent vowel is the one real decision: অ is written between
+ * consonants and dropped at the end, which is what makes মাংস "mangsho"
+ * rather than "mangsa".
+ */
+const BENGALI = {
+  "অ": 'o', "আ": 'a', "ই": 'i', "ঈ": 'i', "উ": 'u', "ঊ": 'u', "ঋ": 'ri',
+  "এ": 'e', "ঐ": 'oi', "ও": 'o', "ঔ": 'ou',
+
+  // vowel signs
+  "া": 'a', "ি": 'i', "ী": 'i', "ু": 'u', "ূ": 'u', "ৃ": 'ri',
+  "ে": 'e', "ৈ": 'oi', "ো": 'o', "ৌ": 'ou',
+
+  "ক": 'k', "খ": 'kh', "গ": 'g', "ঘ": 'gh', "ঙ": 'ng',
+  "চ": 'ch', "ছ": 'chh', "জ": 'j', "ঝ": 'jh', "ঞ": 'n',
+  "ট": 't', "ঠ": 'th', "ড": 'd', "ঢ": 'dh', "ণ": 'n',
+  "ত": 't', "থ": 'th', "দ": 'd', "ধ": 'dh', "ন": 'n',
+  "প": 'p', "ফ": 'ph', "ব": 'b', "ভ": 'bh', "ম": 'm',
+  "য": 'j', "র": 'r', "ল": 'l', "শ": 'sh', "ষ": 'sh', "স": 's', "হ": 'h',
+  "ড়": 'r', "ঢ়": 'rh', "য়": 'y', "ৎ": 't',
+
+  "ং": 'ng', "ঃ": 'h', "ঁ": '',
+  '্': '', // hasanta: kills the inherent vowel, handled below
+};
+
+/** Every Bengali vowel sign, so the inherent vowel is not doubled onto one. */
+const SIGNS = new Set(['া', 'ি', 'ী', 'ু', 'ূ', 'ৃ', 'ে', 'ৈ', 'ো', 'ৌ', '্', 'ং', 'ঃ', 'ঁ']);
+
+const CONSONANT = /[ক-হড়ঢ়য়ৎ]/;
+
+/**
+ * The nukta, U+09BC.
+ *
+ * ড়, ঢ় and য় are each two code points — a base letter and this — unless the
+ * text happens to arrive precomposed, which a phone keyboard does not
+ * guarantee. Reading one character at a time therefore sees ড, emits "d",
+ * then meets a mark it has no entry for: চিংড়ি came out "chingdoi" instead
+ * of "chingri". The pair has to be consumed together.
+ */
+const NUKTA = '়';
+
+export function romanise(word) {
+  const text = String(word ?? '');
+  if (!/[ঀ-৿]/.test(text)) return '';
+
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    let ch = text[i];
+
+    // Take the nukta with its base letter, however the keyboard sent it.
+    if (text[i + 1] === NUKTA && BENGALI[ch + NUKTA] !== undefined) {
+      ch += NUKTA;
+      i += 1;
+    }
+
+    const mapped = BENGALI[ch];
+    if (mapped === undefined) continue;
+    out += mapped;
+
+    /* The inherent vowel: a consonant with nothing modifying it is followed
+       by a short "o" — except at the very end of the word, where Bengali
+       drops it. মাংস → m-a-ng-s(+o) → "mangso". */
+    if (CONSONANT.test(ch)) {
+      const next = text[i + 1];
+      const last = i === text.length - 1;
+      if (!last && !SIGNS.has(next)) out += 'o';
+    }
+  }
+  return out;
+}
+
+/**
+ * A token and every other way of writing it.
+ *
+ * The curated group first, because a hand-picked spelling beats a guess. A
+ * Bengali word with no group falls through to its sounded-out form, which the
+ * fuzzy layer can then get the rest of the way.
+ */
 export function expand(token) {
-  return INDEX.get(token) ?? [token];
+  const group = INDEX.get(token);
+  if (group) return group;
+
+  const roman = romanise(token);
+  return roman && roman !== token ? [token, roman] : [token];
 }
 
 /**
@@ -216,7 +316,11 @@ export function makeMatcher(query) {
       if (spellings.some((v) => name.includes(v))) best = RANK.NAME;
       else if (tags && spellings.some((v) => tags.includes(v))) best = RANK.TAG;
       else if (text && spellings.some((v) => text.includes(v))) best = RANK.TEXT;
-      else if (fuzzyHit(tokens[i], nameWords)) best = RANK.FUZZY;
+      /* Every spelling gets a turn at the fuzzy layer, not just the one that
+         was typed. A Bengali word's only Latin form is the one `romanise`
+         produced, and it is approximate by design — so it is exactly the
+         spelling that needs an edit or two of slack to reach the menu. */
+      else if (spellings.some((v) => fuzzyHit(v, nameWords))) best = RANK.FUZZY;
 
       if (best === RANK.NONE) return RANK.NONE;
       if (best > worst) worst = best;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -34,7 +34,10 @@ import { distanceKm, formatDistance } from '../../src/lib/geo';
 import { deliversTo, isOpenNow } from '../../src/lib/kitchen';
 import { RANK, makeMatcher } from '../../src/lib/search';
 import useRecentSearches from '../../src/lib/useRecentSearches';
+import { Placeholder } from '../../src/components/StoreBits';
+import { serviceLabel } from '../../src/components/MealBits';
 import { useCommerce } from '../../src/store/CommerceContext';
+import { call, hasServer } from '../../src/lib/server';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 /** How many rows a section shows before "See more", and how many each tap adds. */
@@ -49,6 +52,100 @@ const REQUEST_ONLY = ['cake', 'pitha', 'achar', 'gift'];
 
 /** Tags the sheet owns, so a mood pill naming one lands there instead. */
 const DIET_KEYS = DIETS.map((d) => d.key);
+
+/**
+ * The other three things the app sells.
+ *
+ * Search used to see dishes and kitchens, which is two of five. A customer
+ * typing "achar" was told the app has none while a shop three streets away
+ * sold two kinds of it, and "biryani" never surfaced tomorrow's biryani even
+ * with the meal sitting on the board. That is not a missing feature — it is
+ * the search telling the customer something untrue about the catalogue.
+ *
+ * Kept separate from `runSearch` rather than folded into it: that function
+ * exists to be re-run with one constraint lifted at a time, and its cost is
+ * the reason the empty state can explain itself. These three lists are ranked
+ * against the query and nothing else, so they do not need to take part in
+ * that, and folding them in would multiply the work the relaxation loop does
+ * by four for no answer it could give.
+ */
+function searchExtras({ meals, stores, products, query, kmOf, filters, area }) {
+  const matcher = makeMatcher(query);
+  if (!matcher) return { meals: [], stores: [], products: [] };
+
+  const byRank = (a, b) => a.rank - b.rank || (a.km ?? Infinity) - (b.km ?? Infinity);
+  const inArea = (row) => area === 'all' || row.area === area;
+
+  /* ---- tomorrow's meals ---- */
+  const mealRows = [];
+  for (const meal of meals) {
+    if (meal.status !== 'published') continue;
+    if (!inArea(meal)) continue;
+
+    const away = kmOf(meal);
+    if (!deliversTo(meal, away)) continue;
+
+    const rank = matcher.rank({
+      name: meal.title,
+      tags: [meal.slot, meal.area],
+      text: meal.description,
+    });
+    if (rank === RANK.NONE) continue;
+    mealRows.push({ meal, km: away, rank });
+  }
+
+  /* ---- shops ---- */
+  const storeRows = [];
+  const storeById = new Map(stores.map((s) => [String(s.id), s]));
+  for (const store of stores) {
+    if (!store.isOpen || !inArea(store)) continue;
+    if (filters.freeDelivery && !store.freeDeliveryOver && store.deliveryFee) continue;
+
+    const away = kmOf(store);
+    if (!deliversTo(store, away)) continue;
+
+    const rank = matcher.rank({
+      name: store.name,
+      tags: [store.area],
+      text: `${store.tagline ?? ''} ${store.description ?? ''}`,
+    });
+    if (rank === RANK.NONE) continue;
+    storeRows.push({ store, km: away, rank });
+  }
+
+  /* ---- things on a shelf ---- */
+  const band = priceBand(filters.price);
+  const productRows = [];
+  for (const product of products) {
+    if (!product.active) continue;
+    if (product.price < band.min || product.price > band.max) continue;
+    /* A pre-order is a request the cook has to accept, not a thing on a
+       shelf. Somebody who turned this off wants what they can have today. */
+    if (filters.includePreorder === false && product.preorder) continue;
+
+    /* A product is only reachable through its shop, so a shop that is shut,
+       out of range or outside the chosen area takes its shelf with it. */
+    const store = storeById.get(String(product.storeId));
+    if (!store || !store.isOpen || !inArea(store)) continue;
+
+    const away = kmOf(store);
+    if (!deliversTo(store, away)) continue;
+
+    const rank = matcher.rank({
+      name: product.name,
+      tags: [store.name, store.area],
+      text: product.description,
+    });
+    if (rank === RANK.NONE) continue;
+    productRows.push({ product, store, km: away, rank });
+  }
+
+  return {
+    meals: mealRows.sort(byRank),
+    stores: storeRows.sort(byRank),
+    products: productRows.sort(byRank),
+  };
+}
 
 /**
  * One pass of the whole pipeline.
@@ -84,6 +181,7 @@ function runSearch({ chefs, dishIndex, query, filter, area, filters, kmOf }) {
     if (area !== 'all' && chef.area !== area) return false;
     if (openOnly && !isOpenNow(chef)) return false;
     if (minRating > 0 && !(chef.rating >= minRating)) return false;
+    if (filters.verifiedOnly && !chef.isVerified) return false;
     return true;
   };
 
@@ -218,9 +316,10 @@ function interleaveByKitchen(rows) {
 export default function BrowseScreen() {
   const chefs = useChefs();
   const menus = useMenus();
-  const { t, n } = useLang();
+  const { t, n, lang } = useLang();
   const { account, isSignedIn } = useAuth();
-  const { taxonomy } = useCommerce();
+  const shop = useCommerce();
+  const { taxonomy } = shop;
   const { colors, shadow } = useTheme();
   const r = useResponsive();
   const router = useRouter();
@@ -261,12 +360,16 @@ export default function BrowseScreen() {
      enough that the kitchens below stay reachable without a long scroll. */
   const [dishLimit, setDishLimit] = useState(PAGE);
   const [kitchenLimit, setKitchenLimit] = useState(PAGE);
+  /* Meals, shops and shelf items share one limit: three short sections that
+     each hold a handful, rather than three separate "see more" states. */
+  const [extraLimit, setExtraLimit] = useState(PAGE);
 
   // A new query is a new list; carrying an expanded limit into it would drop
   // someone into the middle of results they have not seen the top of.
   useEffect(() => {
     setDishLimit(PAGE);
     setKitchenLimit(PAGE);
+    setExtraLimit(PAGE);
   }, [query, filter, area, filters]);
 
   /**
@@ -370,7 +473,68 @@ export default function BrowseScreen() {
     return { ...main, relaxations: scored };
   }, [chefs, dishIndex, kmOf, query, filter, area, filters]);
 
-  const total = dishes.length + kitchens.length;
+  /**
+   * Names worth offering while the word is still half-typed.
+   *
+   * Built from `draft`, not `query` — the whole point is to answer before the
+   * debounce that the results wait for, so the box responds on the keystroke
+   * rather than 180ms after the last one.
+   *
+   * Prefix matches only, and deliberately: the ranked list below already
+   * forgives spelling, transliterates Bengali and tolerates typos. A dropdown
+   * that did the same would offer "Fuchka" to somebody typing "fu" and mean
+   * three different things by it. This is a completion, so it completes.
+   */
+  const suggestions = useMemo(() => {
+    const typed = draft.trim().toLowerCase();
+    // Two letters is where a prefix stops matching most of the catalogue.
+    if (typed.length < 2) return [];
+
+    const seen = new Set();
+    const out = [];
+
+    const offer = (text, kind, label, icon) => {
+      const key = String(text ?? '').trim();
+      if (!key || out.length >= 6) return;
+      const lower = key.toLowerCase();
+      if (lower === typed || seen.has(lower)) return;
+      if (!lower.startsWith(typed)) return;
+      seen.add(lower);
+      out.push({ text: key, kind, label, icon });
+    };
+
+    /* Dishes first: a query that names food is what this box is mostly for.
+       Then the things you could put in a basket, then who sells them. */
+    for (const { dish } of dishIndex) offer(dish.name, 'dish', 'Dish', 'utensils');
+    for (const product of shop.products) offer(product.name, 'product', 'Shop item', 'cart');
+    for (const meal of shop.meals) offer(meal.title, 'meal', 'Meal', 'pot');
+    for (const chef of chefs) offer(chef.name, 'kitchen', 'Kitchen', 'chefHat');
+    for (const store of shop.stores) offer(store.name, 'store', 'Shop', 'box');
+
+    return out;
+  }, [draft, dishIndex, chefs, shop.products, shop.meals, shop.stores]);
+
+  /** Meals, shops and shop goods — the rest of what the app sells. */
+  const extras = useMemo(
+    () =>
+      searchExtras({
+        meals: shop.meals,
+        stores: shop.stores,
+        products: shop.products,
+        query,
+        kmOf,
+        filters,
+        area,
+      }),
+    [shop.meals, shop.stores, shop.products, query, kmOf, filters, area],
+  );
+
+  const total =
+    dishes.length +
+    kitchens.length +
+    extras.meals.length +
+    extras.stores.length +
+    extras.products.length;
 
   /* Remembered once the typing stops and the query turned out to lead
      somewhere -- a term that found nothing is not worth offering back. */
@@ -380,6 +544,37 @@ export default function BrowseScreen() {
     const handle = setTimeout(() => remember(term), 1200);
     return () => clearTimeout(handle);
   }, [query, total, remember]);
+
+  /**
+   * Tell the platform what was looked for.
+   *
+   * Deliberately *including* the searches that found nothing — those are the
+   * whole point. A term searched forty times in Uttara that returns zero
+   * every time is a cook to recruit, and it is written down nowhere else: the
+   * customer who found nothing places no order, so no other collection on the
+   * platform ever hears they were here.
+   *
+   * Fire-and-forget, after the same pause that gates the search itself, so
+   * one word is one row rather than one row per keystroke.
+   */
+  const recorded = useRef(new Set());
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2 || !hasServer) return undefined;
+
+    const handle = setTimeout(() => {
+      const key = `${term.toLowerCase()}:${total}`;
+      if (recorded.current.has(key)) return;
+      recorded.current.add(key);
+
+      call('/search-terms', {
+        method: 'POST',
+        body: { term, results: total, area: account?.area ?? null },
+      }).catch(() => {});
+    }, 1400);
+
+    return () => clearTimeout(handle);
+  }, [query, total, account?.area]);
 
   /**
    * The chip row, read from the platform's category list rather than a
@@ -511,6 +706,75 @@ export default function BrowseScreen() {
             </Pressable>
           ) : null}
         </View>
+
+        {/* ---- What you might mean ----
+            Offered while the word is still half-typed, from names already in
+            memory. The value is not saving keystrokes so much as showing the
+            catalogue: somebody who types "bir" and sees "Kacchi Biryani" and
+            "Beef Biryani" learns what is here, which an empty box never
+            teaches. Names only, never a result — tapping one runs the search
+            it spells, so the ranked list below is still what decides. */}
+        {suggestions.length ? (
+          <View
+            style={[
+              {
+                marginBottom: 10,
+                borderRadius: radius.md,
+                backgroundColor: colors.surfaceSolid,
+                borderWidth: 1,
+                borderColor: colors.line,
+                overflow: 'hidden',
+              },
+              shadow.sm,
+            ]}
+          >
+            {suggestions.map((row, i) => (
+              <Pressable
+                key={`${row.kind}-${row.text}`}
+                accessibilityRole="button"
+                onPress={() => {
+                  setDraft(row.text);
+                  setQuery(row.text);
+                  remember(row.text);
+                }}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  paddingVertical: 11,
+                  paddingHorizontal: 14,
+                  backgroundColor: pressed ? colors.sunken : 'transparent',
+                  borderTopWidth: i === 0 ? 0 : 1,
+                  borderTopColor: colors.line2,
+                })}
+              >
+                <Icon name={row.icon} size={14} color={colors.textLight} />
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flex: 1,
+                    fontFamily: font.ui,
+                    fontSize: type.sm + 1,
+                    color: colors.text,
+                  }}
+                >
+                  {row.text}
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: font.uiBold,
+                    fontSize: 10,
+                    letterSpacing: 0.6,
+                    textTransform: 'uppercase',
+                    color: colors.textLight,
+                  }}
+                >
+                  {t(row.label)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
 
         <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
           <Pressable
@@ -798,6 +1062,98 @@ export default function BrowseScreen() {
           </View>
         ) : null}
 
+        {/* ---- Meals somebody is cooking for a named day ----
+            Above the shops because a meal expires: it is cooked once, for one
+            sitting, and a customer who scrolls past it has missed it. A jar
+            of achar will still be there tomorrow. */}
+        {extras.meals.length ? (
+          <View style={{ marginBottom: 32 }}>
+            <ResultLabel
+              text={t(extras.meals.length === 1 ? '{n} meal' : '{n} meals', {
+                n: n(extras.meals.length),
+              })}
+              note={t('Booked ahead')}
+            />
+            <View style={{ gap: 12 }}>
+              {extras.meals.slice(0, extraLimit).map(({ meal, km }, i) => (
+                <Reveal key={meal.id} delay={(i % 5) + 1}>
+                  <ExtraResult
+                    title={meal.title}
+                    subtitle={serviceLabel(meal, t, lang)}
+                    image={meal.image}
+                    price={meal.price}
+                    km={km}
+                    onPress={() => router.push(`/meals/${meal.id}`)}
+                  />
+                </Reveal>
+              ))}
+            </View>
+            <SeeMore
+              remaining={extras.meals.length - extraLimit}
+              onPress={() => setExtraLimit((v) => v + STEP)}
+            />
+          </View>
+        ) : null}
+
+        {/* ---- Things on a shelf ----
+            The gap this whole section exists to close: "achar" used to return
+            nothing while two shops sold it. */}
+        {extras.products.length ? (
+          <View style={{ marginBottom: 32 }}>
+            <ResultLabel
+              text={t(extras.products.length === 1 ? '{n} shop item' : '{n} shop items', {
+                n: n(extras.products.length),
+              })}
+            />
+            <View style={{ gap: 12 }}>
+              {extras.products.slice(0, extraLimit).map(({ product, store, km }, i) => (
+                <Reveal key={product.id} delay={(i % 5) + 1}>
+                  <ExtraResult
+                    title={product.name}
+                    subtitle={store.name}
+                    image={product.images?.[0]}
+                    price={product.price}
+                    km={km}
+                    onPress={() => router.push(`/product/${product.id}`)}
+                  />
+                </Reveal>
+              ))}
+            </View>
+            <SeeMore
+              remaining={extras.products.length - extraLimit}
+              onPress={() => setExtraLimit((v) => v + STEP)}
+            />
+          </View>
+        ) : null}
+
+        {/* ---- The shops themselves ---- */}
+        {extras.stores.length ? (
+          <View style={{ marginBottom: 32 }}>
+            <ResultLabel
+              text={t(extras.stores.length === 1 ? '{n} shop' : '{n} shops', {
+                n: n(extras.stores.length),
+              })}
+            />
+            <View style={{ gap: 12 }}>
+              {extras.stores.slice(0, extraLimit).map(({ store, km }, i) => (
+                <Reveal key={store.id} delay={(i % 5) + 1}>
+                  <ExtraResult
+                    title={store.name}
+                    subtitle={store.tagline || store.area}
+                    image={store.logo}
+                    km={km}
+                    onPress={() => router.push(`/stores/${store.id}`)}
+                  />
+                </Reveal>
+              ))}
+            </View>
+            <SeeMore
+              remaining={extras.stores.length - extraLimit}
+              onPress={() => setExtraLimit((v) => v + STEP)}
+            />
+          </View>
+        ) : null}
+
         {/* ---- Then the kitchens they come from ---- */}
         {kitchens.length ? (
           <>
@@ -992,6 +1348,89 @@ export default function BrowseScreen() {
  * more or seventy — that is what decides between tapping and searching.
  * Renders nothing once the section is fully shown.
  */
+/**
+ * One row for a meal, a shop or something on a shelf.
+ *
+ * Three result types, one row, because they are three answers to the same
+ * question and a customer scanning results should not have to learn three
+ * layouts to read them. What differs is carried in the subtitle — a serving
+ * time, a shop name, a tagline — which is the one line that says *why this
+ * row is this kind of thing*.
+ *
+ * `DishResult` above stays its own component: a dish carries a rating and a
+ * kitchen and is the densest row on the screen, and flattening it into this
+ * would cost the three simple cases more than it saved the one complex one.
+ */
+function ExtraResult({ title, subtitle, image, price, km, onPress }) {
+  const { colors, shadow } = useTheme();
+  const { t, n } = useLang();
+  const away = formatDistance(km, t, n);
+
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={title}
+      onPress={onPress}
+      style={({ pressed }) => [
+        {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          padding: 10,
+          borderRadius: radius.lg,
+          backgroundColor: colors.surfaceSolid,
+          borderWidth: 1,
+          borderColor: pressed ? colors.primary200 : colors.line,
+        },
+        shadow.xs,
+      ]}
+    >
+      {image ? (
+        <Image
+          source={{ uri: image }}
+          contentFit="cover"
+          transition={200}
+          style={{ width: 58, height: 58, borderRadius: 16, backgroundColor: colors.sunken }}
+        />
+      ) : (
+        <Placeholder name={title} height={58} radius={16} style={{ width: 58 }} />
+      )}
+
+      <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+        <Text
+          numberOfLines={1}
+          style={{ fontFamily: font.displayBold, fontSize: 15.5, color: colors.text }}
+        >
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text
+            numberOfLines={1}
+            style={{ fontFamily: font.ui, fontSize: type.xs + 1, color: colors.textMuted }}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
+        {away ? (
+          <Text
+            style={{
+              fontFamily: font.uiBold,
+              fontSize: 10,
+              color: colors.sage,
+              fontVariant: ['tabular-nums'],
+            }}
+          >
+            {away}
+          </Text>
+        ) : null}
+      </View>
+
+      {typeof price === 'number' ? <Price size={17}>৳{n(price)}</Price> : null}
+      <Icon name="chevronRight" size={15} color={colors.textLight} />
+    </Pressable>
+  );
+}
+
 function SeeMore({ remaining, onPress }) {
   const { colors } = useTheme();
   const { t, n } = useLang();

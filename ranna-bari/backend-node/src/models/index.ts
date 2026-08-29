@@ -626,6 +626,42 @@ const zoneSchema = new Schema(
 
 export const Zone = model('Zone', zoneSchema);
 
+/**
+ * What people looked for, and whether they found it.
+ *
+ * A search that returns nothing is the most useful row a marketplace
+ * produces. "kacchi, 40 times, Uttara, no results" is not a bug report — it
+ * is a list of which cook to recruit and where, and it exists nowhere else:
+ * the customer who found nothing leaves without placing an order, so no other
+ * collection ever hears about them.
+ *
+ * Deliberately thin. `customerKey` is stored so one person hammering the same
+ * word cannot look like demand, and for nothing else — there is no session,
+ * no device, no trail. A term is kept as typed *and* normalised, because the
+ * spelling somebody reached for is itself worth reading.
+ */
+const searchTermSchema = new Schema(
+  {
+    /** As typed, trimmed. */
+    term: { type: String, required: true },
+    /** Lower-cased and stripped, so spellings of one word group together. */
+    normalised: { type: String, required: true, index: true },
+    /** How many rows the app had to show. Zero is the interesting case. */
+    results: { type: Number, default: 0, index: true },
+    /** Where the searcher was, when they were willing to say. */
+    area: { type: String, default: null, index: true },
+    /** Only to tell one person searching twice from two people searching. */
+    customerKey: { type: String, default: null },
+  },
+  opts,
+);
+
+/* The demand report groups by term and filters to the empty ones. */
+searchTermSchema.index({ normalised: 1, createdAt: -1 });
+searchTermSchema.index({ results: 1, createdAt: -1 });
+
+export const SearchTerm = model('SearchTerm', searchTermSchema);
+
 const settingSchema = new Schema(
   {
     _id: { type: String },
