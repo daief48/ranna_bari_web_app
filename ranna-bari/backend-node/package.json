@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "seed:local": "tsx scripts/seed-local.ts",
     "check:sessions": "tsx scripts/check-sessions.ts",
-    "routes": "tsx scripts/routes.ts"
+    "routes": "tsx scripts/routes.ts",
+    "dev:local": "tsx scripts/dev-local.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",
