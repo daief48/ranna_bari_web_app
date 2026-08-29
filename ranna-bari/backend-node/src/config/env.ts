@@ -1,6 +1,28 @@
 import { z } from 'zod';
 
 /**
+ * Load `.env`, if there is one.
+ *
+ * Node reads no such file on its own, and a `.env` that nothing reads is
+ * worse than no `.env` at all — it documents variables that are not set and
+ * fails somewhere far from the cause. `npm run dev` threw on a missing
+ * MONGODB_URI that was sitting in the file the whole time.
+ *
+ * `loadEnvFile` throws when the file is absent, which is the normal case in
+ * production: there the variables come from the platform, and the catch is
+ * the intended path rather than an error being swallowed.
+ *
+ * It runs at module scope so it has happened before anything calls
+ * `loadEnv()`, and real environment variables still win — the platform's
+ * configuration must beat a file somebody left in the image.
+ */
+try {
+  process.loadEnvFile();
+} catch {
+  /* No .env. The environment is expected to be set already. */
+}
+
+/**
  * The environment, validated once at boot.
  *
  * A missing secret should stop the process on the first line, not surface as
