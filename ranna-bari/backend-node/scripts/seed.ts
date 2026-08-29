@@ -255,7 +255,18 @@ export async function seed() {
   const menus = readJson<MenuDoc[]>('menus.json');
   const reviews = readJson<ReviewDoc[]>('reviews.json');
 
-  const kitchens: { id: string; legacyId: number; name: string; area: string }[] = [];
+  /* Carries the kitchen's location and reach, because the meals below need
+     both and reading them back out of Mongo per meal would be a query for
+     something this loop already has in hand. */
+  const kitchens: {
+    id: string;
+    legacyId: number;
+    name: string;
+    area: string;
+    lat: number;
+    lng: number;
+    deliveryRadiusKm: number;
+  }[] = [];
   const dishesByKitchen = new Map<string, { id: string; name: string; price: number; image: string }[]>();
 
   for (const chef of chefs) {
@@ -311,6 +322,9 @@ export async function seed() {
       legacyId: chef.id,
       name: kitchen.name,
       area: kitchen.area,
+      lat: chef.lat,
+      lng: chef.lng,
+      deliveryRadiusKm: chef.deliveryRadiusKm,
     });
 
     const menu = menus.find((m) => m.chefId === chef.id);
@@ -373,13 +387,32 @@ export async function seed() {
   /* ---- stores and products ---- */
 
   const SHELVES = [['Pickles & achar', '🫙'], ['Frozen', '🧊'], ['Sweets', '🍮'], ['Spice mixes', '🌶']];
-  const GOODS: [string, number, string][] = [
-    ['Aam er achar (500g)', 320, 'Sun-cured green mango pickle, mustard oil, no preservative.'],
-    ['Boroi er achar (400g)', 280, 'Sweet-sour jujube pickle, the way it is made at home.'],
-    ['Frozen beef samosa (12)', 420, 'Hand-folded, freeze them flat and fry from frozen.'],
-    ['Nolen gur sandesh (8)', 480, 'Date-palm jaggery, made the week the gur arrives.'],
-    ['Garam masala (100g)', 260, 'Whole spices, roasted and ground to order.'],
-    ['Nokshi pitha box (6)', 400, 'Patterned rice cakes, made for the winter season.'],
+  /*
+   * Name, price, description, photograph.
+   *
+   * The photograph is the fourth column rather than something added later,
+   * because a shop of unphotographed jars is not a shop anybody browses. The
+   * screens have always drawn a lettered placeholder for a product with no
+   * picture — that is the right thing for a cook who has not uploaded one
+   * yet, and the wrong thing for every product in the seed at once, which
+   * reads as a broken page rather than as an empty one.
+   *
+   * Same source and same crop as the dish photographs in `menus.json`, so a
+   * shelf and a menu sit next to each other without one looking borrowed.
+   */
+  const GOODS: [string, number, string, string][] = [
+    ['Aam er achar (500g)', 320, 'Sun-cured green mango pickle, mustard oil, no preservative.',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Mango_Pickle_Home_Made_Style.JPG/960px-Mango_Pickle_Home_Made_Style.JPG'],
+    ['Boroi er achar (400g)', 280, 'Sweet-sour jujube pickle, the way it is made at home.',
+      'https://upload.wikimedia.org/wikipedia/commons/9/91/Indian_pickles.jpg'],
+    ['Frozen beef samosa (12)', 420, 'Hand-folded, freeze them flat and fry from frozen.',
+      'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=800&h=800&fit=crop'],
+    ['Nolen gur sandesh (8)', 480, 'Date-palm jaggery, made the week the gur arrives.',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/Nolen_Jaggery_Sandesh.jpg/960px-Nolen_Jaggery_Sandesh.jpg'],
+    ['Garam masala (100g)', 260, 'Whole spices, roasted and ground to order.',
+      'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=800&h=800&fit=crop'],
+    ['Nokshi pitha box (6)', 400, 'Patterned rice cakes, made for the winter season.',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Nakshi_Pitha_%28%E0%A6%A8%E0%A6%95%E0%A6%B6%E0%A7%80_%E0%A6%AA%E0%A6%BF%E0%A6%A0%E0%A6%BE%29.jpg/960px-Nakshi_Pitha_%28%E0%A6%A8%E0%A6%95%E0%A6%B6%E0%A7%80_%E0%A6%AA%E0%A6%BF%E0%A6%A0%E0%A6%BE%29.jpg'],
   ];
 
   let productCount = 0;
@@ -419,7 +452,7 @@ export async function seed() {
     const shelf = Array.from({ length: GOODS.length }, (_, k) => GOODS[(offset + k) % GOODS.length]!);
     const listing = shelf.slice(0, between(4, GOODS.length));
 
-    for (const [name, price, description] of listing) {
+    for (const [name, price, description, photo] of listing) {
       /* A handful land at zero stock while still active — exactly the row the
          stock alarm exists to surface, and it has to exist to test. */
       const stock = chance(0.22) ? 0 : between(3, 60);
@@ -428,6 +461,9 @@ export async function seed() {
         categoryId: String(pick(shelves)._id),
         name,
         description,
+        /* An array, because a product may carry several and the screens page
+           through them. One is what a real cook uploads to begin with. */
+        images: [photo],
         price,
         stock,
         active: chance(0.9),
@@ -478,9 +514,25 @@ export async function seed() {
         deadline,
         handover: chance(0.25) ? 'pickup' : 'delivery',
         area: kitchen.area,
-        lat: 23.75,
-        lng: 90.38,
-        deliveryRadiusKm: 5,
+        /*
+         * The kitchen's own location and reach, not a fixed point.
+         *
+         * These were hard-coded to one spot in Dhanmondi with a 5km radius,
+         * which meant every meal in the database claimed to be cooked in the
+         * same building. The board filters on `distance <= deliveryRadiusKm`,
+         * so the effect was not subtle: a customer in Banani measured 7.5km
+         * to *every* meal — including the ones cooked in Banani — and the
+         * board told them no cook was planning anything near them, while the
+         * server was returning thirty-three meals it thought were fine.
+         *
+         * The meal carries its own copy rather than reading through to the
+         * kitchen because a meal is a promise made on a day: a cook who later
+         * moves, or narrows how far they will travel, must not silently
+         * change the terms of a plate somebody already booked.
+         */
+        lat: kitchen.lat,
+        lng: kitchen.lng,
+        deliveryRadiusKm: kitchen.deliveryRadiusKm,
         status: past ? pick(['closed', 'published', 'closed']) : 'published',
       });
 

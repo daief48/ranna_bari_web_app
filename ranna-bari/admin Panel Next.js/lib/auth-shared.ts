@@ -28,11 +28,31 @@ export type Session = {
   role: Role;
 };
 
+/**
+ * The operator realm's secret — one value, shared with the backend.
+ *
+ * The panel used to sign its own sessions with its own `AUTH_SECRET`, which
+ * was fine while it was the only thing that had operators. It is not fine
+ * now: the backend issues the session at sign-in, verifies it on every admin
+ * request, and authenticates the chat socket with it. Two secrets meant a
+ * token minted by one side was gibberish to the other, and the live desk went
+ * quiet because of exactly that.
+ *
+ * So `ADMIN_AUTH_SECRET` is read first and is the name the backend uses,
+ * which makes the sharing legible rather than a coincidence of two variables
+ * that happen to match. `AUTH_SECRET` stays as the fallback so an existing
+ * deployment does not fail to boot on the way to being reconfigured.
+ *
+ * The two realms the backend keeps apart — operator and app account — are
+ * still apart: this is the operator one, and `APP_AUTH_SECRET` is never it.
+ */
 export function sessionSecret(): Uint8Array {
-  const value = process.env.AUTH_SECRET;
+  const value = process.env.ADMIN_AUTH_SECRET || process.env.AUTH_SECRET;
   if (!value || value.length < 32) {
     throw new Error(
-      'AUTH_SECRET is missing or too short. Set a 32+ character secret in .env.',
+      'ADMIN_AUTH_SECRET is missing or too short. Set the backend’s own ' +
+        'ADMIN_AUTH_SECRET here — the panel and the backend share the ' +
+        'operator realm, and a session signed by one must verify on the other.',
     );
   }
   return new TextEncoder().encode(value);

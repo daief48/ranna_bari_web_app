@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-import { signIn, createSession, setSessionCookie } from '@/lib/auth';
+import { signIn, setSessionCookie } from '@/lib/auth';
 import { ThemeToggle } from '@/components/ui/client';
 import { BTN } from '@/components/ui';
 
@@ -66,7 +66,10 @@ export default async function LoginPage({
       redirect(`/login?${query.toString()}`);
     }
 
-    await setSessionCookie(await createSession(out.session));
+    /* The backend's own token, verbatim. Re-signing it here would put the
+       two sides back out of step — and this cookie is also what the socket
+       relay presents upstream. */
+    await setSessionCookie(out.token);
     // Only same-origin paths, so a crafted ?next= cannot bounce someone off
     // the panel to an attacker's page after a successful sign-in.
     redirect(next.startsWith('/') && !next.startsWith('//') ? next : '/');

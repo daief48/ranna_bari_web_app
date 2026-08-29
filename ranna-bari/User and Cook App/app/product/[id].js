@@ -16,7 +16,7 @@ import Icon from '../../src/components/Icon';
 import Button from '../../src/components/Button';
 import { Body, Heading, Price } from '../../src/components/Typography';
 import { EmptyState, errorText } from '../../src/components/MealBits';
-import { QtyStepper, StockPill, Placeholder } from '../../src/components/StoreBits';
+import { QtyStepper, Skeleton, StockPill, Placeholder } from '../../src/components/StoreBits';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
@@ -43,8 +43,26 @@ export default function ProductScreen() {
      fetched. `ensureProduct` brings the shop with it, because availability
      is a reading of the two together. */
   const { ensureProduct } = shop;
+
+  /*
+   * `asked` separates "not here yet" from "not here".
+   *
+   * On a cold open — a shared link, a reload — nothing has been fetched when
+   * this first renders, and the guard below used to read that as a deleted
+   * product and say so. A real product, in stock, telling the customer it is
+   * no longer listed for as long as the request took. Only a settled request
+   * makes an empty lookup mean anything.
+   */
+  const [asked, setAsked] = useState(false);
   useEffect(() => {
-    ensureProduct(String(id));
+    let alive = true;
+    setAsked(false);
+    Promise.resolve(ensureProduct(String(id))).finally(() => {
+      if (alive) setAsked(true);
+    });
+    return () => {
+      alive = false;
+    };
   }, [id, ensureProduct]);
 
   const product = shop.productById(String(id));
@@ -66,6 +84,22 @@ export default function ProductScreen() {
   );
 
   if (!product || !store) {
+    /* Still asking. The shape of the page that is coming — gallery, title,
+       price — so nothing jumps when it arrives. */
+    if (!asked) {
+      return (
+        <Screen>
+          <Container style={{ paddingTop: 30, gap: 16 }}>
+            <Skeleton height={300} round={20} />
+            <Skeleton height={24} width="70%" />
+            <Skeleton height={18} width="35%" />
+            <Skeleton height={14} width="90%" />
+            <Skeleton height={14} width="60%" />
+          </Container>
+        </Screen>
+      );
+    }
+
     return (
       <Screen>
         <Container style={{ paddingTop: 30 }}>

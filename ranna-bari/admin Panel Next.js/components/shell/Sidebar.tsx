@@ -237,22 +237,67 @@ export function Sidebar({
           open ? 'translate-x-0' : '-translate-x-full'
         } ${rail ? 'lg:w-[64px]' : 'lg:w-[232px]'}`}
       >
-        {/* Aligned to the top bar's 57px so the two hairlines read as one. */}
+        {/*
+         * The header, and the collapse control.
+         *
+         * Aligned to the top bar's 57px so the two hairlines read as one.
+         *
+         * The control used to live in a footer strip at the very bottom —
+         * the corner every browser fills with its own chrome, a download
+         * bar, a status tooltip, Next's dev indicator — and it spent most of
+         * its life underneath one of them. It belongs beside the thing it
+         * collapses.
+         *
+         * Two shapes, because 64px of rail will not hold a 32px logo and a
+         * button next to it. Wide: logo, wordmark, chevron on the right.
+         * Railed: the logo *is* the button — one target, the branding stays,
+         * and the hover state is what says it is pressable.
+         */}
         <div
           className={`flex h-[57px] shrink-0 items-center gap-2.5 border-b border-line px-3.5 ${
             rail ? 'lg:justify-center lg:px-0' : ''
           }`}
         >
+          <button
+            type="button"
+            onClick={toggleRail}
+            aria-label="Expand navigation"
+            title="Expand navigation  ["
+            /* Only in the rail. Wide, the logo is not a control — there is a
+               chevron for that, and a brand mark that silently does something
+               is a trap. */
+            className={`group relative hidden shrink-0 rounded-[8px] ${rail ? 'lg:block' : ''}`}
+          >
+            <img
+              src="/logo.png"
+              alt="RannaBari"
+              className="h-8 w-8 object-contain rounded-[8px] border border-line bg-raised shadow-xs dark:hidden"
+            />
+            <img
+              src="/logo-dark.png"
+              alt="RannaBari"
+              className="hidden h-8 w-8 object-contain rounded-[8px] border border-line bg-raised shadow-xs dark:block"
+            />
+            <span className="absolute inset-0 flex items-center justify-center rounded-[8px] bg-raised/90 text-ink2 opacity-0 transition-opacity group-hover:opacity-100">
+              <Icon d={CHEVRON_RIGHT} />
+            </span>
+          </button>
+
           <img
             src="/logo.png"
             alt="RannaBari"
-            className="h-8 w-8 shrink-0 object-contain rounded-[8px] border border-line bg-raised shadow-xs dark:hidden"
+            className={`h-8 w-8 shrink-0 object-contain rounded-[8px] border border-line bg-raised shadow-xs dark:hidden ${
+              rail ? 'lg:hidden' : ''
+            }`}
           />
           <img
             src="/logo-dark.png"
             alt="RannaBari"
-            className="h-8 w-8 shrink-0 object-contain rounded-[8px] border border-line bg-raised shadow-xs hidden dark:block"
+            className={`hidden h-8 w-8 shrink-0 object-contain rounded-[8px] border border-line bg-raised shadow-xs dark:block ${
+              rail ? 'lg:dark:hidden' : ''
+            }`}
           />
+
           <div className={`min-w-0 ${rail ? 'lg:hidden' : ''}`}>
             <div className="flex items-center">
               <span className="font-display text-[15px] leading-none font-bold tracking-[-0.02em] text-ink">
@@ -266,6 +311,18 @@ export function Sidebar({
               Operator console
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={toggleRail}
+            aria-label="Collapse navigation"
+            title="Collapse navigation  ["
+            className={`ml-auto hidden size-7 shrink-0 items-center justify-center rounded-[8px] text-ink3 transition-colors hover:bg-sunken hover:text-ink ${
+              rail ? '' : 'lg:flex'
+            }`}
+          >
+            <Icon d={CHEVRON_LEFT} />
+          </button>
         </div>
 
         <nav className="flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-2.5 py-4">
@@ -358,26 +415,6 @@ export function Sidebar({
           })}
         </nav>
 
-        <div className="shrink-0 border-t border-line p-2.5">
-          <button
-            type="button"
-            onClick={toggleRail}
-            aria-label={rail ? 'Expand navigation' : 'Collapse navigation'}
-            className={`hidden w-full items-center gap-2.5 rounded-[10px] px-2.5 py-[7px] text-[12.5px] font-medium text-ink3 transition-colors hover:bg-sunken hover:text-ink lg:flex ${
-              rail ? 'lg:justify-center lg:px-0' : ''
-            }`}
-          >
-            <Icon d={rail ? CHEVRON_RIGHT : CHEVRON_LEFT} />
-            <span className={rail ? 'lg:hidden' : ''}>Collapse</span>
-            <kbd
-              className={`ml-auto rounded-[5px] border border-line bg-sunken px-1.5 py-px font-sans text-[10.5px] font-semibold text-ink3 ${
-                rail ? 'lg:hidden' : ''
-              }`}
-            >
-              [
-            </kbd>
-          </button>
-        </div>
       </aside>
     </>
   );

@@ -23,6 +23,7 @@ import {
   CategoryTabs,
   ProductCard,
   ProductGridSkeleton,
+  Skeleton,
   StockPill,
 } from '../../src/components/StoreBits';
 import { useTheme } from '../../src/theme/ThemeProvider';
@@ -55,8 +56,27 @@ export default function StoreScreen() {
   /* The directory carries the shop; the shelves are a second request,
      made when somebody actually walks in. */
   const { ensureStore } = shop;
+
+  /*
+   * `asked` is the difference between "not here yet" and "not here".
+   *
+   * This screen is reachable by link, so on a cold open the fetch has not
+   * happened when it first renders and `storeById` is empty — which used to
+   * fall straight through to "That shop is no longer listed". A real shop,
+   * open, with a full shelf, announcing itself as delisted for as long as the
+   * network took. Only once the request has settled does an absent shop mean
+   * an absent shop.
+   */
+  const [asked, setAsked] = useState(false);
   useEffect(() => {
-    ensureStore(String(id));
+    let alive = true;
+    setAsked(false);
+    Promise.resolve(ensureStore(String(id))).finally(() => {
+      if (alive) setAsked(true);
+    });
+    return () => {
+      alive = false;
+    };
   }, [id, ensureStore]);
 
   const store = shop.storeById(String(id));
@@ -78,6 +98,21 @@ export default function StoreScreen() {
   }, [shop, store, category]);
 
   if (!store) {
+    /* Still asking. The shelf skeleton rather than a spinner, because it is
+       the shape of what is coming and the page does not jump when it lands. */
+    if (!asked) {
+      return (
+        <Screen>
+          <Container style={{ paddingTop: 30, gap: 16 }}>
+            <Skeleton height={190} round={20} />
+            <Skeleton height={22} width="60%" />
+            <Skeleton height={14} width="40%" />
+            <ProductGridSkeleton count={4} />
+          </Container>
+        </Screen>
+      );
+    }
+
     return (
       <Screen>
         <Container style={{ paddingTop: 30 }}>
