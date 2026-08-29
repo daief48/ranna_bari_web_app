@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
-import { Redirect, Tabs } from 'expo-router';
+import { Redirect, Tabs, useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -43,14 +43,25 @@ function AppBar({ state, descriptors, navigation }) {
   const { colors, shadow, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { count } = useCart();
-  const { account } = useAuth();
-  const { orders } = useCommerce();
+  const { account, isCookMode } = useAuth();
+  const { orders, unreadFor } = useCommerce();
+  const router = useRouter();
   const { t, n: num } = useLang();
 
   const key = customerKeyOf(account);
   const toConfirm = orders.filter(
     (o) => o.customerKey === key && o.status === 'delivered',
   ).length;
+
+  /* Unread notification count — local first, will pick up server count on
+     the next render after CommerceContext fetches from the server. */
+  const audience = isCookMode ? 'cook' : 'customer';
+  const unreadCount = unreadFor(audience) ?? 0;
+
+  const goNotifications = useCallback(() => {
+    Haptics.selectionAsync().catch(() => {});
+    router.push('/notifications');
+  }, [router]);
 
   return (
     <View
@@ -185,6 +196,72 @@ function AppBar({ state, descriptors, navigation }) {
               </Pressable>
             );
           })}
+
+          {/* Notification bell — sits inside the flex row alongside tabs,
+              but navigates to /notifications (a stack screen) on press. */}
+          <Pressable
+            id="navbar-notifications-btn"
+            accessibilityRole="button"
+            accessibilityLabel={unreadCount > 0 ? t('{n} unread notifications', { n: num(unreadCount) }) : t('Notifications')}
+            onPress={goNotifications}
+            style={({ pressed }) => ({
+              alignItems: 'center',
+              gap: 4,
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              borderRadius: 16,
+              transform: [{ scale: pressed ? 0.92 : 1 }],
+            })}
+          >
+            <View>
+              <Icon
+                name="bell"
+                size={20}
+                color={unreadCount > 0 ? colors.primary : colors.textMuted}
+                strokeWidth={unreadCount > 0 ? 2.1 : 1.75}
+              />
+              {unreadCount > 0 ? (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: -5,
+                    right: -7,
+                    minWidth: 16,
+                    height: 16,
+                    paddingHorizontal: 4,
+                    borderRadius: 8,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.primary,
+                    borderWidth: 1.5,
+                    borderColor: colors.canvas,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: font.uiBold,
+                      fontSize: 9,
+                      lineHeight: 11,
+                      color: '#FFFFFF',
+                    }}
+                  >
+                    {num(unreadCount > 99 ? 99 : unreadCount)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <Text
+              numberOfLines={1}
+              style={{
+                fontFamily: font.uiSemi,
+                fontSize: 9,
+                letterSpacing: 0.1,
+                color: unreadCount > 0 ? colors.primary : colors.textMuted,
+              }}
+            >
+              {t('Alerts')}
+            </Text>
+          </Pressable>
         </View>
       </BlurView>
     </View>

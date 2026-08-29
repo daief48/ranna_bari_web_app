@@ -1,6 +1,7 @@
 import React from 'react';
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
@@ -14,6 +15,7 @@ import { NAVBAR_HEIGHT, NAVBAR_TOP } from './Navbar';
 import { APP_BAR_CLEARANCE } from './Screen';
 import { useTheme } from '../theme/ThemeProvider';
 import { useKitchen } from '../store/KitchenContext';
+import { useCommerce } from '../store/CommerceContext';
 import { useLang } from '../i18n/LanguageContext';
 import { font, radius } from '../theme/tokens';
 
@@ -31,9 +33,12 @@ import { font, radius } from '../theme/tokens';
 export function CookNavbar() {
   const { colors, shadow, isDark, toggle } = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { kitchen, toggleOpen } = useKitchen();
+  const { unreadFor } = useCommerce();
   const { t } = useLang();
 
+  const unreadCount = unreadFor('cook') ?? 0;
   const open = !!kitchen?.isOpen;
 
   return (
@@ -123,6 +128,54 @@ export function CookNavbar() {
             {/* The way back to the shop, reachable from every cook screen. */}
             <ModeSwitch compact />
             <LanguageSwitch />
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('Notifications')}
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+                router.push('/notifications');
+              }}
+              style={({ pressed }) => ({
+                width: 38,
+                height: 38,
+                borderRadius: 13,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: pressed ? colors.sage50 : 'transparent',
+              })}
+            >
+              <Icon name="bell" size={19} color={colors.text} />
+              {unreadCount > 0 ? (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: 2,
+                    right: 2,
+                    minWidth: 16,
+                    height: 16,
+                    paddingHorizontal: 4,
+                    borderRadius: 8,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.primary,
+                    borderWidth: 1.5,
+                    borderColor: colors.canvas,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: font.uiBold,
+                      fontSize: 9,
+                      lineHeight: 11,
+                      color: '#FFFFFF',
+                    }}
+                  >
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              ) : null}
+            </Pressable>
 
             <Pressable
               accessibilityRole="button"

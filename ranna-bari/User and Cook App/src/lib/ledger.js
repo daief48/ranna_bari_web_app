@@ -225,6 +225,8 @@ export const unreadFor = (state, audience) =>
   state.notifications.filter((nt) => nt.audience === audience && !nt.read).length;
 
 export function markRead(state, { audience }) {
+  const hasUnread = state.notifications.some((nt) => nt.audience === audience && !nt.read);
+  if (!hasUnread) return done(state, null);
   return done(
     {
       ...state,

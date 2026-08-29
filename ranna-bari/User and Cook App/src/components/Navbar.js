@@ -10,6 +10,8 @@ import Icon from './Icon';
 import ModeSwitch from './ModeSwitch';
 import LanguageSwitch from './LanguageSwitch';
 import { useTheme } from '../theme/ThemeProvider';
+import { useAuth } from '../store/AuthContext';
+import { useCommerce } from '../store/CommerceContext';
 import { font, radius } from '../theme/tokens';
 
 /** Height of the bar itself, from `.navbar .container { height: 58px }`. */
@@ -83,7 +85,7 @@ function NavIcon({ name, onPress, active, badge, accessibilityLabel }) {
               color: '#FFFFFF',
             }}
           >
-            {badge}
+            {badge > 99 ? '99+' : badge}
           </Text>
         </View>
       ) : null}
@@ -98,6 +100,11 @@ export default function Navbar() {
   const { colors, shadow, isDark, toggle } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isCookMode } = useAuth();
+  const { unreadFor } = useCommerce();
+
+  const audience = isCookMode ? 'cook' : 'customer';
+  const unreadCount = unreadFor(audience) ?? 0;
 
   return (
     <View
@@ -151,6 +158,12 @@ export default function Navbar() {
             {/* Cook mode switch if eligible */}
             <ModeSwitch />
             <LanguageSwitch />
+            <NavIcon
+              name="bell"
+              badge={unreadCount}
+              accessibilityLabel="Notifications"
+              onPress={() => router.push('/notifications')}
+            />
             <NavIcon
               name={isDark ? 'sun' : 'moon'}
               accessibilityLabel={

@@ -9,7 +9,7 @@
  * send from and no device token to send to. These are the same events a push
  * notification would carry, delivered where they can be: in the app.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -84,13 +84,16 @@ export default function NotificationsScreen() {
   /* Opening the list is reading it. Marking on unmount instead would leave a
      badge sitting over a screen the person is looking at. */
   const { markRead } = meals;
+  const markedAudienceRef = useRef(null);
   useEffect(() => {
+    if (markedAudienceRef.current === audience) return;
+    markedAudienceRef.current = audience;
     markRead(audience);
     /* Also mark read on the server */
     if (isVerified && hasServer) {
       api('/notifications/read', { method: 'POST', token, body: {} }).catch(() => {});
     }
-  }, [markRead, audience, isVerified, token]);
+  }, [audience, isVerified, token, markRead]);
 
   const open = (nt) => {
     if (nt.orderId) {

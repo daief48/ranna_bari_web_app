@@ -476,7 +476,7 @@ export function CommerceProvider({ children }) {
    */
   const mutate = useCallback((fn, args) => {
     const out = fn(live.current, { ...args, now: Date.now() });
-    if (out.ok) {
+    if (out.ok && out.state !== live.current) {
       live.current = out.state;
       setState(out.state);
     }
