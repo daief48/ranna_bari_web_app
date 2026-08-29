@@ -1126,6 +1126,7 @@ export const bn = {
   'Your shop': 'আপনার দোকান',
   'Home shops': 'ঘরোয়া দোকান',
   'That photo could not be saved. Try again.': 'ছবিটি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
+  'RannaBari — your kitchen': 'রান্নাবাড়ি — আপনার রান্নাঘর',
   /* The shop's own pin and reach. */
   'Where the shop is': 'দোকান কোথায়',
   'Customers see this pin and measure delivery from it.': 'ক্রেতারা এই পিন দেখে এবং এখান থেকেই ডেলিভারি মাপা হয়।',

@@ -78,9 +78,38 @@ export function CookNavbar() {
             backgroundColor: colors.glass,
           }}
         >
-          {/* Mark only: the status pill, the mode switch and the theme
-              toggle all have to fit beside it on a 360px phone. */}
-          <Brand size={20} markSize={34} markOnly />
+          {/*
+           * The mark, and a way home.
+           *
+           * It was not pressable, which made it the one logo in the app that
+           * did nothing — the customer bar has gone home on a tap since it
+           * was written, and a cook four screens into their menu had to find
+           * the Today tab instead.
+           *
+           * Home here is `/cook`, the cook's own Today, not the shop. The
+           * utensils pill two along already crosses to the customer side and
+           * says so; a logo that did the same thing silently would be a
+           * second, unlabelled door to somewhere a cook mostly does not mean
+           * to go.
+           *
+           * `replace` rather than `push`: the panel is a tab group, and
+           * pushing Today on top of Menu leaves a back gesture that returns
+           * to where the tap was meant to escape.
+           *
+           * Mark only, because the status pill, the mode switch, the language
+           * and the theme toggle all have to fit beside it on a 360px phone.
+           */}
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={t('RannaBari — your kitchen')}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              router.replace('/cook');
+            }}
+            style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.96 : 1 }] })}
+          >
+            <Brand size={20} markSize={34} markOnly />
+          </Pressable>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
             <Pressable
