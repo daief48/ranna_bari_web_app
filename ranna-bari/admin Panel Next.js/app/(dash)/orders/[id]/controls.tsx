@@ -38,10 +38,18 @@ export function OrderControls({
   canMoney: boolean;
   canDispute: boolean;
 }) {
-  const [cancelReason, setCancelReason] = useState('');
-  const [refundReason, setRefundReason] = useState('');
+  const [cancelReason, setCancelReason] = useState(
+    'Cook unreachable for 20 minutes after confirming.',
+  );
+  /* Short on purpose — this one shares its row with the amount box. */
+  const [refundReason, setRefundReason] = useState('Delivered cold, 50 minutes late.');
+  /* The whole held amount, and never anything else. A partial figure typed by
+     nobody is a decision the operator did not make, and the ledger has no
+     undo — only a second entry pointing the other way. */
   const [refundAmount, setRefundAmount] = useState(String(amount));
-  const [disputeReason, setDisputeReason] = useState('');
+  const [disputeReason, setDisputeReason] = useState(
+    'Customer says two of the four boxes were missing at handover; the cook says all four went out.',
+  );
 
   const input =
     'w-full rounded-[10px] border border-line bg-canvas px-2.5 py-1.5 text-[12.5px] outline-none placeholder:text-ink3 focus:border-primary-200';

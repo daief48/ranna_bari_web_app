@@ -1,7 +1,21 @@
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { isValidElement, type ReactNode } from 'react';
 
 import { taka } from '@/lib/format';
+
+/*
+ * A note on the cascade, because it explains several choices below.
+ *
+ * globals.css writes `.card`, `.tbl` and `* { border-color }` outside any
+ * @layer, and an unlayered declaration outranks everything Tailwind emits into
+ * @layer utilities — specificity never gets a look in. So `hover:bg-*` on a
+ * `.card`, `text-right` on a `.tbl` header, and `border-<tone>` anywhere at all
+ * are dropped on the floor with no error.
+ *
+ * Where a tone or a state has to win, it is therefore carried by a property
+ * nothing unlayered claims — a ring, a filled span, or an inline style —
+ * rather than by a utility that would silently lose.
+ */
 
 /* ------------------------------------------------------------------ *
  * layout
@@ -29,6 +43,25 @@ export function PageHeader({
   );
 }
 
+/**
+ * How far off the page a surface sits.
+ *
+ * 1 is the panel's resting card and the default everywhere; 2 is for a surface
+ * that overlaps another; 3 is for something that floats over the whole screen.
+ * 0 is a card that is really a container — a filter strip, a well.
+ */
+export type Elevation = 0 | 1 | 2 | 3;
+
+/* `.card` already carries `--shadow-xs`, and being unlayered it outranks any
+   `shadow-*` utility, so anything other than the resting level has to be set
+   from the style attribute. The values are tokens, not shadows. */
+const ELEVATION: Record<Elevation, string | undefined> = {
+  0: 'none',
+  1: undefined,
+  2: 'var(--shadow-sm)',
+  3: 'var(--shadow-md)',
+};
+
 export function Card({
   children,
   className = '',
@@ -36,6 +69,7 @@ export function Card({
   subtitle,
   actions,
   pad = true,
+  elevation = 1,
 }: {
   children: ReactNode;
   className?: string;
@@ -43,9 +77,14 @@ export function Card({
   subtitle?: ReactNode;
   actions?: ReactNode;
   pad?: boolean;
+  elevation?: Elevation;
 }) {
+  const shadow = ELEVATION[elevation];
   return (
-    <section className={`card overflow-hidden ${className}`}>
+    <section
+      className={`card overflow-hidden ${className}`}
+      style={shadow ? { boxShadow: shadow } : undefined}
+    >
       {title || actions ? (
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
           <div className="min-w-0">
@@ -71,8 +110,38 @@ export function Grid({ cols = 4, children }: { cols?: number; children: ReactNod
   return <div className={`grid grid-cols-1 gap-3 ${map[cols] ?? map[4]}`}>{children}</div>;
 }
 
+/**
+ * The filter row above a table.
+ *
+ * Every module was hand-rolling a flex wrapper with its own gap and its own
+ * margin, so no two pages lined their controls up on the same baseline.
+ */
+export function Toolbar({
+  children,
+  right,
+  className = '',
+}: {
+  children: ReactNode;
+  right?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`mb-3 flex flex-wrap items-center gap-2 rounded-sm border border-line bg-raised px-2.5 py-2 ${className}`}
+    >
+      {children}
+      {right ? <div className="ml-auto flex flex-wrap items-center gap-2">{right}</div> : null}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ *
- * stat tiles
+ * tone — the legend, in one place
+ *
+ *   vermilion  destructive, and money leaving
+ *   sage       healthy, settled, paid
+ *   saffron    needs a human — ageing escrow, pending KYC, stock at zero
+ *   ink3       inert, closed, nothing to do
  * ------------------------------------------------------------------ */
 
 export type Tone = 'neutral' | 'good' | 'warn' | 'bad' | 'info';
@@ -85,30 +154,215 @@ const TONE_TEXT: Record<Tone, string> = {
   info: 'text-geo',
 };
 
+/** Solid tone — dots, meter fills, the edge of a stat tile. */
+const TONE_FILL: Record<Tone, string> = {
+  neutral: 'bg-ink3',
+  good: 'bg-sage',
+  warn: 'bg-saffron',
+  bad: 'bg-primary',
+  info: 'bg-geo',
+};
+
+/** The same tone at wash strength, for a fill something has to be read over. */
+const TONE_SOFT: Record<Tone, string> = {
+  neutral: 'bg-ink3/25',
+  good: 'bg-sage-100',
+  warn: 'bg-saffron-100',
+  bad: 'bg-primary-100',
+  info: 'bg-geo/25',
+};
+
+const TONE_WASH: Record<Tone, string> = {
+  neutral: 'from-transparent',
+  good: 'from-sage-50',
+  warn: 'from-saffron-50',
+  bad: 'from-primary-50',
+  info: 'from-geo/10',
+};
+
+/* A line drawn in `text-ink` is heavier than the number beside it, so the
+   neutral sparkline and the flat delta step back to ink3 instead. */
+const TONE_LINE: Record<Tone, string> = {
+  neutral: 'text-ink3',
+  good: 'text-sage',
+  warn: 'text-saffron',
+  bad: 'text-primary',
+  info: 'text-geo',
+};
+
+/* ------------------------------------------------------------------ *
+ * stat tiles
+ * ------------------------------------------------------------------ */
+
+/**
+ * A trend line small enough to sit inside a stat tile.
+ *
+ * Forty pixels of SVG. Reaching for recharts at this size would ship a chart
+ * library to draw eleven line segments with no axis, no tooltip and no legend.
+ */
+export function Sparkline({
+  data,
+  tone = 'neutral',
+  width = 40,
+  height = 14,
+  className = '',
+}: {
+  data: number[];
+  tone?: Tone;
+  width?: number;
+  height?: number;
+  className?: string;
+}) {
+  if (!data || data.length < 2) return null;
+
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  // A flat series would divide by zero; drawn down the middle it reads as flat,
+  // which is the truth.
+  const span = max - min || 1;
+  const pad = 1.5; // room for the stroke, so a peak is not clipped
+  const step = (width - pad * 2) / (data.length - 1);
+  const x = (i: number) => pad + i * step;
+  const y = (v: number) => pad + (height - pad * 2) * (1 - (v - min) / span);
+  const points = data.map((v, i) => `${x(i).toFixed(2)},${y(v).toFixed(2)}`).join(' ');
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      fill="none"
+      aria-hidden
+      focusable="false"
+      className={`shrink-0 ${TONE_LINE[tone]} ${className}`}
+    >
+      <polyline
+        points={points}
+        stroke="currentColor"
+        strokeWidth={1.25}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* The last point is the one being asked about. */}
+      <circle
+        cx={x(data.length - 1)}
+        cy={y(data[data.length - 1])}
+        r={1.6}
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function DeltaTag({
+  delta,
+  label,
+  good,
+}: {
+  delta: number;
+  label?: ReactNode;
+  good: 'up' | 'down';
+}) {
+  const flat = !Number.isFinite(delta) || delta === 0;
+  const up = delta > 0;
+  // Which way is healthy is not always up: a rising dispute count in sage
+  // would be the legend saying the opposite of what it means.
+  const tone: Tone = (up ? good === 'up' : good === 'down') ? 'good' : 'bad';
+  const magnitude = Math.abs(delta);
+  const text = label ?? `${Number.isInteger(magnitude) ? magnitude : magnitude.toFixed(1)}%`;
+
+  return (
+    <span
+      className={`tnum inline-flex items-center gap-0.5 font-semibold ${
+        flat ? 'text-ink3' : TONE_TEXT[tone]
+      }`}
+    >
+      <span aria-hidden>{flat ? '·' : up ? '↑' : '↓'}</span>
+      <span className="sr-only">{flat ? 'flat' : up ? 'up' : 'down'} </span>
+      {text}
+    </span>
+  );
+}
+
 export function Stat({
   label,
   value,
   sub,
   tone = 'neutral',
   href,
+  delta,
+  deltaLabel,
+  deltaGood = 'up',
+  spark,
 }: {
   label: string;
   value: ReactNode;
   sub?: ReactNode;
   tone?: Tone;
   href?: string;
+  /** Signed percentage change. Sign picks the arrow; `deltaGood` picks the tone. */
+  delta?: number;
+  /** Replaces the rendered "12%" when the movement is not a percentage. */
+  deltaLabel?: ReactNode;
+  deltaGood?: 'up' | 'down';
+  spark?: number[];
 }) {
+  const tinted = tone !== 'neutral';
+
   const body = (
-    <div className="card h-full p-4 transition-shadow hover:shadow-sm">
-      <div className="label">{label}</div>
-      <div className={`tnum mt-2 font-display text-[24px] leading-none font-bold ${TONE_TEXT[tone]}`}>
-        {value}
+    <div
+      className={`group relative h-full overflow-hidden rounded-sm border border-line bg-raised p-3.5 shadow-xs ${
+        href
+          ? 'transition-[background-color,box-shadow] hover:bg-sunken hover:shadow-sm'
+          : ''
+      }`}
+    >
+      {tinted ? (
+        <>
+          <span
+            aria-hidden
+            className={`pointer-events-none absolute inset-y-0 left-0 w-1/2 bg-linear-to-r to-transparent ${TONE_WASH[tone]}`}
+          />
+          <span aria-hidden className={`absolute inset-y-0 left-0 w-[3px] ${TONE_FILL[tone]}`} />
+        </>
+      ) : null}
+
+      <div className="relative">
+        <div className="flex items-start justify-between gap-2">
+          <div className="label truncate">{label}</div>
+          {href ? (
+            <span
+              aria-hidden
+              className="shrink-0 text-[13px] leading-none text-ink3 opacity-0 transition-opacity group-hover:opacity-100"
+            >
+              →
+            </span>
+          ) : null}
+        </div>
+
+        <div className="mt-2 flex items-end justify-between gap-2">
+          <div
+            className={`tnum font-display text-[24px] leading-none font-bold ${TONE_TEXT[tone]}`}
+          >
+            {value}
+          </div>
+          {spark ? <Sparkline data={spark} tone={tone} className="mb-0.5" /> : null}
+        </div>
+
+        {sub != null || delta !== undefined ? (
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 text-[12px] text-ink2">
+            {delta !== undefined ? (
+              <DeltaTag delta={delta} label={deltaLabel} good={deltaGood} />
+            ) : null}
+            {sub ? <span className="min-w-0">{sub}</span> : null}
+          </div>
+        ) : null}
       </div>
-      {sub ? <div className="mt-1.5 text-[12px] text-ink2">{sub}</div> : null}
     </div>
   );
+
   return href ? (
-    <Link href={href} className="block">
+    <Link href={href} className="block h-full">
       {body}
     </Link>
   ) : (
@@ -126,28 +380,39 @@ export function MoneyStat(props: Omit<Parameters<typeof Stat>[0], 'value'> & { a
  * badges — one legend for the whole panel
  * ------------------------------------------------------------------ */
 
+/* Ring rather than border: `* { border-color: var(--line) }` is unlayered and
+   would repaint every one of these the same hairline grey, which is exactly
+   the failure the legend exists to prevent. */
 const TONE_CHIP: Record<Tone, string> = {
-  neutral: 'bg-sunken text-ink2 border-line',
-  good: 'bg-sage-50 text-sage border-sage-100',
-  warn: 'bg-saffron-50 text-saffron border-saffron-100',
-  bad: 'bg-primary-50 text-primary border-primary-100',
-  info: 'bg-geo/10 text-geo border-geo/20',
+  neutral: 'bg-sunken text-ink2 ring-line',
+  good: 'bg-sage-50 text-sage ring-sage-100',
+  warn: 'bg-saffron-50 text-saffron ring-saffron-100',
+  bad: 'bg-primary-50 text-primary ring-primary-100',
+  info: 'bg-geo/10 text-geo ring-geo/20',
 };
 
 export function Badge({
   children,
   tone = 'neutral',
   title,
+  dot = false,
 }: {
   children: ReactNode;
   tone?: Tone;
   title?: string;
+  /** A tone-coloured dot before the label, for badges read by shape not hue. */
+  dot?: boolean;
 }) {
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${TONE_CHIP[tone]}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ring-1 ring-inset ${
+        dot ? 'gap-1.5' : 'gap-1'
+      } ${TONE_CHIP[tone]}`}
     >
+      {dot ? (
+        <span aria-hidden className={`h-1.5 w-1.5 shrink-0 rounded-full ${TONE_FILL[tone]}`} />
+      ) : null}
       {children}
     </span>
   );
@@ -208,11 +473,21 @@ const STATUS_LABEL: Record<string, string> = {
   'not-selected': 'Not selected',
 };
 
+/**
+ * A status is read a few hundred times an hour, and about one operator in
+ * twelve cannot separate the sage from the vermilion. The dot gives the badge
+ * a second channel — position and shape — so the row is still scannable when
+ * the hue is not doing any work.
+ */
 export function StatusBadge({ status }: { status: string }) {
   const label =
     STATUS_LABEL[status] ??
     status.charAt(0).toUpperCase() + status.slice(1).replace(/[-_]/g, ' ');
-  return <Badge tone={toneForStatus(status)}>{label}</Badge>;
+  return (
+    <Badge tone={toneForStatus(status)} dot>
+      {label}
+    </Badge>
+  );
 }
 
 /* ------------------------------------------------------------------ *
@@ -250,15 +525,49 @@ export function LinkButton({
  * table shells
  * ------------------------------------------------------------------ */
 
-export function Table({ head, children }: { head: ReactNode[]; children: ReactNode }) {
+/**
+ * A header cell with an alignment.
+ *
+ * `head` still takes plain nodes, so nothing that already calls `Table` has to
+ * change; a column that needs its heading over the right-hand edge of its
+ * figures passes an object for that one cell instead.
+ */
+export type HeadCell = {
+  label: ReactNode;
+  align?: 'left' | 'center' | 'right';
+  /** Any CSS width. Pins a column that would otherwise shift row to row. */
+  width?: number | string;
+};
+
+function isHeadCell(cell: ReactNode | HeadCell): cell is HeadCell {
+  return typeof cell === 'object' && cell !== null && !isValidElement(cell) && 'label' in cell;
+}
+
+export function Table({
+  head,
+  children,
+}: {
+  head: (ReactNode | HeadCell)[];
+  children: ReactNode;
+}) {
   return (
     <div className="scroll-x">
       <table className="tbl">
         <thead>
           <tr>
-            {head.map((cell, i) => (
-              <th key={i}>{cell}</th>
-            ))}
+            {head.map((cell, i) => {
+              const col: HeadCell = isHeadCell(cell) ? cell : { label: cell };
+              return (
+                <th
+                  key={i}
+                  // `.tbl thead th { text-align: left }` is unlayered, so a
+                  // `text-right` utility here would never land.
+                  style={{ textAlign: col.align, width: col.width }}
+                >
+                  {col.label}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>{children}</tbody>
@@ -267,17 +576,79 @@ export function Table({ head, children }: { head: ReactNode[]; children: ReactNo
   );
 }
 
-export function Empty({ children }: { children: ReactNode }) {
+/* ------------------------------------------------------------------ *
+ * empty states
+ * ------------------------------------------------------------------ */
+
+/**
+ * Nothing to show, and which kind of nothing it is.
+ *
+ * An empty table is ambiguous by default: a clear queue and a filter that
+ * matches nothing look identical. `tone` says which — sage for good news,
+ * saffron for something a human still has to unstick — and `hint` says what
+ * to do about it.
+ */
+export function Empty({
+  children,
+  icon,
+  title,
+  hint,
+  tone = 'neutral',
+}: {
+  children?: ReactNode;
+  icon?: ReactNode;
+  title?: ReactNode;
+  hint?: ReactNode;
+  tone?: Tone;
+}) {
+  const heading = title ?? children;
+  const note = title ? (hint ?? children) : hint;
+
   return (
-    <div className="px-4 py-12 text-center text-[13px] text-ink3">{children}</div>
+    <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+      {icon ? (
+        <span
+          aria-hidden
+          className={`mb-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-[15px] ${TONE_SOFT[tone]} ${TONE_LINE[tone]}`}
+        >
+          {icon}
+        </span>
+      ) : null}
+      {heading ? (
+        <p
+          className={`max-w-[46ch] text-[13px] font-semibold ${
+            tone === 'neutral' ? 'text-ink2' : TONE_TEXT[tone]
+          }`}
+        >
+          {heading}
+        </p>
+      ) : null}
+      {note ? <p className="max-w-[52ch] text-[12px] leading-relaxed text-ink3">{note}</p> : null}
+    </div>
   );
 }
 
-export function EmptyRow({ span, children }: { span: number; children: ReactNode }) {
+export function EmptyRow({
+  span,
+  children,
+  icon,
+  title,
+  hint,
+  tone = 'neutral',
+}: {
+  span: number;
+  children?: ReactNode;
+  icon?: ReactNode;
+  title?: ReactNode;
+  hint?: ReactNode;
+  tone?: Tone;
+}) {
   return (
     <tr>
-      <td colSpan={span} className="px-4 py-12 text-center text-[13px] text-ink3">
-        {children}
+      <td colSpan={span}>
+        <Empty icon={icon} title={title} hint={hint} tone={tone}>
+          {children}
+        </Empty>
       </td>
     </tr>
   );
@@ -347,19 +718,68 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   );
 }
 
-/** A meter for capacity, stock, fill rate. */
-export function Meter({ value, max, tone = 'info' }: { value: number; max: number; tone?: Tone }) {
-  const pct = max <= 0 ? 0 : Math.min(100, Math.round((value / max) * 100));
-  const fill: Record<Tone, string> = {
-    neutral: 'bg-ink3',
-    good: 'bg-sage',
-    warn: 'bg-saffron',
-    bad: 'bg-primary',
-    info: 'bg-geo',
-  };
+/**
+ * A definition row for a stack of facts.
+ *
+ * `Field` spreads its label and value to opposite edges, which is right for a
+ * wide panel and wrong for a column of six: the values land on six different
+ * left edges and stop being a list. This one holds the label column fixed so
+ * the values line up and can be read down.
+ */
+export function KeyValue({
+  label,
+  children,
+  tone = 'neutral',
+}: {
+  label: ReactNode;
+  children: ReactNode;
+  tone?: Tone;
+}) {
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-sunken" title={`${value} of ${max}`}>
-      <div className={`h-full rounded-full ${fill[tone]}`} style={{ width: `${pct}%` }} />
+    <dl className="grid grid-cols-[minmax(88px,max-content)_1fr] items-baseline gap-x-3 py-[3px]">
+      <dt className="label truncate">{label}</dt>
+      <dd className={`min-w-0 text-[13px] ${TONE_TEXT[tone]}`}>{children}</dd>
+    </dl>
+  );
+}
+
+/** A meter for capacity, stock, fill rate. */
+export function Meter({
+  value,
+  max,
+  tone = 'info',
+  label,
+}: {
+  value: number;
+  max: number;
+  tone?: Tone;
+  /** Overlaid inside the track. The bar grows taller to carry it. */
+  label?: ReactNode;
+}) {
+  const raw = max <= 0 ? 0 : Math.min(100, Math.round((value / max) * 100));
+  // One unit of five hundred rounds to zero and then looks like none at all,
+  // which on a stock column is the difference between "sell it" and "restock".
+  const pct = value > 0 ? Math.max(raw, 2) : raw;
+  const title = `${value} of ${max}`;
+
+  if (!label) {
+    return (
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-sunken" title={title}>
+        <div className={`h-full rounded-full ${TONE_FILL[tone]}`} style={{ width: `${pct}%` }} />
+      </div>
+    );
+  }
+
+  // With text over it the fill drops to wash strength and the label goes to
+  // sumi: tone text on a solid tone fill is under 3:1 either way round, and at
+  // 10.5px the label is the whole point of this variant. The tone is still
+  // carried by the fill, so nothing is only said in colour.
+  return (
+    <div className="relative h-[18px] w-full overflow-hidden rounded-full bg-sunken" title={title}>
+      <div className={`h-full rounded-full ${TONE_SOFT[tone]}`} style={{ width: `${pct}%` }} />
+      <span className="tnum absolute inset-0 flex items-center px-2 text-[10.5px] font-semibold text-ink">
+        {label}
+      </span>
     </div>
   );
 }

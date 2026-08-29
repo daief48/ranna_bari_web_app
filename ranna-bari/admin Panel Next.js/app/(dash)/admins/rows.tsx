@@ -90,9 +90,11 @@ export function AdminRow({
 }
 
 export function NewAdmin() {
-  const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
+  const [email, setEmail] = useState('shirin.akter@rannabari.app');
+  const [name, setName] = useState('Shirin Akter');
   const [role, setRole] = useState<string>('support');
+  /* The one field here that stays empty. A default password is the password
+     the account keeps, and this form mints operators who can move money. */
   const [password, setPassword] = useState('');
 
   return (

@@ -27,6 +27,7 @@ import { useAuth } from '../src/store/AuthContext';
 import { useCommerce } from '../src/store/CommerceContext';
 import { formatOrderDate } from '../src/store/OrdersContext';
 import { useLang } from '../src/i18n/LanguageContext';
+import { DEMO_TOPUP } from '../src/lib/demoData';
 
 /** Round numbers people actually top up with. */
 const PRESETS = [200, 500, 1000, 2000];
@@ -38,7 +39,7 @@ export default function WalletScreen() {
   const { isSignedIn } = useAuth();
   const meals = useCommerce();
 
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(DEMO_TOPUP.amount);
   const [error, setError] = useState(null);
   const [done, setDone] = useState(null);
 

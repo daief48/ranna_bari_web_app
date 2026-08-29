@@ -40,6 +40,7 @@ import {
 import { distanceKm } from '../../../src/lib/geo';
 import { deliversTo } from '../../../src/lib/kitchen';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import { DEMO_MEAL } from '../../../src/lib/demoData';
 
 const PLACEHOLDER =
   'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&h=600&fit=crop';
@@ -52,15 +53,15 @@ export default function NewMeal() {
   const { kitchen } = useKitchen();
   const meals = useCommerce();
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [price, setPrice] = useState('');
-  const [capacity, setCapacity] = useState('');
+  const [title, setTitle] = useState(DEMO_MEAL.title);
+  const [description, setDescription] = useState(DEMO_MEAL.description);
+  const [price, setPrice] = useState(DEMO_MEAL.price);
+  const [capacity, setCapacity] = useState(DEMO_MEAL.capacity);
   const [image, setImage] = useState(PLACEHOLDER);
   const [serveDate, setServeDate] = useState(tomorrowKey());
-  const [slot, setSlot] = useState('lunch');
+  const [slot, setSlot] = useState(DEMO_MEAL.slot);
   const [handover, setHandover] = useState('delivery');
-  const [handoverNote, setHandoverNote] = useState('');
+  const [handoverNote, setHandoverNote] = useState(DEMO_MEAL.handoverNote);
   const [note, setNote] = useState('');
 
   /* The next three days is the whole useful range: this is pre-booking for

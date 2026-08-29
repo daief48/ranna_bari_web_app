@@ -51,6 +51,7 @@ import {
   OtpChallenge,
   Cart,
 } from '../src/models/index.js';
+
 import { post } from '../src/logic/ledger.js';
 import { DEFAULT_FLAGS, DEFAULT_SETTINGS } from '../src/logic/settings.js';
 
@@ -109,7 +110,15 @@ const hashPassword = (password: string) => {
   return `${salt}:${scryptSync(password, salt, 64).toString('hex')}`;
 };
 
-const CUSTOMERS = [
+/**
+ * Forty customers rather than a dozen.
+ *
+ * The number is not cosmetic. A dashboard that means anything needs enough
+ * rows that filters narrow, pagination pages, and a per-cook GMV column has a
+ * distribution rather than four values. Twelve customers produce a database
+ * where every screen fits above the fold and nothing is ever tested.
+ */
+const CUSTOMERS: readonly (readonly [string, string, string])[] = [
   ['Tanvir Ahmed', '+8801711223344', 'Dhanmondi'],
   ['Nusrat Jahan', '+8801812334455', 'Tejgaon'],
   ['Imran Hossain', '+8801913445566', 'Dhanmondi'],
@@ -122,6 +131,34 @@ const CUSTOMERS = [
   ['Tasnim Chowdhury', '+8801510112233', 'Motijheel'],
   ['Jubair Islam', '+8801711334455', 'Old Dhaka'],
   ['Nadia Sultana', '+8801812445566', 'Dhanmondi'],
+  ['Arif Mahmud', '+8801713556677', 'Khilgaon'],
+  ['Sumaiya Haque', '+8801814667788', 'Badda'],
+  ['Rezaul Karim', '+8801915778899', 'Rampura'],
+  ['Ishrat Jahan', '+8801616889900', 'Banasree'],
+  ['Mizanur Rahman', '+8801517990011', 'Baridhara'],
+  ['Sharmin Akhter', '+8801718001122', 'Shyamoli'],
+  ['Habibur Rahman', '+8801819112233', 'Lalmatia'],
+  ['Rumana Begum', '+8801910223344', 'Farmgate'],
+  ['Kamrul Hasan', '+8801611334455', 'Dhanmondi'],
+  ['Sadia Noor', '+8801512445566', 'Uttara'],
+  ['Naimul Islam', '+8801719556677', 'Mirpur'],
+  ['Fahmida Yasmin', '+8801820667788', 'Gulshan'],
+  ['Sohel Rana', '+8801916778899', 'Mohammadpur'],
+  ['Tahmina Sultana', '+8801617889900', 'Banani'],
+  ['Anisur Rahman', '+8801518990011', 'Motijheel'],
+  ['Jannatul Ferdous', '+8801720001122', 'Old Dhaka'],
+  ['Masud Parvez', '+8801821112233', 'Bashundhara'],
+  ['Rehana Parvin', '+8801917223344', 'Tejgaon'],
+  ['Golam Kibria', '+8801618334455', 'Khilgaon'],
+  ['Shirin Akter', '+8801519445566', 'Badda'],
+  ['Tanjil Hossain', '+8801721556677', 'Rampura'],
+  ['Nusaiba Rahman', '+8801822667788', 'Banasree'],
+  ['Faisal Ahmed', '+8801918778899', 'Baridhara'],
+  ['Marium Khatun', '+8801619889900', 'Shyamoli'],
+  ['Ashraful Alam', '+8801520990011', 'Lalmatia'],
+  ['Sabina Yasmin', '+8801722001122', 'Farmgate'],
+  ['Jahangir Alam', '+8801823112233', 'Dhanmondi'],
+  ['Rokeya Begum', '+8801919223344', 'Uttara'],
 ] as const;
 
 const ZONE_NAMES = [
@@ -348,7 +385,7 @@ export async function seed() {
   let productCount = 0;
   const stores: { id: string; kitchenId: string }[] = [];
 
-  for (const kitchen of kitchens.slice(0, 11)) {
+  for (const kitchen of kitchens.slice(0, 16)) {
     const store = await Store.create({
       kitchenId: kitchen.id,
       name: `${kitchen.name.replace(' Kitchen', '')} Pantry`,
@@ -372,7 +409,7 @@ export async function seed() {
       );
     }
 
-    for (let i = 0; i < between(3, 6); i++) {
+    for (let i = 0; i < between(4, 9); i++) {
       const [name, price, description] = GOODS[(productCount + i) % GOODS.length]!;
       /* A handful land at zero stock while still active — exactly the row the
          stock alarm exists to surface, and it has to exist to test. */
@@ -604,7 +641,7 @@ export async function seed() {
   };
 
   // COD — the legacy rail.
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 130; i++) {
     const kitchen = pick(kitchens);
     const dishes = dishesByKitchen.get(kitchen.id) ?? [];
     if (!dishes.length) continue;
@@ -631,7 +668,7 @@ export async function seed() {
 
   // Meals — escrow.
   for (const meal of meals) {
-    for (let i = 0; i < between(0, 5); i++) {
+    for (let i = 0; i < between(0, 9); i++) {
       const createdAt = daysAgo(between(0, 6));
       const status = pick([...ESCROW, 'completed', 'completed', 'delivered', 'cancelled']);
       await makeOrder({
@@ -656,7 +693,7 @@ export async function seed() {
 
   // Store orders, including pre-orders still waiting on a cook.
   const allProducts = await Product.find({ active: true }).lean();
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 130; i++) {
     const product = pick(allProducts);
     const store = stores.find((s) => s.id === product.storeId);
     if (!store) continue;
@@ -737,6 +774,359 @@ export async function seed() {
     }
   }
   console.log(`· ${await LedgerEntry.countDocuments()} ledger entries, ${topUpCount} top-ups`);
+
+  /* ---- food requests, offers, and real negotiations ---- */
+
+  const WANTS: readonly (readonly [string, string, number, string])[] = [
+    ['Two-pound chocolate truffle cake', 'Birthday on Friday evening. Dark chocolate, not too sweet, "Happy Birthday Ammu" on top.', 2400, 'cake'],
+    ['Iftar platter for 20 people', 'Office iftar. Piyaju, beguni, chola, jilapi, dates and lemon sharbat.', 6000, 'iftar'],
+    ['Homemade nokshi pitha, 3 dozen', 'For a family gathering. The patterned kind, not the plain ones.', 1800, 'pitha'],
+    ['Sugar-free sandesh for a diabetic', 'My father cannot have sugar. Nolen gur is fine if it is unsweetened otherwise.', 900, 'sweet'],
+    ['Beef tehari for 15, office lunch', 'Needs to arrive by 1pm sharp on Thursday, packed individually.', 4500, 'biryani'],
+    ['Aam er achar, 2kg, no oil floating', 'The way my grandmother made it. Ready within two weeks is fine.', 1200, 'achar'],
+    ['Eid gift boxes, 10 sets', 'Sweets and dry snacks, wrapped. Something presentable for colleagues.', 5000, 'gift'],
+    ['Shorshe ilish for six', 'Proper hilsa, mustard paste, not a curry with fish in it.', 3200, 'seafood'],
+    ['Mezban beef for 30, Chittagong style', 'Family reunion. It has to be the real thing, not a Dhaka approximation.', 9000, 'meat'],
+    ['Diabetic-friendly lunch, daily for a month', 'My mother, low carb, low oil. Delivered by noon each weekday.', 12000, 'healthy'],
+    ['Kacchi biryani for 50, wedding', 'Gaye holud lunch. Basmati, mutton, proper alu, borhani on the side.', 22000, 'biryani'],
+    ['Bhapa pitha and chitoi, winter box', 'Twenty of each, with kheer and gur separately.', 1600, 'pitha'],
+  ];
+
+  const OFFER_NOTES = [
+    'I can do this. I make it every week.',
+    'Happy to cook it — I would need a day of notice.',
+    'This is my speciality. Free delivery if you are within 3km.',
+    'Can do, but I would use a slightly different cut.',
+    'Yes. I can deliver by the time you need it.',
+    'I have done this exact order before. Photos if you want them.',
+  ];
+
+  let offerCount = 0;
+  let negotiationCount = 0;
+
+  for (const [index, [title, description, budget, category]] of WANTS.entries()) {
+    const customer = pick(customers as never as { customerKey: string; area: string }[]);
+    const broadcast = index % 5 !== 3;
+
+    /* One broadcast is deliberately left reaching nobody — every eligible
+       kitchen was shut or out of range. That empty `eligible` array is a
+       coverage bug, and the requests board is where it becomes visible. */
+    const deadReach = index === 6;
+    const eligible = deadReach
+      ? []
+      : broadcast
+        ? kitchens.filter(() => chance(0.4)).map((k) => k.id)
+        : [kitchens[index % kitchens.length]!.id];
+
+    const createdAt = daysAgo(between(0, 10));
+    const request = await Request.create({
+      code: code('RQ'),
+      customerKey: customer.customerKey,
+      title,
+      description,
+      quantity: 1,
+      budget,
+      target: broadcast ? 'all' : kitchens[index % kitchens.length]!.id,
+      eligible,
+      wantedFor: dayKey(new Date(Date.now() + between(1, 8) * DAY)),
+      category,
+      area: customer.area,
+      status: 'open',
+      createdAt,
+    });
+
+    const responders = eligible.slice(0, between(0, Math.min(5, eligible.length)));
+    const made: { id: string; kitchenId: string; price: number | null }[] = [];
+
+    for (const kitchenId of responders) {
+      const kitchen = kitchens.find((k) => k.id === kitchenId)!;
+      const priced = chance(0.8);
+      const price = priced ? Math.round(budget * (0.75 + rnd() * 0.5)) : null;
+      const at = new Date(createdAt.getTime() + between(10, 600) * 60_000);
+
+      const offer = await Offer.create({
+        requestId: String(request._id),
+        kitchenId,
+        cookName: kitchen.name,
+        status: priced ? 'priced' : 'interested',
+        price,
+        note: pick(OFFER_NOTES),
+        prepTime: pick(['same day', '1 day', '2 days']),
+        /* Every price either side names is appended with who said it. Nothing
+           is ever overwritten — whose turn it is falls out of this, so it
+           cannot disagree with it. */
+        history: price ? [{ by: 'cook', amount: price, at: at.toISOString() }] : [],
+        createdAt: at,
+      });
+      made.push({ id: String(offer._id), kitchenId, price });
+      offerCount++;
+    }
+
+    /* Push some through selection and haggling, so the negotiation view has a
+       real back-and-forth to render rather than a single price. */
+    const priced = made.filter((o) => o.price != null);
+    if (priced.length && index % 3 === 0) {
+      const chosen = priced[0]!;
+      const first = chosen.price!;
+      const counter = Math.round(first * 0.88);
+      const settled = Math.round((first + counter) / 2);
+      const t0 = new Date(createdAt.getTime() + 2 * 3600_000);
+
+      const agreed = index % 6 === 0;
+      const history = [
+        { by: 'cook', amount: first, at: new Date(t0.getTime() - 3600_000).toISOString() },
+        { by: 'customer', amount: counter, at: t0.toISOString() },
+        ...(agreed
+          ? [{ by: 'cook', amount: settled, at: new Date(t0.getTime() + 1800_000).toISOString() }]
+          : []),
+      ];
+
+      await Offer.updateOne(
+        { _id: chosen.id },
+        {
+          status: agreed ? 'agreed' : 'negotiating',
+          agreedPrice: agreed ? settled : null,
+          history,
+        },
+      );
+      await Offer.updateMany(
+        { requestId: String(request._id), _id: { $ne: chosen.id } },
+        { status: 'not-selected' },
+      );
+      await Request.updateOne(
+        { _id: request._id },
+        { status: agreed ? 'agreed' : 'selected', selectedOfferId: chosen.id },
+      );
+      negotiationCount++;
+
+      // One agreed request goes all the way through to a paid order.
+      if (agreed && index === 0) {
+        const order = await makeOrder({
+          kind: 'meal',
+          kitchenId: chosen.kitchenId,
+          title,
+          subtotal: settled,
+          amount: settled,
+          status: 'preparing',
+          createdAt: new Date(t0.getTime() + 7200_000),
+        });
+        await Order.updateOne({ _id: order._id }, { kind: 'request', requestId: String(request._id) });
+        await Request.updateOne(
+          { _id: request._id },
+          { status: 'ordered', orderId: String(order._id) },
+        );
+      }
+    }
+  }
+  console.log(`· ${WANTS.length} requests, ${offerCount} offers, ${negotiationCount} negotiations`);
+
+  /* ---- chat ---- */
+
+  const SUPPORT_OPENERS = [
+    ['Where is my order?', ['My order said delivered an hour ago but nothing arrived.', 'I waited outside for twenty minutes.']],
+    ['Wrong item delivered', ['I ordered mutton bhuna and got beef curry.', 'The packing slip says mutton.']],
+    ['Refund not received', ['You cancelled my order on Tuesday and the money is still not in my wallet.']],
+    ['Cannot mark my kitchen open', ['The toggle flips back to closed every time. Android, latest build.']],
+    ['Payout question', ['I was paid 4,200 but my earnings page said 4,850. Where did the rest go?']],
+  ] as const;
+
+  const SUPPORT_REPLIES = [
+    'Looking into it now — give me two minutes.',
+    'I can see the rider marked it delivered at the gate. Refunding you now.',
+    'Thank you for the photos, that is clearly the wrong dish. Sorted.',
+    'That is the platform commission — the breakdown is on your earnings page.',
+  ];
+
+  let threadCount = 0;
+  let messageCount = 0;
+
+  for (const [index, [subject, lines]] of SUPPORT_OPENERS.entries()) {
+    const customer = pick(customers as never as { customerKey: string; name: string }[]);
+    const openedAt = daysAgo(between(0, 6));
+
+    const thread = await ChatThread.create({
+      code: code('CH'),
+      kind: 'support',
+      customerKey: customer.customerKey,
+      kitchenId: null,
+      openedBy: 'customer',
+      subject,
+      status: index === 4 ? 'closed' : 'open',
+      closedAt: index === 4 ? daysAgo(1) : null,
+      closedBy: index === 4 ? 'support@rannabari.app' : null,
+      lastMessageAt: openedAt,
+      createdAt: openedAt,
+    });
+    threadCount++;
+
+    const messages: { senderType: string; senderRef: string | null; senderName: string; body: string; at: Date }[] = [];
+    for (const [i, line] of lines.entries()) {
+      messages.push({
+        senderType: 'customer',
+        senderRef: customer.customerKey,
+        senderName: customer.name,
+        body: line,
+        at: new Date(openedAt.getTime() + i * 60_000),
+      });
+    }
+    // The desk answers all but one, so the inbox opens with work in it.
+    if (index !== 2) {
+      messages.push({
+        senderType: 'admin',
+        senderRef: 'support@rannabari.app',
+        senderName: 'Sadia Noor',
+        body: pick(SUPPORT_REPLIES),
+        at: new Date(openedAt.getTime() + 15 * 60_000),
+      });
+    }
+
+    for (const [i, m] of messages.entries()) {
+      await ChatMessage.create({
+        threadId: String(thread._id),
+        senderType: m.senderType,
+        senderRef: m.senderRef,
+        senderName: m.senderName,
+        body: m.body,
+        clientId: `seed:${String(thread._id)}:${i}`,
+        sentAt: m.at,
+        readByCustomerAt: m.senderType === 'customer' ? m.at : null,
+        readByAdminAt: m.senderType === 'admin' ? m.at : null,
+      });
+      messageCount++;
+    }
+
+    const last = messages[messages.length - 1]!;
+    await ChatThread.updateOne(
+      { _id: thread._id },
+      {
+        lastMessageAt: last.at,
+        lastMessageBody: last.body.slice(0, 140),
+        lastMessageFrom: last.senderType,
+        unreadAdmin: last.senderType === 'customer' ? 1 : 0,
+        unreadCustomer: last.senderType === 'admin' ? 1 : 0,
+      },
+    );
+  }
+
+  /* A few order threads, so the desk sees cook↔customer conversations too. */
+  const chatty = await Order.find({ status: { $in: ['preparing', 'delivering', 'delivered'] } }).limit(6);
+  for (const order of chatty) {
+    const thread = await ChatThread.create({
+      code: code('CH'),
+      kind: 'order',
+      orderId: String(order._id),
+      customerKey: order.customerKey,
+      kitchenId: order.kitchenId,
+      openedBy: 'customer',
+      subject: `${order.code} · ${order.title}`,
+      lastMessageAt: order.createdAt,
+      createdAt: order.createdAt,
+    });
+    threadCount++;
+
+    const exchange = [
+      ['customer', order.customerKey, order.customerName, 'Could you make it less spicy please?'],
+      ['cook', order.kitchenId, order.cookName, 'No problem, mild it is. Going on now.'],
+    ] as const;
+
+    for (const [i, [side, ref, name, body]] of exchange.entries()) {
+      const at = new Date(order.createdAt.getTime() + (i + 1) * 300_000);
+      await ChatMessage.create({
+        threadId: String(thread._id),
+        senderType: side,
+        senderRef: ref,
+        senderName: name,
+        body,
+        clientId: `seed:${String(thread._id)}:${i}`,
+        sentAt: at,
+      });
+      messageCount++;
+      await ChatThread.updateOne(
+        { _id: thread._id },
+        { lastMessageAt: at, lastMessageBody: body, lastMessageFrom: side },
+      );
+    }
+  }
+  console.log(`· ${threadCount} chat threads, ${messageCount} messages`);
+
+  /* ---- one paid payout run, so the ledger has money leaving ---- */
+
+  const { cookBalances } = await import('../src/logic/ledger.js');
+  const owed = (await cookBalances()).filter((row) => row.amount >= DEFAULT_SETTINGS.payoutMinimum);
+
+  /* Half of what is owed, so the payouts page still has work in it. A seed
+     that pays everybody leaves an empty screen. */
+  const paying = owed.slice(0, Math.ceil(owed.length / 2));
+
+  if (paying.length) {
+    const kitchenNames = new Map(kitchens.map((k) => [k.id, k.name]));
+    const total = paying.reduce((sum, row) => sum + row.amount, 0);
+
+    const run = await PayoutRun.create({
+      code: code('PR'),
+      status: 'paid',
+      method: 'bKash',
+      total,
+      cookCount: paying.length,
+      createdBy: 'finance@rannabari.app',
+      paidAt: daysAgo(2),
+      paidBy: 'finance@rannabari.app',
+    });
+
+    for (const row of paying) {
+      await PayoutItem.create({
+        payoutRunId: String(run._id),
+        kitchenId: row.kitchenId,
+        kitchenName: kitchenNames.get(row.kitchenId) ?? row.kitchenId,
+        amount: row.amount,
+      });
+      /* `cook` → `external`: the money has left the platform. reconcile()
+         accounts for this as `expected.cook = releases - payouts`. */
+      await tx((session) =>
+        post(session, {
+          kind: 'payout',
+          amount: row.amount,
+          from: 'cook',
+          to: 'external',
+          fromRef: row.kitchenId,
+          payoutRunId: String(run._id),
+          idemKey: `payout:${String(run._id)}:${row.kitchenId}`,
+          note: `Payout ${run.code} via bKash`,
+        }),
+      );
+    }
+    console.log(`· 1 payout run — ${paying.length} cooks, ${total} taka`);
+  }
+
+  /* ---- notifications ---- */
+
+  const NOTICES: readonly (readonly ['customer' | 'cook', string, string, string])[] = [
+    ['customer', 'order-completed', 'Payment released', 'Your payment has gone to the kitchen.'],
+    ['customer', 'confirm-receipt', 'Did your food arrive?', 'Confirm you received it to complete the order.'],
+    ['customer', 'meal-published', 'New meal near you', 'Shorshe Ilish from Fatema B. — 520 taka.'],
+    ['customer', 'refund', 'Refunded', 'The money is back in your wallet.'],
+    ['cook', 'order-confirmed', 'New confirmed order', 'A customer confirmed a meal. Prepare 2.'],
+    ['cook', 'request-new', 'New food request', 'Somebody is looking for a birthday cake. Name your price.'],
+    ['cook', 'preorder-new', 'New pre-order request', 'Accept or decline within a day.'],
+    ['cook', 'payment-released', 'You have been paid', 'Your earnings have been sent via bKash.'],
+  ];
+
+  let noticeCount = 0;
+  for (const [audience, kind, title, body] of NOTICES) {
+    for (let i = 0; i < between(2, 5); i++) {
+      await Notification.create({
+        key: `${audience}:${kind}:${code('N')}`,
+        audience,
+        kind,
+        title,
+        body,
+        read: chance(0.5),
+        at: daysAgo(between(0, 10)),
+      });
+      noticeCount++;
+    }
+  }
+  console.log(`· ${noticeCount} notifications`);
 
   /* ---- deliberately unhealthy rows ---- */
 

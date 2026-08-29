@@ -13,7 +13,14 @@ import { ActionButton } from '@/components/ui/client';
  * a disagreement rather than a match.
  */
 export function ReconcileRow({ id, amount }: { id: string; amount: number }) {
+  /* Blank on purpose, alone among the fields on this desk. The reference is
+     copied off the provider's statement and is the entire attestation that the
+     money arrived; a default one would let a credit be stamped `matched`
+     against a payment nobody went and looked for. The placeholder carries the
+     shape, which is the most this screen honestly knows. */
   const [ref, setRef] = useState('');
+  /* The credited amount, so the common case is one paste and one click.
+     Anything else typed here is the operator saying the two disagree. */
   const [value, setValue] = useState(String(amount));
 
   const input =
@@ -24,7 +31,7 @@ export function ReconcileRow({ id, amount }: { id: string; amount: number }) {
       <input
         value={ref}
         onChange={(e) => setRef(e.target.value)}
-        placeholder="BKS…"
+        placeholder="BKS482170"
         className={`${input} tnum w-24`}
         aria-label="Payment reference"
       />

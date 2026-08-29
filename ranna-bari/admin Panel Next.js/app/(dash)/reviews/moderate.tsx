@@ -20,7 +20,9 @@ export function ModerateReview({
   hidden: boolean;
   kitchenName: string;
 }) {
-  const [note, setNote] = useState('');
+  /* The commonest reason a review comes down, and the one the audit log is
+     read for six months later when a rating jumped. */
+  const [note, setNote] = useState('Personal abuse, not a review of the food.');
   const [asking, setAsking] = useState(false);
 
   if (hidden) {

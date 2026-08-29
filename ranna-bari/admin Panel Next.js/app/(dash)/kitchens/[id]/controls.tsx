@@ -27,7 +27,12 @@ export function KitchenControls({
   area: string;
   radiusKm: number;
 }) {
-  const [reason, setReason] = useState('');
+  /* Seeded only when there is a suspension to write. The same string is handed
+     to `setSuspended` on the way back out, and a lift stamped in the audit log
+     with a suspension's reason reads as the opposite of what happened. */
+  const [reason, setReason] = useState(
+    suspended ? '' : 'Three hygiene complaints in eight days.',
+  );
   const [nextArea, setNextArea] = useState(area);
   const [nextRadius, setNextRadius] = useState(String(radiusKm));
 

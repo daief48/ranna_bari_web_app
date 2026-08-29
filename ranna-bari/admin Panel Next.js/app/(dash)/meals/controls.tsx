@@ -24,7 +24,9 @@ export function MealControls({
   soldCount: number;
 }) {
   const [asking, setAsking] = useState(false);
-  const [reason, setReason] = useState('');
+  /* Every customer on the meal is sent this, so it is written to be read by
+     one — the reason a cook actually pulls a serve date. */
+  const [reason, setReason] = useState('Cook is ill — nothing is cooking today.');
 
   if (status === 'cancelled') {
     return <span className="text-[11.5px] text-ink3">cancelled</span>;

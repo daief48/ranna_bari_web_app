@@ -13,7 +13,13 @@ import { ActionButton } from '@/components/ui/client';
  * slow, and the cook has no way to fix whatever was wrong.
  */
 export function KycDecision({ kitchenId, name }: { kitchenId: string; name: string }) {
-  const [note, setNote] = useState('');
+  /* Written as a rejection, because that is the only path this field is
+     required on and the only one where the text reaches the cook verbatim. An
+     approval-shaped default would sit one mis-click away from telling a
+     rejected cook their papers were fine. */
+  const [note, setNote] = useState(
+    'The back of the NID is too blurred to read the number. Re-upload it in daylight and we will look again the same day.',
+  );
 
   return (
     <div>

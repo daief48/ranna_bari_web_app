@@ -13,9 +13,11 @@
     "typecheck": "tsc --noEmit",
     "seed": "tsx scripts/seed.ts",
     "migrate:sqlite": "tsx scripts/migrate-from-sqlite.ts",
-    "test": "vitest run",
+    "test": "tsx scripts/check-sessions.ts && vitest run",
     "test:watch": "vitest",
-    "seed:local": "tsx scripts/seed-local.ts"
+    "seed:local": "tsx scripts/seed-local.ts",
+    "check:sessions": "tsx scripts/check-sessions.ts",
+    "routes": "tsx scripts/routes.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",

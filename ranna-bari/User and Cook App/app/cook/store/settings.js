@@ -27,6 +27,7 @@ import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import { DEMO_STORE } from '../../../src/lib/demoData';
 
 export default function StoreSettings() {
   const { kitchen } = useKitchen();
@@ -54,10 +55,10 @@ function Form({ store, kitchenId }) {
   const router = useRouter();
   const shop = useCommerce();
 
-  const [name, setName] = useState(store.name ?? '');
-  const [tagline, setTagline] = useState(store.tagline ?? '');
-  const [description, setDescription] = useState(store.description ?? '');
-  const [phone, setPhone] = useState(store.phone ?? '');
+  const [name, setName] = useState(store.name || DEMO_STORE.name);
+  const [tagline, setTagline] = useState(store.tagline || DEMO_STORE.tagline);
+  const [description, setDescription] = useState(store.description || DEMO_STORE.description);
+  const [phone, setPhone] = useState(store.phone || DEMO_STORE.phone);
   const [area, setArea] = useState(store.area ?? '');
   const [logo, setLogo] = useState(store.logo ?? '');
   const [cover, setCover] = useState(store.cover ?? '');

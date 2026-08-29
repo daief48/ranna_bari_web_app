@@ -7,7 +7,10 @@ import { ActionButton } from '@/components/ui/client';
 
 /** Restock one product without leaving the alarm list. */
 export function StockCell({ productId }: { productId: string }) {
-  const [value, setValue] = useState('');
+  /* A dozen is the batch a home kitchen actually puts up, so it is the figure
+     an operator would type. Zero is the one number this cell must never
+     suggest — it leaves the product exactly as stuck as the alarm found it. */
+  const [value, setValue] = useState('12');
 
   return (
     <div className="flex items-center gap-1.5">
@@ -15,7 +18,7 @@ export function StockCell({ productId }: { productId: string }) {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         inputMode="numeric"
-        placeholder="0"
+        placeholder="qty"
         aria-label="New stock level"
         className="tnum w-16 rounded-[8px] border border-line bg-canvas px-2 py-1 text-[12px] outline-none placeholder:text-ink3 focus:border-primary-200"
       />

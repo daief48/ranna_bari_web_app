@@ -25,6 +25,7 @@ import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
 import { useChefs } from '../../src/data';
+import { DEMO_REQUEST } from '../../src/lib/demoData';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/ledger';
 import { addDays, dayKey } from '../../src/store/CommerceContext';
@@ -44,10 +45,10 @@ export default function NewRequest() {
   const incoming = typeof params.cook === 'string' ? params.cook : null;
 
   const [target, setTarget] = useState(incoming ?? 'all');
-  const [title, setTitle] = useState('');
-  const [details, setDetails] = useState('');
+  const [title, setTitle] = useState(DEMO_REQUEST.title);
+  const [details, setDetails] = useState(DEMO_REQUEST.description);
   const [quantity, setQuantity] = useState('1');
-  const [budget, setBudget] = useState('');
+  const [budget, setBudget] = useState(DEMO_REQUEST.budget);
   const [categoryId, setCategoryId] = useState(null);
   const [wantedDate, setWantedDate] = useState(dayKey(addDays(1)));
   const [note, setNote] = useState(null);

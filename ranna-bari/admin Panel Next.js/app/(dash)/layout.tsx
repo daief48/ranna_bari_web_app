@@ -4,9 +4,9 @@ import { currentUser, clearSessionCookie } from '@/lib/auth';
 import { db, ensureAppendOnly } from '@/lib/db';
 import { getSettings } from '@/lib/settings';
 import { ROLE_LABEL } from '@/lib/domain';
-import { Sidebar } from '@/components/shell/Sidebar';
+import { Sidebar, PageContext } from '@/components/shell/Sidebar';
 import { ThemeToggle } from '@/components/ui/client';
-import { BTN } from '@/components/ui';
+import { Avatar, BTN } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,12 +51,37 @@ export default async function DashLayout({ children }: { children: React.ReactNo
       <Sidebar role={user.role} counts={{ kyc, disputes, escrow, chat }} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-[57px] shrink-0 items-center justify-end gap-3 border-b border-line bg-canvas/85 px-4 backdrop-blur lg:px-6">
-          <div className="mr-auto pl-10 lg:pl-0" />
+        <header className="sticky top-0 z-20 flex h-[57px] shrink-0 items-center gap-3 border-b border-line bg-canvas/85 px-4 backdrop-blur lg:px-6">
+          {/* Left of the hamburger below lg, or the bar would sit under it. */}
+          <div className="min-w-0 flex-1 pl-10 lg:pl-0">
+            <PageContext />
+          </div>
 
-          <div className="hidden text-right sm:block">
-            <div className="text-[13px] leading-tight font-semibold">{user.name}</div>
-            <div className="text-[11px] text-ink3">{ROLE_LABEL[user.role] ?? user.role}</div>
+          {/* The rail shortcut is worth advertising: this is a desk tool and
+              nobody discovers a bare-key binding by accident. */}
+          <div className="hidden items-center gap-1.5 text-[11.5px] text-ink3 xl:flex">
+            <kbd className="rounded-[5px] border border-line bg-sunken px-1.5 py-px font-sans text-[10.5px] font-semibold text-ink2">
+              [
+            </kbd>
+            <span>sidebar</span>
+          </div>
+
+          <span className="hidden h-6 w-px shrink-0 bg-line sm:block" aria-hidden />
+
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Avatar name={user.name} size={26} />
+            <span className="hidden truncate text-[13px] leading-tight font-semibold text-ink sm:block">
+              {user.name}
+            </span>
+            {/* The role is what the whole panel narrows to, so it is a chip and
+                not a caption. Neutral on purpose: the colour legend is about
+                work waiting, and a role is not a status. */}
+            <span
+              className="hidden shrink-0 items-center rounded-full border border-line bg-sunken px-2 py-0.5 text-[10.5px] font-semibold tracking-[0.07em] whitespace-nowrap text-ink2 uppercase md:inline-flex"
+              title="What this session is allowed to touch"
+            >
+              {ROLE_LABEL[user.role] ?? user.role}
+            </span>
           </div>
 
           <ThemeToggle />

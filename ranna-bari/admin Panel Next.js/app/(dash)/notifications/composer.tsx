@@ -20,8 +20,13 @@ const INPUT =
 export function Composer({ zones }: { zones: string[] }) {
   const [audience, setAudience] = useState<'customer' | 'cook'>('customer');
   const [zone, setZone] = useState('');
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  /* A monsoon delay notice — the broadcast this desk actually sends most, and
+     one carrying enough figures (a road number, two waits, a cut-off) that the
+     Bengali preview below has something to change. */
+  const [title, setTitle] = useState('Heavy rain — deliveries running 30–40 minutes late');
+  const [body, setBody] = useState(
+    'Waterlogging on Mirpur Road and around Dhanmondi 27 is holding riders up. Kitchens are cooking to time — please allow an extra 30 minutes tonight. Orders placed after 10pm may move to tomorrow.',
+  );
 
   /* Numerals are the one thing that has to change even when the words do not.
      "৳500 added" reads as half-translated with Latin digits in it. */

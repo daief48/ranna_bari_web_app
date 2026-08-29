@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 /*
- * RannaBari Admin.
+ * RannaBari Admin — the token layer.
  *
  * The palette is the app's, ported from `src/theme/tokens.js` — 朱色 vermilion
  * over washi paper, 松葉色 sage, 山吹色 saffron, on a green-black in the dark.
@@ -14,6 +14,22 @@
  *   sage      — healthy, settled, paid
  *   saffron   — needs a human: ageing escrow, pending KYC, stock at zero
  *   ink3      — inert, closed, nothing to do
+ *
+ * ---------------------------------------------------------------------------
+ * A NOTE ON CASCADE LAYERS, because it changes what every page renders.
+ *
+ * Tailwind v4 emits `@layer theme, base, components, utilities` and puts all
+ * utilities inside the last one. Unlayered CSS outranks *every* layer no
+ * matter the specificity, so a bare `* { border-color }` here silently beat
+ * `border-sage-100` on a badge, and `.card { box-shadow }` beat
+ * `hover:shadow-sm` on a stat tile. Both were losing arguments the component
+ * thought it had won.
+ *
+ * So: element defaults go in `base`, primitives go in `components`, and both
+ * stay overridable from a className. The only rules deliberately left
+ * unlayered are focus, selection and scrollbars — a stray `outline-none`
+ * must not be able to take the keyboard ring away.
+ * ---------------------------------------------------------------------------
  */
 
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
@@ -42,17 +58,69 @@
   --canvas: #faf7f0;
   --raised: #ffffff;
   --sunken: #f5f0e5;
+  /* Floating things — menus, popovers, tooltips — sit above `raised` rather
+     than level with it, so they get their own surface. */
+  --overlay: #ffffff;
+  /* Where a control needs to read as a control on a white card. */
+  --field: #ffffff;
+
   --line: rgb(31 29 26 / 0.1);
   --line2: rgb(31 29 26 / 0.06);
+  /* The third weight: a border that is being pointed at (hover, active). */
+  --line-strong: rgb(31 29 26 / 0.2);
 
   --geo: #2f7df6;
   --on-primary: #ffffff;
 
-  /* Warm, ink-tinted depth. Flat black reads as cheap. */
-  --shadow-xs: 0 1px 2px rgb(31 29 26 / 0.05);
-  --shadow-sm: 0 2px 5px rgb(31 29 26 / 0.07);
-  --shadow-md: 0 8px 16px rgb(31 29 26 / 0.13);
-  --shadow-lg: 0 18px 30px rgb(31 29 26 / 0.19);
+  /*
+   * Elevation.
+   *
+   * Two shadows per step, not one: a tight contact shadow that sits the paper
+   * on the page, and a wide diffuse one that lifts it. One blur alone reads as
+   * a halo. All of it tinted with sumi (31 29 26) rather than black — a
+   * neutral-black shadow over washi goes grey and cheapens the paper.
+   *
+   * The `inset 0 1px 0` leading each step is the top highlight; it is
+   * transparent here and only earns its keep in the dark, where a lit top edge
+   * is the difference between a raised surface and a muddy one.
+   */
+  --hairline: transparent;
+
+  --shadow-xs:
+    inset 0 1px 0 var(--hairline),
+    0 1px 1.5px rgb(31 29 26 / 0.05);
+  --shadow-sm:
+    inset 0 1px 0 var(--hairline),
+    0 1px 2px rgb(31 29 26 / 0.05),
+    0 4px 10px -3px rgb(31 29 26 / 0.1);
+  --shadow-md:
+    inset 0 1px 0 var(--hairline),
+    0 2px 4px -1px rgb(31 29 26 / 0.06),
+    0 12px 24px -8px rgb(31 29 26 / 0.16);
+  --shadow-lg:
+    inset 0 1px 0 var(--hairline),
+    0 4px 8px -2px rgb(31 29 26 / 0.07),
+    0 24px 48px -14px rgb(31 29 26 / 0.24);
+  /* A well is the opposite move: the light comes from above, so the shade
+     goes at the top and there is no highlight at all. */
+  --shadow-well:
+    inset 0 1px 3px rgb(31 29 26 / 0.07),
+    inset 0 0 0 1px rgb(31 29 26 / 0.03);
+
+  /* Focus. Vermilion at low alpha — the ring is the same colour as the
+     outline so keyboard focus reads as one idea across controls and rows. */
+  --ring: rgb(199 56 26 / 0.18);
+  --ring-bad: rgb(199 56 26 / 0.22);
+
+  --scrollbar: rgb(31 29 26 / 0.18);
+  --scrollbar-hover: rgb(31 29 26 / 0.34);
+
+  /* Motion. Two speeds only: state changes you should not notice, and enters
+     you barely do. The curve leaves fast and lands slow — nothing overshoots,
+     because a settling animation on a table of two hundred rows is a tic. */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-1: 120ms;
+  --dur-2: 160ms;
 
   color-scheme: light;
 }
@@ -81,17 +149,54 @@
   --canvas: #101613;
   --raised: #1a211c;
   --sunken: #0b0f0d;
+  /* Overlays go *up* in the dark, not down — depth here is light, not shadow,
+     because a darker floating panel on a black canvas disappears. */
+  --overlay: #222a24;
+  /* A field must be readable as an inset on a card of --raised, so it sits
+     between raised and sunken rather than on either. */
+  --field: #141a16;
+
   --line: rgb(236 234 225 / 0.11);
   --line2: rgb(236 234 225 / 0.06);
+  --line-strong: rgb(236 234 225 / 0.22);
+
+  /* The light-mode blue drops to 4.2:1 on --raised, under AA for the info
+     badge and the geo stat. Same hue, lifted until it passes. */
+  --geo: #5b9cff;
 
   /* Dark-mode vermilion is bright enough that white drops to 3.1:1 and fails
      AA, so text on a primary fill flips to sumi. */
   --on-primary: #221a15;
 
-  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-sm: 0 2px 6px rgb(0 0 0 / 0.45);
-  --shadow-md: 0 8px 18px rgb(0 0 0 / 0.5);
-  --shadow-lg: 0 18px 34px rgb(0 0 0 / 0.55);
+  /* The lit top edge. Without it a dark card is a slightly different black;
+     with it the card has a direction the light comes from. */
+  --hairline: rgb(236 234 225 / 0.07);
+
+  /* Shadows need roughly four times the opacity to register against a
+     green-black. Tinted to the canvas (3 7 5) rather than pure black, so the
+     penumbra stays in the same family as the surface it falls on. */
+  --shadow-xs:
+    inset 0 1px 0 var(--hairline),
+    0 1px 2px rgb(3 7 5 / 0.5);
+  --shadow-sm:
+    inset 0 1px 0 var(--hairline),
+    0 1px 2px rgb(3 7 5 / 0.5),
+    0 4px 10px -3px rgb(3 7 5 / 0.55);
+  --shadow-md:
+    inset 0 1px 0 var(--hairline),
+    0 2px 4px -1px rgb(3 7 5 / 0.55),
+    0 12px 24px -8px rgb(3 7 5 / 0.7);
+  --shadow-lg:
+    inset 0 1px 0 var(--hairline),
+    0 4px 8px -2px rgb(3 7 5 / 0.6),
+    0 24px 48px -14px rgb(3 7 5 / 0.8);
+  --shadow-well: inset 0 1px 3px rgb(3 7 5 / 0.6);
+
+  --ring: rgb(239 106 61 / 0.26);
+  --ring-bad: rgb(239 106 61 / 0.3);
+
+  --scrollbar: rgb(236 234 225 / 0.16);
+  --scrollbar-hover: rgb(236 234 225 / 0.32);
 
   color-scheme: dark;
 }
@@ -120,45 +225,164 @@
   --color-canvas: var(--canvas);
   --color-raised: var(--raised);
   --color-sunken: var(--sunken);
+  --color-overlay: var(--overlay);
+  --color-field: var(--field);
   --color-line: var(--line);
   --color-line2: var(--line2);
+  --color-line-strong: var(--line-strong);
   --color-geo: var(--geo);
   --color-on-primary: var(--on-primary);
 
-  --font-display: var(--font-fraunces), Georgia, serif;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /*
+   * Noto Sans Bengali sits in every stack as a fallback, for one character.
+   *
+   * Neither Fraunces nor Inter draws ৳ (U+09F3), and it prefixes every price
+   * on every screen. Without this the browser resolves it per-OS, so the taka
+   * sign in a Fraunces heading and the one in an Inter table cell are two
+   * different glyphs at two different weights — which is exactly what a
+   * column of money must not be.
+   *
+   * Font fallback is per-glyph, so Latin still comes from Fraunces and Inter.
+   * Only the taka sign reaches the Bengali face.
+   */
+  --font-display: var(--font-fraunces), var(--font-bengali), Georgia, serif;
+  --font-sans: var(--font-inter), var(--font-bengali), ui-sans-serif, system-ui, sans-serif;
   --font-bengali: var(--font-bengali), var(--font-inter), sans-serif;
 
-  --radius-xs: 8px;
-  --radius-sm: 14px;
-  --radius-md: 22px;
-  --radius-lg: 30px;
+  /*
+   * Type, at desk density.
+   *
+   * The whole scale lives between 10.5 and 26px, because a console is read at
+   * arm's length by someone who has been looking at it since nine. Nothing
+   * here is bigger than the page title, and the steps are close together so a
+   * table, its meta and its eyebrow can sit in one row without a hierarchy
+   * fight. Line heights are set per step — the defaults are laid out for prose
+   * and put far too much air between table rows.
+   */
+  --text-2xs: 10.5px;
+  --text-2xs--line-height: 1.45;
+  --text-xs: 11.5px;
+  --text-xs--line-height: 1.45;
+  --text-sm: 12.5px;
+  --text-sm--line-height: 1.5;
+  --text-base: 13px;
+  --text-base--line-height: 1.5;
+  --text-md: 14px;
+  --text-md--line-height: 1.5;
+  --text-lg: 15px;
+  --text-lg--line-height: 1.4;
+  --text-xl: 18px;
+  --text-xl--line-height: 1.3;
+  --text-2xl: 22px;
+  --text-2xl--line-height: 1.2;
+  --text-3xl: 26px;
+  --text-3xl--line-height: 1.15;
+
+  /*
+   * Radii. Dense controls got tighter, containers kept their generosity:
+   * a 14px pill on a 24px-tall filter chip reads as a toy, and a 6px corner on
+   * a full-width panel reads as a 2014 bootstrap card.
+   */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
 
   --shadow-xs: var(--shadow-xs);
   --shadow-sm: var(--shadow-sm);
   --shadow-md: var(--shadow-md);
   --shadow-lg: var(--shadow-lg);
+  --shadow-well: var(--shadow-well);
+
+  --ease-brand: var(--ease);
 }
 
 /* ------------------------------------------------------------------ *
  * base
  * ------------------------------------------------------------------ */
 
-* {
-  border-color: var(--line);
-}
+@layer base {
+  * {
+    border-color: var(--line);
+  }
 
-html {
-  background: var(--canvas);
-}
+  html {
+    background: var(--canvas);
+    /* Reserve the scrollbar track always. Without it a short page and a long
+       one are two pixel columns apart, and every navigation nudges sideways. */
+    scrollbar-gutter: stable;
+  }
 
-body {
-  background: var(--canvas);
-  color: var(--ink);
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    /* Bengali in the fallback chain for the taka sign — see --font-sans. */
+    font-family: var(--font-inter), var(--font-bengali), ui-sans-serif, system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* A default tightening for the display face — Fraunces sets loose at the
+     sizes used here. Any heading that wants its own tracking still wins: this
+     is in `base`, and a `tracking-*` utility is in `utilities`. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Spinners on a money field are a way to change an amount by accident. */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+
+  /* The stock search-clear glyph is drawn near-black by the UA and vanishes
+     against a dark field, so it is redrawn here from two gradients — no asset,
+     and it takes the theme's ink like everything else. */
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    width: 11px;
+    height: 11px;
+    cursor: pointer;
+    opacity: 0.55;
+    background:
+      linear-gradient(
+        45deg,
+        transparent 45%,
+        var(--ink3) 45%,
+        var(--ink3) 55%,
+        transparent 55%
+      ),
+      linear-gradient(
+        -45deg,
+        transparent 45%,
+        var(--ink3) 45%,
+        var(--ink3) 55%,
+        transparent 55%
+      );
+    transition: opacity var(--dur-1) var(--ease);
+  }
+
+  input[type='search']::-webkit-search-cancel-button:hover {
+    opacity: 1;
+  }
 }
 
 /*
@@ -166,32 +390,43 @@ body {
  *
  * Tracking pulls a Bengali word apart at its conjunct clusters and detaches
  * the matra — the horizontal bar that runs unbroken across the whole word —
- * so what reads as refinement in Latin reads as broken text here.
+ * so what reads as refinement in Latin reads as broken text here. The
+ * `!important` is the point: it has to survive a `tracking-*` utility and the
+ * heading rule above, whichever page is careless.
  */
 .bn,
 [lang='bn'] {
   font-family: var(--font-bengali), var(--font-inter), sans-serif;
   letter-spacing: 0 !important;
+  /* Bengali digits are not on the tabular axis in Noto, and asking for a
+     feature the face does not carry is how you get synthetic spacing. */
+  font-variant-numeric: normal;
 }
 
-.label {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--ink3);
+/* ------------------------------------------------------------------ *
+ * focus, selection, scrollbars
+ *
+ * Deliberately unlayered. These are the parts of the panel that a page must
+ * not be able to switch off from a className.
+ * ------------------------------------------------------------------ */
+
+:focus-visible {
+  /* No border-radius here. It used to square off avatars and pills the moment
+     they took focus; the outline already follows the element's own corners. */
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
-.label.bn,
-[lang='bn'] .label {
-  letter-spacing: 0;
-}
-
-/* Tabular figures everywhere a number sits in a column. Money that does not
-   line up cannot be scanned, and scanning is most of this job. */
-.tnum {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: 'tnum';
+/*
+ * The one sanctioned exemption, and it lives up here rather than with the
+ * controls so the whole focus story is legible in one place: a field trades
+ * the outline for the ring below it, because an offset outline *around* a
+ * 3px ring is two rings. It is a swap, never a removal.
+ */
+.field:focus-visible,
+.field-sm:focus-visible,
+.select:focus-visible {
+  outline: none;
 }
 
 ::selection {
@@ -199,23 +434,9 @@ body {
   color: var(--ink);
 }
 
-/* ------------------------------------------------------------------ *
- * focus — this tool is meant to be driven from the keyboard
- * ------------------------------------------------------------------ */
-
-:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-/* ------------------------------------------------------------------ *
- * scrollbars
- * ------------------------------------------------------------------ */
-
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--ink3) transparent;
+  scrollbar-color: var(--scrollbar) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -227,88 +448,414 @@ body {
   background: transparent;
 }
 
+/* The 3px transparent border plus background-clip is what makes a 10px
+   gutter carry a 4px thumb — thin enough to ignore, wide enough to grab. */
 *::-webkit-scrollbar-thumb {
-  background: var(--line);
+  background: var(--scrollbar);
   border-radius: 99px;
   border: 3px solid transparent;
   background-clip: content-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: var(--ink3);
+  background: var(--scrollbar-hover);
   background-clip: content-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* ------------------------------------------------------------------ *
  * primitives used across every module
  * ------------------------------------------------------------------ */
 
-.card {
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: var(--shadow-xs);
+@layer components {
+  /* --- elevation: paper on paper ---------------------------------- */
+
+  .card {
+    background: var(--raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-xs);
+    animation: rb-rise var(--dur-2) var(--ease);
+  }
+
+  /* A card you can click. The lift is a shadow change only — no transform, so
+     nothing under the cursor moves a pixel as it arrives. */
+  .card-lift {
+    transition:
+      box-shadow var(--dur-2) var(--ease),
+      border-color var(--dur-2) var(--ease);
+  }
+
+  .card-lift:hover {
+    box-shadow: var(--shadow-sm);
+    border-color: var(--line-strong);
+  }
+
+  /* The opposite of a card: a recess for a code block, a totals strip, a
+     read-only sub-panel. Sunken fill, no outer shadow, shade at the top. */
+  .well {
+    background: var(--sunken);
+    border: 1px solid var(--line2);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-well);
+  }
+
+  /* Anything that floats free of the document flow. */
+  .overlay {
+    background: var(--overlay);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* --- type ------------------------------------------------------- */
+
+  .label {
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1.45;
+    letter-spacing: 0.085em;
+    text-transform: uppercase;
+    color: var(--ink3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .label.bn,
+  [lang='bn'] .label {
+    letter-spacing: 0;
+  }
+
+  /* --- tables ----------------------------------------------------- */
+
+  .tbl {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+    line-height: 1.45;
+    /* Every column, not just the money ones. Codes, quantities, dates and
+       amounts all sit in columns here, and a column of proportional figures
+       cannot be scanned — which is most of this job. */
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: 'tnum' 1, 'lnum' 1;
+  }
+
+  /*
+   * The header.
+   *
+   * `--tbl-stick` lets a page that owns a scrolling pane park the header below
+   * its own chrome. The blur is what stops rows showing through as they pass
+   * underneath, and the rule is an inset shadow rather than a border because a
+   * border on a sticky cell is painted at the cell's original position in some
+   * engines and detaches the moment it lifts.
+   */
+  .tbl thead th {
+    position: sticky;
+    top: var(--tbl-stick, 0px);
+    z-index: 3;
+    background: color-mix(in oklab, var(--sunken) 88%, transparent);
+    -webkit-backdrop-filter: blur(10px) saturate(150%);
+    backdrop-filter: blur(10px) saturate(150%);
+    color: var(--ink3);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.085em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 8px 12px;
+    white-space: nowrap;
+    box-shadow: inset 0 -1px 0 var(--line);
+  }
+
+  .tbl tbody td {
+    padding: 9px 12px;
+    /* Zebra striping is decoration that fights the status colours. One
+       hairline per row does the same job and leaves the palette alone. */
+    border-bottom: 1px solid var(--line2);
+    vertical-align: middle;
+  }
+
+  .tbl tbody tr {
+    transition: background-color var(--dur-1) var(--ease);
+    animation: rb-fade var(--dur-1) var(--ease);
+  }
+
+  /* Only the rows a person can actually see get an enter. Two hundred
+     simultaneous opacity animations is two hundred composited layers. */
+  .tbl tbody tr:nth-child(n + 25) {
+    animation: none;
+  }
+
+  /*
+   * Background and an inset rule only. Nothing here changes a border width or
+   * a padding, so a wide table does not shudder as the cursor crosses it, and
+   * the marker stays inside the cell rather than adding one to its box.
+   *
+   * The marker is ink3 and not vermilion on purpose. The pointer is somewhere
+   * on every row an operator passes over on the way to the one they want; a
+   * red flash forty times a minute teaches them to stop seeing red.
+   */
+  .tbl tbody tr:hover {
+    background: var(--sunken);
+  }
+
+  .tbl tbody tr:hover > td:first-child {
+    box-shadow: inset 2px 0 0 var(--ink3);
+  }
+
+  /* The keyboard equivalent, for a focusable row and for a row that merely
+     contains the focused link — otherwise tabbing through a table lights up a
+     40px anchor and never says which line you are on. Vermilion here because
+     this one is deliberate: it is where the caret actually is. The row keeps
+     the global outline; this only says which row it belongs to. */
+  .tbl tbody tr:focus-visible,
+  .tbl tbody tr:has(:focus-visible) {
+    background: var(--primary-50);
+  }
+
+  .tbl tbody tr:focus-visible > td:first-child,
+  .tbl tbody tr:has(:focus-visible) > td:first-child {
+    box-shadow: inset 2px 0 0 var(--primary);
+  }
+
+  .tbl tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  /* --- form controls ---------------------------------------------- */
+
+  /*
+   * One input style for the panel.
+   *
+   * Geometry matches what the pages had already converged on by hand, so
+   * adopting `.field` moves nothing; what it adds is the half nobody wrote
+   * twice — a real focus ring, a disabled state that is a *state* rather than
+   * 50% opacity over unreadable text, and an invalid state that says which
+   * field before the form is submitted.
+   */
+  .field,
+  .field-sm,
+  .select {
+    appearance: none;
+    -webkit-appearance: none;
+    /* background-color, not background: `.select` paints its caret into
+       background-image and the shorthand would wipe it. */
+    background-color: var(--field);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    font-size: 13px;
+    line-height: 1.45;
+    transition:
+      border-color var(--dur-1) var(--ease),
+      box-shadow var(--dur-1) var(--ease),
+      background-color var(--dur-1) var(--ease);
+  }
+
+  .field::placeholder,
+  .field-sm::placeholder {
+    color: var(--ink3);
+  }
+
+  .field:hover:not(:disabled, :focus),
+  .field-sm:hover:not(:disabled, :focus),
+  .select:hover:not(:disabled, :focus) {
+    border-color: var(--line-strong);
+  }
+
+  /* `:focus`, not `:focus-visible`: a text field that has the caret must look
+     focused however it got there. The ring replaces the global outline rather
+     than doubling it. */
+  .field:focus,
+  .field-sm:focus,
+  .select:focus {
+    outline: none;
+    border-color: var(--primary-300);
+    box-shadow: 0 0 0 3px var(--ring);
+  }
+
+  .field:disabled,
+  .field-sm:disabled,
+  .select:disabled {
+    background-color: var(--sunken);
+    border-color: var(--line2);
+    color: var(--ink3);
+    cursor: not-allowed;
+  }
+
+  /* `:user-invalid` and not `:invalid` — a required field is invalid the
+     instant it renders, and shouting at an empty form is how people learn to
+     ignore red. */
+  .field:user-invalid,
+  .field-sm:user-invalid,
+  .select:user-invalid,
+  .field[aria-invalid='true'],
+  .field-sm[aria-invalid='true'],
+  .select[aria-invalid='true'] {
+    border-color: var(--primary);
+  }
+
+  .field:user-invalid:focus,
+  .field-sm:user-invalid:focus,
+  .select:user-invalid:focus,
+  .field[aria-invalid='true']:focus,
+  .field-sm[aria-invalid='true']:focus,
+  .select[aria-invalid='true']:focus {
+    box-shadow: 0 0 0 3px var(--ring-bad);
+  }
+
+  .field-sm {
+    padding: 3px 8px;
+    font-size: 12px;
+    border-radius: var(--radius-xs);
+  }
+
+  textarea.field,
+  textarea.field-sm {
+    min-height: 76px;
+    line-height: 1.55;
+    resize: vertical;
+  }
+
+  /*
+   * The select caret, drawn from two gradients rather than an inline SVG:
+   * an SVG data URI would have to carry a literal hex, and no colour in this
+   * panel is allowed to be written twice.
+   */
+  .select {
+    padding-right: 30px;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--ink3) 50%),
+      linear-gradient(135deg, var(--ink3) 50%, transparent 50%);
+    background-position:
+      right 13px center,
+      right 8px center;
+    background-size:
+      5px 5px,
+      5px 5px;
+    background-repeat: no-repeat;
+  }
+
+  .select.field-sm {
+    padding-right: 22px;
+    background-position:
+      right 11px center,
+      right 7px center;
+  }
+
+  /* Windows paints the option list from the UA palette unless it is told
+     otherwise, and `color-scheme` alone does not carry a custom surface. */
+  .select option {
+    background-color: var(--raised);
+    color: var(--ink);
+  }
+
+  /*
+   * Filter pills.
+   *
+   * On means selected, not "good" — so it borrows the sidebar's active-link
+   * treatment rather than any status colour. Vermilion here is the panel's
+   * selection colour, and the legend is untouched: nothing about a chip being
+   * on says anything about money.
+   */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background-color: var(--raised);
+    color: var(--ink2);
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--dur-1) var(--ease),
+      border-color var(--dur-1) var(--ease),
+      color var(--dur-1) var(--ease);
+  }
+
+  .chip:hover:not(:disabled) {
+    background-color: var(--sunken);
+    color: var(--ink);
+  }
+
+  .chip[aria-pressed='true'],
+  .chip[data-on='true'],
+  .chip.is-on {
+    background-color: var(--primary-50);
+    border-color: var(--primary-100);
+    color: var(--primary);
+  }
+
+  .chip:disabled {
+    color: var(--ink3);
+    cursor: not-allowed;
+  }
 }
 
-.tbl {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 13px;
+/* ------------------------------------------------------------------ *
+ * utilities
+ * ------------------------------------------------------------------ */
+
+@layer utilities {
+  /* Tabular figures everywhere a number sits in a column. Money that does not
+     line up cannot be scanned, and scanning is most of this job. */
+  .tnum {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: 'tnum' 1, 'lnum' 1;
+  }
+
+  /* A numeric table cell: tabular and right-aligned, so the units of every
+     row end on the same pixel. */
+  .num {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: 'tnum' 1, 'lnum' 1;
+    text-align: right;
+  }
+
+  /*
+   * Wide content scrolls inside its own box. The page body never scrolls
+   * sideways — a horizontal scrollbar under the whole app loses the sidebar.
+   *
+   * Note that `overflow-x: auto` forces `overflow-y` to `auto` as well, which
+   * makes this element the scrollport its sticky header answers to. Give it
+   * `--pane-h` and the header sticks against a real scroll; leave it unset and
+   * the box is exactly as tall as the table and the header simply sits still.
+   */
+  .scroll-x {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    max-width: 100%;
+    max-height: var(--pane-h, none);
+  }
 }
 
-.tbl thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--sunken);
-  color: var(--ink3);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  text-align: left;
-  padding: 9px 12px;
-  white-space: nowrap;
-  border-bottom: 1px solid var(--line);
+/* ------------------------------------------------------------------ *
+ * motion
+ *
+ * Two enters, both under 160ms, neither with a bounce. A card rises three
+ * pixels; a row only fades, because opacity alone needs no layout and no
+ * layer promotion on a table that may be paging through hundreds.
+ * ------------------------------------------------------------------ */
+
+@keyframes rb-rise {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
 }
 
-.tbl tbody td {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--line2);
-  vertical-align: middle;
-}
-
-.tbl tbody tr:hover {
-  background: var(--sunken);
-}
-
-.tbl tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-/* Wide content scrolls inside its own box. The page body never scrolls
-   sideways — a horizontal scrollbar under the whole app loses the sidebar. */
-.scroll-x {
-  overflow-x: auto;
-  max-width: 100%;
-}
-
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
-}
-
-input[type='number']::-webkit-outer-spin-button,
-input[type='number']::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-input[type='number'] {
-  -moz-appearance: textfield;
+@keyframes rb-fade {
+  from {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -316,6 +863,15 @@ input[type='number'] {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Cancelled outright rather than merely shortened: a 0.01ms fade still
+     paints one frame at zero opacity, which is a flash. */
+  .card,
+  .tbl tbody tr {
+    animation: none !important;
   }
 }

@@ -31,8 +31,15 @@ export function DisputeControls({
   canResolve: boolean;
   canNote: boolean;
 }) {
-  const [note, setNote] = useState('');
+  /* A finding rather than a verdict: the same note is saved on its own and
+     attached to whichever resolution is chosen, so it must not pre-announce
+     one of the four. */
+  const [note, setNote] = useState(
+    'Called both sides. The cook says four boxes went out; the handover photo shows two. The customer is out the two that never arrived.',
+  );
   const [resolution, setResolution] = useState<Resolution>('refund');
+  /* The midpoint is where the slider starts, not a recommendation — the two
+     figures under it are what the operator actually settles on. */
   const [refund, setRefund] = useState(Math.round(amount / 2));
 
   const held = payment === 'held';

@@ -7,8 +7,55 @@ import {
   useTransition,
   type ReactNode,
 } from 'react';
+import { useFormStatus } from 'react-dom';
 
 import { BTN } from './index';
+
+/*
+ * The control classes — `.field`, `.select`, `.chip` — live in globals.css and
+ * are written outside any @layer, so they outrank every Tailwind utility here
+ * no matter the specificity. The utilities alongside them are therefore not a
+ * duplicate: they are the fallback that renders the control correctly for the
+ * properties the class does not claim. Anything that must win over the class
+ * regardless is set from the style attribute.
+ */
+
+const FIELD = 'rounded-[10px] border border-line bg-raised px-3 py-1.5 text-[13px] outline-none placeholder:text-ink3';
+
+/* ------------------------------------------------------------------ *
+ * motion
+ * ------------------------------------------------------------------ */
+
+/**
+ * The pending mark on an action.
+ *
+ * `motion-reduce:animate-none` rather than leaning on the blanket rule in
+ * globals.css: that rule collapses the duration to 0.01ms, which stops an
+ * infinite rotation from *reading* as motion but does not stop it running.
+ * The button stays disabled and `aria-busy`, so the state is still carried
+ * when the ring is standing still.
+ */
+function Spinner({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+      focusable="false"
+      className={`shrink-0 animate-spin motion-reduce:animate-none ${className}`}
+    >
+      <circle cx="8" cy="8" r="6.4" stroke="currentColor" strokeWidth="2" opacity="0.28" />
+      <path
+        d="M8 1.6A6.4 6.4 0 0 1 14.4 8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
 /* ------------------------------------------------------------------ *
  * theme
@@ -104,13 +151,35 @@ export function SearchBox({ placeholder = 'Search…' }: { placeholder?: string 
   }, [value]);
 
   return (
-    <input
-      type="search"
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      placeholder={placeholder}
-      className="w-full min-w-[180px] rounded-[10px] border border-line bg-raised px-3 py-1.5 text-[13px] outline-none placeholder:text-ink3 focus:border-primary-200 sm:w-64"
-    />
+    <div className="relative w-full min-w-[180px] sm:w-64">
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        // The clear button sits inside the field, so its room has to be
+        // reserved against whatever padding `.field` sets.
+        style={{ paddingRight: 26 }}
+        className={`field w-full focus:border-primary-200 [&::-webkit-search-cancel-button]:appearance-none ${FIELD}`}
+      />
+      {value ? (
+        <button
+          type="button"
+          // Cleared on the spot rather than through the 300ms debounce: an ×
+          // that takes a third of a second reads as a dead button.
+          onClick={() => {
+            setValue('');
+            set({ q: null });
+          }}
+          title="Clear"
+          aria-label="Clear search"
+          className="absolute top-1/2 right-1 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-[14px] leading-none text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+        >
+          ×
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -118,19 +187,27 @@ export function FilterSelect({
   name,
   options,
   allLabel = 'All',
+  label,
 }: {
   name: string;
   options: { value: string; label: string }[];
   allLabel?: string;
+  /** Renders the field name beside the control, and names it for a reader. */
+  label?: string;
 }) {
   const { set, params } = useSetParam();
   const value = params.get(name) ?? '';
 
-  return (
+  const select = (
     <select
       value={value}
       onChange={(e) => set({ [name]: e.target.value || null })}
-      className="rounded-[10px] border border-line bg-raised px-2.5 py-1.5 text-[13px] outline-none focus:border-primary-200"
+      aria-label={label ?? name}
+      // Which filters are on has to be legible without reading them, and the
+      // legend does not have a spare hue for "active" — so it is weight.
+      className={`select rounded-[10px] border border-line bg-raised px-2.5 py-1.5 text-[13px] outline-none focus:border-primary-200 ${
+        value ? 'font-semibold text-ink' : 'text-ink2'
+      }`}
     >
       <option value="">{allLabel}</option>
       {options.map((o) => (
@@ -140,38 +217,65 @@ export function FilterSelect({
       ))}
     </select>
   );
+
+  if (!label) return select;
+
+  return (
+    <label className="inline-flex items-center gap-1.5">
+      <span className="label">{label}</span>
+      {select}
+    </label>
+  );
 }
 
 export function Pager({ page, pages, total }: { page: number; pages: number; total: number }) {
   const { set } = useSetParam();
+  const count = total.toLocaleString('en-US');
+
   if (pages <= 1) {
     return (
-      <div className="px-4 py-3 text-[12px] text-ink3">
-        {total.toLocaleString('en-US')} {total === 1 ? 'row' : 'rows'}
+      <div className="flex items-center gap-1.5 px-4 py-2.5 text-[12px] text-ink3">
+        <span className="chip tnum rounded-full bg-sunken px-2 py-0.5 font-semibold text-ink2">
+          {count}
+        </span>
+        <span>{total === 1 ? 'row' : 'rows'}</span>
       </div>
     );
   }
+
+  // The page size is not passed in, but it is implied: only the last page is
+  // ever short. Saying which rows these are beats saying which page they are on.
+  const per = Math.ceil(total / pages);
+  const first = (page - 1) * per + 1;
+  const last = Math.min(page * per, total);
+
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-2.5">
       <span className="text-[12px] text-ink3">
-        Page {page} of {pages} · {total.toLocaleString('en-US')} rows
+        <span className="tnum font-semibold text-ink2">
+          {first.toLocaleString('en-US')}–{last.toLocaleString('en-US')}
+        </span>{' '}
+        of <span className="tnum">{count}</span> · page <span className="tnum">{page}</span> of{' '}
+        <span className="tnum">{pages}</span>
       </span>
       <div className="flex gap-2">
         <button
           type="button"
           className={BTN.ghost}
           disabled={page <= 1}
+          aria-label="Previous page"
           onClick={() => set({ page: String(page - 1) })}
         >
-          Previous
+          <span aria-hidden>‹</span> Previous
         </button>
         <button
           type="button"
           className={BTN.ghost}
           disabled={page >= pages}
+          aria-label="Next page"
           onClick={() => set({ page: String(page + 1) })}
         >
-          Next
+          Next <span aria-hidden>›</span>
         </button>
       </div>
     </div>
@@ -200,7 +304,12 @@ export function Expandable({
         className="flex w-full items-center gap-2 text-left"
         aria-expanded={open}
       >
-        <span className={`text-ink3 transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
+        <span
+          aria-hidden
+          className={`text-ink3 transition-transform ${open ? 'rotate-90' : ''}`}
+        >
+          ›
+        </span>
         {summary}
       </button>
       {open ? <div className="mt-3">{children}</div> : null}
@@ -218,6 +327,10 @@ export function Expandable({
  * Every money action in this panel is irreversible in the sense that matters
  * — the correcting entry is a new row, not an undo — so anything destructive
  * asks first, and the answer is shown rather than swallowed.
+ *
+ * The answer is tinted to the legend and sits directly under the button that
+ * produced it: on a row with three actions on it, a loose sentence underneath
+ * belongs to none of them.
  */
 export function ActionButton({
   action,
@@ -254,21 +367,39 @@ export function ActionButton({
   };
 
   return (
-    <span className="inline-flex flex-col items-start gap-1">
+    <span className="inline-flex flex-col items-start">
       <button
         type="button"
         onClick={run}
         disabled={disabled || pending}
+        aria-busy={pending}
         title={title}
         className={BTN[variant]}
       >
-        {pending ? '…' : children}
+        {/* The label stays put while it runs — swapping it for an ellipsis
+            resized the button and shuffled every control beside it. */}
+        {pending ? <Spinner className="-ml-0.5" /> : null}
+        {children}
       </button>
-      {note ? (
-        <span className={`text-[11px] ${note.ok ? 'text-sage' : 'text-primary'}`}>
-          {note.message}
-        </span>
-      ) : null}
+
+      {/* The region exists before the message does, or a screen reader has
+          nothing to announce into. */}
+      <span role="status" aria-live="polite">
+        {note ? (
+          <span
+            className={`mt-1 inline-flex max-w-[30ch] items-start gap-1 rounded-[8px] px-1.5 py-1 text-[11px] leading-snug font-medium ring-1 ring-inset ${
+              note.ok
+                ? 'bg-sage-50 text-sage ring-sage-100'
+                : 'bg-primary-50 text-primary ring-primary-100'
+            }`}
+          >
+            <span aria-hidden className="font-bold">
+              {note.ok ? '✓' : '!'}
+            </span>
+            {note.message}
+          </span>
+        ) : null}
+      </span>
     </span>
   );
 }
@@ -283,9 +414,17 @@ export function SubmitButton({
   variant?: keyof typeof BTN;
   disabled?: boolean;
 }) {
-  const [pending] = useTransition();
+  // `useFormStatus` reads the parent <form>. `useTransition` cannot: nothing
+  // here starts the transition, so its flag was false for the whole submit.
+  const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={disabled || pending} className={BTN[variant]}>
+    <button
+      type="submit"
+      disabled={disabled || pending}
+      aria-busy={pending}
+      className={BTN[variant]}
+    >
+      {pending ? <Spinner className="-ml-0.5" /> : null}
       {children}
     </button>
   );
@@ -297,8 +436,13 @@ export function CopyCode({ value }: { value: string }) {
   return (
     <button
       type="button"
-      className="tnum font-semibold text-ink hover:text-primary"
-      title="Copy"
+      // The code stays on screen through the confirmation. Replacing it with
+      // the word "copied" resized a column that is read down.
+      className={`tnum inline-flex items-center gap-1 font-semibold transition-colors ${
+        done ? 'text-sage' : 'text-ink hover:text-primary'
+      }`}
+      title={done ? 'Copied' : 'Copy'}
+      aria-label={done ? `${value} — copied` : `Copy ${value}`}
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(value);
@@ -309,7 +453,12 @@ export function CopyCode({ value }: { value: string }) {
         }
       }}
     >
-      {done ? 'copied' : value}
+      {value}
+      {/* The tick's room is held whether or not it is there, so the column
+          does not breathe every time somebody copies a code. */}
+      <span className="w-2 text-[11px] leading-none" aria-hidden>
+        {done ? '✓' : ''}
+      </span>
     </button>
   );
 }

@@ -127,7 +127,12 @@ export function FlagRow({
 type Zone = { id: string; name: string; deliveryFee: number | null; active: boolean };
 
 export function ZoneEditor({ zones, disabled }: { zones: Zone[]; disabled: boolean }) {
-  const [name, setName] = useState('');
+  /* The app's `KNOWN_AREAS` array stops at the eighteen seeded here; the next
+     one an operator adds is a real Dhaka thana beside them. */
+  const [name, setName] = useState('Mohakhali');
+  /* Left empty deliberately. Empty means "charge the platform delivery fee",
+     which is the right answer for a new zone — a number typed in here is
+     charged to every customer in it until somebody changes it back. */
   const [fee, setFee] = useState('');
 
   return (
@@ -192,8 +197,10 @@ export function TaxonomyEditor({
   categories: Category[];
   disabled: boolean;
 }) {
-  const [label, setLabel] = useState('');
-  const [emoji, setEmoji] = useState('');
+  /* A category the seeded taxonomy is missing, so adding it is a real edit
+     rather than a duplicate the server would refuse. */
+  const [label, setLabel] = useState('Bhorta');
+  const [emoji, setEmoji] = useState('🥣');
 
   return (
     <div>

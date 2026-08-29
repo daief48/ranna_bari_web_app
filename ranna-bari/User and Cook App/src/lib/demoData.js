@@ -60,6 +60,70 @@ export const DEMO_CHECKOUT = {
   label: 'Home',
 };
 
+/** Topping up the wallet — the amount the field opens on. */
+export const DEMO_TOPUP = { amount: '1000' };
+
+/**
+ * A food request, ready to post.
+ *
+ * Specific on purpose. "Cake for Friday" tells a cook nothing and produces a
+ * useless bid; the detail here is what a real request looks like when the
+ * customer wants the right thing back.
+ */
+export const DEMO_REQUEST = {
+  title: 'Two-pound chocolate truffle cake',
+  description:
+    'Birthday on Friday evening. Dark chocolate, not too sweet, and "Happy Birthday Ammu" written on top. Collecting at 6pm if that is easier.',
+  quantity: '1',
+  budget: '2400',
+  category: 'cake',
+};
+
+/** Publishing tomorrow's meal, cook side. */
+export const DEMO_MEAL = {
+  title: 'Shorshe Ilish with steamed rice',
+  description:
+    'Hilsa steamed in raw mustard paste and wrapped in banana leaf, the way it is done at home. Comes with rice and a slice of lemon.',
+  price: '520',
+  capacity: '12',
+  slot: 'dinner',
+  handoverNote: 'Delivered warm, or collect from the kitchen door after 7pm.',
+};
+
+/** A dish on the menu. */
+export const DEMO_DISH = {
+  name: 'Heritage Mutton Bhuna',
+  description: 'Slow-cooked mutton with grandmother spicing. No shortcuts, no food colour.',
+  price: '600',
+};
+
+/** A shelf product in the cook's shop. */
+export const DEMO_PRODUCT = {
+  name: 'Aam er achar (500g)',
+  description:
+    'Sun-cured green mango pickle in mustard oil. No preservative, so keep it out of the sun and use a dry spoon.',
+  price: '320',
+  stock: '24',
+  minQty: '1',
+  maxQty: '6',
+  prepTime: '1–2 days',
+  deliveryNote: 'Packed in a sealed jar, bubble-wrapped.',
+};
+
+/** The cook's shop profile. */
+export const DEMO_STORE = {
+  name: "Jubair's Pantry",
+  tagline: 'Made in the kitchen, sold off the shelf.',
+  description:
+    'Jars, frozen things and sweets from the same kitchen that cooks your dinner. Everything made in small batches, nothing bought in.',
+  phone: '+8801700000000',
+  deliveryFee: '40',
+  freeDeliveryOver: '800',
+};
+
+/** A shelf inside the shop. */
+export const DEMO_STORE_CATEGORY = { name: 'Pickles & achar', emoji: '🫙' };
+
 /** The profile a demo sign-in produces. */
 export const demoAccount = (id) => ({
   role: 'user',
