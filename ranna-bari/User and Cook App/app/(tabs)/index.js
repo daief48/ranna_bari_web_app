@@ -26,7 +26,7 @@ import {
 import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
-import { reviewSummary, reviews, useChefs } from '../../src/data';
+import { useChefs, useReviewSummary } from '../../src/data';
 import { useAuth } from '../../src/store/AuthContext';
 import { distanceKm } from '../../src/lib/geo';
 import { deliversTo } from '../../src/lib/kitchen';
@@ -107,10 +107,22 @@ export default function HomeScreen() {
   const [area, setArea] = useState('');
   const { t, n } = useLang();
 
-  const summary = useMemo(() => reviewSummary(), []);
+  const summary = useReviewSummary();
   const chefName = useMemo(() => {
     const map = new Map(chefs.map((c) => [String(c.id), c.name]));
     return (id) => map.get(String(id)) ?? 'a home kitchen';
+  }, [chefs]);
+
+  const reviews = useMemo(() => {
+    return chefs.slice(0, 10).map((chef, idx) => ({
+      id: String(chef.id),
+      chefId: chef.id,
+      rating: chef.rating || 5,
+      text: chef.description || `${chef.name} prepares fresh, home-cooked culinary specialties with authentic ingredients.`,
+      author: chef.ownerName || chef.name || 'Verified Foodie',
+      location: chef.area || 'Dhaka',
+      avatar: chef.avatar || `https://i.pravatar.cc/100?img=${(idx % 20) + 1}`,
+    }));
   }, [chefs]);
 
   /**

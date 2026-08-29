@@ -28,8 +28,6 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import chefs from '../data/chefs.json';
-import menus from '../data/menus.json';
 import { distanceKm } from '../lib/geo';
 import { deliversTo } from '../lib/kitchen';
 import * as L from '../lib/mealLogic';
@@ -81,239 +79,12 @@ export function defaultDeadline(serveDate, slot) {
 }
 
 /* ------------------------------------------------------------------ *
- * demo seed
+ * offer simulation (uses live backend kitchens)
  * ------------------------------------------------------------------ */
 
-/**
- * Meals for tomorrow from kitchens that are not this device.
- *
- * Without these the customer half of the system has nothing to look at until
- * you have been a cook first, and "tomorrow's meals near you" is the part
- * worth seeing. Seeded silently: these were not published just now, so
- * announcing them would put five fake alerts in the notification list on
- * first launch.
- */
-function seedMeals(state) {
-  const picks = [0, 3, 5, 8, 12, 15];
-  const serveDate = tomorrowKey();
-  const now = Date.now();
-  let next = { ...state, seeded: true };
-
-  picks.forEach((index, i) => {
-    const chef = chefs[index];
-    if (!chef) return;
-    const menu = menus.find((m) => String(m.chefId) === String(chef.id));
-    const dish = menu?.items?.[i % (menu?.items?.length || 1)];
-    if (!dish) return;
-
-    const slot = SLOTS[i % 3].key;
-    next = L.publishMeal(next, {
-      meal: {
-        kitchenId: chef.id,
-        cookName: chef.name,
-        title: dish.name,
-        description: dish.description,
-        image: dish.image,
-        price: dish.price,
-        capacity: 8 + i * 4,
-        serveDate,
-        slot,
-        deadline: defaultDeadline(serveDate, slot),
-        handover: i % 4 === 3 ? 'pickup' : 'delivery',
-        handoverNote:
-          i % 4 === 3 ? 'Collect from the kitchen door.' : 'Delivered to your address.',
-        area: chef.area,
-        lat: chef.lat,
-        lng: chef.lng,
-        deliveryRadiusKm: chef.deliveryRadiusKm,
-      },
-      notifyNearby: false,
-      now,
-    }).state;
-  });
-
-  return next;
-}
-
-/**
- * One demo storefront, so the customer half of the store system has
- * something to walk into before you have been a cook.
- *
- * Deliberately a seeded kitchen rather than this device's own: a cook
- * building their first store should see an empty one, and a customer
- * browsing should see a full one. Seeded silently, for the same reason the
- * meals are -- these were not published a moment ago.
- */
-function seedStores(state) {
-  const chef = chefs.find((c) => c.name === 'Nusrat J.') ?? chefs[5];
-  if (!chef) return state;
-  const now = Date.now();
-
-  let next = S.saveStore(state, {
-    kitchenId: chef.id,
-    patch: {
-      name: 'Nusrat’s Homemade Kitchen',
-      tagline: 'Cakes, pitha and achar, made at home',
-      description:
-        'Everything here is baked or bottled in my own kitchen, in small batches, the day before it reaches you. Cakes need a day’s notice; the achar keeps for months.',
-      logo: chef.avatar,
-      cover: chef.coverImage,
-      phone: '01700 000000',
-      area: chef.area,
-      lat: chef.lat,
-      lng: chef.lng,
-      deliveryRadiusKm: chef.deliveryRadiusKm,
-      deliveryFee: 60,
-      freeDeliveryOver: 1500,
-      isOpen: true,
-    },
-    now,
-  }).state;
-
-  const store = S.storeForKitchen(next, chef.id);
-
-  /* The requirement's own example, so the flow it describes can be walked
-     through end to end: something in stock, something to pre-order, and
-     something with a size to choose. */
-  const groups = [
-    {
-      name: 'Cake',
-      emoji: '🎂',
-      products: [
-        {
-          name: 'Chocolate Cake',
-          description: 'Dark chocolate sponge with ganache. Baked to order.',
-          price: 800,
-          stock: 5,
-          prepTime: '24 hours',
-          preorder: true,
-          maxQty: 3,
-          options: {
-            name: 'Size',
-            choices: [
-              { label: '1kg', priceDelta: 0 },
-              { label: '2kg', priceDelta: 600 },
-            ],
-          },
-          images: ['https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&h=600&fit=crop'],
-        },
-        {
-          name: 'Red Velvet Cake',
-          description: 'Cream cheese frosting, no artificial colour.',
-          price: 950,
-          stock: 0,
-          prepTime: '2 days',
-          preorder: true,
-          images: ['https://images.unsplash.com/photo-1586788680434-30d324b2d46f?w=800&h=600&fit=crop'],
-        },
-      ],
-    },
-    {
-      name: 'Traditional Pitha',
-      emoji: '🥮',
-      products: [
-        {
-          name: 'Bhapa Pitha',
-          description: 'Steamed rice cakes with date molasses and coconut.',
-          price: 80,
-          stock: 0,
-          minQty: 4,
-          prepTime: '1 day',
-          preorder: true,
-          images: ['https://images.unsplash.com/photo-1519676867240-f03562e64548?w=800&h=600&fit=crop'],
-        },
-        {
-          name: 'Chitoi Pitha',
-          description: 'Plain rice cakes, best with the bhorta set.',
-          price: 60,
-          stock: 24,
-          minQty: 4,
-          images: ['https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&h=600&fit=crop'],
-        },
-      ],
-    },
-    {
-      name: 'Achar',
-      emoji: '🫙',
-      products: [
-        {
-          name: 'Mango Achar',
-          description: 'Sun-dried mango in mustard oil. Keeps for a year.',
-          price: 350,
-          stock: 10,
-          maxQty: 4,
-          images: ['https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=800&h=600&fit=crop'],
-        },
-        {
-          name: 'Olive Achar',
-          description: 'Tart and hot, the way it is made in Sylhet.',
-          price: 320,
-          stock: 6,
-          images: ['https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=800&h=600&fit=crop'],
-        },
-      ],
-    },
-  ];
-
-  for (const group of groups) {
-    const made = S.addCategory(next, {
-      storeId: store.id,
-      name: group.name,
-      emoji: group.emoji,
-      now,
-    });
-    next = made.state;
-    for (const product of group.products) {
-      next = S.saveProduct(next, {
-        storeId: store.id,
-        patch: { ...product, categoryId: made.result.id },
-        now,
-      }).state;
-    }
-  }
-
-  return next;
-}
-
-/* ------------------------------------------------------------------ *
- * competing cooks
- * ------------------------------------------------------------------ */
-
-/**
- * Answers from the seeded kitchens when a request goes out to everyone.
- *
- * This is the one part of the bidding system that is simulated rather than
- * real, and it has to be: comparing offers is the entire feature, and on a
- * single device there is exactly one cook who can actually answer. The
- * seeded kitchens bid the way the seeded reviews review and the seeded
- * orders arrive -- the demo's other actors, behaving.
- *
- * The device's own kitchen is deliberately excluded. That cook is real and
- * answers for themselves, which is what makes the cook side of this worth
- * looking at.
- *
- * Prices are deterministic, not random: the same request always produces the
- * same board, so a screenshot and a test agree with each other. They spread
- * around whatever the customer said they expected to pay, or around what
- * that kitchen's menu costs when they said nothing.
- */
-function simulateOffers(state, request, { localKitchenId, now }) {
+function simulateOffers(state, request, { localKitchenId, now, chefs = [] }) {
   if (request.target !== 'all') return state;
 
-  const menuAverage = (chefId) => {
-    const menu = menus.find((m) => String(m.chefId) === String(chefId));
-    const items = menu?.items ?? [];
-    if (!items.length) return 400;
-    return Math.round(items.reduce((sum, d) => sum + d.price, 0) / items.length);
-  };
-
-  /* A small, stable per-cook offset. Anything random here would make the
-     board move under the customer between renders.
-     
-     FNV-1a rather than a plain rolling sum: kitchen ids differ by one
-     character, and a hash without avalanche gave neighbouring ids offsets
-     0.001 apart -- which rounded to the same price and put three cooks on
-     the comparison screen all bidding exactly ৳1140. */
   const wobble = (key) => {
     let h = 2166136261;
     for (const ch of String(key)) {
@@ -339,7 +110,7 @@ function simulateOffers(state, request, { localKitchenId, now }) {
     const chef = chefs.find((c) => String(c.id) === String(id));
     if (!chef) continue;
 
-    const base = request.budget ?? menuAverage(chef.id) * (request.quantity || 1);
+    const base = request.budget ?? 450 * (request.quantity || 1);
     const spread = 0.85 + wobble(`${request.id}:${chef.id}`) * 0.35;
     const price = Math.max(50, Math.round((base * spread) / 10) * 10);
 
@@ -383,7 +154,7 @@ export function CommerceProvider({ children }) {
   const [serverWallet, setServerWallet] = useState(null);
   /* Server kitchen list for eligibleKitchens — loaded from the cache that
      useServerChefs writes, so the two stay in sync without an extra fetch. */
-  const [serverChefs, setServerChefs] = useState(null);
+  const [serverChefs, setServerChefs] = useState([]);
 
   useEffect(() => {
     AsyncStorage.getItem('rannabari_server_chefs')
@@ -406,8 +177,6 @@ export function CommerceProvider({ children }) {
           const parsed = JSON.parse(raw);
           if (parsed && typeof parsed === 'object') loaded = { ...L.EMPTY, ...parsed };
         }
-        if (!loaded.seeded) loaded = seedStores(seedMeals(loaded));
-        // Categories are data now, so they have to exist before anything reads them.
         loaded = X.seedTaxonomy(loaded);
         live.current = loaded;
         setState(loaded);
@@ -634,12 +403,12 @@ export function CommerceProvider({ children }) {
 
       /**
        * Kitchens a broadcast should reach: open, and willing to come this
-       * far. Uses live server kitchen list when available (from AsyncStorage
-       * cache), falling back to bundled chefs.json. The same rule browse
-       * uses, so a request cannot go to a cook the customer was never shown.
+       * far. Uses live server kitchen list (from AsyncStorage cache / live API).
+       * The same rule browse uses, so a request cannot go to a cook the customer
+       * was never shown.
        */
       eligibleKitchens: (origin) => {
-        const allChefs = serverChefs ?? chefs;
+        const allChefs = serverChefs ?? [];
         return [
           ...(kitchen ? [kitchen] : []),
           ...allChefs,
@@ -656,12 +425,11 @@ export function CommerceProvider({ children }) {
       createRequest: (request, eligible) => {
         const out = mutate(R.createRequest, { request, eligible });
         if (!out.ok) return out;
-        /* The seeded kitchens answer straight away. A real deployment would
-           have them trickle in over the evening; here they arrive at once so
-           the comparison screen has something to compare. */
+        /* Simulated offers from live MongoDB kitchens */
         const withOffers = simulateOffers(live.current, out.result, {
           localKitchenId: kitchen?.id,
           now: Date.now(),
+          chefs: serverChefs ?? [],
         });
         if (withOffers !== live.current) {
           live.current = withOffers;

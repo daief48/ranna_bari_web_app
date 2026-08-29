@@ -37,7 +37,7 @@ export function Stars({ rating = 5, size = 16 }) {
  * At the ≤480px breakpoint cards are 84vw and the dots are hidden -- they
  * would wrap to three rows -- so the arrows carry the job.
  */
-export default function TestimonialSlider({ reviews, chefName }) {
+export default function TestimonialSlider({ reviews = [], chefName }) {
   const { colors, shadow } = useTheme();
   const r = useResponsive();
   const listRef = useRef(null);
