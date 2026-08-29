@@ -128,7 +128,7 @@ type MealRow = {
   description: string;
   image: string;
   price: number;
-  capacity: number;
+  capacity?: number | null;
   serveDate: string;
   slot: string;
   deadline: Date;
@@ -324,7 +324,7 @@ export async function mealRoutes(app: FastifyInstance) {
            deadline is still ahead are rules, and the logic module owns them —
            restating them here is a second place to forget when they move. */
         price: z.number(),
-        capacity: z.number(),
+        capacity: z.number().nullable().optional(),
         serveDate: z.string(),
         slot: z.string(),
         deadline: z.string().optional(),
@@ -356,7 +356,7 @@ export async function mealRoutes(app: FastifyInstance) {
         description: body.data.description,
         image: body.data.image,
         price: body.data.price,
-        capacity: body.data.capacity,
+        capacity: body.data.capacity ?? null,
         serveDate: body.data.serveDate,
         slot: body.data.slot,
         deadline: body.data.deadline,

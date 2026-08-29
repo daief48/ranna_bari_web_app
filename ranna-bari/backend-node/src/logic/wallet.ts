@@ -1,6 +1,6 @@
 import type { ClientSession } from 'mongoose';
 
-import { LedgerEntry, Notification, TopUp } from '../models/index.js';
+import { LedgerEntry, Notification, Order, TopUp } from '../models/index.js';
 import { tx } from '../config/db.js';
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
 import { balanceFor, post } from './ledger.js';
@@ -268,12 +268,37 @@ export type WalletEntry = {
  * signed amount. The customer is on one side of every row here, so which side
  * *is* the direction, and the app's wallet screen already reads them.
  */
+/**
+ * One person's three numbers, in one answer.
+ *
+ * The app's wallet is not a single figure. A customer sees what they can
+ * spend *and* what is held against orders they have not confirmed receipt of;
+ * a cook sees what has been released to them. All three fold out of the same
+ * ledger, and returning them together is what stops a screen from showing a
+ * balance and a held amount that were read a second apart.
+ *
+ * `held` is folded from the orders rather than the ledger: the escrow account
+ * is platform-wide, so the ledger can say how much is held in total but not
+ * how much of it is *this* customer's. The orders can.
+ */
 export async function walletFor(
   customerKey: string,
   take = 50,
-): Promise<{ balance: number; entries: WalletEntry[] }> {
-  const [balance, rows] = await Promise.all([
+  kitchenId?: string | null,
+): Promise<{
+  balance: number;
+  held: number;
+  earnings: number;
+  entries: WalletEntry[];
+}> {
+  const [balance, earnings, heldRows, rows] = await Promise.all([
     balanceFor('customer', customerKey),
+    // Only a cook has one of these; everyone else is owed nothing.
+    kitchenId ? balanceFor('cook', kitchenId) : Promise.resolve(0),
+    Order.aggregate<{ _id: null; total: number }>([
+      { $match: { customerKey, payment: 'held' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]),
     LedgerEntry.find({
       $or: [
         { to: 'customer', toRef: customerKey },
@@ -289,6 +314,8 @@ export async function walletFor(
 
   return {
     balance,
+    held: heldRows[0]?.total ?? 0,
+    earnings,
     entries: rows.map((row) => ({
       id: String(row._id),
       kind: row.kind,

@@ -161,7 +161,8 @@ export type MealDraft = {
   description?: string;
   image?: string;
   price: number;
-  capacity: number;
+  /** null is uncapped, which is not the same as zero. */
+  capacity?: number | null;
   /** Local calendar day in Asia/Dhaka, 'YYYY-MM-DD'. Never a timestamp. */
   serveDate: string;
   slot: string;
@@ -200,8 +201,16 @@ export async function publishMeal(
   const price = Math.round(Number(draft.price));
   if (!Number.isFinite(price) || price <= 0) return fail(ERR.BAD_AMOUNT, { field: 'price' });
 
-  const capacity = Math.round(Number(draft.capacity));
-  if (!Number.isFinite(capacity) || capacity <= 0) {
+  /* No capacity means uncapped, which is what the app's form has always
+     offered — "how many plates (optional)". Everything that reads a meal
+     already treats `null` that way: `remaining()` returns null rather than
+     zero, and the card shows no "sold out" state. Refusing it on the way in
+     was the one place that disagreed. */
+  const capacity =
+    draft.capacity == null
+      ? null
+      : Math.round(Number(draft.capacity));
+  if (capacity !== null && (!Number.isFinite(capacity) || capacity <= 0)) {
     return fail(ERR.BAD_AMOUNT, { field: 'capacity' });
   }
 

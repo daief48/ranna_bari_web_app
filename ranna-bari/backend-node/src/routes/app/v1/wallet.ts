@@ -75,7 +75,7 @@ export async function walletRoutes(app: FastifyInstance) {
       .safeParse(request.query ?? {});
     if (!query.success) return fail(reply, ERR.BAD_AMOUNT);
 
-    return walletFor(caller.customerKey, query.data.take);
+    return walletFor(caller.customerKey, query.data.take, caller.kitchenId);
   });
 
   /**

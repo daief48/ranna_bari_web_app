@@ -189,7 +189,8 @@ const mealSchema = new Schema(
     description: { type: String, default: '' },
     image: { type: String, default: '' },
     price: { type: Number, required: true },
-    capacity: { type: Number, required: true },
+    /** null is uncapped, which is not the same as zero. */
+    capacity: { type: Number, default: null },
 
     /** Local calendar day in Asia/Dhaka, 'YYYY-MM-DD'. Never a timestamp. */
     serveDate: { type: String, required: true, index: true },
