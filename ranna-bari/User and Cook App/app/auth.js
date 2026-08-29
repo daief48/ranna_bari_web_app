@@ -602,6 +602,9 @@ export default function AuthScreen() {
 
 /** The wordmark, re-skinned for the dark scrim: glass mark, peach "BARI". */
 function AsideBrand() {
+  /* Caps in Latin; in Bengali the same call is identity, which is the whole
+     reason there is no second uppercase entry to keep in step. */
+  const { brand } = useLang();
   const wordStyle = {
     fontFamily: font.displayExtra,
     fontSize: 20,
@@ -616,8 +619,8 @@ function AsideBrand() {
         contentFit="contain"
       />
       <View style={{ flexDirection: 'row' }}>
-        <Text style={wordStyle}>RANNA</Text>
-        <Text style={[wordStyle, { color: '#F0A88F' }]}>BARI</Text>
+        <Text style={wordStyle}>{brand.first.toUpperCase()}</Text>
+        <Text style={[wordStyle, { color: '#F0A88F' }]}>{brand.second.toUpperCase()}</Text>
       </View>
     </View>
   );

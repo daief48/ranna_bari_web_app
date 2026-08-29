@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { db } from '@/lib/db';
-import { get } from '@/lib/backend';
+import { BackendError, get } from '@/lib/backend';
 import { BackendDown, down } from '@/components/backend-down';
 import { paging, pageCount } from '@/lib/queries';
 import {

@@ -101,7 +101,7 @@ export default function ModernLoader({
   onFinished,
 }) {
   const { colors, isDark } = useTheme();
-  const { lang } = useLang();
+  const { lang, brand } = useLang();
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(visible ? 1 : 0)).current;
@@ -334,7 +334,7 @@ export default function ModernLoader({
                 },
               ]}
             >
-              Ranna
+              {brand.first}
             </Text>
             <Text
               style={[
@@ -345,7 +345,7 @@ export default function ModernLoader({
                 },
               ]}
             >
-              Bari
+              {brand.second}
             </Text>
             <View
               style={{

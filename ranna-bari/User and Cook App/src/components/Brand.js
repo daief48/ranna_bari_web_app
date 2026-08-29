@@ -5,6 +5,7 @@ import { GradientText } from './Typography';
 import { useTheme } from '../theme/ThemeProvider';
 import useResponsive from '../theme/useResponsive';
 import { font } from '../theme/tokens';
+import { useLang } from '../i18n/LanguageContext';
 
 const LOGO_LIGHT = require('../../assets/logo.png');
 const LOGO_DARK = require('../../assets/logo-dark.png');
@@ -13,10 +14,14 @@ const LOGO_DARK = require('../../assets/logo-dark.png');
  * Modern, high-end brand lockup.
  *
  * Combines a crisp squircle jewel logo mark with contemporary TitleCase
- * typography — "Ranna" in deep ink and "Bari" in vibrant warm vermilion gradient.
+ * typography — the first half in deep ink, the second in a warm vermilion
+ * gradient. Both halves come from the language layer: in Bengali the name is
+ * written রান্নাবাড়ি rather than transliterated back into Latin, because it
+ * is a Bengali name to begin with.
  */
 export default function Brand({ size, markSize = 36, markOnly = false }) {
   const { colors, shadow, isDark } = useTheme();
+  const { brand } = useLang();
   const r = useResponsive();
   const wordSize = size ?? r.brandWord ?? 19;
 
@@ -62,12 +67,12 @@ export default function Brand({ size, markSize = 36, markOnly = false }) {
 
       {markOnly ? null : (
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={wordStyle}>Ranna</Text>
+          <Text style={wordStyle}>{brand.first}</Text>
           <GradientText
             style={[wordStyle, { fontFamily: font.displayBold }]}
             colors={[colors.primary, colors.saffron]}
           >
-            Bari
+            {brand.second}
           </GradientText>
           {/* Subtle modern brand accent dot */}
           <View

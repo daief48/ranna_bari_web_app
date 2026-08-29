@@ -18,6 +18,28 @@ export const LANGUAGES = [
   { code: 'bn', short: 'বাং', label: 'বাংলা' },
 ];
 
+/**
+ * The wordmark, split where the lockup paints it.
+ *
+ * "RannaBari" is a transliteration of রান্নাবাড়ি, not a foreign name that
+ * happens to be used here — so in Bengali the name is not translated, it is
+ * simply *written*, the way its owners write it. An app that switches every
+ * button to Bengali and keeps its own name in Latin looks like a Bengali
+ * skin over an English product.
+ *
+ * Two halves rather than one string because the second half is the one that
+ * carries the gradient in every lockup, and রান্না + বাড়ি is where the
+ * compound actually joins — cooking, and house.
+ *
+ * Nothing here needs an uppercase variant: the auth aside sets its lockup in
+ * caps, and `toUpperCase()` on Bengali is identity, so the same pair serves
+ * both without a second entry to keep in step.
+ */
+export const BRAND = {
+  en: { first: 'Ranna', second: 'Bari' },
+  bn: { first: 'রান্না', second: 'বাড়ি' },
+};
+
 const LanguageContext = createContext(null);
 
 /**
@@ -102,6 +124,10 @@ export function LanguageProvider({ children }) {
       toggleLang,
       t,
       n,
+      /* The three lockups read this rather than each holding their own copy
+         of the name — a brand spelled in three places is a brand that gets
+         changed in two. */
+      brand: BRAND[lang] ?? BRAND.en,
       hydrated,
     };
   }, [lang, setLang, toggleLang, hydrated]);
