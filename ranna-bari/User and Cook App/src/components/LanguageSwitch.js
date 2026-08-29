@@ -17,7 +17,7 @@ import { font } from '../theme/tokens';
  * so it is legible as a choice even to someone who cannot read the other one.
  */
 export default function LanguageSwitch({ style }) {
-  const { colors, shadow } = useTheme();
+  const { colors, shadow, isDark } = useTheme();
   const { isBn, toggleLang } = useLang();
 
   // Going to Bengali, or back to English.
@@ -35,17 +35,22 @@ export default function LanguageSwitch({ style }) {
       }}
       style={({ pressed }) => [
         {
-          minWidth: 34,
-          height: 38,
-          paddingHorizontal: 6,
-          borderRadius: 13,
+          minWidth: 36,
+          height: 36,
+          paddingHorizontal: 8,
+          borderRadius: 12,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: pressed ? colors.sunken : 'transparent',
+          backgroundColor: pressed
+            ? colors.primary50
+            : isDark
+            ? 'rgba(255, 255, 255, 0.06)'
+            : 'rgba(31, 29, 26, 0.04)',
           borderWidth: 1,
-          borderColor: colors.line,
+          borderColor: isDark
+            ? 'rgba(255, 255, 255, 0.08)'
+            : 'rgba(31, 29, 26, 0.06)',
         },
-        shadow.xs,
         style,
       ]}
     >
@@ -53,9 +58,9 @@ export default function LanguageSwitch({ style }) {
         style={{
           fontFamily: target.family,
           fontSize: target.size,
-          // No tracking: it would pull "বাং" apart at the matra.
-          letterSpacing: isBn ? 0.6 : 0,
+          letterSpacing: isBn ? 0.4 : 0,
           color: colors.text,
+          fontWeight: '700',
         }}
       >
         {target.short}

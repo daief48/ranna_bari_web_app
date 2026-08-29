@@ -3,6 +3,7 @@ import { Platform, Pressable, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 
 import Brand from './Brand';
 import Icon from './Icon';
@@ -12,7 +13,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { font, radius } from '../theme/tokens';
 
 /** Height of the bar itself, from `.navbar .container { height: 58px }`. */
-export const NAVBAR_HEIGHT = 58;
+export const NAVBAR_HEIGHT = 60;
 /** Gap between the safe area and the floating bar (`top: 10px` on phones). */
 export const NAVBAR_TOP = 10;
 
@@ -23,50 +24,62 @@ export function useNavbarOffset() {
 }
 
 function NavIcon({ name, onPress, active, badge, accessibilityLabel }) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
+      onPress={() => {
+        Haptics.selectionAsync().catch(() => {});
+        onPress?.();
+      }}
       style={({ pressed }) => ({
-        width: 42,
-        height: 42,
-        borderRadius: 14,
+        width: 36,
+        height: 36,
+        borderRadius: 12,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: active || pressed ? colors.primary50 : 'transparent',
+        backgroundColor: pressed
+          ? colors.primary50
+          : isDark
+          ? 'rgba(255, 255, 255, 0.06)'
+          : 'rgba(31, 29, 26, 0.04)',
+        borderWidth: 1,
+        borderColor: isDark
+          ? 'rgba(255, 255, 255, 0.08)'
+          : 'rgba(31, 29, 26, 0.06)',
       })}
     >
       <Icon
         name={name}
-        size={21}
+        size={18}
         color={active ? colors.primary : colors.text}
+        strokeWidth={1.85}
       />
 
       {badge > 0 ? (
         <View
           style={{
             position: 'absolute',
-            top: 2,
-            right: 2,
-            minWidth: 18,
-            height: 18,
+            top: -2,
+            right: -2,
+            minWidth: 16,
+            height: 16,
             paddingHorizontal: 4,
-            borderRadius: 9,
+            borderRadius: 8,
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor: colors.primary,
-            borderWidth: 2,
+            borderWidth: 1.5,
             borderColor: colors.canvas,
           }}
         >
           <Text
             style={{
               fontFamily: font.uiBold,
-              fontSize: 10,
-              lineHeight: 12,
+              fontSize: 9.5,
+              lineHeight: 11,
               color: '#FFFFFF',
             }}
           >
@@ -79,12 +92,7 @@ function NavIcon({ name, onPress, active, badge, accessibilityLabel }) {
 }
 
 /**
- * `.navbar` at the phone breakpoint — a floating pill-ish bar, 10px below the
- * safe area, inset 10px each side, 22px radius.
- *
- * The "Browse Cooks" link and the location chip are both hidden on phones in
- * the CSS (the bottom app bar carries navigation), so only the icon cluster
- * survives here.
+ * `.navbar` — high-end floating glassmorphic pill bar.
  */
 export default function Navbar() {
   const { colors, shadow, isDark, toggle } = useTheme();
@@ -97,22 +105,22 @@ export default function Navbar() {
         {
           position: 'absolute',
           top: insets.top + NAVBAR_TOP,
-          left: 10,
-          right: 10,
+          left: 12,
+          right: 12,
           height: NAVBAR_HEIGHT,
-          borderRadius: radius.md,
+          borderRadius: radius.lg,
           overflow: 'hidden',
           borderWidth: 1,
-          borderColor: colors.line,
+          borderColor: isDark
+            ? 'rgba(236, 234, 225, 0.12)'
+            : 'rgba(31, 29, 26, 0.08)',
           zIndex: 100,
         },
-        shadow.sm,
+        shadow.md,
       ]}
     >
       <BlurView
-        // The phone breakpoint drops the blur from 20px to 18px: heavy blur is
-        // expensive on mobile GPUs.
-        intensity={Platform.OS === 'android' ? 40 : 26}
+        intensity={Platform.OS === 'android' ? 45 : 30}
         tint={isDark ? 'dark' : 'light'}
         style={{ flex: 1 }}
       >
@@ -123,29 +131,26 @@ export default function Navbar() {
             alignItems: 'center',
             justifyContent: 'space-between',
             paddingHorizontal: 14,
-            // color-mix(canvas 72%, transparent) over the blur
             backgroundColor: isDark
-              ? `rgba(${colors.rgbRaised}, 0.76)`
-              : 'rgba(250, 247, 240, 0.72)',
+              ? 'rgba(26, 33, 28, 0.84)'
+              : 'rgba(255, 255, 255, 0.88)',
           }}
         >
           <Pressable
             onPress={() => router.push('/')}
             accessibilityRole="link"
             accessibilityLabel="RannaBari home"
+            style={({ pressed }) => ({
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            })}
           >
-            <Brand size={20} markSize={34} />
+            <Brand size={19.5} markSize={36} />
           </Pressable>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 0 }}>
-            {/* Only a cook has somewhere else to be. */}
-            <ModeSwitch style={{ marginRight: 3 }} />
-            <LanguageSwitch style={{ marginRight: 3 }} />
-            {/* Neither cart nor profile lives up here any more: the bottom app
-                bar carries both, and a second copy at the far end of the phone
-                only made the bar wider. Screens outside the tab group have no
-                bottom bar, so those carry their own cart affordance instead --
-                see the summary bar on a kitchen page. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {/* Cook mode switch if eligible */}
+            <ModeSwitch />
+            <LanguageSwitch />
             <NavIcon
               name={isDark ? 'sun' : 'moon'}
               accessibilityLabel={

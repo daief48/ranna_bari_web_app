@@ -83,17 +83,23 @@ export default async function LoginPage({
       <div className="relative z-10 grid w-full max-w-[900px] gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-center lg:gap-16">
         <section className="max-w-[440px]">
           <div className="flex items-center gap-3">
-            <span
-              className="bn grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-primary text-[18px] leading-none font-bold text-on-primary shadow-md"
-              aria-hidden
-            >
-              রা
-            </span>
+            <img
+              src="/logo.png"
+              alt="RannaBari"
+              className="h-11 w-11 shrink-0 object-contain rounded-[12px] border border-line bg-raised shadow-sm"
+            />
             <div>
-              <div className="font-display text-[21px] leading-none font-bold tracking-[-0.015em] text-ink">
-                RannaBari
+              <div className="flex items-center">
+                <span className="font-display text-[22px] leading-none font-bold tracking-[-0.02em] text-ink">
+                  Ranna
+                </span>
+                <span className="font-display text-[22px] leading-none font-bold tracking-[-0.02em] text-primary">
+                  Bari
+                </span>
               </div>
-              <div className="label mt-1.5">Operator console</div>
+              <div className="label mt-1.5 text-[11px] tracking-[0.04em]">
+                Operator console
+              </div>
             </div>
           </div>
 

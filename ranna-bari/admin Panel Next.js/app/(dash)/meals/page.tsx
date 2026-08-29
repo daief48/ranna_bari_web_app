@@ -1,11 +1,10 @@
 import Link from 'next/link';
-import type { Prisma } from '@prisma/client';
 
+import { get } from '@/lib/backend';
 import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { can, SLOTS } from '@/lib/domain';
-import { taka, todayKey, fmtDateTime, timeAgo } from '@/lib/format';
-import { parseJson } from '@/lib/mappers';
+import { todayKey } from '@/lib/format';
 import { paging, pageCount } from '@/lib/queries';
 import {
   Badge,
@@ -21,11 +20,115 @@ import {
   EmptyRow,
 } from '@/components/ui';
 import { FilterSelect, Pager } from '@/components/ui/client';
+import { BackendDown, down } from '@/components/backend-down';
 import { MealControls } from './controls';
 import { requirePage } from '@/lib/guard';
 
 export const metadata = { title: 'Meals · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
+
+/** One meal as `GET /meals` sends it. */
+type MealRow = {
+  id: string;
+  code: string;
+  kitchenId: string;
+  cookName: string;
+  title: string;
+  price: number;
+  capacity: number;
+  serveDate: string;
+  slot: string;
+  status: string;
+  /**
+   * Orders on the meal that are not cancelled, folded per meal by the endpoint
+   * in one grouped count. This is what the capacity meter reads as sold — the
+   * panel used to exclude `rejected` as well, which the backend does not, so a
+   * rejected order now counts against capacity.
+   */
+  confirmed: number;
+  held: number;
+  /**
+   * Interest left the meal document on the way to Mongo — it is a collection of
+   * its own now, and `GET /meals` does not fold it back in. Optional rather
+   * than dropped, so the column fills itself in the day the endpoint carries it.
+   */
+  interested?: string[];
+};
+
+type MealList = { meals: MealRow[]; total: number };
+
+/** How many rows one scan request pulls, and how many requests a scan will make. */
+const SCAN_SIZE = 100;
+const SCAN_PAGES = 5;
+
+const listUrl = (query: URLSearchParams, skip: number, take: number) => {
+  const out = new URLSearchParams(query);
+  out.set('skip', String(skip));
+  out.set('take', String(take));
+  return `/meals?${out}`;
+};
+
+/**
+ * Every meal matching `query`, a hundred at a time.
+ *
+ * `GET /meals` filters on status and on the stale view and on nothing else, so
+ * a serve-date or slot filter has to be applied here — and applying one to a
+ * single page of twenty-five would leave the pager counting rows the filter had
+ * already thrown away. The ceiling is what stops a board with two years of
+ * history behind it turning one render into fifty round trips; a `serveDate`
+ * and `slot` parameter on the endpoint retires this whole function.
+ */
+async function scanMeals(query: URLSearchParams): Promise<MealRow[]> {
+  const first = await get<MealList>(listUrl(query, 0, SCAN_SIZE));
+  const pages = Math.min(SCAN_PAGES, Math.ceil(first.total / SCAN_SIZE));
+  if (pages <= 1) return first.meals;
+
+  const rest = await Promise.all(
+    Array.from({ length: pages - 1 }, (_, i) =>
+      get<MealList>(listUrl(query, (i + 1) * SCAN_SIZE, SCAN_SIZE)),
+    ),
+  );
+  return [first.meals, ...rest.map((page) => page.meals)].flat();
+}
+
+async function loadMeals(
+  params: Record<string, string | undefined>,
+  skip: number,
+  take: number,
+) {
+  const today = todayKey();
+  const stale = params.view === 'stale';
+
+  const query = new URLSearchParams();
+  if (stale) query.set('view', 'stale');
+  else if (params.status) query.set('status', params.status);
+
+  const local = !stale && Boolean(params.slot || params.when);
+
+  const [list, staleList, publishedList] = await Promise.all([
+    local
+      ? scanMeals(query).then((meals) => ({ meals, total: meals.length }))
+      : get<MealList>(listUrl(query, skip, take)),
+    get<MealList>('/meals?view=stale&skip=0&take=1'),
+    get<MealList>('/meals?status=published&skip=0&take=1'),
+  ]);
+
+  const counts = { staleCount: staleList.total, published: publishedList.total };
+  if (!local) return { rows: list.meals, total: list.total, ...counts };
+
+  /* `serveDate` is a Dhaka calendar day written 'YYYY-MM-DD', so these are
+     string compares — the same reasoning the backend's stale view uses. Against
+     a timestamp the board would roll over at UTC midnight, six hours early. */
+  const filtered = list.meals.filter(
+    (meal) =>
+      (!params.slot || meal.slot === params.slot) &&
+      (params.when !== 'today' || meal.serveDate === today) &&
+      (params.when !== 'upcoming' || meal.serveDate > today) &&
+      (params.when !== 'past' || meal.serveDate < today),
+  );
+
+  return { rows: filtered.slice(skip, skip + take), total: filtered.length, ...counts };
+}
 
 export default async function MealsPage({
   searchParams,
@@ -41,46 +144,21 @@ export default async function MealsPage({
 
   const stale = params.view === 'stale';
 
-  const where: Prisma.MealWhereInput = stale
-    ? { status: 'published', serveDate: { lt: today } }
-    : {};
-  if (!stale) {
-    if (params.status) where.status = params.status;
-    if (params.slot) where.slot = params.slot;
-    if (params.when === 'today') where.serveDate = today;
-    if (params.when === 'upcoming') where.serveDate = { gt: today };
-    if (params.when === 'past') where.serveDate = { lt: today };
+  const board = await loadMeals(params, skip, take).catch(down);
+  if (!board) {
+    return (
+      <BackendDown title="Meals" subtitle="Pre-booked services, by serve date and slot" />
+    );
   }
 
-  const [rows, total, staleCount, published, todayCount] = await Promise.all([
-    db.meal.findMany({
-      where,
-      skip,
-      take,
-      orderBy: [{ serveDate: 'desc' }, { slot: 'asc' }],
-      include: {
-        kitchen: { select: { id: true, name: true } },
-        _count: { select: { orders: true } },
-      },
-    }),
-    db.meal.count({ where }),
-    db.meal.count({ where: { status: 'published', serveDate: { lt: today } } }),
-    db.meal.count({ where: { status: 'published' } }),
-    db.meal.count({ where: { serveDate: today } }),
-  ]);
+  const { rows, total, staleCount, published } = board;
 
-  /* Confirmed plates per meal, in one grouped query. `capacity - confirmed`
-     is what "remaining" means to the app, and a capacity bar that lies is
-     worse than no bar. */
-  const confirmed = await db.order.groupBy({
-    by: ['mealId'],
-    where: {
-      mealId: { in: rows.map((r) => r.id) },
-      status: { notIn: ['cancelled', 'rejected'] },
-    },
-    _count: true,
-  });
-  const soldOf = new Map(confirmed.map((c) => [c.mealId, c._count]));
+  /* The last read this page makes of the panel's own database. `GET /meals`
+     takes no serveDate parameter, so there is nowhere on the backend for this
+     count to come from yet — and it will disagree with every other figure here
+     as soon as the two stores diverge. A `serveDate` filter on the endpoint is
+     what deletes this line. */
+  const todayCount = await db.meal.count({ where: { serveDate: today } });
 
   return (
     <>
@@ -169,8 +247,7 @@ export default async function MealsPage({
           head={['Meal', 'Kitchen', 'Serve', 'Slot', 'Price', 'Sold', 'Interest', 'Status', 'Actions']}
         >
           {rows.map((meal) => {
-            const sold = soldOf.get(meal.id) ?? 0;
-            const interest = parseJson<string[]>(meal.interested, []).length;
+            const sold = meal.confirmed;
             const overdue = meal.status === 'published' && meal.serveDate < today;
 
             return (
@@ -180,8 +257,11 @@ export default async function MealsPage({
                   <span className="tnum block text-[11px] text-ink3">{meal.code}</span>
                 </td>
                 <td className="max-w-[140px] truncate text-ink2">
-                  <Link href={`/kitchens/${meal.kitchen.id}`} className="hover:text-primary">
-                    {meal.kitchen.name}
+                  {/* `GET /meals` does not join the kitchen, so the name shown is
+                      the meal's own copy of it — the same fallback the backend
+                      uses on its pre-order board. The link still resolves. */}
+                  <Link href={`/kitchens/${meal.kitchenId}`} className="hover:text-primary">
+                    {meal.cookName || '—'}
                   </Link>
                 </td>
                 <td className="tnum whitespace-nowrap">
@@ -206,7 +286,9 @@ export default async function MealsPage({
                     tone={sold >= meal.capacity ? 'good' : 'info'}
                   />
                 </td>
-                <td className="tnum text-ink2">{interest}</td>
+                {/* A dash, not a zero: nobody has said this meal interests
+                    nobody — the count simply has no source yet. */}
+                <td className="tnum text-ink2">{meal.interested?.length ?? '—'}</td>
                 <td>
                   <StatusBadge status={meal.status} />
                 </td>

@@ -1,62 +1,84 @@
 import React from 'react';
-import { Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Image, Text, View } from 'react-native';
 
-import Icon from './Icon';
 import { GradientText } from './Typography';
 import { useTheme } from '../theme/ThemeProvider';
 import useResponsive from '../theme/useResponsive';
 import { font } from '../theme/tokens';
 
+const LOGO_IMG = require('../../assets/logo.png');
+
 /**
- * The wordmark lockup. Two bugs the CSS had to fix are structural here:
- * "RANNA" and "BARI" live in one <Text> run so no flex gap can split them,
- * and both halves share a size so the second half can't render larger.
+ * Modern, high-end brand lockup.
  *
- * `markOnly` drops the word and keeps the mark, for headers carrying more
- * controls than the full lockup leaves room for.
+ * Combines a crisp squircle jewel logo mark with contemporary TitleCase
+ * typography — "Ranna" in deep ink and "Bari" in vibrant warm vermilion gradient.
  */
-export default function Brand({ size, markSize = 38, markOnly = false }) {
-  const { colors, shadow } = useTheme();
+export default function Brand({ size, markSize = 36, markOnly = false }) {
+  const { colors, shadow, isDark } = useTheme();
   const r = useResponsive();
-  const wordSize = size ?? r.brandWord;
+  const wordSize = size ?? r.brandWord ?? 19;
 
   const wordStyle = {
-    fontFamily: font.displayExtra,
+    fontFamily: font.displayBold,
     fontSize: wordSize,
-    letterSpacing: wordSize * -0.03,
+    letterSpacing: -0.4,
     color: colors.text,
   };
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: r.brandGap }}>
-      <LinearGradient
-        colors={[colors.primary300, colors.primary600]}
-        start={{ x: 0.15, y: 0 }}
-        end={{ x: 0.85, y: 1 }}
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+      {/* Sleek logo badge */}
+      <View
         style={[
           {
             width: markSize,
             height: markSize,
-            borderRadius: markSize * 0.342, // 13/38, the CSS ratio
+            borderRadius: Math.round(markSize * 0.28),
+            overflow: 'hidden',
             alignItems: 'center',
             justifyContent: 'center',
+            backgroundColor: isDark
+              ? 'rgba(255, 255, 255, 0.08)'
+              : 'rgba(199, 56, 26, 0.06)',
+            borderWidth: 1,
+            borderColor: isDark
+              ? 'rgba(255, 255, 255, 0.12)'
+              : 'rgba(199, 56, 26, 0.12)',
           },
-          shadow.primary,
+          shadow.xs,
         ]}
       >
-        <Icon
-          name="brand"
-          size={markSize * 0.553}
-          color={colors.onPrimary}
-          strokeWidth={1.9}
+        <Image
+          source={LOGO_IMG}
+          style={{
+            width: markSize,
+            height: markSize,
+          }}
+          resizeMode="contain"
         />
-      </LinearGradient>
+      </View>
 
       {markOnly ? null : (
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={wordStyle}>RANNA</Text>
-          <GradientText style={wordStyle}>BARI</GradientText>
+          <Text style={wordStyle}>Ranna</Text>
+          <GradientText
+            style={[wordStyle, { fontFamily: font.displayBold }]}
+            colors={[colors.primary, colors.saffron]}
+          >
+            Bari
+          </GradientText>
+          {/* Subtle modern brand accent dot */}
+          <View
+            style={{
+              width: 4,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: colors.primary,
+              marginLeft: 2.5,
+              marginTop: wordSize * 0.35,
+            }}
+          />
         </View>
       )}
     </View>

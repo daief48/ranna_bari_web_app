@@ -497,20 +497,11 @@ function AsideBrand() {
   };
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      <View
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 12,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: 'rgba(255, 255, 255, 0.14)',
-          borderWidth: 1,
-          borderColor: 'rgba(255, 255, 255, 0.22)',
-        }}
-      >
-        <Icon name="brand" size={19} color="#FFF6F1" strokeWidth={1.9} />
-      </View>
+      <Image
+        source={require('../assets/logo.png')}
+        style={{ width: 34, height: 34 }}
+        contentFit="contain"
+      />
       <View style={{ flexDirection: 'row' }}>
         <Text style={wordStyle}>RANNA</Text>
         <Text style={[wordStyle, { color: '#F0A88F' }]}>BARI</Text>

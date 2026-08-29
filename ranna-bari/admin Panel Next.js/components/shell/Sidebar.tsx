@@ -241,17 +241,23 @@ export function Sidebar({
             rail ? 'lg:justify-center lg:px-0' : ''
           }`}
         >
-          <span
-            className="bn grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-primary text-[14px] leading-none font-bold text-on-primary shadow-sm"
-            aria-hidden
-          >
-            রা
-          </span>
+          <img
+            src="/logo.png"
+            alt="RannaBari"
+            className="h-8 w-8 shrink-0 object-contain rounded-[8px] border border-line bg-raised shadow-xs"
+          />
           <div className={`min-w-0 ${rail ? 'lg:hidden' : ''}`}>
-            <div className="font-display text-[15px] leading-none font-bold tracking-[-0.01em]">
-              RannaBari
+            <div className="flex items-center">
+              <span className="font-display text-[15px] leading-none font-bold tracking-[-0.02em] text-ink">
+                Ranna
+              </span>
+              <span className="font-display text-[15px] leading-none font-bold tracking-[-0.02em] text-primary">
+                Bari
+              </span>
             </div>
-            <div className="label mt-1 opacity-80">Operator console</div>
+            <div className="label mt-1 text-[10px] tracking-[0.03em] opacity-75">
+              Operator console
+            </div>
           </div>
         </div>
 

@@ -19,7 +19,7 @@
       "package": "com.rannabari.app",
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
-        "backgroundColor": "#C7381A",
+        "backgroundColor": "#FAF7F0",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

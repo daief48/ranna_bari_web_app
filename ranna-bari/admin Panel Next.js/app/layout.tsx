@@ -32,6 +32,10 @@ const bengali = Noto_Sans_Bengali({
 export const metadata: Metadata = {
   title: 'RannaBari Admin',
   description: 'Operator console for the RannaBari home-cook marketplace.',
+  icons: {
+    icon: '/favicon.png',
+    apple: '/logo.png',
+  },
 };
 
 /**
