@@ -3,8 +3,8 @@
 Node · TypeScript · Fastify · MongoDB (Mongoose) · `ws`
 
 The platform's source of truth. Serves two consumers — the admin panel, which
-integrates with it, and the Expo app, whose endpoints exist but are not wired
-to it yet.
+integrates with it, and the Expo app, which is being wired onto it now.
+
 
 ---
 
@@ -21,11 +21,22 @@ npm run seed              # against MONGODB_URI
 npm run dev               # http://localhost:4000 · ws://localhost:4000/ws
 ```
 
-No Atlas yet? Everything is verifiable without it:
+**No Atlas password yet?** Then run the whole thing without one:
 
 ```bash
-npm test                  # 39 assertions on a real in-memory replica set
-npm run seed:local        # seed a throwaway replica set, prove it end to end
+npm run dev:local         # in-memory replica set, seeded, API + socket on :4000
+```
+
+A replica set specifically — every money path here is a transaction, and a
+standalone `mongod` would start, serve reads, then fail at the first commit.
+The script asserts that rather than letting you find out later. Nothing it
+stores survives the process.
+
+```bash
+npm test                  # 57 assertions + the session checker
+npm run seed:local        # seed a throwaway replica set and print the books
+npm run routes            # what actually registered — 98 routes today
+npm run check:sessions    # every in-transaction query passes { session }
 ```
 
 Sign in as `admin@rannabari.app` / `rannabari` (also `ops@`, `finance@`,
@@ -42,8 +53,10 @@ npm run build && npm start
 
 | | |
 |---|---|
-| `npm test` | **39 passed** — 16 money invariants, 23 HTTP |
-| `npm run seed:local` | 20 kitchens, 145 orders, 218 ledger entries, **zero drift** |
+| `npm test` | **57 passed** — money invariants, HTTP surface, ported transitions |
+| `npm run check:sessions` | clean across 29 files |
+| `npm run seed:local` | 20 kitchens, 380 orders, 510 ledger entries, **zero drift** |
+| `npm run routes` | 98 routes across two prefixes |
 | `GET /health` | reports whether transactions are actually possible |
 
 What the tests actually assert, rather than assume:
@@ -169,7 +182,7 @@ src/
   routes/app/v1    the Expo client's API
   routes/admin/v1  the panel's API
 scripts/seed.ts    from the app's own chefs/menus/reviews JSON
-tests/             39 assertions on a real replica set
+tests/             57 assertions on a real replica set
 ```
 
 `logic/ledger.ts` is a port of the app's own `src/lib/ledger.js`, whose header
@@ -212,16 +225,20 @@ Named so the gaps are known rather than discovered:
   `requestOtp` throws rather than returning a code once `SMS_PROVIDER` is set,
   so it cannot reach production by accident. **This is the last thing between
   this and real use.**
-- **The app still reads AsyncStorage.** Its endpoints are here and match its
-  shapes; nothing in the Expo client calls them yet.
-- **Meals, stores and requests are modelled and served but their transitions
-  are not ported** — `publishMeal`, `checkout`, `submitOffer` and the rest
-  still live only in the app. `logic/ledger.ts` is the pattern to follow.
 - **`migrate-from-sqlite.ts` is not written.** The panel's existing `dev.db`
-  does not carry over yet.
-- **No payout or dispute endpoints** on the admin API — the logic exists in
-  the panel and needs porting the way the ledger was.
+  does not carry over, so the panel starts from this service's own seed.
+- **The chat desk in the panel is still on Prisma**, deliberately. Chat is
+  served under `/api/app/v1/chat/*` — one surface for the phone and the desk,
+  told apart by which credential the caller presents — while `lib/backend.ts`
+  only ever reaches `/api/admin/v1`, because a panel that can call the app's
+  routes is a panel that can present itself as a customer. Closing that needs
+  either an admin-prefixed chat surface or a deliberate exception, and that is
+  a decision about the trust boundary rather than a migration step.
+- **Operator accounts still live in the panel's own database.** There is no
+  admin-user endpoint here. Defensible as an interim; worth deciding.
 - **The socket registry is in-process.** Correct for one instance; `publish()`
   is the single seam where Redis goes.
 - **TOTP is implemented, not enforced.** No enrolment endpoint, so
   `totpEnabled` is false for every seeded operator.
+- **No per-dish endpoint for a cook's own menu**, so the app keeps its menu
+  on the device. Everything else it owns now round-trips.

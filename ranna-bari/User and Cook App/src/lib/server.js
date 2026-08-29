@@ -17,7 +17,15 @@ import { Platform } from 'react-native';
  * than hardcoded into a file somebody has to edit per machine.
  */
 
-const PORT = 3100;
+/**
+ * The backend's port, not the admin panel's.
+ *
+ * This was 3100 when the panel was the only thing serving `/api/app/v1`.
+ * `backend-node` owns that surface now and listens on 4000; the panel is a
+ * client of it like everything else. Pointing the app at 3100 today reaches
+ * a Next.js app that no longer answers for the whole API.
+ */
+const PORT = 4000;
 
 function inferHost() {
   // Expo web: the app and the API can share an origin behind a proxy, but in
