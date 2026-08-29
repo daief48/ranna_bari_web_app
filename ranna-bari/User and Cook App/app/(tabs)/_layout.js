@@ -15,13 +15,25 @@ import { useLang } from '../../src/i18n/LanguageContext';
 import { font, radius } from '../../src/theme/tokens';
 
 /**
- * Cart sits in the middle rather than at an edge: it is the highest-intent
- * destination here and the centre of the bar is the easiest reach on a phone.
+ * The seven destinations, in the order somebody moves through them.
+ *
+ * Shops was reachable only from a row inside Profile, which is two taps and a
+ * screen nobody visits to go shopping — so the whole store side of the
+ * marketplace was effectively hidden behind the settings page. It belongs
+ * next to Meals: both answer "what can I buy", where Browse answers "who is
+ * cooking" and Map answers "who is near me".
+ *
+ * That does cost something. Cart used to sit at the centre of six, which is
+ * the easiest reach on a phone; at seven it moves off centre. Keeping it
+ * central would have meant wedging the basket between Meals and Shops, and a
+ * basket in the middle of the browsing tabs reads as a mistake. Cart also
+ * carries a badge, which is its own way of being found.
  */
 const TABS = [
   { name: 'index', icon: 'home', label: 'Home' },
   { name: 'browse', icon: 'search', label: 'Browse' },
   { name: 'meals', icon: 'pot', label: 'Meals' },
+  { name: 'stores', icon: 'box', label: 'Shops' },
   { name: 'map', icon: 'map', label: 'Map' },
   { name: 'cart', icon: 'cart', label: 'Cart' },
   { name: 'profile', icon: 'user', label: 'Profile' },
@@ -204,6 +216,10 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="browse" options={{ title: 'Browse' }} />
       <Tabs.Screen name="meals" options={{ title: 'Meals' }} />
+      {/* `(tabs)` is a route group, so this is still `/stores` — every
+          existing link to it keeps working, and `stores/[id]` still serves
+          the shop page from outside the group. */}
+      <Tabs.Screen name="stores" options={{ title: 'Shops' }} />
       <Tabs.Screen name="map" options={{ title: 'Map' }} />
       <Tabs.Screen name="cart" options={{ title: 'Cart' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />

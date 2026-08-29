@@ -60,9 +60,13 @@ export default function ModeSwitch({ compact = false, style }) {
         {
           flexDirection: 'row',
           alignItems: 'center',
-          gap: compact ? 0 : 6,
+          /* Trimmed from 6/10 to 5/9. Four pixels sounds like nothing, but
+             this pill sits in a header that was overflowing by thirty, and
+             the alternative to finding them was dropping the word "KITCHEN"
+             on every ordinary phone. */
+          gap: compact ? 0 : 5,
           height: 36,
-          paddingHorizontal: compact ? 0 : 10,
+          paddingHorizontal: compact ? 0 : 9,
           width: compact ? 36 : undefined,
           justifyContent: 'center',
           borderRadius: compact ? 12 : radius.pill,

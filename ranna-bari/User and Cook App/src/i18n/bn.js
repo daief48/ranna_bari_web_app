@@ -1125,6 +1125,9 @@ export const bn = {
   BASKET: 'ঝুড়ি',
   'Your shop': 'আপনার দোকান',
   'Home shops': 'ঘরোয়া দোকান',
+  /* The bottom tab. One word, because seven labels share a phone's width
+     and the long form truncates to something unreadable. */
+  Shops: 'দোকান',
   'All shops': 'সব দোকান',
   'Browse shops': 'দোকান দেখুন',
   Products: 'পণ্য',

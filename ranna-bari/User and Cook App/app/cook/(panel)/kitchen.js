@@ -19,12 +19,12 @@ import Icon from '../../../src/components/Icon';
 import Reveal from '../../../src/components/Reveal';
 import Button from '../../../src/components/Button';
 import SectionHeader from '../../../src/components/SectionHeader';
-import FloatLabelInput, { FormNote } from '../../../src/components/FloatLabelInput';
+import { FormNote } from '../../../src/components/FloatLabelInput';
 import { ActionRow } from '../../../src/components/CookBits';
 import { Body, Heading } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
-import { font, radius, tracking, type } from '../../../src/theme/tokens';
-import { SPECIALTIES, useKitchen } from '../../../src/store/KitchenContext';
+import { font, radius, type } from '../../../src/theme/tokens';
+import { useKitchen } from '../../../src/store/KitchenContext';
 import { useAuth } from '../../../src/store/AuthContext';
 import { useSession } from '../../../src/store/SessionContext';
 import { useOrders } from '../../../src/store/OrdersContext';
@@ -65,15 +65,11 @@ function KitchenForm({ kitchen }) {
   const { signOutServer } = useSession();
   const { ordersForKitchen } = useOrders();
 
-  const [name, setName] = useState(kitchen.name ?? '');
-  const [specialty, setSpecialty] = useState(kitchen.specialty ?? '');
-  const [specialtyOpen, setSpecialtyOpen] = useState(false);
-  const [description, setDescription] = useState(kitchen.description ?? '');
-  const [radiusKm, setRadiusKm] = useState(kitchen.deliveryRadiusKm ?? 3);
+  /* Name, specialty, description and radius are edited on their own page now
+     — this screen only holds the two photographs and the rows that lead
+     elsewhere, so the only state left is what those need. */
   const [note, setNote] = useState('');
-  const [saved, setSaved] = useState(false);
   const [confirmOut, setConfirmOut] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const delivered = ordersForKitchen(kitchen.id).filter(
     (o) => o.status === 'delivered',
@@ -94,25 +90,11 @@ function KitchenForm({ kitchen }) {
       quality: 0.8,
     });
     if (!res.canceled && res.assets?.[0]?.uri) {
+      /* Written straight through: a photograph is saved the moment it is
+         chosen, and always was — there is no draft here to keep. */
       updateKitchen({ [field]: res.assets[0].uri });
-      setSaved(false);
+      setNote('');
     }
-  };
-
-  const save = () => {
-    if (!name.trim()) {
-      setNote(t('Your kitchen needs a name for customers to find it.'));
-      return;
-    }
-    setNote('');
-    updateKitchen({
-      name: name.trim(),
-      specialty,
-      description: description.trim(),
-      deliveryRadiusKm: radiusKm,
-    });
-    setSaved(true);
-    Haptics.selectionAsync().catch(() => {});
   };
 
   return (
@@ -124,6 +106,15 @@ function KitchenForm({ kitchen }) {
             accent={t('KITCHEN')}
             subtitle={t('How customers see you, and what you deliver.')}
           />
+
+          {/*
+           * The only thing on this screen that can fail is the photo picker
+           * asking for library access. That message used to be rendered
+           * inside the details panel, which has moved to its own page — so
+           * without this a denied permission would set a note that nothing
+           * displayed, and the tap would look like it simply did nothing.
+           */}
+          <FormNote text={note} />
 
           {/* ---- The listing, as a customer sees it ---- */}
           <Reveal delay={1}>
@@ -288,20 +279,20 @@ function KitchenForm({ kitchen }) {
           </Reveal>
 
           {/* ---- Details ----
-              Folded away by default. Everything in here is set once and then
-              rarely touched, and left open it pushed the things a cook uses
-              daily -- the listing preview, the switch to ordering -- two
-              screens down. It opens itself if a save failed, so an error is
-              never hidden behind a closed panel. */}
+              A link to its own page rather than a panel that folded open
+              here. Everything behind it is set once and then rarely touched,
+              but folded it hid what the values *were*, and open it pushed the
+              rows a cook actually uses daily — preview the listing, switch to
+              ordering — most of a screen further down. Four fields read and
+              saved together are a page. */}
           <Reveal delay={2}>
             <View style={{ marginTop: 28 }}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityState={{ expanded: detailsOpen || !!note }}
                 accessibilityLabel={t('Kitchen details')}
                 onPress={() => {
                   Haptics.selectionAsync().catch(() => {});
-                  setDetailsOpen((v) => !v);
+                  router.push('/cook/kitchen-details');
                 }}
                 style={({ pressed }) => [
                   {
@@ -357,7 +348,7 @@ function KitchenForm({ kitchen }) {
                 </View>
 
                 <Icon
-                  name={detailsOpen || note ? 'chevronDown' : 'chevronRight'}
+                  name="chevronRight"
                   size={17}
                   color={colors.textLight}
                   strokeWidth={2}
@@ -365,146 +356,6 @@ function KitchenForm({ kitchen }) {
               </Pressable>
             </View>
           </Reveal>
-
-          {/* A failed save must not be swallowed by a folded panel. */}
-          <View
-            style={{ marginTop: 16, display: detailsOpen || note ? 'flex' : 'none' }}
-          >
-            <View>
-              <FormNote text={note} />
-              {saved && !note ? (
-                <FormNote text={t('Saved. Your listing is live.')} tone="info" />
-              ) : null}
-
-              <FloatLabelInput
-                label={t('Kitchen name')}
-                value={name}
-                onChangeText={(v) => {
-                  setName(v);
-                  setSaved(false);
-                }}
-                placeholder={t('What customers see on the map')}
-              />
-
-              {/* A select is never empty, so its label rides high permanently. */}
-              <View style={{ marginBottom: 20 }}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${t('What you cook best, currently')} ${specialty ? t(specialty) : '—'}`}
-                  onPress={() => setSpecialtyOpen((v) => !v)}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: specialtyOpen ? colors.sage : colors.line,
-                    borderRadius: radius.sm,
-                    backgroundColor: specialtyOpen ? colors.raised : colors.sunken,
-                    paddingTop: 24,
-                    paddingBottom: 9,
-                    paddingLeft: 14,
-                    paddingRight: 40,
-                  }}
-                >
-                  <Text
-                    style={{
-                      position: 'absolute',
-                      left: 14,
-                      top: 9,
-                      fontFamily: font.uiSemi,
-                      fontSize: 10.5,
-                      letterSpacing: 0.95,
-                      textTransform: 'uppercase',
-                      color: specialtyOpen ? colors.sage : colors.textMuted,
-                    }}
-                  >
-                    {t('What you cook best')}
-                  </Text>
-                  <Text
-                    style={{
-                      fontFamily: font.ui,
-                      fontSize: 16,
-                      color: specialty ? colors.text : colors.textLight,
-                    }}
-                  >
-                    {specialty ? t(specialty) : t('Choose a specialty')}
-                  </Text>
-                  <Icon
-                    name="chevronDown"
-                    size={16}
-                    color={colors.textLight}
-                    style={{ position: 'absolute', right: 14, top: 22 }}
-                  />
-                </Pressable>
-
-                {specialtyOpen ? (
-                  <View
-                    style={{
-                      marginTop: 6,
-                      padding: 6,
-                      borderRadius: radius.sm,
-                      backgroundColor: colors.surfaceSolid,
-                      borderWidth: 1,
-                      borderColor: colors.line,
-                    }}
-                  >
-                    {SPECIALTIES.map((s) => (
-                      <Pressable
-                        key={s}
-                        onPress={() => {
-                          setSpecialty(s);
-                          setSpecialtyOpen(false);
-                          setSaved(false);
-                        }}
-                        style={({ pressed }) => ({
-                          paddingVertical: 12,
-                          paddingHorizontal: 10,
-                          borderRadius: radius.xs,
-                          backgroundColor:
-                            pressed || specialty === s ? colors.sage50 : 'transparent',
-                        })}
-                      >
-                        <Text
-                          style={{
-                            fontFamily: specialty === s ? font.uiSemi : font.ui,
-                            fontSize: 15,
-                            color: specialty === s ? colors.sage : colors.text,
-                          }}
-                        >
-                          {t(s)}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : null}
-              </View>
-
-              <FloatLabelInput
-                label={t('About your cooking')}
-                value={description}
-                onChangeText={(v) => {
-                  setDescription(v);
-                  setSaved(false);
-                }}
-                placeholder={t('One or two lines customers read first')}
-                multiline
-                numberOfLines={3}
-              />
-
-              <RadiusSlider
-                value={radiusKm}
-                onChange={(v) => {
-                  setRadiusKm(v);
-                  setSaved(false);
-                }}
-              />
-
-              <Button
-                label={saved ? t('Saved') : t('Save changes')}
-                icon={saved ? 'check' : 'arrowRight'}
-                block
-                onPress={save}
-                style={{ marginTop: 20 }}
-              />
-            </View>
-          </View>
 
           {/* ---- Elsewhere ---- */}
           <View style={{ gap: 12, marginTop: 32 }}>
@@ -623,95 +474,3 @@ function MiniStat({ value, label }) {
 }
 
 /** A tap-anywhere track, no gesture lib — the same one the signup flow uses. */
-function RadiusSlider({ value, onChange }) {
-  const { colors, shadow } = useTheme();
-  const { t, n } = useLang();
-  const [width, setWidth] = useState(0);
-
-  const MIN = 1;
-  const MAX = 12;
-  const pct = (value - MIN) / (MAX - MIN);
-
-  const setFromX = (x) => {
-    if (!width) return;
-    const ratio = Math.max(0, Math.min(1, x / width));
-    // step: 0.5
-    onChange(Math.round((MIN + ratio * (MAX - MIN)) * 2) / 2);
-  };
-
-  return (
-    <View style={{ marginBottom: 8 }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          gap: 12,
-          marginBottom: 10,
-        }}
-      >
-        <Text
-          style={{
-            fontFamily: font.uiSemi,
-            fontSize: type.micro,
-            letterSpacing: type.micro * tracking.label,
-            textTransform: 'uppercase',
-            color: colors.textMuted,
-          }}
-        >
-          {t('Delivery radius')}
-        </Text>
-        <Text
-          style={{
-            fontFamily: font.uiBold,
-            fontSize: 15,
-            color: colors.sage,
-            fontVariant: ['tabular-nums'],
-          }}
-        >
-          {n(value.toFixed(1))} km
-        </Text>
-      </View>
-
-      <View
-        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => true}
-        onResponderGrant={(e) => setFromX(e.nativeEvent.locationX)}
-        onResponderMove={(e) => setFromX(e.nativeEvent.locationX)}
-        style={{ paddingVertical: 12 }}
-        accessibilityRole="adjustable"
-        accessibilityLabel={t('Delivery radius')}
-        accessibilityValue={{ min: MIN, max: MAX, now: value }}
-      >
-        <View style={{ height: 6, borderRadius: 999, backgroundColor: colors.line }}>
-          <View
-            style={{
-              width: `${pct * 100}%`,
-              height: '100%',
-              borderRadius: 999,
-              backgroundColor: colors.sage,
-            }}
-          />
-          <View
-            style={[
-              {
-                position: 'absolute',
-                top: -8,
-                left: `${pct * 100}%`,
-                marginLeft: -11,
-                width: 22,
-                height: 22,
-                borderRadius: 11,
-                backgroundColor: colors.raised,
-                borderWidth: 3,
-                borderColor: colors.sage,
-              },
-              shadow.sm,
-            ]}
-          />
-        </View>
-      </View>
-    </View>
-  );
-}
