@@ -1,10 +1,8 @@
 import Link from 'next/link';
-import type { Prisma } from '@prisma/client';
 
-import { db } from '@/lib/db';
+import { BackendError, get } from '@/lib/backend';
 import { REQUEST_STATUS } from '@/lib/domain';
-import { taka, timeAgo } from '@/lib/format';
-import { parseJson } from '@/lib/mappers';
+import { timeAgo } from '@/lib/format';
 import { paging, pageCount } from '@/lib/queries';
 import {
   Badge,
@@ -24,6 +22,38 @@ import { requirePage } from '@/lib/guard';
 export const metadata = { title: 'Requests & offers · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
 
+/**
+ * One row of `GET /requests`.
+ *
+ * The dead view and the ordinary list are the same route and not the same
+ * shape: the dead pipeline projects `eligible` and `reached`, the ordinary one
+ * folds an offer count in. Everything that only one of them returns is
+ * optional here rather than assumed.
+ */
+type RequestRow = {
+  id: string;
+  code: string;
+  title: string;
+  area: string | null;
+  budget: number | null;
+  target: string;
+  status: string;
+  createdAt: string;
+  eligible?: string[];
+  offers?: number;
+  priced?: number;
+  /* Not returned today, and the reason the "First reply" column is blank. The
+     route already groups offers by request for the counts, so a
+     `$min: '$createdAt'` in that same `$group` would fill it in — there is no
+     way to compute it here without one round trip per row. */
+  firstOfferAt?: string;
+};
+
+type RequestList = { requests: RequestRow[]; total: number };
+
+/** The route's own ceiling on `take`. */
+const WINDOW = 100;
+
 export default async function RequestsPage({
   searchParams,
 }: {
@@ -34,38 +64,15 @@ export default async function RequestsPage({
   const dead = params.view === 'dead';
   const { page, skip, take } = paging(params);
 
-  const where: Prisma.RequestWhereInput = {};
-  if (params.q) where.title = { contains: params.q };
-  if (params.status) where.status = params.status;
-  if (dead) where.status = 'open';
+  /* A backend that never answered is a banner. Anything else it said is a real
+     bug and stays loud. */
+  const board = await load(params, dead, skip, take).catch((error: unknown) => {
+    if (error instanceof BackendError && error.status === 0) return null;
+    throw error;
+  });
+  if (!board) return <BackendDown />;
 
-  const [all, total, openCount, orderedCount] = await Promise.all([
-    db.request.findMany({
-      where,
-      skip: dead ? 0 : skip,
-      take: dead ? 200 : take,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        offers: { select: { id: true, status: true, price: true, createdAt: true } },
-      },
-    }),
-    db.request.count({ where }),
-    db.request.count({ where: { status: 'open' } }),
-    db.request.count({ where: { status: 'ordered' } }),
-  ]);
-
-  /* A broadcast that reached nobody, or reached kitchens and got no answer.
-     Both are supply problems and both are invisible in the app. */
-  const rows = dead ? all.filter((r) => r.offers.length === 0) : all;
-
-  const deadCount = (
-    await db.request.findMany({
-      where: { status: 'open' },
-      include: { _count: { select: { offers: true } } },
-    })
-  ).filter((r) => r._count.offers === 0).length;
-
-  const totalRequests = await db.request.count();
+  const { rows, total, totalRequests, openCount, orderedCount, deadCount } = board;
   const fillRate = totalRequests ? Math.round((orderedCount / totalRequests) * 100) : 0;
 
   return (
@@ -129,11 +136,9 @@ export default async function RequestsPage({
           head={['Request', 'Area', 'Budget', 'Reach', 'Offers', 'First reply', 'Status', 'Posted']}
         >
           {rows.map((request) => {
-            const eligible = parseJson<string[]>(request.eligible, []);
-            const first = request.offers
-              .map((o) => new Date(o.createdAt).getTime())
-              .sort((a, b) => a - b)[0];
-            const priced = request.offers.filter((o) => o.price != null);
+            const eligible = request.eligible ?? [];
+            const offers = request.offers ?? 0;
+            const priced = request.priced ?? 0;
 
             return (
               <tr key={request.id}>
@@ -166,21 +171,25 @@ export default async function RequestsPage({
                   )}
                 </td>
                 <td className="tnum">
-                  {request.offers.length === 0 ? (
+                  {offers === 0 ? (
                     <span className="text-primary">0</span>
                   ) : (
                     <>
-                      {request.offers.length}
-                      {priced.length !== request.offers.length ? (
+                      {offers}
+                      {priced !== offers ? (
                         <span className="ml-1 text-[11px] text-ink3">
-                          ({priced.length} priced)
+                          ({priced} priced)
                         </span>
                       ) : null}
                     </>
                   )}
                 </td>
                 <td className="whitespace-nowrap text-ink2">
-                  {first ? timeAgo(new Date(first)) : <span className="text-ink3">—</span>}
+                  {request.firstOfferAt ? (
+                    timeAgo(request.firstOfferAt)
+                  ) : (
+                    <span className="text-ink3">—</span>
+                  )}
                 </td>
                 <td>
                   <StatusBadge status={request.status} />
@@ -198,6 +207,80 @@ export default async function RequestsPage({
 
         {!dead ? <Pager page={page} pages={pageCount(total)} total={total} /> : null}
       </Card>
+    </>
+  );
+}
+
+/**
+ * The board, and the four numbers above it.
+ *
+ * The counts are the same route asked for one row each: `total` is a
+ * `countDocuments` the route already runs, so a count costs a query rather
+ * than a page of documents. The dead count is the dead view's own total, and
+ * when that view is on screen it is the very same promise — the dead pipeline
+ * is a `$lookup` across every offer and running it twice to render one page
+ * would be paying for the same answer.
+ */
+async function load(
+  params: Record<string, string | undefined>,
+  dead: boolean,
+  skip: number,
+  take: number,
+) {
+  const count = (query: string) => get<RequestList>(`/requests?${query ? `${query}&` : ''}take=1`);
+
+  /* `/requests` has no title filter. Rather than search a database the rows no
+     longer come from, the newest window the route will hand over is narrowed
+     here and paged on the matches — so the pager promises what is actually on
+     screen. It stops at that window; a `q` parameter on the route replaces
+     this entirely. */
+  const searching = !dead && Boolean(params.q);
+  const status = dead ? '' : (params.status ?? '');
+
+  const listed = dead
+    ? get<RequestList>(`/requests?view=dead&take=${WINDOW}`)
+    : get<RequestList>(
+        `/requests?${status ? `status=${encodeURIComponent(status)}&` : ''}skip=${
+          searching ? 0 : skip
+        }&take=${searching ? WINDOW : take}`,
+      );
+
+  const [list, all, open, ordered, deadList] = await Promise.all([
+    listed,
+    count(''),
+    count('status=open'),
+    count('status=ordered'),
+    dead ? listed : count('view=dead'),
+  ]);
+
+  const needle = String(params.q ?? '').toLowerCase();
+  const matched = searching
+    ? list.requests.filter((request) => request.title.toLowerCase().includes(needle))
+    : list.requests;
+
+  return {
+    rows: searching ? matched.slice(skip, skip + take) : matched,
+    total: searching ? matched.length : list.total,
+    totalRequests: all.total,
+    openCount: open.total,
+    orderedCount: ordered.total,
+    deadCount: deadList.total,
+  };
+}
+
+function BackendDown() {
+  return (
+    <>
+      <PageHeader
+        title="Requests & offers"
+        subtitle="Customers asking for what nobody listed, and the cooks bidding for it"
+      />
+      <div className="rounded-[10px] border border-primary-100 bg-primary-50 px-3.5 py-2.5 text-[13px] leading-relaxed text-ink2">
+        <strong className="text-primary">The backend is not answering.</strong> This
+        board is served by <code>backend-node</code>, which is not running or not
+        reachable. Start it with <code>cd backend-node &amp;&amp; npm run dev</code>,
+        then reload.
+      </div>
     </>
   );
 }

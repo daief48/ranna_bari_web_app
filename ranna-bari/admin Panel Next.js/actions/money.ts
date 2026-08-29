@@ -2,28 +2,46 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { db } from '@/lib/db';
 import { requireCapability } from '@/lib/auth';
-import { audit } from '@/lib/audit';
+import { BackendError, post } from '@/lib/backend';
 import { ERR } from '@/lib/domain';
-import { taka, makeCode } from '@/lib/format';
-import { getSettings } from '@/lib/settings';
-import {
-  cookBalances,
-  post,
-  refundEscrow,
-  releaseEscrow,
-} from '@/lib/logic/ledger';
+import { taka } from '@/lib/format';
 import { good, bad, guard, type ActionResult } from './shared';
 
 /**
  * Money.
  *
- * Every action here posts ledger entries rather than editing anything, is
- * idempotent, and is audited with a before and after. The database refuses an
- * UPDATE or DELETE on a ledger row, so a bug in this file fails loudly rather
- * than quietly rewriting history.
+ * Nothing in this file moves money. Every action names a transition on
+ * `backend-node`, which posts the ledger entries, writes the audit row in the
+ * same transaction and refuses in the vocabulary `lib/domain.ts` shares with
+ * the app. What is left here is the operator's half: check the capability
+ * before asking, and turn the answer into a sentence somebody can act on.
+ *
+ * There is deliberately no local fallback. The panel's own database holds
+ * different rows under different ids, so a money write aimed at it would
+ * succeed against the wrong books — worse in every way than a button that
+ * says the backend is not running.
  */
+
+/**
+ * Turn a refusal from the backend into the sentence an operator reads.
+ *
+ * `guard()` translates an error *code* into English; a `BackendError` already
+ * carries the translated sentence, so letting one reach guard would land on
+ * its generic "That did not work." and lose the reason the money did not move.
+ *
+ * `missing` exists because the backend answers every row it addressed by id
+ * and did not find with one code — and "That product no longer exists." is not
+ * what happened to a payout run.
+ */
+function refused(error: unknown, missing?: string): ActionResult {
+  if (!(error instanceof BackendError)) throw error;
+  if (error.status === 0) {
+    return bad('The backend is not running. Start it with: cd backend-node && npm run dev');
+  }
+  if (error.status === 404 && missing) return bad(missing);
+  return bad(error.message);
+}
 
 /* ------------------------------------------------------------------ *
  * escrow
@@ -39,55 +57,21 @@ import { good, bad, guard, type ActionResult } from './shared';
  */
 export async function forceRelease(orderId: string, reason: string): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('payout.write');
+    await requireCapability('payout.write');
 
-    const out = await db.$transaction(async (tx) => {
-      const before = await tx.order.findUnique({ where: { id: orderId } });
-      const result = await releaseEscrow(tx, orderId, {
-        note: `Released by ${user.email}${reason ? ` — ${reason}` : ''}`,
-      });
-      if (!result.ok) return result;
-
-      await tx.order.update({
-        where: { id: orderId },
-        data: { status: 'completed' },
-      });
-
-      await tx.notification.create({
-        data: {
-          key: `cook:payment-released:${orderId}`,
-          audience: 'cook',
-          kind: 'payment-released',
-          orderId,
-          kitchenId: before?.kitchenId,
-          title: 'Payment released',
-          body: `${taka(result.result.cook)} has been added to your earnings.`,
-          broadcastBy: user.email,
-        },
-      });
-
-      await audit(
-        user,
-        {
-          action: 'escrow.release',
-          targetType: 'Order',
-          targetId: orderId,
-          summary: `${before?.code} — ${taka(result.result.cook)} to cook, ${taka(result.result.platform)} commission${reason ? ` — ${reason}` : ''}`,
-          before: { payment: before?.payment, status: before?.status },
-          after: { payment: 'released', status: 'completed', ...result.result },
-        },
-        tx,
+    try {
+      const out = await post<{ cook: number; platform: number }>(
+        `/orders/${orderId}/release`,
+        { note: reason },
       );
 
-      return result;
-    });
-
-    if (!out.ok) return bad(out.error);
-
-    revalidatePath('/ledger');
-    revalidatePath('/orders');
-    revalidatePath(`/orders/${orderId}`);
-    return good(`Released ${taka(out.result.cook)} to the cook.`);
+      revalidatePath('/ledger');
+      revalidatePath('/orders');
+      revalidatePath(`/orders/${orderId}`);
+      return good(`Released ${taka(out.cook)} to the cook.`);
+    } catch (error) {
+      return refused(error);
+    }
   });
 }
 
@@ -98,114 +82,57 @@ export async function forceRefund(
   reason: string,
 ): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('payout.write');
+    await requireCapability('payout.write');
     if (!reason.trim()) return bad('A refund needs a reason on the record.');
 
-    const out = await db.$transaction(async (tx) => {
-      const before = await tx.order.findUnique({ where: { id: orderId } });
-      const result = await refundEscrow(tx, orderId, {
+    try {
+      /* `undefined` and not `null`: the key is dropped from the body, which is
+         how the endpoint is told to refund the whole held amount. */
+      const out = await post<{ refunded: number }>(`/orders/${orderId}/refund`, {
         amount: amount ?? undefined,
-        note: `Refunded by ${user.email} — ${reason}`,
-      });
-      if (!result.ok) return result;
-
-      await tx.order.update({
-        where: { id: orderId },
-        data: { status: 'cancelled', cancelReason: reason },
+        reason,
       });
 
-      await tx.notification.create({
-        data: {
-          key: `customer:refund:${orderId}`,
-          audience: 'customer',
-          kind: 'refund',
-          orderId,
-          customerKey: before?.customerKey,
-          title: 'Refunded',
-          body: `${taka(result.result.refunded)} is back in your wallet.`,
-          broadcastBy: user.email,
-        },
-      });
-
-      await audit(
-        user,
-        {
-          action: 'escrow.refund',
-          targetType: 'Order',
-          targetId: orderId,
-          summary: `${before?.code} — ${taka(result.result.refunded)} refunded — ${reason}`,
-          before: { payment: before?.payment, status: before?.status },
-          after: { payment: 'refunded', status: 'cancelled', ...result.result },
-        },
-        tx,
-      );
-
-      return result;
-    });
-
-    if (!out.ok) return bad(out.error);
-
-    revalidatePath('/ledger');
-    revalidatePath('/orders');
-    revalidatePath(`/orders/${orderId}`);
-    return good(`Refunded ${taka(out.result.refunded)}.`);
+      revalidatePath('/ledger');
+      revalidatePath('/orders');
+      revalidatePath(`/orders/${orderId}`);
+      return good(`Refunded ${taka(out.refunded)}.`);
+    } catch (error) {
+      return refused(error);
+    }
   });
 }
 
 /**
  * Release everything that has sat past the auto-release window.
  *
- * The policy the app has no way to express. Runs one order at a time inside
- * its own transaction rather than one big one — a single bad row should not
- * roll back forty good releases.
+ * The policy the app has no way to express. The backend runs one order at a
+ * time inside its own transaction — a single bad row must not roll back forty
+ * good releases — and counts what it could not move.
  */
 export async function sweepEscrow(): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('payout.write');
-    const settings = await getSettings();
-    const cutoff = new Date(Date.now() - settings.escrowAutoReleaseDays * 86_400_000);
+    await requireCapability('payout.write');
 
-    const due = await db.order.findMany({
-      where: { payment: 'held', status: 'delivered', deliveredAt: { lt: cutoff } },
-      select: { id: true, code: true },
-    });
+    try {
+      const out = await post<{
+        considered: number;
+        released: number;
+        total: number;
+        failures: { orderId: string; error: string }[];
+      }>('/escrow/sweep');
 
-    if (!due.length) return good('Nothing is past the release window.');
+      if (!out.considered) return good('Nothing is past the release window.');
 
-    let released = 0;
-    let total = 0;
-
-    for (const order of due) {
-      const out = await db.$transaction(async (tx) => {
-        const result = await releaseEscrow(tx, order.id, {
-          note: `Auto-released after ${settings.escrowAutoReleaseDays} days`,
-        });
-        if (!result.ok) return result;
-        await tx.order.update({ where: { id: order.id }, data: { status: 'completed' } });
-        await audit(
-          user,
-          {
-            action: 'escrow.auto-release',
-            targetType: 'Order',
-            targetId: order.id,
-            summary: `${order.code} — ${taka(result.result.cook)} to cook after ${settings.escrowAutoReleaseDays} days`,
-            after: result.result,
-          },
-          tx,
-        );
-        return result;
-      });
-
-      if (out.ok) {
-        released++;
-        total += out.result.cook + out.result.platform;
-      }
+      revalidatePath('/ledger');
+      revalidatePath('/orders');
+      revalidatePath('/');
+      return good(
+        `Released ${out.released} of ${out.considered} — ${taka(out.total)} moved out of escrow.`,
+      );
+    } catch (error) {
+      return refused(error);
     }
-
-    revalidatePath('/ledger');
-    revalidatePath('/orders');
-    revalidatePath('/');
-    return good(`Released ${released} of ${due.length} — ${taka(total)} moved out of escrow.`);
   });
 }
 
@@ -222,59 +149,19 @@ export async function sweepEscrow(): Promise<ActionResult> {
  */
 export async function createPayoutRun(method: string, note: string): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('payout.write');
-    const settings = await getSettings();
+    await requireCapability('payout.write');
 
-    const owed = (await cookBalances()).filter((row) => row.amount >= settings.payoutMinimum);
-    if (!owed.length) {
-      return bad(`No cook is owed at least ${taka(settings.payoutMinimum)}.`);
-    }
-
-    const kitchens = await db.kitchen.findMany({
-      where: { id: { in: owed.map((o) => o.kitchenId) } },
-      select: { id: true, name: true },
-    });
-    const nameOf = new Map(kitchens.map((k) => [k.id, k.name]));
-
-    const total = owed.reduce((sum, row) => sum + row.amount, 0);
-
-    const run = await db.$transaction(async (tx) => {
-      const created = await tx.payoutRun.create({
-        data: {
-          code: makeCode('PR'),
-          status: 'draft',
-          method,
-          note,
-          total,
-          cookCount: owed.length,
-          createdBy: user.email,
-          items: {
-            create: owed.map((row) => ({
-              kitchenId: row.kitchenId,
-              kitchenName: nameOf.get(row.kitchenId) ?? row.kitchenId,
-              amount: row.amount,
-            })),
-          },
-        },
-      });
-
-      await audit(
-        user,
-        {
-          action: 'payout.draft',
-          targetType: 'PayoutRun',
-          targetId: created.id,
-          summary: `${created.code} — ${owed.length} cooks, ${taka(total)}`,
-          after: { total, cookCount: owed.length, method },
-        },
-        tx,
+    try {
+      const out = await post<{ id: string; code: string; total: number; cookCount: number }>(
+        '/payouts',
+        { method, note },
       );
 
-      return created;
-    });
-
-    revalidatePath('/payouts');
-    return good(`Drafted ${run.code}: ${owed.length} cooks, ${taka(total)}.`);
+      revalidatePath('/payouts');
+      return good(`Drafted ${out.code}: ${out.cookCount} cooks, ${taka(out.total)}.`);
+    } catch (error) {
+      return refused(error);
+    }
   });
 }
 
@@ -287,95 +174,34 @@ export async function createPayoutRun(method: string, note: string): Promise<Act
  */
 export async function payPayoutRun(runId: string): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('payout.write');
+    await requireCapability('payout.write');
 
-    const out = await db.$transaction(async (tx) => {
-      const run = await tx.payoutRun.findUnique({
-        where: { id: runId },
-        include: { items: true },
-      });
-      if (!run) return { ok: false as const, error: 'That payout run no longer exists.' };
-      if (run.status !== 'draft') return { ok: false as const, error: ERR.RUN_CLOSED };
-
-      for (const item of run.items) {
-        await post(tx, {
-          kind: 'payout',
-          amount: item.amount,
-          from: 'cook',
-          to: 'external',
-          fromRef: item.kitchenId,
-          payoutRunId: run.id,
-          note: `Payout ${run.code} via ${run.method}`,
-          idemKey: `payout:${run.id}:${item.kitchenId}`,
-        });
-
-        await tx.notification.create({
-          data: {
-            key: `cook:payout:${run.id}:${item.kitchenId}`,
-            audience: 'cook',
-            kind: 'payout',
-            kitchenId: item.kitchenId,
-            title: 'You have been paid',
-            body: `${taka(item.amount)} sent via ${run.method}.`,
-            broadcastBy: user.email,
-          },
-        });
-      }
-
-      await tx.payoutRun.update({
-        where: { id: runId },
-        data: { status: 'paid', paidAt: new Date(), paidBy: user.email },
-      });
-
-      await audit(
-        user,
-        {
-          action: 'payout.paid',
-          targetType: 'PayoutRun',
-          targetId: runId,
-          summary: `${run.code} — ${taka(run.total)} to ${run.cookCount} cooks`,
-          before: { status: 'draft' },
-          after: { status: 'paid', total: run.total },
-        },
-        tx,
+    try {
+      const out = await post<{ code: string; total: number; cooks: number; paid: number }>(
+        `/payouts/${runId}/pay`,
       );
 
-      return { ok: true as const, total: run.total, code: run.code };
-    });
-
-    if (!out.ok) return bad(out.error);
-
-    revalidatePath('/payouts');
-    revalidatePath('/ledger');
-    return good(`${out.code} paid — ${taka(out.total)} left the platform.`);
+      revalidatePath('/payouts');
+      revalidatePath('/ledger');
+      return good(`${out.code} paid — ${taka(out.total)} left the platform.`);
+    } catch (error) {
+      return refused(error, 'That payout run no longer exists.');
+    }
   });
 }
 
 export async function cancelPayoutRun(runId: string): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('payout.write');
-    const run = await db.payoutRun.findUnique({ where: { id: runId } });
-    if (!run) return bad('That payout run no longer exists.');
-    if (run.status !== 'draft') return bad(ERR.RUN_CLOSED);
+    await requireCapability('payout.write');
 
-    await db.$transaction(async (tx) => {
-      await tx.payoutRun.update({ where: { id: runId }, data: { status: 'cancelled' } });
-      await audit(
-        user,
-        {
-          action: 'payout.cancel',
-          targetType: 'PayoutRun',
-          targetId: runId,
-          summary: `${run.code} cancelled before payment`,
-          before: { status: 'draft' },
-          after: { status: 'cancelled' },
-        },
-        tx,
-      );
-    });
+    try {
+      await post<{ code: string; moved: number }>(`/payouts/${runId}/cancel`);
 
-    revalidatePath('/payouts');
-    return good('Draft cancelled. No money moved.');
+      revalidatePath('/payouts');
+      return good('Draft cancelled. No money moved.');
+    } catch (error) {
+      return refused(error, 'That payout run no longer exists.');
+    }
   });
 }
 
@@ -396,42 +222,31 @@ export async function reconcileTopUp(
   pspAmount: number,
 ): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('topup.reconcile');
-    const row = await db.topUp.findUnique({ where: { id: topUpId } });
-    if (!row) return bad('That top-up no longer exists.');
+    await requireCapability('topup.reconcile');
     if (!pspRef.trim()) return bad('A reference is required.');
 
-    const matches = Math.round(pspAmount) === row.amount;
+    try {
+      /* The verdict is the endpoint's, not this file's. It compares the two
+         figures exactly rather than against a tolerance, so a statement line
+         that disagrees by any amount comes back `disputed` — which is the
+         discrepancy this desk exists to surface. */
+      const out = await post<{
+        reconciled: string;
+        amount: number;
+        pspRef: string;
+        pspAmount: number;
+        note: string;
+      }>(`/topups/${topUpId}/reconcile`, { pspRef: pspRef.trim(), pspAmount });
 
-    await db.$transaction(async (tx) => {
-      await tx.topUp.update({
-        where: { id: topUpId },
-        data: {
-          pspRef: pspRef.trim(),
-          pspAmount: Math.round(pspAmount),
-          // A reference that does not agree on the amount is not a match —
-          // it is a discrepancy, and calling it matched would hide it.
-          reconciled: matches ? 'matched' : 'disputed',
-        },
-      });
-      await audit(
-        user,
-        {
-          action: matches ? 'topup.match' : 'topup.dispute',
-          targetType: 'TopUp',
-          targetId: topUpId,
-          summary: `${row.customerKey} — wallet ${taka(row.amount)} vs PSP ${taka(pspAmount)} (${pspRef})`,
-          before: { reconciled: row.reconciled, pspRef: row.pspRef },
-          after: { reconciled: matches ? 'matched' : 'disputed', pspRef, pspAmount },
-        },
-        tx,
-      );
-    });
-
-    revalidatePath('/topups');
-    return matches
-      ? good('Matched.')
-      : bad(`Flagged: the wallet says ${taka(row.amount)}, the reference says ${taka(pspAmount)}.`);
+      revalidatePath('/topups');
+      return out.reconciled === 'matched'
+        ? good('Matched.')
+        : bad(
+            `Flagged: the wallet says ${taka(out.amount)}, the reference says ${taka(out.pspAmount)}.`,
+          );
+    } catch (error) {
+      return refused(error, 'That top-up no longer exists.');
+    }
   });
 }
 
@@ -448,36 +263,22 @@ export async function postAdjustment(
   reason: string,
 ): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('payout.write');
+    await requireCapability('payout.write');
     const value = Math.round(amount);
     if (!Number.isFinite(value) || value <= 0) return bad(ERR.BAD_AMOUNT);
     if (!reason.trim()) return bad('An adjustment needs a reason on the record.');
 
-    await db.$transaction(async (tx) => {
-      await post(tx, {
-        kind: 'adjustment',
-        amount: value,
-        from: direction === 'credit' ? 'external' : 'customer',
-        to: direction === 'credit' ? 'customer' : 'external',
-        fromRef: direction === 'debit' ? customerKey : null,
-        toRef: direction === 'credit' ? customerKey : null,
-        note: `Adjustment by ${user.email} — ${reason.trim()}`,
-      });
-      await audit(
-        user,
-        {
-          action: 'ledger.adjustment',
-          targetType: 'Account',
-          targetId: customerKey,
-          summary: `${direction} ${taka(value)} — ${reason.trim()}`,
-          after: { direction, amount: value, reason: reason.trim() },
-        },
-        tx,
+    try {
+      await post<{ customerKey: string; direction: string; amount: number }>(
+        '/ledger/adjustment',
+        { customerKey, amount: value, direction, reason: reason.trim() },
       );
-    });
 
-    revalidatePath('/ledger');
-    revalidatePath('/topups');
-    return good(`Posted a ${direction} of ${taka(value)}.`);
+      revalidatePath('/ledger');
+      revalidatePath('/topups');
+      return good(`Posted a ${direction} of ${taka(value)}.`);
+    } catch (error) {
+      return refused(error);
+    }
   });
 }

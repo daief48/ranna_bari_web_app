@@ -1,7 +1,7 @@
-import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/lib/domain';
-import { getSettings, getFlags, SETTING_META, type PlatformSettings } from '@/lib/settings';
+import { BACKEND_URL, BackendError, get } from '@/lib/backend';
+import { getFlags, type PlatformSettings } from '@/lib/settings';
 import { Card, GapNote, PageHeader, Badge } from '@/components/ui';
 import { SettingField, FlagRow, ZoneEditor, TaxonomyEditor } from './editors';
 import { requirePage } from '@/lib/guard';
@@ -9,17 +9,76 @@ import { requirePage } from '@/lib/guard';
 export const metadata = { title: 'Configuration · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
 
+type SettingMeta = { label: string; help: string; kind: 'money' | 'rate' | 'days' };
+
+type Config = {
+  settings: PlatformSettings;
+  meta: Record<keyof PlatformSettings, SettingMeta>;
+};
+
+type Zone = { id: string; name: string; deliveryFee: number | null; active: boolean };
+type Category = { id: string; key: string; label: string; emoji: string; retired: boolean };
+
+/**
+ * What is left of this screen when the backend is not there.
+ *
+ * The panel is a client of `backend-node` now, so a dead backend is a dead
+ * page — and the honest version of that is a sentence naming the process that
+ * is missing, not a stack trace an operator standing at a desk cannot act on.
+ */
+function BackendDown() {
+  return (
+    <GapNote>
+      <strong>The backend is not answering.</strong> This screen reads its
+      configuration from <code>backend-node</code>, which is not responding at{' '}
+      <code>{BACKEND_URL}</code>. Start it with{' '}
+      <code>cd backend-node &amp;&amp; npm run dev</code>, then reload.
+    </GapNote>
+  );
+}
+
 export default async function SettingsPage() {
   await requirePage('config.read');
   const user = await currentUser();
   const canWrite = can(user?.role ?? '', 'config.write');
 
-  const [settings, flags, zones, taxonomy] = await Promise.all([
-    getSettings(),
-    getFlags(),
-    db.zone.findMany({ orderBy: { order: 'asc' } }),
-    db.taxonomyCategory.findMany({ orderBy: { order: 'asc' } }),
-  ]);
+  let config: Config;
+  let zones: Zone[];
+  let taxonomy: Category[];
+  /* Flags are the one read left on Prisma, and only because `toggleFlag` is:
+     the backend serves them but has no route that writes one, and a list read
+     from Mongo with a switch that writes to SQLite is a switch that never
+     moves. Read and write stay on the same side of the wire until there is an
+     endpoint for the write. */
+  let flags: Awaited<ReturnType<typeof getFlags>>;
+
+  try {
+    const [remote, zoneList, categories, flagRows] = await Promise.all([
+      get<Config>('/settings'),
+      get<{ zones: Zone[] }>('/zones'),
+      get<{ taxonomy: Category[] }>('/taxonomy'),
+      getFlags(),
+    ]);
+    config = remote;
+    zones = zoneList.zones;
+    taxonomy = categories.taxonomy;
+    flags = flagRows;
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 0) {
+      return (
+        <>
+          <PageHeader
+            title="Configuration"
+            subtitle="Everything here used to be a constant inside the mobile bundle"
+          />
+          <BackendDown />
+        </>
+      );
+    }
+    throw error;
+  }
+
+  const { settings } = config;
 
   const moneyKeys: (keyof PlatformSettings)[] = ['deliveryFee', 'platformFee', 'payoutMinimum'];
   const rateKeys: (keyof PlatformSettings)[] = [
@@ -60,7 +119,7 @@ export default async function SettingsPage() {
                 key={key}
                 name={key}
                 value={settings[key]}
-                meta={SETTING_META[key]}
+                meta={config.meta[key]}
                 disabled={!canWrite}
               />
             ))}
@@ -83,7 +142,7 @@ export default async function SettingsPage() {
                 key={key}
                 name={key}
                 value={settings[key]}
-                meta={SETTING_META[key]}
+                meta={config.meta[key]}
                 disabled={!canWrite}
               />
             ))}
@@ -97,7 +156,7 @@ export default async function SettingsPage() {
                 key={key}
                 name={key}
                 value={settings[key]}
-                meta={SETTING_META[key]}
+                meta={config.meta[key]}
                 disabled={!canWrite}
               />
             ))}

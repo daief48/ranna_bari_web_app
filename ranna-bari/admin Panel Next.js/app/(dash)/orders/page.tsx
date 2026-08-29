@@ -2,12 +2,14 @@ import Link from 'next/link';
 import type { Prisma } from '@prisma/client';
 
 import { db } from '@/lib/db';
+import { BackendError, get } from '@/lib/backend';
 import { taka, timeAgo } from '@/lib/format';
 import { ORDER_KINDS } from '@/lib/domain';
 import { paging, pageCount } from '@/lib/queries';
 import {
   Badge,
   Card,
+  GapNote,
   Grid,
   Money,
   PageHeader,
@@ -27,6 +29,26 @@ const STATUSES = [
   'ready', 'delivering', 'on_the_way', 'delivered', 'completed',
   'cancelled', 'rejected',
 ];
+
+/**
+ * One row of the board.
+ *
+ * `createdAt` is a Date from Prisma and an ISO string from the backend;
+ * `timeAgo` takes either, which is why the union never has to be narrowed.
+ */
+type Row = {
+  id: string;
+  code: string;
+  kind: string;
+  title: string;
+  cookName: string;
+  customerName: string;
+  kitchenId: string;
+  status: string;
+  payment: string;
+  amount: number;
+  createdAt: string | Date;
+};
 
 export default async function OrdersPage({
   searchParams,
@@ -51,30 +73,71 @@ export default async function OrdersPage({
   if (params.payment) where.payment = params.payment;
   if (params.kitchen) where.kitchenId = params.kitchen;
 
-  const [rows, total, held, disputed] = await Promise.all([
-    db.order.findMany({
-      where,
-      skip,
-      take,
-      orderBy: { createdAt: 'desc' },
-      include: { dispute: { select: { id: true, status: true } } },
-    }),
-    db.order.count({ where }),
-    db.order.aggregate({ where: { ...where, payment: 'held' }, _sum: { amount: true }, _count: true }),
-    db.order.count({ where: { ...where, dispute: { isNot: null } } }),
-  ]);
+  let rows: Row[] = [];
+  let total = 0;
 
-  const kitchen = params.kitchen
-    ? await db.kitchen.findUnique({ where: { id: params.kitchen }, select: { name: true } })
-    : null;
+  if (params.q) {
+    /* `GET /orders` filters on kind, status, payment and kitchenId and takes
+       no free-text term, so a search is still answered from Prisma. */
+    [rows, total] = await Promise.all([
+      db.order.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
+      db.order.count({ where }),
+    ]);
+  } else {
+    const query = new URLSearchParams({ skip: String(skip), take: String(take) });
+    if (params.kind) query.set('kind', params.kind);
+    if (params.status) query.set('status', params.status);
+    if (params.payment) query.set('payment', params.payment);
+    if (params.kitchen) query.set('kitchenId', params.kitchen);
+
+    try {
+      const list = await get<{ orders: Row[]; total: number }>(`/orders?${query}`);
+      rows = list.orders;
+      total = list.total;
+    } catch (error) {
+      /* Only an unreachable backend degrades into a banner. A refusal the
+         backend actually sent is a real bug and stays loud. */
+      if (error instanceof BackendError && error.status === 0) {
+        return (
+          <>
+            <PageHeader
+              title="Orders"
+              subtitle="Every order across all four systems, on one rail"
+            />
+            <GapNote>
+              <strong>The backend is not answering.</strong> Orders are served by{' '}
+              <code>backend-node</code>, and nothing on this board can be read without
+              it. Start it with <code>cd backend-node &amp;&amp; npm run dev</code>, then
+              reload.
+            </GapNote>
+          </>
+        );
+      }
+      throw error;
+    }
+  }
+
+  /* Two more answers `GET /orders` cannot give: an aggregate over the whole
+     filtered set, and whether each order carries a dispute. Both stay on
+     Prisma until the endpoint returns them. */
+  const [held, disputed] = await Promise.all([
+    db.order.aggregate({ where: { ...where, payment: 'held' }, _sum: { amount: true }, _count: true }),
+    db.dispute.findMany({ where: { order: where }, select: { orderId: true } }),
+  ]);
+  const disputedIds = new Set(disputed.map((row) => row.orderId));
+
+  /* An order carries its kitchen's name as `cookName`, which is the same
+     string the kitchen lookup used to supply — and the backend has no read of
+     one kitchen by id. */
+  const kitchenName = params.kitchen ? rows[0]?.cookName : null;
 
   return (
     <>
       <PageHeader
         title="Orders"
         subtitle={
-          kitchen
-            ? `Filtered to ${kitchen.name}`
+          kitchenName
+            ? `Filtered to ${kitchenName}`
             : 'Every order across all four systems, on one rail'
         }
       />
@@ -89,8 +152,8 @@ export default async function OrdersPage({
         />
         <Stat
           label="With a dispute"
-          value={disputed}
-          tone={disputed > 0 ? 'bad' : 'neutral'}
+          value={disputedIds.size}
+          tone={disputedIds.size > 0 ? 'bad' : 'neutral'}
           href="/disputes"
         />
       </Grid>
@@ -140,7 +203,7 @@ export default async function OrdersPage({
                 >
                   {order.code}
                 </Link>
-                {order.dispute ? (
+                {disputedIds.has(order.id) ? (
                   <span className="ml-1.5">
                     <Badge tone="bad" title="Has an open dispute">
                       !

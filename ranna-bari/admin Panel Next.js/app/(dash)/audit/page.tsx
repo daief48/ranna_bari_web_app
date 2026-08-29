@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 
+import { BackendError, get } from '@/lib/backend';
 import { db } from '@/lib/db';
 import { fmtDateTime, timeAgo } from '@/lib/format';
 import { parseJson } from '@/lib/mappers';
@@ -32,6 +33,78 @@ const MONEY_ACTIONS = [
   'dispute.split',
 ];
 
+/**
+ * One trail row, from either store.
+ *
+ * `at` is a Date out of Prisma and an ISO string over HTTP; `fmtDateTime` and
+ * `timeAgo` take both, so the table does not have to know which it got.
+ */
+type AuditRow = {
+  id: string;
+  actorEmail: string;
+  actorRole: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  summary: string;
+  before: unknown;
+  after: unknown;
+  at: string | Date;
+};
+
+/**
+ * Mongo holds the snapshots as documents, so over HTTP they arrive already
+ * parsed. SQLite holds them as JSON strings. Handing an object to `parseJson`
+ * would stringify it into `JSON.parse`, fail, and quietly return the fallback
+ * — every diff on the page collapsing to "—" with nothing to show for it.
+ */
+const diffOf = (value: unknown): Record<string, unknown> | null => {
+  if (typeof value === 'string') return parseJson<Record<string, unknown> | null>(value, null);
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+};
+
+/**
+ * The page of rows, and how many there are.
+ *
+ * `GET /audit` filters on one exact action and one operator — which is the
+ * default view and the operator dropdown, the two ways this page is actually
+ * read. The free-text search, the target-type filter and the money view's
+ * nine-action set are not expressible there, so those three searches still
+ * run against the panel's own table.
+ *
+ * That fallback is on a clock. The backend writes the trail now, so the local
+ * table only holds what this panel wrote before the migration and a `q`
+ * search will keep finding less of the truth every week. What would close it:
+ * `q`, `targetType` and a repeatable `action` on `/audit`.
+ *
+ * Null means the backend did not answer at all — a banner, not a throw.
+ */
+async function readRows(
+  local: boolean,
+  where: Prisma.AuditLogWhereInput,
+  actor: string | undefined,
+  skip: number,
+  take: number,
+): Promise<{ rows: AuditRow[]; total: number } | null> {
+  if (local) {
+    const [rows, total] = await Promise.all([
+      db.auditLog.findMany({ where, skip, take, orderBy: { at: 'desc' } }),
+      db.auditLog.count({ where }),
+    ]);
+    return { rows, total };
+  }
+
+  const query = new URLSearchParams({ skip: String(skip), take: String(take) });
+  if (actor) query.set('actor', actor);
+
+  try {
+    return await get<{ rows: AuditRow[]; total: number }>(`/audit?${query}`);
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 0) return null;
+    throw error;
+  }
+}
+
 export default async function AuditPage({
   searchParams,
 }: {
@@ -53,9 +126,15 @@ export default async function AuditPage({
   if (params.type) where.targetType = params.type;
   if (params.view === 'money') where.action = { in: MONEY_ACTIONS };
 
-  const [rows, total, actors, types, moneyCount, todayCount] = await Promise.all([
-    db.auditLog.findMany({ where, skip, take, orderBy: { at: 'desc' } }),
-    db.auditLog.count({ where }),
+  const beyondEndpoint = Boolean(params.q || params.type || params.view === 'money');
+
+  /* The two facet lists and the two header counts have no endpoint at all —
+     `/audit` answers rows and a total and nothing else — so they are read
+     locally and go stale alongside the fallback above. Wanted: a facets block
+     on `/audit` carrying the distinct operators, the distinct target types,
+     the money-action count and the last-24-hours count. */
+  const [list, actors, types, moneyCount, todayCount] = await Promise.all([
+    readRows(beyondEndpoint, where, params.actor, skip, take),
     db.auditLog.findMany({
       distinct: ['actorEmail'],
       select: { actorEmail: true },
@@ -69,6 +148,24 @@ export default async function AuditPage({
     db.auditLog.count({ where: { action: { in: MONEY_ACTIONS } } }),
     db.auditLog.count({ where: { at: { gte: new Date(Date.now() - 86_400_000) } } }),
   ]);
+
+  if (!list) {
+    return (
+      <>
+        <PageHeader
+          title="Audit log"
+          subtitle="Every state-changing action in this panel, with a before and an after"
+        />
+        <GapNote>
+          <strong>The backend is not reachable.</strong> The trail is written and
+          held by <code>backend-node</code>, so there is nothing to read until it
+          answers. Start it with <code>cd backend-node &amp;&amp; npm run dev</code>.
+        </GapNote>
+      </>
+    );
+  }
+
+  const { rows, total } = list;
 
   return (
     <>
@@ -120,8 +217,8 @@ export default async function AuditPage({
       >
         <Table head={['When', 'Operator', 'Action', 'Target', 'Summary', 'Diff']}>
           {rows.map((row) => {
-            const before = parseJson<Record<string, unknown> | null>(row.before, null);
-            const after = parseJson<Record<string, unknown> | null>(row.after, null);
+            const before = diffOf(row.before);
+            const after = diffOf(row.after);
             const isMoney = MONEY_ACTIONS.includes(row.action);
 
             return (

@@ -3,12 +3,12 @@
 import { revalidatePath } from 'next/cache';
 
 import { db } from '@/lib/db';
+import { BackendError, post } from '@/lib/backend';
 import { requireCapability } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { ERR, nextStatus } from '@/lib/domain';
-import { makeCode, taka } from '@/lib/format';
+import { taka } from '@/lib/format';
 import { pushHistory } from '@/lib/mappers';
-import { refundEscrow, releaseEscrow, splitEscrow } from '@/lib/logic/ledger';
 import { good, bad, guard, type ActionResult } from './shared';
 
 /**
@@ -18,11 +18,35 @@ import { good, bad, guard, type ActionResult } from './shared';
  * history, so a timeline can always answer "did the cook do this, or did we".
  */
 
+/**
+ * Run one backend call and turn a refusal into a sentence.
+ *
+ * `guard` expects a bare error code and looks it up; a `BackendError` already
+ * carries the resolved sentence, so letting it reach `guard` would flatten
+ * "This dispute is already resolved." into "That did not work."
+ */
+type Called<T> = { ok: true; value: T } | { ok: false; refusal: ActionResult };
+
+async function call<T>(run: () => Promise<T>): Promise<Called<T>> {
+  try {
+    return { ok: true, value: await run() };
+  } catch (error) {
+    if (error instanceof BackendError) return { ok: false, refusal: bad(error.message) };
+    throw error;
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * orders
  * ------------------------------------------------------------------ */
 
-/** Push an order one step along its own rail, on the cook's behalf. */
+/**
+ * Push an order one step along its own rail, on the cook's behalf.
+ *
+ * Still on Prisma: the backend exposes no transition for an order, only the
+ * two money endpoints. It needs a `POST /orders/:id/advance` before this can
+ * move, and until then this write — and its audit row — stay here.
+ */
 export async function forceAdvance(orderId: string): Promise<ActionResult> {
   return guard(async () => {
     const user = await requireCapability('order.write');
@@ -71,63 +95,29 @@ export async function forceAdvance(orderId: string): Promise<ActionResult> {
  * The app refuses this once the food is on its way — after that it calls the
  * situation a dispute and declines to settle it. An operator can, because an
  * operator can look at the photographs.
+ *
+ * The backend settles it as a refund: `refundEscrow` puts the money back and
+ * the order lands on `cancelled` with the reason attached. That also means it
+ * only covers an order still holding money — a COD order, which never held
+ * any, is refused rather than cancelled.
  */
 export async function forceCancel(orderId: string, reason: string): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('order.write');
+    await requireCapability('order.write');
     if (!reason.trim()) return bad('A cancellation needs a reason.');
 
-    const out = await db.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({ where: { id: orderId } });
-      if (!order) return { ok: false as const, error: ERR.NO_ORDER };
-      if (['completed', 'cancelled', 'rejected'].includes(order.status)) {
-        return { ok: false as const, error: ERR.ALREADY_SETTLED };
-      }
-
-      // COD never held anything, so there is nothing to give back.
-      if (order.payment === 'held') {
-        const refund = await refundEscrow(tx, orderId, {
-          note: `Cancelled by ${user.email} — ${reason}`,
-        });
-        if (!refund.ok) return refund;
-      }
-
-      await tx.order.update({
-        where: { id: orderId },
-        data: {
-          status: 'cancelled',
-          cancelReason: reason.trim(),
-          history: pushHistory(order.history, {
-            status: 'cancelled',
-            at: new Date().toISOString(),
-            by: user.email,
-          }),
-        },
-      });
-
-      await audit(
-        user,
-        {
-          action: 'order.cancel',
-          targetType: 'Order',
-          targetId: orderId,
-          summary: `${order.code} — ${reason}`,
-          before: { status: order.status, payment: order.payment },
-          after: { status: 'cancelled', refunded: order.payment === 'held' ? order.amount : 0 },
-        },
-        tx,
-      );
-
-      return { ok: true as const, refunded: order.payment === 'held' ? order.amount : 0 };
-    });
-
-    if (!out.ok) return bad(out.error);
+    const out = await call(() =>
+      post<{ refunded: number }>(`/orders/${orderId}/refund`, { reason: reason.trim() }),
+    );
+    if (!out.ok) return out.refusal;
 
     revalidatePath('/orders');
     revalidatePath(`/orders/${orderId}`);
     revalidatePath('/ledger');
     return good(
-      out.refunded > 0 ? `Cancelled and refunded ${taka(out.refunded)}.` : 'Cancelled.',
+      out.value.refunded > 0
+        ? `Cancelled and refunded ${taka(out.value.refunded)}.`
+        : 'Cancelled.',
     );
   });
 }
@@ -138,64 +128,32 @@ export async function forceCancel(orderId: string, reason: string): Promise<Acti
 
 export async function openDispute(orderId: string, reason: string): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('dispute.open');
+    await requireCapability('dispute.open');
     if (!reason.trim()) return bad('A dispute needs a description.');
 
-    const order = await db.order.findUnique({
-      where: { id: orderId },
-      include: { dispute: true },
-    });
-    if (!order) return bad(ERR.NO_ORDER);
-    if (order.dispute) return bad('This order already has a dispute open.');
-
-    const dispute = await db.$transaction(async (tx) => {
-      const created = await tx.dispute.create({
-        data: {
-          code: makeCode('DP'),
-          orderId,
-          status: 'open',
-          openedBy: 'admin',
-          reason: reason.trim(),
-          notes: JSON.stringify([
-            { at: new Date().toISOString(), by: user.email, text: reason.trim() },
-          ]),
-        },
-      });
-      await audit(
-        user,
-        {
-          action: 'dispute.open',
-          targetType: 'Dispute',
-          targetId: created.id,
-          summary: `${created.code} on ${order.code} — ${reason.trim()}`,
-          after: { orderId, reason: reason.trim() },
-        },
-        tx,
-      );
-      return created;
-    });
+    /* One case per order is the backend's unique index rather than a read
+       here — two operators opening one at the same moment is exactly the race
+       a check-then-write would lose. */
+    const out = await call(() =>
+      post<{ id: string; code: string }>('/disputes', { orderId, reason: reason.trim() }),
+    );
+    if (!out.ok) return out.refusal;
 
     revalidatePath('/disputes');
     revalidatePath(`/orders/${orderId}`);
-    return good(`Opened ${dispute.code}.`);
+    return good(`Opened ${out.value.code}.`);
   });
 }
 
 export async function addDisputeNote(disputeId: string, text: string): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('dispute.open');
+    await requireCapability('dispute.open');
     if (!text.trim()) return bad('Write something first.');
 
-    const dispute = await db.dispute.findUnique({ where: { id: disputeId } });
-    if (!dispute) return bad(ERR.NO_DISPUTE);
-
-    const notes = JSON.parse(dispute.notes || '[]');
-    notes.push({ at: new Date().toISOString(), by: user.email, text: text.trim() });
-
-    await db.dispute.update({
-      where: { id: disputeId },
-      data: { notes: JSON.stringify(notes), status: dispute.status === 'open' ? 'investigating' : dispute.status },
-    });
+    const out = await call(() =>
+      post<{ status: string }>(`/disputes/${disputeId}/note`, { text: text.trim() }),
+    );
+    if (!out.ok) return out.refusal;
 
     revalidatePath('/disputes');
     return good('Noted.');
@@ -217,90 +175,26 @@ export async function resolveDispute(
   note: string,
 ): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('dispute.resolve');
+    await requireCapability('dispute.resolve');
     if (!note.trim()) return bad('A resolution needs a reason on the record.');
 
-    const out = await db.$transaction(async (tx) => {
-      const dispute = await tx.dispute.findUnique({
-        where: { id: disputeId },
-        include: { order: true },
-      });
-      if (!dispute) return { ok: false as const, error: ERR.NO_DISPUTE };
-      if (dispute.status === 'resolved') return { ok: false as const, error: ERR.DISPUTE_CLOSED };
-
-      const order = dispute.order;
-      let moved = '';
-
-      if (resolution === 'refund') {
-        const result = await refundEscrow(tx, order.id, {
-          note: `Dispute ${dispute.code} — ${note.trim()}`,
-        });
-        if (!result.ok) return result;
-        await tx.order.update({ where: { id: order.id }, data: { status: 'cancelled' } });
-        moved = `${taka(result.result.refunded)} refunded`;
-      } else if (resolution === 'release') {
-        const result = await releaseEscrow(tx, order.id, {
-          note: `Dispute ${dispute.code} — ${note.trim()}`,
-        });
-        if (!result.ok) return result;
-        await tx.order.update({ where: { id: order.id }, data: { status: 'completed' } });
-        moved = `${taka(result.result.cook)} released`;
-      } else if (resolution === 'split') {
-        const refund = Math.round(refundAmount);
-        const result = await splitEscrow(
-          tx,
-          order.id,
-          refund,
-          order.amount - refund,
-          `Dispute ${dispute.code}`,
-        );
-        if (!result.ok) return result;
-        await tx.order.update({ where: { id: order.id }, data: { status: 'completed' } });
-        moved = `${taka(result.result.refunded)} refunded, ${taka(result.result.released)} released`;
-      } else {
-        moved = 'no money moved';
-      }
-
-      const notes = JSON.parse(dispute.notes || '[]');
-      notes.push({ at: new Date().toISOString(), by: user.email, text: note.trim() });
-
-      await tx.dispute.update({
-        where: { id: disputeId },
-        data: {
-          status: 'resolved',
-          resolution,
-          resolutionNote: note.trim(),
-          refundAmount: resolution === 'split' ? Math.round(refundAmount) : null,
-          releaseAmount:
-            resolution === 'split' ? order.amount - Math.round(refundAmount) : null,
-          notes: JSON.stringify(notes),
-          resolvedAt: new Date(),
-          resolvedBy: user.email,
-        },
-      });
-
-      await audit(
-        user,
+    const out = await call(() =>
+      post<{ code: string; resolution: string; moved: string }>(
+        `/disputes/${disputeId}/resolve`,
         {
-          action: `dispute.${resolution}`,
-          targetType: 'Dispute',
-          targetId: disputeId,
-          summary: `${dispute.code} on ${order.code} — ${moved} — ${note.trim()}`,
-          before: { status: dispute.status, payment: order.payment },
-          after: { status: 'resolved', resolution, moved },
+          resolution,
+          // JSON has no NaN, and the null it would become fails the schema.
+          refundAmount: Math.round(refundAmount) || 0,
+          note: note.trim(),
         },
-        tx,
-      );
-
-      return { ok: true as const, moved };
-    });
-
-    if (!out.ok) return bad(out.error);
+      ),
+    );
+    if (!out.ok) return out.refusal;
 
     revalidatePath('/disputes');
     revalidatePath('/ledger');
     revalidatePath('/orders');
-    return good(`Resolved — ${out.moved}.`);
+    return good(`Resolved — ${out.value.moved}.`);
   });
 }
 
@@ -311,26 +205,10 @@ export async function resolveDispute(
 /** Stop a meal taking orders. The orders already placed are untouched. */
 export async function closeMeal(mealId: string): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('meal.write');
-    const meal = await db.meal.findUnique({ where: { id: mealId } });
-    if (!meal) return bad(ERR.NO_MEAL);
-    if (meal.status !== 'published') return bad(ERR.MEAL_CLOSED);
+    await requireCapability('meal.write');
 
-    await db.$transaction(async (tx) => {
-      await tx.meal.update({ where: { id: mealId }, data: { status: 'closed' } });
-      await audit(
-        user,
-        {
-          action: 'meal.close',
-          targetType: 'Meal',
-          targetId: mealId,
-          summary: `${meal.title} — ${meal.serveDate} ${meal.slot}`,
-          before: { status: 'published' },
-          after: { status: 'closed' },
-        },
-        tx,
-      );
-    });
+    const out = await call(() => post<{ mealId: string }>(`/meals/${mealId}/close`));
+    if (!out.ok) return out.refusal;
 
     revalidatePath('/meals');
     return good('Closed to new orders.');
@@ -341,80 +219,30 @@ export async function closeMeal(mealId: string): Promise<ActionResult> {
  * Cancel a meal and refund every order on it.
  *
  * The refunds run one transaction each: forty customers should not go
- * unrefunded because the forty-first row is broken.
+ * unrefunded because the forty-first row is broken. `failed` is the list of
+ * orders somebody still has to chase, which is why the count is reported
+ * rather than the total alone.
  */
 export async function cancelMeal(mealId: string, reason: string): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('meal.write');
+    await requireCapability('meal.write');
     if (!reason.trim()) return bad('A cancellation needs a reason — the customers are told it.');
 
-    const meal = await db.meal.findUnique({ where: { id: mealId } });
-    if (!meal) return bad(ERR.NO_MEAL);
-    if (meal.status === 'cancelled') return bad(ERR.ALREADY_SETTLED);
+    const out = await call(() =>
+      post<{ refunded: number; orders: number; failed: string[] }>(`/meals/${mealId}/cancel`, {
+        reason: reason.trim(),
+      }),
+    );
+    if (!out.ok) return out.refusal;
 
-    const held = await db.order.findMany({
-      where: { mealId, payment: 'held' },
-      select: { id: true, customerKey: true, amount: true },
-    });
-
-    let refunded = 0;
-    let total = 0;
-
-    for (const order of held) {
-      const out = await db.$transaction(async (tx) => {
-        const result = await refundEscrow(tx, order.id, {
-          note: `Meal cancelled — ${reason.trim()}`,
-        });
-        if (!result.ok) return result;
-        await tx.order.update({
-          where: { id: order.id },
-          data: { status: 'cancelled', cancelReason: reason.trim() },
-        });
-        await tx.notification.create({
-          data: {
-            key: `customer:meal-cancelled:${order.id}`,
-            audience: 'customer',
-            kind: 'meal-cancelled',
-            orderId: order.id,
-            mealId,
-            customerKey: order.customerKey,
-            title: 'Meal cancelled',
-            body: `${meal.title} was cancelled. ${taka(order.amount)} is back in your wallet.`,
-            broadcastBy: user.email,
-          },
-        });
-        return result;
-      });
-      if (out.ok) {
-        refunded++;
-        total += out.result.refunded;
-      }
-    }
-
-    await db.$transaction(async (tx) => {
-      await tx.meal.update({
-        where: { id: mealId },
-        data: { status: 'cancelled', cancelReason: reason.trim() },
-      });
-      await audit(
-        user,
-        {
-          action: 'meal.cancel',
-          targetType: 'Meal',
-          targetId: mealId,
-          summary: `${meal.title} — ${refunded} refunds, ${taka(total)} — ${reason.trim()}`,
-          before: { status: meal.status },
-          after: { status: 'cancelled', refunded, total },
-        },
-        tx,
-      );
-    });
+    const { refunded, orders, failed } = out.value;
+    const attempted = orders + failed.length;
 
     revalidatePath('/meals');
     revalidatePath('/ledger');
     return good(
-      held.length
-        ? `Cancelled. ${refunded} of ${held.length} orders refunded — ${taka(total)}.`
+      attempted
+        ? `Cancelled. ${orders} of ${attempted} orders refunded — ${taka(refunded)}.`
         : 'Cancelled. Nothing was held against it.',
     );
   });

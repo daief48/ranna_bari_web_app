@@ -31,6 +31,13 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const user = await currentUser();
 
+  /* Still Prisma, all of it. There is no `GET /kitchens/:id`: the list
+     endpoint filters and pages but cannot fetch one kitchen, and nothing
+     serves this page's dishes, store, linked account, per-kitchen totals or
+     the cook's balance. Splitting it — orders and meals over HTTP, the rest
+     from here — would query the backend with a cuid it has never seen and
+     render two confidently empty tables, so the whole read stays put until
+     the endpoint exists. */
   const kitchen = await db.kitchen.findUnique({
     where: { id },
     include: {

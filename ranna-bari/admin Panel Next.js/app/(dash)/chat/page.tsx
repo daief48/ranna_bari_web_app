@@ -14,6 +14,15 @@ export const dynamic = 'force-dynamic';
  * handed to a client component that keeps it live over the socket. The first
  * paint is real data rather than a spinner, and everything after it arrives
  * without asking.
+ *
+ * Still on Prisma, and deliberately so. `backend-node` serves chat under
+ * `/api/app/v1/chat/*` — one set of endpoints for the phone and the desk, told
+ * apart by which credential the caller presents — while `lib/backend.ts` only
+ * ever reaches `/api/admin/v1`, because a panel that could call the app's
+ * routes is a panel that can present itself as a customer. Widening the client
+ * to close that gap is a decision about the trust boundary, not a migration
+ * step, so the desk waits for either an admin-prefixed chat surface or an
+ * explicit exception. The three counters below have no admin route at all.
  */
 export default async function ChatPage({
   searchParams,

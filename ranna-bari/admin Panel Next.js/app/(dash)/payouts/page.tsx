@@ -1,10 +1,8 @@
 import Link from 'next/link';
 
-import { db } from '@/lib/db';
+import { get } from '@/lib/backend';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/lib/domain';
-import { cookBalances } from '@/lib/logic/ledger';
-import { getSettings } from '@/lib/settings';
 import { taka, fmtDateTime, timeAgo } from '@/lib/format';
 import {
   Card,
@@ -17,6 +15,7 @@ import {
   Table,
   EmptyRow,
 } from '@/components/ui';
+import { BackendDown, down } from '@/components/backend-down';
 import { RunActions } from './actions';
 import { createPayoutRun } from '@/actions/money';
 import { requirePage } from '@/lib/guard';
@@ -24,32 +23,50 @@ import { requirePage } from '@/lib/guard';
 export const metadata = { title: 'Payouts · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
 
+type PayoutsView = {
+  owed: {
+    kitchenId: string;
+    kitchenName: string;
+    area: string;
+    amount: number;
+    /** Under the minimum: not skipped, carried to the next run. */
+    carried: boolean;
+  }[];
+  due: { count: number; total: number };
+  carried: { count: number; total: number };
+  paidEver: number;
+  minimum: number;
+  runs: {
+    id: string;
+    code: string;
+    status: string;
+    method: string;
+    total: number;
+    cookCount: number;
+    createdBy: string;
+    createdAt: string;
+    paidAt: string | null;
+    paidBy: string | null;
+    items: { id: string; kitchenName: string; amount: number }[];
+  }[];
+};
+
 export default async function PayoutsPage() {
   await requirePage('ledger.read');
   const user = await currentUser();
   const canPay = can(user?.role ?? '', 'payout.write');
-  const settings = await getSettings();
 
-  const owed = await cookBalances();
-  const kitchens = await db.kitchen.findMany({
-    where: { id: { in: owed.map((o) => o.kitchenId) } },
-    select: { id: true, name: true, ownerName: true, area: true },
-  });
-  const kitchenOf = new Map(kitchens.map((k) => [k.id, k]));
+  /* Every figure below — what is owed, what is due, what has been paid — is
+     folded by the backend off the ledger. The panel adds nothing up. */
+  const data = await get<PayoutsView>('/payouts?take=12').catch(down);
 
-  const runs = await db.payoutRun.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 12,
-    include: { items: { orderBy: { amount: 'desc' } } },
-  });
+  if (!data) {
+    return (
+      <BackendDown title="Payouts" subtitle="Batching what cooks are owed, and paying it" />
+    );
+  }
 
-  const dueNow = owed.filter((o) => o.amount >= settings.payoutMinimum);
-  const carried = owed.filter((o) => o.amount < settings.payoutMinimum);
-  const totalDue = dueNow.reduce((s, o) => s + o.amount, 0);
-  const paidEver = await db.ledgerEntry.aggregate({
-    where: { kind: 'payout' },
-    _sum: { amount: true },
-  });
+  const { owed, due, carried, paidEver, minimum, runs } = data;
 
   return (
     <>
@@ -67,7 +84,7 @@ export default async function PayoutsPage() {
               <button
                 type="submit"
                 className="inline-flex items-center rounded-[10px] border border-transparent bg-primary px-3 py-1.5 text-[13px] font-semibold text-on-primary hover:bg-primary-600 disabled:opacity-45"
-                disabled={dueNow.length === 0}
+                disabled={due.count === 0}
               >
                 Draft a run
               </button>
@@ -86,16 +103,16 @@ export default async function PayoutsPage() {
       <Grid cols={4}>
         <Stat
           label="Due this run"
-          value={taka(totalDue)}
-          tone={totalDue > 0 ? 'warn' : 'neutral'}
-          sub={`${dueNow.length} cooks over the ${taka(settings.payoutMinimum)} minimum`}
+          value={taka(due.total)}
+          tone={due.total > 0 ? 'warn' : 'neutral'}
+          sub={`${due.count} cooks over the ${taka(minimum)} minimum`}
         />
         <Stat
           label="Carried forward"
-          value={taka(carried.reduce((s, o) => s + o.amount, 0))}
-          sub={`${carried.length} cooks under the minimum`}
+          value={taka(carried.total)}
+          sub={`${carried.count} cooks under the minimum`}
         />
-        <Stat label="Paid all time" value={taka(paidEver._sum.amount ?? 0)} tone="good" />
+        <Stat label="Paid all time" value={taka(paidEver)} tone="good" />
         <Stat label="Runs" value={runs.length} sub={`${runs.filter((r) => r.status === 'draft').length} in draft`} />
       </Grid>
 
@@ -106,29 +123,25 @@ export default async function PayoutsPage() {
           pad={false}
         >
           <Table head={['Kitchen', 'Area', 'Owed', '']}>
-            {owed.slice(0, 20).map((row) => {
-              const kitchen = kitchenOf.get(row.kitchenId);
-              const under = row.amount < settings.payoutMinimum;
-              return (
-                <tr key={row.kitchenId}>
-                  <td className="max-w-[200px] truncate">
-                    <Link
-                      href={`/kitchens/${row.kitchenId}`}
-                      className="font-medium hover:text-primary"
-                    >
-                      {kitchen?.name ?? row.kitchenId}
-                    </Link>
-                  </td>
-                  <td className="text-ink2">{kitchen?.area ?? '—'}</td>
-                  <td>
-                    <Money amount={row.amount} tone={under ? 'neutral' : 'good'} />
-                  </td>
-                  <td className="text-right text-[11.5px] text-ink3">
-                    {under ? 'under minimum' : ''}
-                  </td>
-                </tr>
-              );
-            })}
+            {owed.slice(0, 20).map((row) => (
+              <tr key={row.kitchenId}>
+                <td className="max-w-[200px] truncate">
+                  <Link
+                    href={`/kitchens/${row.kitchenId}`}
+                    className="font-medium hover:text-primary"
+                  >
+                    {row.kitchenName}
+                  </Link>
+                </td>
+                <td className="text-ink2">{row.area || '—'}</td>
+                <td>
+                  <Money amount={row.amount} tone={row.carried ? 'neutral' : 'good'} />
+                </td>
+                <td className="text-right text-[11.5px] text-ink3">
+                  {row.carried ? 'under minimum' : ''}
+                </td>
+              </tr>
+            ))}
             {owed.length === 0 ? (
               <EmptyRow span={4}>
                 Nothing is owed. Every released payment has been paid out.
@@ -184,7 +197,7 @@ export default async function PayoutsPage() {
             {runs.length === 0 ? (
               <p className="px-4 py-10 text-center text-[13px] text-ink3">
                 No runs yet. Drafting one snapshots what every cook is owed above the{' '}
-                {taka(settings.payoutMinimum)} minimum.
+                {taka(minimum)} minimum.
               </p>
             ) : null}
           </div>

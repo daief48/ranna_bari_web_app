@@ -1,12 +1,9 @@
 import Link from 'next/link';
-import type { Prisma } from '@prisma/client';
 
-import { db } from '@/lib/db';
+import { get } from '@/lib/backend';
 import { currentUser } from '@/lib/auth';
-import { can, LEDGER_KINDS, ACCOUNTS } from '@/lib/domain';
-import { balances, reconcile } from '@/lib/logic/ledger';
-import { getSettings } from '@/lib/settings';
-import { taka, timeAgo, daysSince, fmtDateTime } from '@/lib/format';
+import { can, LEDGER_KINDS, ACCOUNTS, type FoldedAccount } from '@/lib/domain';
+import { taka, timeAgo, fmtDateTime } from '@/lib/format';
 import { paging, pageCount } from '@/lib/queries';
 import {
   Badge,
@@ -16,16 +13,55 @@ import {
   Money,
   PageHeader,
   Stat,
-  StatusBadge,
   Table,
   EmptyRow,
 } from '@/components/ui';
 import { FilterSelect, Pager, ActionButton } from '@/components/ui/client';
+import { BackendDown, down } from '@/components/backend-down';
 import { sweepEscrow } from '@/actions/money';
 import { requirePage } from '@/lib/guard';
 
 export const metadata = { title: 'Ledger & escrow · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
+
+type Folded = Record<FoldedAccount, number>;
+
+type LedgerView = {
+  entries: {
+    id: string;
+    kind: string;
+    from: string;
+    to: string;
+    amount: number;
+    note: string;
+    orderId: string | null;
+    at: string;
+  }[];
+  total: number;
+  balances: Folded;
+  books: {
+    balances: Folded;
+    totals: Record<string, number>;
+    expected: Folded;
+    drift: Folded;
+  };
+};
+
+type AgedView = {
+  orders: {
+    id: string;
+    code: string;
+    cookName: string;
+    customerName: string;
+    deliveredAt: string | null;
+    amount: number;
+    /** Folded by the backend off `deliveredAt`, so the board and the sweep agree. */
+    days: number;
+  }[];
+  count: number;
+  total: number;
+  windowDays: number;
+};
 
 export default async function LedgerPage({
   searchParams,
@@ -39,36 +75,31 @@ export default async function LedgerPage({
   const user = await currentUser();
   const canMove = can(user?.role ?? '', 'payout.write');
 
-  const [bal, books, settings] = await Promise.all([balances(), reconcile(), getSettings()]);
-  const cutoff = new Date(Date.now() - settings.escrowAutoReleaseDays * 86_400_000);
+  const query = new URLSearchParams({ skip: String(skip), take: String(take) });
+  if (params.kind) query.set('kind', params.kind);
+  if (params.account) query.set('account', params.account);
 
-  const where: Prisma.LedgerEntryWhereInput = {};
-  if (params.kind) where.kind = params.kind;
-  if (params.account) {
-    where.OR = [{ from: params.account }, { to: params.account }];
-  }
-
-  const [entries, entryCount, agedOrders, agedTotal] = await Promise.all([
-    db.ledgerEntry.findMany({
-      where,
-      skip,
-      take,
-      orderBy: { at: 'desc' },
-      include: { order: { select: { code: true, title: true } } },
-    }),
-    db.ledgerEntry.count({ where }),
-    db.order.findMany({
-      where: { payment: 'held', status: 'delivered', deliveredAt: { lt: cutoff } },
-      orderBy: { deliveredAt: 'asc' },
-      take: 50,
-      include: { kitchen: { select: { name: true } } },
-    }),
-    db.order.aggregate({
-      where: { payment: 'held', status: 'delivered', deliveredAt: { lt: cutoff } },
-      _sum: { amount: true },
-    }),
+  const [data, aged] = await Promise.all([
+    get<LedgerView>(`/ledger?${query}`).catch(down),
+    get<AgedView>('/escrow/aged?take=50').catch(down),
   ]);
 
+  if (!data || !aged) {
+    return (
+      <BackendDown
+        title="Ledger & escrow"
+        subtitle="Append-only. A correction is a new entry in the opposite direction."
+      />
+    );
+  }
+
+  const bal = data.balances;
+  const books = data.books;
+  const entries = data.entries;
+  const entryCount = data.total;
+
+  /* A roll-up of the drift the backend already folded, not a second fold of
+     the entries — the panel never derives a balance of its own. */
   const driftTotal = Object.values(books.drift).reduce((s, v) => s + Math.abs(v), 0);
 
   return (
@@ -96,8 +127,8 @@ export default async function LedgerPage({
         <Stat
           label="Held in escrow"
           value={taka(bal.held)}
-          tone={(agedTotal._sum.amount ?? 0) > 0 ? 'warn' : 'neutral'}
-          sub={`${taka(agedTotal._sum.amount ?? 0)} past ${settings.escrowAutoReleaseDays} days`}
+          tone={aged.total > 0 ? 'warn' : 'neutral'}
+          sub={`${taka(aged.total)} past ${aged.windowDays} days`}
         />
         <Stat label="Owed to cooks" value={taka(bal.cook)} sub="Released, not paid out" href="/payouts" />
         <Stat label="Platform earned" value={taka(bal.platform)} tone="good" sub="Commission taken" />
@@ -110,7 +141,7 @@ export default async function LedgerPage({
             customer confirms the food arrived. When they never do, it sits in escrow
             forever — the customer has paid, the cook has cooked, and neither has what
             they are owed. The app nudges once a day and then waits. Auto-release is
-            set to <strong>{settings.escrowAutoReleaseDays} days</strong> after
+            set to <strong>{aged.windowDays} days</strong> after
             delivery; changing it is on the{' '}
             <Link href="/settings" className="font-semibold text-primary hover:underline">
               configuration page
@@ -119,15 +150,18 @@ export default async function LedgerPage({
           </GapNote>
 
           <Card
-            title={`${agedOrders.length} orders past the release window`}
-            subtitle={`${taka(agedTotal._sum.amount ?? 0)} stuck in escrow`}
+            /* `count` and not the length of the list: the table shows the oldest
+               fifty, but the sweep below releases every aged order, and a
+               confirmation that undercounts what a button moves is a lie. */
+            title={`${aged.count} orders past the release window`}
+            subtitle={`${taka(aged.total)} stuck in escrow`}
             pad={false}
             actions={
               canMove ? (
                 <ActionButton
                   action={sweepEscrow}
                   variant="primary"
-                  confirm={`Release every order past ${settings.escrowAutoReleaseDays} days? That is ${taka(agedTotal._sum.amount ?? 0)} across ${agedOrders.length} orders, and it cannot be undone.`}
+                  confirm={`Release every order past ${aged.windowDays} days? That is ${taka(aged.total)} across ${aged.count} orders, and it cannot be undone.`}
                 >
                   Release all
                 </ActionButton>
@@ -135,41 +169,40 @@ export default async function LedgerPage({
             }
           >
             <Table head={['Order', 'Kitchen', 'Customer', 'Delivered', 'Age', 'Amount', '']}>
-              {agedOrders.map((order) => {
-                const age = daysSince(order.deliveredAt);
-                return (
-                  <tr key={order.id}>
-                    <td>
-                      <Link
-                        href={`/orders/${order.id}`}
-                        className="tnum font-semibold hover:text-primary"
-                      >
-                        {order.code}
-                      </Link>
-                    </td>
-                    <td className="max-w-[150px] truncate text-ink2">{order.kitchen.name}</td>
-                    <td className="max-w-[130px] truncate text-ink2">{order.customerName}</td>
-                    <td className="whitespace-nowrap text-ink2">{timeAgo(order.deliveredAt)}</td>
-                    <td>
-                      <Badge tone={age > 7 ? 'bad' : 'warn'}>{age} days</Badge>
-                    </td>
-                    <td>
-                      <Money amount={order.amount} />
-                    </td>
-                    <td className="text-right">
-                      <Link
-                        href={`/orders/${order.id}`}
-                        className="text-[12px] font-semibold text-primary hover:underline"
-                      >
-                        Review
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-              {agedOrders.length === 0 ? (
+              {aged.orders.map((order) => (
+                <tr key={order.id}>
+                  <td>
+                    <Link
+                      href={`/orders/${order.id}`}
+                      className="tnum font-semibold hover:text-primary"
+                    >
+                      {order.code}
+                    </Link>
+                  </td>
+                  {/* The order carries the kitchen's name on itself; the backend
+                      does not join the kitchen row to hand back a second copy. */}
+                  <td className="max-w-[150px] truncate text-ink2">{order.cookName}</td>
+                  <td className="max-w-[130px] truncate text-ink2">{order.customerName}</td>
+                  <td className="whitespace-nowrap text-ink2">{timeAgo(order.deliveredAt)}</td>
+                  <td>
+                    <Badge tone={order.days > 7 ? 'bad' : 'warn'}>{order.days} days</Badge>
+                  </td>
+                  <td>
+                    <Money amount={order.amount} />
+                  </td>
+                  <td className="text-right">
+                    <Link
+                      href={`/orders/${order.id}`}
+                      className="text-[12px] font-semibold text-primary hover:underline"
+                    >
+                      Review
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+              {aged.orders.length === 0 ? (
                 <EmptyRow span={7}>
-                  Nothing has been held past {settings.escrowAutoReleaseDays} days.
+                  Nothing has been held past {aged.windowDays} days.
                 </EmptyRow>
               ) : null}
             </Table>
@@ -306,7 +339,11 @@ export default async function LedgerPage({
                 <td>
                   <Money amount={entry.amount} />
                 </td>
-                <td className="tnum text-ink2">{entry.order?.code ?? '—'}</td>
+                {/* `/ledger` returns the entry's `orderId` but not the order's
+                    code, and the panel's own database holds unrelated ids — a
+                    local lookup would print a code belonging to some other
+                    order, which on a money screen is worse than a blank. */}
+                <td className="tnum text-ink2">—</td>
                 <td className="max-w-[260px] truncate text-ink2">{entry.note}</td>
                 <td className="whitespace-nowrap text-ink2" title={fmtDateTime(entry.at)}>
                   {timeAgo(entry.at)}

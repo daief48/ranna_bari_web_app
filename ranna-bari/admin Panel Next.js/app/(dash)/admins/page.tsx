@@ -16,6 +16,16 @@ import { requirePage } from '@/lib/guard';
 export const metadata = { title: 'Admin users · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
 
+/**
+ * Who may operate the panel.
+ *
+ * Still reading Prisma, alone among the boards. `backend-node` keeps an
+ * `AdminUser` collection and signs operators in against it, but publishes no
+ * route that lists or amends one — and an endpoint deciding who may move money
+ * is not something this panel gets to mint for itself. So operator accounts
+ * live in the panel's own database until somebody adds that route deliberately,
+ * which is also why `actions/platform.ts` still writes them there.
+ */
 export default async function AdminsPage() {
   await requirePage('kitchen.read');
   const user = await currentUser();

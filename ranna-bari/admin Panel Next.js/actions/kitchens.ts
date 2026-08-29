@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import { db } from '@/lib/db';
 import { requireCapability } from '@/lib/auth';
+import { post, BackendError } from '@/lib/backend';
 import { audit, pick } from '@/lib/audit';
 import { ERR } from '@/lib/domain';
 import { good, bad, guard, type ActionResult } from './shared';
@@ -23,60 +24,24 @@ export async function decideKyc(
   note: string,
 ): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('kyc.decide');
+    await requireCapability('kyc.decide');
 
-    const kitchen = await db.kitchen.findUnique({ where: { id: kitchenId } });
-    if (!kitchen) return bad(ERR.NO_KITCHEN);
+    /* Checked here as well as in the backend because the backend refuses a
+       blank rejection with `name-required`, and "A name is required." is not
+       what an operator staring at an empty note field needs to read. */
     if (decision === 'rejected' && !note.trim()) {
       return bad('A rejection needs a reason — the cook is told what it says.');
     }
 
-    const before = pick(kitchen, ['isVerified', 'kycStatus', 'kycNote']);
-
-    await db.$transaction(async (tx) => {
-      await tx.kitchen.update({
-        where: { id: kitchenId },
-        data: {
-          kycStatus: decision,
-          kycNote: note.trim() || null,
-          kycDecidedAt: new Date(),
-          kycDecidedBy: user.email,
-          // The badge and the decision move together. Two sources of truth
-          // for "is this cook checked" is one too many.
-          isVerified: decision === 'approved',
-        },
-      });
-
-      /* The cook is told either way. A rejection that arrives as silence is
-         indistinguishable from the queue being slow. */
-      await tx.notification.create({
-        data: {
-          key: `cook:kyc-${decision}:${kitchenId}`,
-          audience: 'cook',
-          kind: `kyc-${decision}`,
-          kitchenId,
-          title: decision === 'approved' ? 'Your kitchen is verified' : 'Verification needs more',
-          body:
-            decision === 'approved'
-              ? 'The verified badge is now on your kitchen.'
-              : note.trim(),
-          broadcastBy: user.email,
-        },
-      });
-
-      await audit(
-        user,
-        {
-          action: `kyc.${decision}`,
-          targetType: 'Kitchen',
-          targetId: kitchenId,
-          summary: `${kitchen.name} — ${decision}${note ? `: ${note}` : ''}`,
-          before,
-          after: { isVerified: decision === 'approved', kycStatus: decision, kycNote: note },
-        },
-        tx,
-      );
-    });
+    try {
+      await post(`/kitchens/${kitchenId}/kyc`, { decision, note: note.trim() });
+    } catch (error) {
+      /* `guard()` flattens an unknown throw into "That did not work." A
+         refusal from the backend already carries the sentence, so it is
+         unwrapped here where it still has one. */
+      if (error instanceof BackendError) return bad(error.message);
+      throw error;
+    }
 
     revalidatePath('/kyc');
     revalidatePath('/kitchens');
@@ -85,6 +50,12 @@ export async function decideKyc(
     return good(decision === 'approved' ? 'Verified.' : 'Rejected, and the cook has been told.');
   });
 }
+
+/* The three actions below still write through Prisma, and still write their
+   own audit row, because the admin API mutates a kitchen through exactly one
+   endpoint — the KYC decision. There is no PATCH /kitchens/:id, no suspend,
+   no coverage. They therefore write to a different store than `decideKyc`
+   does; see the migration notes. */
 
 /** Undo a verification. Rare, and audited like everything else. */
 export async function setVerified(kitchenId: string, verified: boolean): Promise<ActionResult> {

@@ -16,6 +16,12 @@ export default async function KycPage() {
   const user = await currentUser();
   const canDecide = can(user?.role ?? '', 'kyc.decide');
 
+  /* Still Prisma. `GET /kitchens` cannot express this queue: it has no
+     `kycStatus` filter, it sorts newest-first only, and it returns no linked
+     account — so the National ID, which is the one field an operator opens
+     this screen to read, is not in the response at all. Approximating it from
+     `status=unverified` would show a truncated, wrongly-ordered queue with
+     three of its six document rows blank. */
   const [pending, decided] = await Promise.all([
     db.kitchen.findMany({
       where: { kycStatus: 'pending' },

@@ -1,6 +1,4 @@
-import type { Prisma } from '@prisma/client';
-
-import { db } from '@/lib/db';
+import { get } from '@/lib/backend';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/lib/domain';
 import { taka, fmtDateTime, timeAgo } from '@/lib/format';
@@ -17,11 +15,31 @@ import {
   EmptyRow,
 } from '@/components/ui';
 import { FilterSelect, Pager } from '@/components/ui/client';
+import { BackendDown, down } from '@/components/backend-down';
 import { ReconcileRow } from './row';
 import { requirePage } from '@/lib/guard';
 
 export const metadata = { title: 'Top-up reconciliation · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
+
+/** The only three the endpoint accepts; anything else is a 500, not a filter. */
+const STATES = ['orphan', 'disputed', 'matched'] as const;
+
+type TopUpsView = {
+  topups: {
+    id: string;
+    customerKey: string;
+    amount: number;
+    method: string;
+    reconciled: string;
+    pspRef: string | null;
+    pspAmount: number | null;
+    at: string;
+  }[];
+  total: number;
+  /** One bucket per state, folded over every row rather than the current page. */
+  states: Record<string, { count: number; amount: number } | undefined>;
+};
 
 export default async function TopUpsPage({
   searchParams,
@@ -34,20 +52,31 @@ export default async function TopUpsPage({
   const user = await currentUser();
   const canReconcile = can(user?.role ?? '', 'topup.reconcile');
 
-  const where: Prisma.TopUpWhereInput = {};
-  if (params.state) where.reconciled = params.state;
+  const query = new URLSearchParams({ skip: String(skip), take: String(take) });
+  /* A hand-typed `?state=whatever` used to match nothing; the endpoint parses
+     the value against an enum, so an unknown one is dropped here instead. */
+  if (params.state && (STATES as readonly string[]).includes(params.state)) {
+    query.set('state', params.state);
+  }
 
-  const [rows, total, counts, sums] = await Promise.all([
-    db.topUp.findMany({ where, skip, take, orderBy: { at: 'desc' } }),
-    db.topUp.count({ where }),
-    db.topUp.groupBy({ by: ['reconciled'], _count: true, _sum: { amount: true } }),
-    db.topUp.aggregate({ _sum: { amount: true } }),
-  ]);
+  const data = await get<TopUpsView>(`/topups?${query}`).catch(down);
 
-  const countOf = (state: string) => counts.find((c) => c.reconciled === state);
-  const orphan = countOf('orphan');
-  const disputed = countOf('disputed');
-  const matched = countOf('matched');
+  if (!data) {
+    return (
+      <BackendDown
+        title="Top-up reconciliation"
+        subtitle="Wallet credits, against the payments that should be behind them"
+      />
+    );
+  }
+
+  const rows = data.topups;
+  const matched = data.states.matched;
+  const orphan = data.states.orphan;
+  const disputed = data.states.disputed;
+  /* The endpoint folds a bucket per state and no grand total, so this adds the
+     buckets it was handed. Not a re-fold of the rows — one group-by, one read. */
+  const creditedEver = Object.values(data.states).reduce((sum, b) => sum + (b?.amount ?? 0), 0);
 
   return (
     <>
@@ -66,24 +95,24 @@ export default async function TopUpsPage({
       </GapNote>
 
       <Grid cols={4}>
-        <Stat label="Credited all time" value={taka(sums._sum.amount ?? 0)} />
+        <Stat label="Credited all time" value={taka(creditedEver)} />
         <Stat
           label="Matched"
-          value={taka(matched?._sum.amount ?? 0)}
+          value={taka(matched?.amount ?? 0)}
           tone="good"
-          sub={`${matched?._count ?? 0} credits`}
+          sub={`${matched?.count ?? 0} credits`}
         />
         <Stat
           label="No payment behind them"
-          value={taka(orphan?._sum.amount ?? 0)}
+          value={taka(orphan?.amount ?? 0)}
           tone="warn"
-          sub={`${orphan?._count ?? 0} orphans`}
+          sub={`${orphan?.count ?? 0} orphans`}
         />
         <Stat
           label="Amount disagrees"
-          value={taka(disputed?._sum.amount ?? 0)}
+          value={taka(disputed?.amount ?? 0)}
           tone="bad"
-          sub={`${disputed?._count ?? 0} flagged`}
+          sub={`${disputed?.count ?? 0} flagged`}
         />
       </Grid>
 
@@ -147,7 +176,7 @@ export default async function TopUpsPage({
           {rows.length === 0 ? <EmptyRow span={7}>Nothing matches that.</EmptyRow> : null}
         </Table>
 
-        <Pager page={page} pages={pageCount(total)} total={total} />
+        <Pager page={page} pages={pageCount(data.total)} total={data.total} />
       </Card>
 
       <p className="mt-6 text-[11.5px] leading-relaxed text-ink3">

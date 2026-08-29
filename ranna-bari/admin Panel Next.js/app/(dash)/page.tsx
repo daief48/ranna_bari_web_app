@@ -1,21 +1,38 @@
 import Link from 'next/link';
 
+import { BackendError } from '@/lib/backend';
 import { db } from '@/lib/db';
-import { balances, reconcile } from '@/lib/logic/ledger';
 import { getSettings } from '@/lib/settings';
 import { taka, fmtDate, timeAgo, daysSince } from '@/lib/format';
 import {
-  attentionCounts,
   dailySeries,
   deadBroadcasts,
   liveCounts,
   moneyOverview,
+  overview,
 } from '@/lib/queries';
-import { Card, Grid, PageHeader, Stat, Badge, Money, Table, EmptyRow } from '@/components/ui';
+import { Card, Grid, GapNote, PageHeader, Stat, Badge, Money, Table, EmptyRow } from '@/components/ui';
 import { GmvChart, KindBars, EscrowAgeChart } from '@/components/Charts';
 
 export const metadata = { title: 'Dashboard · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
+
+/**
+ * The half of the page that lives on the backend.
+ *
+ * Returns null when nothing answered, so an operator gets a sentence about a
+ * process that is not running instead of a stack trace on a blank screen. A
+ * 4xx or a 5xx is still thrown: those are bugs, and a banner would hide them.
+ */
+async function fromBackend() {
+  try {
+    const [board, dead] = await Promise.all([overview(), deadBroadcasts()]);
+    return { board, dead };
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 0) return null;
+    throw error;
+  }
+}
 
 export default async function Dashboard({
   searchParams,
@@ -27,21 +44,58 @@ export default async function Dashboard({
      a silent redirect that reads as a broken link. */
   const { denied } = await searchParams;
 
-  const [money, series, attention, live, bal, books, settings, dead] = await Promise.all([
+  const deniedNote = denied ? (
+    <div className="mb-5 rounded-[10px] border border-primary-100 bg-primary-50 px-3.5 py-2.5 text-[13px] text-ink2">
+      <strong className="text-primary">That page is not open to your role.</strong>{' '}
+      It needs the <code>{denied}</code> capability. Roles and what each one may
+      do are listed on the{' '}
+      <Link href="/admins" className="font-semibold text-primary hover:underline">
+        admin users page
+      </Link>
+      .
+    </div>
+  ) : null;
+
+  const [remote, money, series, live, settings] = await Promise.all([
+    fromBackend(),
     moneyOverview(30),
     dailySeries(30),
-    attentionCounts(),
     liveCounts(),
-    balances(),
-    reconcile(),
     getSettings(),
-    deadBroadcasts(),
   ]);
+
+  if (!remote) {
+    return (
+      <>
+        <PageHeader title="Dashboard" />
+        {deniedNote}
+        <GapNote>
+          <strong>The backend is not reachable.</strong> Every counter and balance
+          on this page is read from <code>backend-node</code>, so there is nothing
+          honest to show until it answers. Start it with{' '}
+          <code>cd backend-node &amp;&amp; npm run dev</code>.
+        </GapNote>
+      </>
+    );
+  }
+
+  const { board, dead } = remote;
+  const { balances: bal, books, attention } = board;
 
   /* Escrow, bucketed by how long it has been sitting. Held money is the worst
      state in the system — the customer has paid, the cook has cooked, and
      neither has what they are owed — so it gets its own panel rather than a
-     line in a table. */
+     line in a table.
+
+     The one read on this page still on the panel's database, and the seam
+     shows: `/escrow/aged` answers only for orders past the release window,
+     while these buckets are about everything held — including the money still
+     inside it. `/orders?payment=held` pages at 100, which would silently
+     understate the chart the moment a hundred-and-first order is held, and a
+     chart that quietly stops counting is worse than one that says where its
+     numbers come from. The row count beside `bal.held` in the stat above is
+     folded from the same read, so the two stay consistent with each other
+     rather than one of them half-migrating. */
   const heldOrders = await db.order.findMany({
     where: { payment: 'held' },
     select: { amount: true, deliveredAt: true, createdAt: true, status: true },
@@ -73,8 +127,11 @@ export default async function Dashboard({
     { label: 'Meals open past their serve date', value: attention.staleMeals, href: '/meals?view=stale' },
     { label: 'Products stuck at zero stock', value: attention.stockZero, href: '/stores?view=stock' },
     { label: 'Top-ups with no payment behind them', value: attention.orphanTopups, href: '/topups' },
-    { label: 'Broadcasts that reached nobody', value: dead.length, href: '/requests?view=dead' },
-  ].filter((row) => row.value > 0);
+    { label: 'Broadcasts that reached nobody', value: dead.total, href: '/requests?view=dead' },
+    /* A null is a queue this role may not read, not an empty one. It drops
+       out here the same way a zero does, because a line an operator cannot
+       open is not work waiting on them. */
+  ].filter((row) => (row.value ?? 0) > 0);
 
   return (
     <>
@@ -83,17 +140,7 @@ export default async function Dashboard({
         subtitle={`Last 30 days · ${money.orders.toLocaleString('en-US')} orders`}
       />
 
-      {denied ? (
-        <div className="mb-5 rounded-[10px] border border-primary-100 bg-primary-50 px-3.5 py-2.5 text-[13px] text-ink2">
-          <strong className="text-primary">That page is not open to your role.</strong>{' '}
-          It needs the <code>{denied}</code> capability. Roles and what each one may
-          do are listed on the{' '}
-          <Link href="/admins" className="font-semibold text-primary hover:underline">
-            admin users page
-          </Link>
-          .
-        </div>
-      ) : null}
+      {deniedNote}
 
       {/* What needs a person, first. Everything below is context for it. */}
       <Card
@@ -209,7 +256,7 @@ export default async function Dashboard({
         </Card>
       </div>
 
-      {dead.length > 0 ? (
+      {dead.rows.length > 0 ? (
         <Card
           title="Broadcasts that reached nobody"
           subtitle="Every eligible kitchen was shut or out of range — a coverage problem, not a quiet day"
@@ -217,7 +264,7 @@ export default async function Dashboard({
           pad={false}
         >
           <Table head={['Request', 'Area', 'Budget', 'Posted', '']}>
-            {dead.slice(0, 6).map((request) => (
+            {dead.rows.slice(0, 6).map((request) => (
               <tr key={request.id}>
                 <td className="max-w-[320px] truncate font-medium text-ink">{request.title}</td>
                 <td className="text-ink2">{request.area ?? '—'}</td>
@@ -233,7 +280,7 @@ export default async function Dashboard({
                 </td>
               </tr>
             ))}
-            {dead.length === 0 ? <EmptyRow span={5}>Nothing here.</EmptyRow> : null}
+            {dead.rows.length === 0 ? <EmptyRow span={5}>Nothing here.</EmptyRow> : null}
           </Table>
         </Card>
       ) : null}

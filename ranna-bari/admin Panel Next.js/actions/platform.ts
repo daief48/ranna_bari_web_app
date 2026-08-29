@@ -6,8 +6,9 @@ import { db } from '@/lib/db';
 import { requireCapability } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { hashPassword } from '@/lib/auth';
+import { BackendError, patch, post } from '@/lib/backend';
 import { ERR, ROLES } from '@/lib/domain';
-import { saveSetting, invalidateSettings, type PlatformSettings } from '@/lib/settings';
+import type { PlatformSettings } from '@/lib/settings';
 import { good, bad, guard, type ActionResult } from './shared';
 
 /**
@@ -19,6 +20,28 @@ import { good, bad, guard, type ActionResult } from './shared';
  * release.
  */
 
+/**
+ * Run an action body, and answer a backend refusal in the backend's own words.
+ *
+ * `guard()` builds its sentence by looking a thrown message up as an error
+ * *code*, and answers anything it cannot find with "That did not work." A
+ * `BackendError` already arrives carrying the refusal as a sentence, so it is
+ * returned from here rather than thrown into that lookup and flattened into a
+ * shrug. Everything else still throws, and `guard()` still catches it.
+ */
+async function attempt(body: () => Promise<ActionResult>): Promise<ActionResult> {
+  try {
+    return await body();
+  } catch (error) {
+    if (!(error instanceof BackendError)) throw error;
+    return bad(
+      error.status === 0
+        ? 'The backend is not answering. Start it with: cd backend-node && npm run dev'
+        : error.message,
+    );
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * settings — gaps #3 and #7
  * ------------------------------------------------------------------ */
@@ -27,32 +50,33 @@ export async function updateSetting(
   key: keyof PlatformSettings,
   value: number,
 ): Promise<ActionResult> {
-  return guard(async () => {
-    const user = await requireCapability('config.write');
-    if (!Number.isFinite(value) || value < 0) return bad(ERR.BAD_AMOUNT);
-    // A commission over 100% would pay the cook a negative amount.
-    if (key.startsWith('commission') && value > 1) {
-      return bad('A commission rate is a fraction — 0.15 is fifteen per cent.');
-    }
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
+      if (!Number.isFinite(value) || value < 0) return bad(ERR.BAD_AMOUNT);
+      // A commission over 100% would pay the cook a negative amount.
+      if (key.startsWith('commission') && value > 1) {
+        return bad('A commission rate is a fraction — 0.15 is fifteen per cent.');
+      }
 
-    const existing = await db.setting.findUnique({ where: { key } });
-    await saveSetting(key, value, user.email);
+      await patch('/settings', { key, value });
 
-    await audit(user, {
-      action: 'config.setting',
-      targetType: 'Setting',
-      targetId: key,
-      summary: `${key} → ${value}`,
-      before: existing ? { value: JSON.parse(existing.value) } : null,
-      after: { value },
-    });
-
-    revalidatePath('/settings');
-    revalidatePath('/');
-    return good('Saved.');
-  });
+      revalidatePath('/settings');
+      revalidatePath('/');
+      return good('Saved.');
+    }),
+  );
 }
 
+/**
+ * Turn a whole system off without a deploy.
+ *
+ * Left on Prisma. The backend hands the flags out on `GET /settings` but has
+ * no route that writes one, so a panel that read them over HTTP and wrote them
+ * here would show an operator a switch that never moves. The settings page
+ * reads `getFlags()` from the same database for exactly that reason, and the
+ * audit row stays local because no backend saw the change.
+ */
 export async function toggleFlag(key: string): Promise<ActionResult> {
   return guard(async () => {
     const user = await requireCapability('config.write');
@@ -90,45 +114,27 @@ export async function saveZone(
   deliveryFee: number | null,
   active: boolean,
 ): Promise<ActionResult> {
-  return guard(async () => {
-    const user = await requireCapability('config.write');
-    const clean = name.trim();
-    if (!clean) return bad(ERR.NAME_REQUIRED);
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
+      const clean = name.trim();
+      if (!clean) return bad(ERR.NAME_REQUIRED);
 
-    if (id) {
-      const before = await db.zone.findUnique({ where: { id } });
-      await db.zone.update({
-        where: { id },
-        data: { name: clean, deliveryFee, active },
-      });
-      await audit(user, {
-        action: 'config.zone.update',
-        targetType: 'Zone',
-        targetId: id,
-        summary: `${clean}${deliveryFee != null ? ` — ৳${deliveryFee} delivery` : ''}`,
-        before: before ? { name: before.name, deliveryFee: before.deliveryFee, active: before.active } : null,
-        after: { name: clean, deliveryFee, active },
-      });
-    } else {
-      const duplicate = await db.zone.findUnique({ where: { name: clean } });
-      if (duplicate) return bad('That zone already exists.');
+      if (id) {
+        /* `name` is absent from the patch, and there is no path to it on the
+           backend either: the name *is* the join. A kitchen's `area`, a meal's
+           `area` and a request's `area` are all that one string matched
+           literally, so a rename orphans every row carrying the old spelling
+           at once. The editor only ever sends the name back unchanged. */
+        await patch(`/zones/${id}`, { deliveryFee, active });
+      } else {
+        await post('/zones', { name: clean, deliveryFee, active });
+      }
 
-      const count = await db.zone.count();
-      const created = await db.zone.create({
-        data: { name: clean, deliveryFee, active, order: count },
-      });
-      await audit(user, {
-        action: 'config.zone.create',
-        targetType: 'Zone',
-        targetId: created.id,
-        summary: clean,
-        after: { name: clean, deliveryFee, active },
-      });
-    }
-
-    revalidatePath('/settings');
-    return good('Saved.');
-  });
+      revalidatePath('/settings');
+      return good('Saved.');
+    }),
+  );
 }
 
 /* ------------------------------------------------------------------ *
@@ -141,48 +147,26 @@ export async function saveCategory(
   emoji: string,
   key?: string,
 ): Promise<ActionResult> {
-  return guard(async () => {
-    const user = await requireCapability('config.write');
-    const clean = label.trim();
-    if (!clean) return bad(ERR.NAME_REQUIRED);
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
+      const clean = label.trim();
+      if (!clean) return bad(ERR.NAME_REQUIRED);
 
-    if (id) {
-      const before = await db.taxonomyCategory.findUnique({ where: { id } });
-      await db.taxonomyCategory.update({
-        where: { id },
+      if (id) {
         // `key` is deliberately not editable: it is the tag stored on every
         // dish and kitchen, so changing it would orphan the filter.
-        data: { label: clean, emoji: emoji.trim() },
-      });
-      await audit(user, {
-        action: 'config.category.update',
-        targetType: 'TaxonomyCategory',
-        targetId: id,
-        summary: `${before?.key} → "${clean}"`,
-        before: before ? { label: before.label, emoji: before.emoji } : null,
-        after: { label: clean, emoji },
-      });
-    } else {
-      const slug = (key ?? clean).trim().toLowerCase().replace(/\s+/g, '-');
-      const duplicate = await db.taxonomyCategory.findUnique({ where: { key: slug } });
-      if (duplicate) return bad(ERR.CATEGORY_IN_USE);
+        await patch(`/taxonomy/${id}`, { label: clean, emoji: emoji.trim() });
+      } else {
+        // The slug is the backend's to derive — it owns the uniqueness check
+        // that a locally-made one would only be guessing at.
+        await post('/taxonomy', { key, label: clean, emoji: emoji.trim() });
+      }
 
-      const count = await db.taxonomyCategory.count();
-      const created = await db.taxonomyCategory.create({
-        data: { key: slug, label: clean, emoji: emoji.trim(), order: count },
-      });
-      await audit(user, {
-        action: 'config.category.create',
-        targetType: 'TaxonomyCategory',
-        targetId: created.id,
-        summary: `${slug} — "${clean}"`,
-        after: { key: slug, label: clean, emoji },
-      });
-    }
-
-    revalidatePath('/settings');
-    return good('Saved.');
-  });
+      revalidatePath('/settings');
+      return good('Saved.');
+    }),
+  );
 }
 
 /**
@@ -193,48 +177,37 @@ export async function saveCategory(
  * zero results is worse than one that is visibly switched off.
  */
 export async function retireCategory(id: string, retired: boolean): Promise<ActionResult> {
-  return guard(async () => {
-    const user = await requireCapability('config.write');
-    const before = await db.taxonomyCategory.findUnique({ where: { id } });
-    if (!before) return bad('That category no longer exists.');
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
 
-    await db.taxonomyCategory.update({ where: { id }, data: { retired } });
-    await audit(user, {
-      action: retired ? 'config.category.retire' : 'config.category.restore',
-      targetType: 'TaxonomyCategory',
-      targetId: id,
-      summary: `${before.key} ${retired ? 'retired' : 'restored'}`,
-      before: { retired: before.retired },
-      after: { retired },
-    });
+      await post(`/taxonomy/${id}/retire`, { retired });
 
-    revalidatePath('/settings');
-    return good(retired ? 'Retired.' : 'Back in the list.');
-  });
+      revalidatePath('/settings');
+      return good(retired ? 'Retired.' : 'Back in the list.');
+    }),
+  );
 }
 
+/**
+ * Move one category along the list.
+ *
+ * `move` is signed places rather than an absolute index, because the backend
+ * renumbers the whole list to close the gaps a retirement leaves. A step off
+ * either end is refused there rather than shrugged off here; the editor
+ * disables the arrow at each end, so the refusal is unreachable from the UI.
+ */
 export async function moveCategory(id: string, delta: number): Promise<ActionResult> {
-  return guard(async () => {
-    await requireCapability('config.write');
-    const all = await db.taxonomyCategory.findMany({ orderBy: { order: 'asc' } });
-    const index = all.findIndex((c) => c.id === id);
-    if (index < 0) return bad('That category no longer exists.');
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
 
-    const target = index + delta;
-    if (target < 0 || target >= all.length) return good();
+      await patch(`/taxonomy/${id}`, { move: delta });
 
-    const reordered = [...all];
-    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
-
-    await db.$transaction(
-      reordered.map((c, i) =>
-        db.taxonomyCategory.update({ where: { id: c.id }, data: { order: i } }),
-      ),
-    );
-
-    revalidatePath('/settings');
-    return good();
-  });
+      revalidatePath('/settings');
+      return good();
+    }),
+  );
 }
 
 /* ------------------------------------------------------------------ *
@@ -245,63 +218,25 @@ export async function moveCategory(id: string, delta: number): Promise<ActionRes
  * Hide or restore a review, and recompute the kitchen's score.
  *
  * A hidden review must not keep counting toward the rating, or hiding it
- * achieves nothing but removing the evidence.
+ * achieves nothing but removing the evidence. The recount happens in the same
+ * transaction as the hiding, which is what stops the two ever disagreeing.
  */
 export async function moderateReview(
   reviewId: string,
   hidden: boolean,
   note: string,
 ): Promise<ActionResult> {
-  return guard(async () => {
-    const user = await requireCapability('review.moderate');
-    const review = await db.review.findUnique({ where: { id: reviewId } });
-    if (!review) return bad('That review no longer exists.');
-    if (hidden && !note.trim()) return bad('Say why it is being hidden.');
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('review.moderate');
+      if (hidden && !note.trim()) return bad('Say why it is being hidden.');
 
-    await db.$transaction(async (tx) => {
-      await tx.review.update({
-        where: { id: reviewId },
-        data: {
-          hidden,
-          hiddenBy: hidden ? user.email : null,
-          hiddenAt: hidden ? new Date() : null,
-          hiddenNote: hidden ? note.trim() : null,
-        },
-      });
+      await post(`/reviews/${reviewId}/moderate`, { hidden, note: note.trim() });
 
-      const visible = await tx.review.findMany({
-        where: { kitchenId: review.kitchenId, hidden: false },
-        select: { rating: true },
-      });
-      const count = visible.length;
-      const average = count
-        ? Math.round((visible.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10
-        : 0;
-
-      await tx.kitchen.update({
-        where: { id: review.kitchenId },
-        // A kitchen with no visible reviews scores 0, which is what the app
-        // renders as "New" rather than as a bad kitchen.
-        data: { rating: average, reviewCount: count },
-      });
-
-      await audit(
-        user,
-        {
-          action: hidden ? 'review.hide' : 'review.restore',
-          targetType: 'Review',
-          targetId: reviewId,
-          summary: `${review.name} on ${review.kitchenId} — rating now ${average} over ${count}`,
-          before: { hidden: review.hidden },
-          after: { hidden, rating: average, reviewCount: count },
-        },
-        tx,
-      );
-    });
-
-    revalidatePath('/reviews');
-    return good(hidden ? 'Hidden, and the rating recomputed.' : 'Restored.');
-  });
+      revalidatePath('/reviews');
+      return good(hidden ? 'Hidden, and the rating recomputed.' : 'Restored.');
+    }),
+  );
 }
 
 /* ------------------------------------------------------------------ *
@@ -311,9 +246,11 @@ export async function moderateReview(
 /**
  * Send a notification from the platform.
  *
- * The dedupe contract is the app's: a notification with the same key that is
- * still unread does not produce a second row. Keying on the broadcast rather
- * than on the text means re-wording a message does not defeat it.
+ * The "an unread broadcast with this title is already out" refusal went with
+ * the write, and deliberately: a broadcast carries no reader, so nothing ever
+ * marks it read. A key derived from the title would therefore sit unread for
+ * ever and silence every later announcement to that audience. The backend
+ * names each send with a fresh id instead.
  */
 export async function broadcast(
   audience: 'customer' | 'cook',
@@ -321,43 +258,40 @@ export async function broadcast(
   title: string,
   body: string,
 ): Promise<ActionResult> {
-  return guard(async () => {
-    const user = await requireCapability('notification.broadcast');
-    if (!title.trim() || !body.trim()) return bad('A broadcast needs a title and a body.');
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('notification.broadcast');
+      if (!title.trim() || !body.trim()) return bad('A broadcast needs a title and a body.');
 
-    const key = `${audience}:broadcast:${title.trim().toLowerCase().replace(/\s+/g, '-')}`;
-
-    const existing = await db.notification.findFirst({ where: { key, read: false } });
-    if (existing) return bad('An unread broadcast with this title is already out.');
-
-    const created = await db.notification.create({
-      data: {
-        key,
+      await post('/notifications/broadcast', {
         audience,
-        kind: 'broadcast',
         title: title.trim(),
         body: body.trim(),
-        zone,
-        broadcastBy: user.email,
-      },
-    });
+        /* `undefined` rather than `null`, so a platform-wide send drops the
+           field instead of failing the backend's optional-string check. The
+           row it writes still stores `zone: null`. */
+        zone: zone ?? undefined,
+      });
 
-    await audit(user, {
-      action: 'notification.broadcast',
-      targetType: 'Notification',
-      targetId: created.id,
-      summary: `to ${audience}${zone ? ` in ${zone}` : ''} — "${title.trim()}"`,
-      after: { audience, zone, title: title.trim(), body: body.trim() },
-    });
-
-    revalidatePath('/notifications');
-    return good(`Sent to ${audience}s${zone ? ` in ${zone}` : ''}.`);
-  });
+      revalidatePath('/notifications');
+      return good(`Sent to ${audience}s${zone ? ` in ${zone}` : ''}.`);
+    }),
+  );
 }
 
 /* ------------------------------------------------------------------ *
  * admin users — gap: nobody could grant access either
  * ------------------------------------------------------------------ */
+
+/*
+ * All three left on Prisma.
+ *
+ * `backend-node` has an `AdminUser` collection and signs operators in against
+ * it, but exposes no route that lists, creates or amends one. Minting an
+ * endpoint for it from this side is not a decision a migration gets to make —
+ * it is who may operate the platform. So operator accounts stay in the panel's
+ * own database, and so do their audit rows, because no backend sees the change.
+ */
 
 export async function createAdmin(
   email: string,
@@ -450,77 +384,49 @@ export async function setAdminRole(adminId: string, role: string): Promise<Actio
  * ------------------------------------------------------------------ */
 
 export async function setProductStock(productId: string, stock: number): Promise<ActionResult> {
-  return guard(async () => {
-    const user = await requireCapability('store.write');
-    const value = Math.round(stock);
-    if (!Number.isFinite(value) || value < 0) return bad(ERR.BAD_AMOUNT);
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('store.write');
+      const value = Math.round(stock);
+      if (!Number.isFinite(value) || value < 0) return bad(ERR.BAD_AMOUNT);
 
-    const product = await db.product.findUnique({ where: { id: productId } });
-    if (!product) return bad(ERR.NO_PRODUCT);
+      /* The out-of-stock clock — started when the count reaches zero, cleared
+         the moment it does not — moved with the write. Keeping a copy of that
+         rule here would be a second answer to how old an alarm is. */
+      await post(`/products/${productId}/stock`, { stock: value });
 
-    await db.product.update({
-      where: { id: productId },
-      data: {
-        stock: value,
-        // The clock only starts when stock reaches zero, and is cleared the
-        // moment it does not — otherwise the ageing is measured from whenever
-        // the row was last touched, which means nothing.
-        outOfStockSince: value === 0 ? (product.outOfStockSince ?? new Date()) : null,
-      },
-    });
-
-    await audit(user, {
-      action: 'product.stock',
-      targetType: 'Product',
-      targetId: productId,
-      summary: `${product.name}: ${product.stock} → ${value}`,
-      before: { stock: product.stock },
-      after: { stock: value },
-    });
-
-    revalidatePath('/stores');
-    return good('Stock updated.');
-  });
+      revalidatePath('/stores');
+      return good('Stock updated.');
+    }),
+  );
 }
 
 export async function toggleProductActive(productId: string): Promise<ActionResult> {
-  return guard(async () => {
-    const user = await requireCapability('store.write');
-    const product = await db.product.findUnique({ where: { id: productId } });
-    if (!product) return bad(ERR.NO_PRODUCT);
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('store.write');
 
-    await db.product.update({ where: { id: productId }, data: { active: !product.active } });
-    await audit(user, {
-      action: 'product.toggle',
-      targetType: 'Product',
-      targetId: productId,
-      summary: `${product.name} ${product.active ? 'delisted' : 'relisted'}`,
-      before: { active: product.active },
-      after: { active: !product.active },
-    });
+      /* The flip happens inside the document, so the state that comes back is
+         the one that landed — not the one a read-then-write assumed. The empty
+         body is not decoration: the client always sends a JSON content type,
+         and Fastify refuses that header with nothing behind it. */
+      const out = await post<{ active: boolean }>(`/products/${productId}/toggle`, {});
 
-    revalidatePath('/stores');
-    return good(product.active ? 'Delisted.' : 'Listed.');
-  });
+      revalidatePath('/stores');
+      return good(out.active ? 'Listed.' : 'Delisted.');
+    }),
+  );
 }
 
 export async function toggleStoreOpen(storeId: string): Promise<ActionResult> {
-  return guard(async () => {
-    const user = await requireCapability('store.write');
-    const store = await db.store.findUnique({ where: { id: storeId } });
-    if (!store) return bad(ERR.NO_STORE);
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('store.write');
 
-    await db.store.update({ where: { id: storeId }, data: { isOpen: !store.isOpen } });
-    await audit(user, {
-      action: 'store.toggle',
-      targetType: 'Store',
-      targetId: storeId,
-      summary: `${store.name} ${store.isOpen ? 'closed' : 'opened'}`,
-      before: { isOpen: store.isOpen },
-      after: { isOpen: !store.isOpen },
-    });
+      const out = await post<{ isOpen: boolean }>(`/stores/${storeId}/toggle`, {});
 
-    revalidatePath('/stores');
-    return good(store.isOpen ? 'Shop closed.' : 'Shop open.');
-  });
+      revalidatePath('/stores');
+      return good(out.isOpen ? 'Shop open.' : 'Shop closed.');
+    }),
+  );
 }
