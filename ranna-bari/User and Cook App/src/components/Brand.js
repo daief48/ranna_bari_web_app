@@ -21,7 +21,7 @@ const LOGO_DARK = require('../../assets/logo-dark.png');
  */
 export default function Brand({ size, markSize = 36, markOnly = false }) {
   const { colors, shadow, isDark } = useTheme();
-  const { brand } = useLang();
+  const { brand, isBn } = useLang();
   const r = useResponsive();
   const wordSize = size ?? r.brandWord ?? 19;
 
@@ -65,7 +65,35 @@ export default function Brand({ size, markSize = 36, markOnly = false }) {
         />
       </View>
 
-      {markOnly ? null : (
+      {markOnly ? null : isBn ? (
+        /*
+         * Bengali is one word, so it is set as one.
+         *
+         * "RannaBari" is a compound of two words a reader sees as two, which
+         * is what the ink/gradient split is drawing. রান্নাবাড়ি is written
+         * without a break and carries a continuous মাত্রা across the whole
+         * name — recolouring at the halfway point cuts that headline stroke
+         * in two and reads as a rendering fault rather than as emphasis.
+         *
+         * So the Bengali lockup is a single deep vermilion in the heaviest
+         * face available, which is how the name is set on the logo itself.
+         */
+        <Text
+          style={[
+            wordStyle,
+            {
+              fontFamily: font.displayExtra,
+              // #7F1F0A on paper; the same maroon would disappear on a dark
+              // ground, so there it steps up to the lit primary.
+              color: isDark ? colors.primary : colors.primary700,
+              letterSpacing: -0.2,
+            },
+          ]}
+        >
+          {brand.first}
+          {brand.second}
+        </Text>
+      ) : (
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Text style={wordStyle}>{brand.first}</Text>
           <GradientText
@@ -74,17 +102,6 @@ export default function Brand({ size, markSize = 36, markOnly = false }) {
           >
             {brand.second}
           </GradientText>
-          {/* Subtle modern brand accent dot */}
-          <View
-            style={{
-              width: 4,
-              height: 4,
-              borderRadius: 2,
-              backgroundColor: colors.primary,
-              marginLeft: 2.5,
-              marginTop: wordSize * 0.35,
-            }}
-          />
         </View>
       )}
     </View>

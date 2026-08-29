@@ -29,6 +29,12 @@ export default function MapScreen() {
   const { t, n } = useLang();
   const { colors, shadow, mode } = useTheme();
   const insets = useSafeAreaInsets();
+  /* How tall the nearest-cooks sheet actually came out, so the locate button
+     can sit above it instead of guessing. */
+  const [sheetHeight, setSheetHeight] = useState(0);
+  /* Where the search bar sits, so the overlays and the map document can
+     both be placed relative to it. */
+  const barTop = insets.top + NAVBAR_TOP + NAVBAR_HEIGHT + 12;
   const router = useRouter();
   const webRef = useRef(null);
 
@@ -55,6 +61,38 @@ export default function MapScreen() {
   const send = useCallback((msg) => {
     webRef.current?.post(msg);
   }, []);
+
+  /**
+   * Tell the document about the kitchens, and about the app's own chrome.
+   *
+   * Neither can be baked into the HTML. The kitchens arrive from the server
+   * a moment after the first render, so a document built once is built with
+   * an empty list — no pins, and a search that finds a kitchen and then asks
+   * to fly to a marker that was never created. The chrome offsets depend on
+   * the safe-area inset, which only this side can measure, and without them
+   * Leaflet's zoom buttons sit underneath the search bar.
+   *
+   * Both are sent rather than rebuilt into the document, so neither throws
+   * the map back to its default view when it changes.
+   */
+  useEffect(() => {
+    if (!ready) return;
+    send({ type: 'setChefs', chefs });
+  }, [ready, chefs, send]);
+
+  useEffect(() => {
+    if (!ready) return;
+    send({
+      type: 'setChrome',
+      /* Nothing of the app's sits at the top any more now that zoom has moved
+         down, so this only has to clear the search bar itself. */
+      top: barTop + 62,
+      /* Stacked up the right edge, in the order a thumb meets them: the tab
+         bar, the locate pill, then zoom. Plus the sheet when it is open, so
+         the buttons ride above the results rather than under them. */
+      bottom: 88 + insets.bottom + 52 + (panel ? sheetHeight + 10 : 0),
+    });
+  }, [ready, barTop, insets.bottom, panel, sheetHeight, send]);
 
   const onMessage = useCallback(
     (event) => {
@@ -144,32 +182,68 @@ export default function MapScreen() {
     }
   }, [send, chefs]);
 
-  /** Search jumps to the first kitchen whose name, specialty or area matches. */
+  /**
+   * Search shows every kitchen that matches, not the first one.
+   *
+   * Typing a *place* is the common case — "banani", "dhanmondi" — and there
+   * are half a dozen kitchens in each. Flying to whichever one happened to
+   * sort first answered a question nobody asked and hid the other five
+   * without saying so.
+   *
+   * So the map frames all of them and rings them, and the sheet lists them.
+   * A single match still behaves the way it did: there is nothing to compare
+   * it against, so it goes straight to the kitchen and opens its popup.
+   */
   const runSearch = useCallback(() => {
     const q = query.trim().toLowerCase();
     if (!q) return;
 
-    const hit = chefs.find(
+    const has = (value) => String(value ?? '').toLowerCase().includes(q);
+
+    const hits = chefs.filter(
       (c) =>
         typeof c.lat === 'number' &&
-        (c.name.toLowerCase().includes(q) ||
-          c.specialty.toLowerCase().includes(q) ||
-          c.area.toLowerCase().includes(q)),
+        typeof c.lng === 'number' &&
+        (has(c.name) || has(c.specialty) || has(c.area)),
     );
 
-    if (hit) {
-      send({ type: 'focus', id: hit.id });
-      setPanel(null);
-    } else {
+    if (!hits.length) {
+      send({ type: 'highlight', ids: [] });
       setPanel({
         kind: 'error',
         title: 'No match',
         text: 'Nothing found. Try a nearby landmark.',
       });
+      return;
     }
-  }, [query, send, chefs]);
 
-  const barTop = insets.top + NAVBAR_TOP + NAVBAR_HEIGHT + 12;
+    send({ type: 'highlight', ids: hits.map((c) => c.id) });
+
+    if (hits.length === 1) {
+      send({ type: 'focus', id: hits[0].id });
+      setPanel(null);
+      return;
+    }
+
+    send({
+      type: 'fitPoints',
+      points: hits.map((c) => ({ lat: c.lat, lng: c.lng })),
+    });
+
+    /* The area as the cooks themselves spell it, rather than as it was
+       typed — "banani" becomes "Banani" because that is the label on every
+       card the customer will see next. */
+    const area = hits.find((c) => has(c.area))?.area;
+    setPanel({
+      kind: 'list',
+      title: area ?? query.trim(),
+      subtitle: t('{n} kitchens', { n: n(hits.length) }),
+      /* No origin to measure from here, so the rows show the area instead of
+         a distance — see the pill in the list below. */
+      items: hits.map((chef) => ({ chef, km: null })),
+    });
+  }, [query, send, chefs, t, n]);
+
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas }}>
@@ -285,9 +359,22 @@ export default function MapScreen() {
         onPress={requestLocation}
         style={({ pressed }) => [
           {
+            /*
+             * Bottom right, where a map's locate control lives.
+             *
+             * It sat under the search bar, which is the one part of the
+             * screen a thumb cannot reach and the one part the map most
+             * needs left clear — a control pinned over the top centre covers
+             * whatever the search just found.
+             *
+             * `sheetHeight` is measured rather than assumed: the nearest-cooks
+             * sheet grows with its contents up to 46% of the screen, so a
+             * fixed offset would either float the button in space or bury it
+             * under the sheet depending on how many cooks came back.
+             */
             position: 'absolute',
-            top: barTop + 62,
-            alignSelf: 'center',
+            right: 10,
+            bottom: 88 + insets.bottom + (panel ? sheetHeight + 10 : 0),
             flexDirection: 'row',
             alignItems: 'center',
             gap: 9,
@@ -333,6 +420,7 @@ export default function MapScreen() {
               bottom sheet floating above the app bar. */}
       {panel ? (
         <View
+          onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
           style={[
             {
               position: 'absolute',
@@ -372,12 +460,23 @@ export default function MapScreen() {
               }}
             >
               {t(panel.title)}
+              {/* An area search says how many it found, because the count is
+                  the answer — Banani alone does not tell you whether the
+                  map is showing you one kitchen or six. */}
+              {panel.subtitle ? (
+                <Text style={{ color: colors.primary }}> · {panel.subtitle}</Text>
+              ) : null}
             </Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Close nearest cooks"
               hitSlop={10}
-              onPress={() => setPanel(null)}
+              onPress={() => {
+                setPanel(null);
+                /* Drop the rings with the list. A dimmed map and no results
+                   panel is a search whose answer is no longer readable. */
+                send({ type: 'highlight', ids: [] });
+              }}
               style={{
                 width: 30,
                 height: 30,
@@ -460,7 +559,10 @@ export default function MapScreen() {
                         fontVariant: ['tabular-nums'],
                       }}
                     >
-                      {formatDistance(km, t, n)}
+                      {/* A distance when there is somewhere to measure from,
+                          the area when there is not — an empty pill on every
+                          row reads as a number that failed to load. */}
+                      {formatDistance(km, t, n) ?? chef.area}
                     </Text>
                   </View>
                 </Pressable>

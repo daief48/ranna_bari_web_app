@@ -77,9 +77,12 @@ export function buildMapHtml({ chefs, theme, colors }) {
   }
   .leaflet-control-attribution a { color: ${colors.primary}; }
 
-  /* Keep the zoom control clear of the native search overlay above it. */
-  .leaflet-top { top: 92px; }
-  .leaflet-bottom { bottom: 8px; }
+  /* Keep Leaflet's controls clear of the app's own overlays. The offsets are
+     set by a "setChrome" message once the app has measured its bars; these
+     fallbacks are what a device with no notch would want, so a document that
+     never receives one is merely approximate rather than broken. */
+  .leaflet-top { top: var(--top-chrome, 92px); }
+  .leaflet-bottom { bottom: var(--bottom-chrome, 8px); }
 
   /* ---------- Kitchen marker ---------- */
   .map-marker {
@@ -92,6 +95,22 @@ export function buildMapHtml({ chefs, theme, colors }) {
   }
   .map-marker svg { width: 20px; height: 20px; stroke: currentColor; fill: none;
     stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+  /*
+   * The result of a search, as opposed to everything else on the map.
+   *
+   * A ring rather than a different fill: the pin's colour already means
+   * "kitchen", and recolouring it to mean "matched" would give one symbol two
+   * jobs. Everything unmatched steps back instead — dimmed rather than
+   * hidden, because the point of a map is that the surroundings stay on it.
+   */
+  .map-marker.is-hit {
+    box-shadow:
+      0 0 0 4px rgba(${colors.rgbPrimary}, 0.28),
+      0 12px 30px -8px rgba(${colors.rgbPrimary}, 0.5);
+    z-index: 500;
+  }
+  .map-marker.is-dim { opacity: 0.32; }
 
   /* ---------- "You are here" ---------- */
   .me-marker {
@@ -168,8 +187,20 @@ export function buildMapHtml({ chefs, theme, colors }) {
     return;
   }
 
-  var map = L.map('map', { zoomControl: true, attributionControl: true })
+  /*
+   * Zoom bottom right, where a thumb is, and where every map app puts it.
+   *
+   * Leaflet defaults it to the top left, which on a phone is the far corner
+   * from the hand holding it and directly under this app's own search bar.
+   * The attribution moves to the other corner rather than stacking beneath
+   * it — it is a legal notice, not a control, and it should not be the thing
+   * a thumb lands on.
+   */
+  var map = L.map('map', { zoomControl: false, attributionControl: false })
              .setView([START.lat, START.lng], START.zoom);
+
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+  L.control.attribution({ position: 'bottomleft' }).addTo(map);
 
   // MapTiler serves 512px tiles, so Leaflet needs the zoom offset or every
   // label renders at half scale.
@@ -197,19 +228,63 @@ export function buildMapHtml({ chefs, theme, colors }) {
   });
 
   var markers = {};
-  POINTS.forEach(function (c) {
-    var m = L.marker([c.lat, c.lng], { icon: chefIcon }).addTo(map);
-    markers[c.id] = m;
-    m.bindPopup(
-      '<div class="pop">' +
-        '<img src="' + c.avatar + '" alt="">' +
-        '<h4>' + c.name + '</h4>' +
-        '<p>' + c.specialty + ' &middot; ' + c.area + '</p>' +
-        '<button onclick="window.__openChef(' + JSON.stringify(c.id) + ')">View Menu &amp; Order</button>' +
-      '</div>',
-      { minWidth: 200 }
-    );
-  });
+
+  /**
+   * Put a set of kitchens on the map, replacing whatever is there.
+   *
+   * The list used to be baked into this document at build time, which was
+   * fine while it came from a bundled JSON — it was there on the first
+   * render. It comes from the server now and arrives a moment later, so a
+   * document built once was built with nothing: no pins, and a search that
+   * found a kitchen and then asked to fly to a marker that did not exist.
+   *
+   * Re-rendering the whole document on every change would work and would
+   * also throw the map back to its default view each time, so the list is
+   * sent over the bridge instead and only the markers are rebuilt.
+   */
+  function setChefs(list) {
+    Object.keys(markers).forEach(function (id) { map.removeLayer(markers[id]); });
+    markers = {};
+
+    (list || []).forEach(function (c) {
+      if (typeof c.lat !== 'number' || typeof c.lng !== 'number') return;
+      var m = L.marker([c.lat, c.lng], { icon: chefIcon }).addTo(map);
+      markers[c.id] = m;
+      m.bindPopup(
+        '<div class="pop">' +
+          '<img src="' + (c.avatar || '') + '" alt="">' +
+          '<h4>' + (c.name || '') + '</h4>' +
+          '<p>' + (c.specialty || '') + ' &middot; ' + (c.area || '') + '</p>' +
+          '<button onclick="window.__openChef(' + JSON.stringify(c.id) + ')">View Menu &amp; Order</button>' +
+        '</div>',
+        { minWidth: 200 }
+      );
+    });
+  }
+
+  setChefs(POINTS);
+
+  /**
+   * Ring the kitchens a search matched, and step the rest back.
+   *
+   * Passing nothing clears the selection rather than dimming everything —
+   * "no search running" and "a search that matched nothing" have to look
+   * different, and only the first of them is a map you can still read.
+   */
+  function highlight(ids) {
+    var wanted = {};
+    (ids || []).forEach(function (id) { wanted[id] = true; });
+    var any = (ids || []).length > 0;
+
+    Object.keys(markers).forEach(function (id) {
+      var el = markers[id].getElement();
+      if (!el) return;
+      var dot = el.querySelector('.map-marker');
+      if (!dot) return;
+      dot.classList.toggle('is-hit', any && !!wanted[id]);
+      dot.classList.toggle('is-dim', any && !wanted[id]);
+    });
+  }
 
   // The popup CTA is a real navigation in the app, so it hands the id back
   // to React Native rather than following an href.
@@ -269,6 +344,30 @@ export function buildMapHtml({ chefs, theme, colors }) {
 
     } else if (msg.type === 'flyTo') {
       map.flyTo([msg.lat, msg.lng], msg.zoom || 14, { duration: 0.7 });
+
+    } else if (msg.type === 'fitPoints') {
+      /* Every kitchen the search matched, framed together. The zoom ceiling
+         stops a single result from slamming to street level, which reads as
+         a bug next to the same action returning six. */
+      var fitPts = (msg.points || []).map(function (p) { return [p.lat, p.lng]; });
+      if (fitPts.length) {
+        map.fitBounds(L.latLngBounds(fitPts), { padding: [80, 80], maxZoom: msg.maxZoom || 14 });
+      }
+
+    } else if (msg.type === 'highlight') {
+      highlight(msg.ids);
+
+    } else if (msg.type === 'setChefs') {
+      setChefs(msg.chefs);
+
+    } else if (msg.type === 'setChrome') {
+      /* Where the app's own overlays are, so Leaflet's controls can sit
+         clear of them. The search bar's height depends on the safe-area
+         inset, which this document has no way to measure — only the app
+         knows, so only the app can say. */
+      var root = document.documentElement.style;
+      if (typeof msg.top === 'number') root.setProperty('--top-chrome', msg.top + 'px');
+      if (typeof msg.bottom === 'number') root.setProperty('--bottom-chrome', msg.bottom + 'px');
 
     } else if (msg.type === 'closePopups') {
       map.closePopup();

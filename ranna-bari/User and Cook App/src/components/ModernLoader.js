@@ -325,38 +325,47 @@ export default function ModernLoader({
         {/* Brand Title Lockup & Meaningful Text */}
         <View style={styles.textContainer}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-            <Text
-              style={[
-                styles.brandName,
-                {
-                  color: colors.text || (isDark ? '#FFFFFF' : '#1F1D1A'),
-                  fontFamily: font.displayBold || 'Fraunces_700Bold',
-                },
-              ]}
-            >
-              {brand.first}
-            </Text>
-            <Text
-              style={[
-                styles.brandName,
-                {
-                  color: colors.primary || '#C7381A',
-                  fontFamily: font.displayBold || 'Fraunces_700Bold',
-                },
-              ]}
-            >
-              {brand.second}
-            </Text>
-            <View
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: 2.5,
-                backgroundColor: colors.primary || '#C7381A',
-                marginLeft: 3,
-                marginTop: 6,
-              }}
-            />
+            {/* One word in Bengali, two in Latin — see `Brand.js`. Splitting
+                রান্নাবাড়ি by colour cuts its মাত্রা in half. */}
+            {lang === 'bn' ? (
+              <Text
+                style={[
+                  styles.brandName,
+                  {
+                    color: isDark ? colors.primary : colors.primary700 || '#7F1F0A',
+                    fontFamily: font.displayExtra || 'NotoSansBengali_800ExtraBold',
+                  },
+                ]}
+              >
+                {brand.first}
+                {brand.second}
+              </Text>
+            ) : (
+              <>
+                <Text
+                  style={[
+                    styles.brandName,
+                    {
+                      color: colors.text || (isDark ? '#FFFFFF' : '#1F1D1A'),
+                      fontFamily: font.displayBold || 'Fraunces_700Bold',
+                    },
+                  ]}
+                >
+                  {brand.first}
+                </Text>
+                <Text
+                  style={[
+                    styles.brandName,
+                    {
+                      color: colors.primary || '#C7381A',
+                      fontFamily: font.displayBold || 'Fraunces_700Bold',
+                    },
+                  ]}
+                >
+                  {brand.second}
+                </Text>
+              </>
+            )}
           </View>
 
           {/* Meaningful Sub-header Tagline */}
