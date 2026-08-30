@@ -4,6 +4,7 @@ import {
   useWindowDimensions,
   Easing,
   Image,
+  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -257,215 +258,249 @@ export default function ModernLoader({
   const solidBg = isDark ? '#121613' : '#FAF7F0';
 
   return (
-    <Animated.View
-      pointerEvents={visible ? 'auto' : 'none'}
-      style={[
-        styles.overlay,
-        {
-          backgroundColor: solidBg,
-          opacity: fadeAnim,
-        },
-      ]}
+    /*
+     * A Modal, not an absolutely-positioned View.
+     *
+     * This screen used to paint itself with `position: absolute` and
+     * zIndex 99999 as a sibling of the navigator, which is correct on the
+     * web and wrong on Android. Android composites siblings by `elevation`
+     * before it honours drawing order, and this app's shadows go up to
+     * elevation 14 — so the header, the cards and the tab bar all drew over
+     * the loader, and it appeared to sit *behind* the app instead of over
+     * it. A Modal is a separate native window; nothing in the app's own
+     * hierarchy can climb above it, whatever its elevation.
+     *
+     * Every other overlay here — the alert dialog, the filter sheet, the
+     * order tracker, the distance sheet — was already a Modal. This one was
+     * the exception, and the only one that broke.
+     */
+    <Modal
+      visible={visible}
+      transparent
+      /* The fade below is this component's own, so the Modal must not add a
+         second one on top of it. */
+      animationType="none"
+      /* Edge to edge: cover the status and navigation bars too, or the
+         loader leaves the app visible in strips at both ends. The two go
+         together — React Native warns if the navigation bar is translucent
+         while the status bar is not. */
+      statusBarTranslucent
+      navigationBarTranslucent
+      /* A loader is not dismissible. Without this, Android's back button
+         tears it off the screen mid-request. */
+      onRequestClose={() => {}}
     >
-      {/* Solid Rich Ambient Radial Gradient */}
-      <LinearGradient
-        colors={[
-          isDark ? '#1C241E' : '#FFFDF9',
-          isDark ? '#141A15' : '#FAF7F0',
-          isDark ? '#0F1310' : '#F4EEE2',
+      <Animated.View
+        pointerEvents={visible ? 'auto' : 'none'}
+        style={[
+          styles.overlay,
+          {
+            backgroundColor: solidBg,
+            opacity: fadeAnim,
+          },
         ]}
-        locations={[0, 0.55, 1]}
-        start={{ x: 0.5, y: 0.2 }}
-        end={{ x: 0.5, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-
-      {/* Central Interactive Animation Box */}
-      <View style={[styles.centerContainer, { width: centerWidth }]}>
-        {/* Expanding Golden Ripple Ring */}
-        <Animated.View
-          style={[
-            styles.rippleRing,
-            {
-              borderColor: colors.saffron || '#D97706',
-              transform: [{ scale: ringScale }],
-              opacity: ringOpacity,
-            },
+      >
+        {/* Solid Rich Ambient Radial Gradient */}
+        <LinearGradient
+          colors={[
+            isDark ? '#1C241E' : '#FFFDF9',
+            isDark ? '#141A15' : '#FAF7F0',
+            isDark ? '#0F1310' : '#F4EEE2',
           ]}
+          locations={[0, 0.55, 1]}
+          start={{ x: 0.5, y: 0.2 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFill}
         />
 
-        {/* Orbiting Golden Spice Particles Ring */}
-        <Animated.View
-          style={[
-            styles.orbitContainer,
-            {
-              transform: [{ rotate: spin }],
-            },
-          ]}
-        >
-          <View style={[styles.spiceDot, { top: 0, left: '50%', backgroundColor: colors.saffron || '#D97706' }]} />
-          <View style={[styles.spiceDot, { bottom: 0, left: '50%', backgroundColor: colors.primary || '#C7381A' }]} />
-          <View style={[styles.spiceDot, { left: 0, top: '50%', backgroundColor: colors.sage || '#059669', width: 6, height: 6 }]} />
-          <View style={[styles.spiceDot, { right: 0, top: '50%', backgroundColor: '#F59E0B', width: 5, height: 5 }]} />
-        </Animated.View>
-
-        {/* Floating Steam Particles */}
-        <View style={styles.steamContainer}>
-          <SteamParticle delay={0} xOffset={-10} style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(217,119,6,0.6)' }} />
-          <SteamParticle delay={450} xOffset={0} style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.85)' : 'rgba(199,56,26,0.7)' }} />
-          <SteamParticle delay={900} xOffset={12} style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(245,158,11,0.6)' }} />
-        </View>
-
-        {/* Central Glowing Culinary Logo Card */}
-        <Animated.View
-          style={[
-            styles.potCard,
-            {
-              backgroundColor: isDark ? '#1E2620' : '#FFFFFF',
-              borderColor: isDark ? 'rgba(217, 119, 6, 0.45)' : 'rgba(199, 56, 26, 0.2)',
-              transform: [{ translateY: potBounce }],
-            },
-          ]}
-        >
-          <Image
-            source={isDark ? LOGO_DARK : LOGO_LIGHT}
-            style={{
-              width: 66,
-              height: 66,
-              borderRadius: 18,
-            }}
-            resizeMode="contain"
+        {/* Central Interactive Animation Box */}
+        <View style={[styles.centerContainer, { width: centerWidth }]}>
+          {/* Expanding Golden Ripple Ring */}
+          <Animated.View
+            style={[
+              styles.rippleRing,
+              {
+                borderColor: colors.saffron || '#D97706',
+                transform: [{ scale: ringScale }],
+                opacity: ringOpacity,
+              },
+            ]}
           />
-        </Animated.View>
 
-        {/* Brand Title Lockup & Meaningful Text */}
-        <View style={styles.textContainer}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-            {/* One word in Bengali, two in Latin — see `Brand.js`. Splitting
-                রান্নাবাড়ি by colour cuts its মাত্রা in half. */}
-            {lang === 'bn' ? (
-              <Text
-                style={[
-                  styles.brandName,
-                  {
-                    color: isDark ? colors.primary : colors.primary700 || '#7F1F0A',
-                    fontFamily: font.displayExtra || 'NotoSansBengali_800ExtraBold',
-                  },
-                ]}
-              >
-                {brand.first}
-                {brand.second}
-              </Text>
-            ) : (
-              <>
+          {/* Orbiting Golden Spice Particles Ring */}
+          <Animated.View
+            style={[
+              styles.orbitContainer,
+              {
+                transform: [{ rotate: spin }],
+              },
+            ]}
+          >
+            <View style={[styles.spiceDot, { top: 0, left: '50%', backgroundColor: colors.saffron || '#D97706' }]} />
+            <View style={[styles.spiceDot, { bottom: 0, left: '50%', backgroundColor: colors.primary || '#C7381A' }]} />
+            <View style={[styles.spiceDot, { left: 0, top: '50%', backgroundColor: colors.sage || '#059669', width: 6, height: 6 }]} />
+            <View style={[styles.spiceDot, { right: 0, top: '50%', backgroundColor: '#F59E0B', width: 5, height: 5 }]} />
+          </Animated.View>
+
+          {/* Floating Steam Particles */}
+          <View style={styles.steamContainer}>
+            <SteamParticle delay={0} xOffset={-10} style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(217,119,6,0.6)' }} />
+            <SteamParticle delay={450} xOffset={0} style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.85)' : 'rgba(199,56,26,0.7)' }} />
+            <SteamParticle delay={900} xOffset={12} style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(245,158,11,0.6)' }} />
+          </View>
+
+          {/* Central Glowing Culinary Logo Card */}
+          <Animated.View
+            style={[
+              styles.potCard,
+              {
+                backgroundColor: isDark ? '#1E2620' : '#FFFFFF',
+                borderColor: isDark ? 'rgba(217, 119, 6, 0.45)' : 'rgba(199, 56, 26, 0.2)',
+                transform: [{ translateY: potBounce }],
+              },
+            ]}
+          >
+            <Image
+              source={isDark ? LOGO_DARK : LOGO_LIGHT}
+              style={{
+                width: 66,
+                height: 66,
+                borderRadius: 18,
+              }}
+              resizeMode="contain"
+            />
+          </Animated.View>
+
+          {/* Brand Title Lockup & Meaningful Text */}
+          <View style={styles.textContainer}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+              {/* One word in Bengali, two in Latin — see `Brand.js`. Splitting
+                  রান্নাবাড়ি by colour cuts its মাত্রা in half. */}
+              {lang === 'bn' ? (
                 <Text
                   style={[
                     styles.brandName,
                     {
-                      color: colors.text || (isDark ? '#FFFFFF' : '#1F1D1A'),
-                      fontFamily: font.displayBold || 'Fraunces_700Bold',
+                      color: isDark ? colors.primary : colors.primary700 || '#7F1F0A',
+                      fontFamily: font.displayExtra || 'NotoSansBengali_800ExtraBold',
                     },
                   ]}
                 >
                   {brand.first}
-                </Text>
-                <Text
-                  style={[
-                    styles.brandName,
-                    {
-                      color: colors.primary || '#C7381A',
-                      fontFamily: font.displayBold || 'Fraunces_700Bold',
-                    },
-                  ]}
-                >
                   {brand.second}
                 </Text>
-              </>
-            )}
+              ) : (
+                <>
+                  <Text
+                    style={[
+                      styles.brandName,
+                      {
+                        color: colors.text || (isDark ? '#FFFFFF' : '#1F1D1A'),
+                        fontFamily: font.displayBold || 'Fraunces_700Bold',
+                      },
+                    ]}
+                  >
+                    {brand.first}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.brandName,
+                      {
+                        color: colors.primary || '#C7381A',
+                        fontFamily: font.displayBold || 'Fraunces_700Bold',
+                      },
+                    ]}
+                  >
+                    {brand.second}
+                  </Text>
+                </>
+              )}
+            </View>
+
+            {/* Meaningful Sub-header Tagline */}
+            <Text
+              style={[
+                styles.tagline,
+                {
+                  color: isDark ? '#A1A89F' : '#6B685F',
+                  fontFamily: font.uiMedium || 'Inter_500Medium',
+                },
+              ]}
+            >
+              {lang === 'bn'
+                ? 'খাঁটি ঘরের স্বাদ • পরম যত্নে তৈরি'
+                : 'Authentic Homemade Taste • Crafted with Love'}
+            </Text>
+
+            {/* Dynamic Status / Meaningful Quote */}
+            <View
+              style={[
+                styles.quoteBadge,
+                {
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(199, 56, 26, 0.05)',
+                  borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(199, 56, 26, 0.1)',
+                },
+              ]}
+            >
+              <Text
+                key={quoteText}
+                style={[
+                  styles.quoteText,
+                  {
+                    color: colors.ink || (isDark ? '#E5E7EB' : '#2D2821'),
+                    fontFamily: font.uiSemi || 'Inter_600SemiBold',
+                  },
+                ]}
+              >
+                {quoteText}
+              </Text>
+            </View>
+
+            {subtext ? (
+              <Text
+                style={[
+                  styles.subtext,
+                  {
+                    color: colors.ink3 || '#9CA3AF',
+                    fontFamily: font.ui || 'Inter_400Regular',
+                  },
+                ]}
+              >
+                {subtext}
+              </Text>
+            ) : null}
           </View>
 
-          {/* Meaningful Sub-header Tagline */}
-          <Text
-            style={[
-              styles.tagline,
-              {
-                color: isDark ? '#A1A89F' : '#6B685F',
-                fontFamily: font.uiMedium || 'Inter_500Medium',
-              },
-            ]}
-          >
-            {lang === 'bn'
-              ? 'খাঁটি ঘরের স্বাদ • পরম যত্নে তৈরি'
-              : 'Authentic Homemade Taste • Crafted with Love'}
-          </Text>
-
-          {/* Dynamic Status / Meaningful Quote */}
+          {/* Shimmering Linear Progress Bar */}
           <View
             style={[
-              styles.quoteBadge,
+              styles.progressTrack,
               {
-                backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(199, 56, 26, 0.05)',
-                borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(199, 56, 26, 0.1)',
+                backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
               },
             ]}
           >
-            <Text
-              key={quoteText}
+            <Animated.View
               style={[
-                styles.quoteText,
+                styles.progressBar,
                 {
-                  color: colors.ink || (isDark ? '#E5E7EB' : '#2D2821'),
-                  fontFamily: font.uiSemi || 'Inter_600SemiBold',
+                  backgroundColor: colors.saffron || '#D97706',
+                  transform: [{ translateX: shimmerTranslate }],
                 },
               ]}
-            >
-              {quoteText}
-            </Text>
+            />
           </View>
-
-          {subtext ? (
-            <Text
-              style={[
-                styles.subtext,
-                {
-                  color: colors.ink3 || '#9CA3AF',
-                  fontFamily: font.ui || 'Inter_400Regular',
-                },
-              ]}
-            >
-              {subtext}
-            </Text>
-          ) : null}
         </View>
-
-        {/* Shimmering Linear Progress Bar */}
-        <View
-          style={[
-            styles.progressTrack,
-            {
-              backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
-            },
-          ]}
-        >
-          <Animated.View
-            style={[
-              styles.progressBar,
-              {
-                backgroundColor: colors.saffron || '#D97706',
-                transform: [{ translateX: shimmerTranslate }],
-              },
-            ]}
-          />
-        </View>
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 99999,
+    /* Fills the Modal's window. The zIndex that used to be here was doing
+       nothing on Android and is not needed inside a Modal on any platform. */
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },

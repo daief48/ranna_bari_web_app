@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
@@ -15,7 +15,6 @@ import Fraunces_700Bold from '@expo-google-fonts/fraunces/700Bold/Fraunces_700Bo
 import Fraunces_800ExtraBold from '@expo-google-fonts/fraunces/800ExtraBold/Fraunces_800ExtraBold.ttf';
 import Fraunces_900Black from '@expo-google-fonts/fraunces/900Black/Fraunces_900Black.ttf';
 import Fraunces_800ExtraBold_Italic from '@expo-google-fonts/fraunces/800ExtraBold_Italic/Fraunces_800ExtraBold_Italic.ttf';
-import Inter_300Light from '@expo-google-fonts/inter/300Light/Inter_300Light.ttf';
 import Inter_400Regular from '@expo-google-fonts/inter/400Regular/Inter_400Regular.ttf';
 import Inter_500Medium from '@expo-google-fonts/inter/500Medium/Inter_500Medium.ttf';
 import Inter_600SemiBold from '@expo-google-fonts/inter/600SemiBold/Inter_600SemiBold.ttf';
@@ -166,7 +165,6 @@ export default function RootLayout() {
     Fraunces_900Black,
     // The auth banner's one <em> word is a real italic, not a synthesised one
     Fraunces_800ExtraBold_Italic,
-    Inter_300Light,
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
@@ -194,7 +192,16 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayout}>
-      <SafeAreaProvider>
+      {/*
+       * Seeded with the metrics the native side already knows, so the very
+       * first frame is laid out with the real insets.
+       *
+       * Without this the provider reports zero insets until its measurement
+       * callback returns, and anything positioned against them — the
+       * floating tab bar sits at `bottom: 12 + insets.bottom` — is placed
+       * wrong for that frame and then jumps.
+       */}
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <LanguageProvider>
         <ThemeProvider>
           <ConfigProvider>

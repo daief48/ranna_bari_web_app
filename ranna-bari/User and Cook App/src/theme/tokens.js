@@ -230,7 +230,10 @@ const LATIN = {
   uiMedium: 'Inter_500Medium',
   uiSemi: 'Inter_600SemiBold',
   uiBold: 'Inter_700Bold',
-  uiLight: 'Inter_300Light',
+  /* Inter Light is not drawn anywhere, and its file is 335 KB — a third of a
+     megabyte of APK for a weight nothing asks for. The token stays so callers
+     keep working; it just resolves to the regular. */
+  uiLight: 'Inter_400Regular',
 
   bengali: 'NotoSansBengali_500Medium',
   bengaliBold: 'NotoSansBengali_700Bold',

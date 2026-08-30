@@ -1,22 +1,20 @@
-# What EAS Build does not need uploaded.
+# The rules that actually run live at the git repository root.
 #
-# The first build shipped a 592 MB archive and spent twenty minutes uploading
-# it, almost all of which was `node_modules` — 456 MB that the build server
-# installs for itself from package.json and the lockfile.
+#   ../../.easignore      (D:/Jubair Islam Daief/Ranna Bari/.easignore)
 #
-# It is already in .gitignore. EAS did not honour that, because this project
-# is a subdirectory of a git repository whose root is one level up: the
-# archiver only applies the ignore rules it finds at the project root, and
-# there is no .gitignore there. `.easignore` is the documented way to say it
-# explicitly, and when present it is what EAS reads instead.
+# EAS CLI builds its upload archive starting from the root of the git
+# repository, not from the project, and it reads `.easignore` from that same
+# root. A copy here is never opened in the normal `eas build` path — this file
+# once held the real rules, and the build uploaded 594 MB anyway because
+# nothing read them. Verified since with `eas build:inspect --stage archive`:
+# 594 MB before, 13 MB after moving them up.
 #
-# Rule of thumb for anything added here later: exclude it if the build server
-# can regenerate it, and keep it if the build reads it.
+# The entries below are kept only for the one case where this location IS
+# read: running with `EAS_NO_VCS=1`, which archives from the project root
+# instead. They are a subset of the root file — if you change one, change both.
 
-# Installed on the builder from package-lock.json.
 node_modules/
 
-# Local caches and build output.
 .expo/
 dist/
 web-build/
@@ -40,15 +38,8 @@ expo-env.d.ts
 .env
 .env.*
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
-*.mobileprovision
 *.pem
-
-# Editor and OS noise.
-.DS_Store
-*.orig.*
-npm-debug.*
-yarn-debug.*
-yarn-error.*
