@@ -23,22 +23,22 @@
   "dependencies": {
     "@fastify/aws-lambda": "^6.4.1",
     "@fastify/cors": "^10.0.2",
+    "@types/aws-lambda": "^8.10.162",
+    "@types/node": "^22.13.5",
+    "@types/ws": "^8.5.14",
     "fastify": "^5.2.1",
     "jose": "^6.0.8",
     "mongoose": "^8.10.1",
     "otpauth": "^9.4.0",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
+    "typescript": "^5.7.3",
     "ws": "^8.18.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.162",
-    "@types/node": "^22.13.5",
-    "@types/ws": "^8.5.14",
     "mongodb-memory-server": "^10.1.4",
     "tsx": "^4.19.3",
-    "typescript": "^5.7.3",
     "vitest": "^3.0.7"
   }
 }
