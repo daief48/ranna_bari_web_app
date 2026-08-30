@@ -6,33 +6,32 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { usePathname, useSegments } from 'expo-router';
 
 import ModernLoader from '../components/ModernLoader';
 
 const LoadingContext = createContext(null);
 
 /**
- * Global Page Transition & Action Loader Provider.
+ * The startup loading screen, and a handle for raising it deliberately.
  *
- * Listens to Expo Router route changes and triggers a sleek culinary
- * loading animation on page transitions, while also providing imperative
- * `showLoader()` / `hideLoader()` / `withLoader()` for async actions.
+ * It shows once, while the app is opening, and then not again unless
+ * somebody asks for it: `showLoader()` / `hideLoader()` / `withLoader()`
+ * are there for an action that genuinely blocks.
+ *
+ * It used to also fire on every route change — a full-screen takeover for
+ * 420ms between a tap and the page it opened, which made the app feel slower
+ * than it is and hid the screen the customer had just asked for. Navigation
+ * has its own transition; this is not it.
  */
 export function LoadingProvider({ children }) {
-  const pathname = usePathname();
-  const segments = useSegments();
-
-  // Show on initial page load / refresh as well as route transitions
+  /* Opens true: the first thing anyone sees is the app starting up. */
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
   const [subtext, setSubtext] = useState(null);
 
-  const prevPathRef = useRef(null);
   const timerRef = useRef(null);
-  const manualRef = useRef(false);
 
-  // Initial load / refresh dismiss timer
+  /* The one time it shows on its own: a cold start or a refresh. */
   useEffect(() => {
     timerRef.current = setTimeout(() => {
       setLoading(false);
@@ -44,37 +43,10 @@ export function LoadingProvider({ children }) {
     };
   }, []);
 
-  // Automatic sleek transition on route changes
-  useEffect(() => {
-    if (!pathname) return;
-
-    // Trigger on route transitions (when pathname changes from previous)
-    if (prevPathRef.current && prevPathRef.current !== pathname && !manualRef.current) {
-      if (timerRef.current) clearTimeout(timerRef.current);
-
-      setLoading(true);
-      setMessage(null);
-      setSubtext(null);
-
-      // Snappy and modern duration (420ms) for smooth page transit
-      timerRef.current = setTimeout(() => {
-        setLoading(false);
-        timerRef.current = null;
-      }, 420);
-    }
-
-    prevPathRef.current = pathname;
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [pathname, segments]);
-
   /**
    * Imperative Show Loader (e.g. for checkout, order submit, API actions)
    */
   const showLoader = useCallback((msg = null, sub = null) => {
-    manualRef.current = true;
     if (timerRef.current) clearTimeout(timerRef.current);
     setMessage(msg);
     setSubtext(sub);
@@ -85,7 +57,6 @@ export function LoadingProvider({ children }) {
    * Imperative Hide Loader
    */
   const hideLoader = useCallback(() => {
-    manualRef.current = false;
     if (timerRef.current) clearTimeout(timerRef.current);
     setLoading(false);
     setMessage(null);

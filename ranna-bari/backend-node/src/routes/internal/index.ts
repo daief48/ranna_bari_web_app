@@ -8,6 +8,21 @@ import { supportsTransactions } from '../../config/db.js';
  * wrong and invisible until they matter.
  */
 export async function internalRoutes(app: FastifyInstance) {
+  app.get('/', async () => {
+    const connected = mongoose.connection.readyState === 1;
+    return {
+      name: 'RannaBari Backend API',
+      status: 'online',
+      db: connected ? 'connected' : 'disconnected',
+      endpoints: {
+        health: '/health',
+        appApi: '/api/app/v1',
+        adminApi: '/api/admin/v1',
+      },
+      timestamp: new Date().toISOString(),
+    };
+  });
+
   app.get('/health', async () => {
     const connected = mongoose.connection.readyState === 1;
     return {
