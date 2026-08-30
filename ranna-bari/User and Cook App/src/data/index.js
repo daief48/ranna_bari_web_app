@@ -4,18 +4,17 @@
  * All kitchen directories, dishes, menus, and areas are fetched live from the
  * backend MongoDB API (`/api/app/v1/kitchens?menus=1`).
  *
- * Uses AsyncStorage caching so previously fetched live data loads instantly,
- * while refreshing in the background whenever connected to the server.
+ * Nothing is cached to disk. An earlier version kept the last response in
+ * AsyncStorage and painted it on the next cold start, which made a phone
+ * with no backend look identical to a phone with one — same kitchens, same
+ * menus, no indication that any of it was old. If the server cannot be
+ * reached the screen is empty, which is the truth.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useKitchen } from '../store/KitchenContext';
 import { normaliseArea } from '../lib/areas';
 import { api, hasServer } from '../lib/server';
-
-const CHEFS_CACHE_KEY = 'rannabari_server_chefs';
-const MENUS_CACHE_KEY = 'rannabari_server_menus';
 
 /**
  * Format local kitchen to match backend chef shape
@@ -33,17 +32,6 @@ export function useServerChefs() {
   const [serverChefs, setServerChefs] = useState([]);
   const fetchedRef = useRef(false);
 
-  /* Restore cached server list on mount */
-  useEffect(() => {
-    AsyncStorage.getItem(CHEFS_CACHE_KEY)
-      .then((raw) => {
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) setServerChefs(parsed);
-      })
-      .catch(() => {});
-  }, []);
-
   /* Fetch live from server */
   useEffect(() => {
     if (!hasServer || fetchedRef.current) return;
@@ -55,10 +43,7 @@ export function useServerChefs() {
           ...k,
           area: normaliseArea(k.area || 'Dhaka'),
         }));
-        if (list.length > 0) {
-          setServerChefs(list);
-          AsyncStorage.setItem(CHEFS_CACHE_KEY, JSON.stringify(list)).catch(() => {});
-        }
+        if (list.length > 0) setServerChefs(list);
       })
       .catch(() => {});
   }, []);
@@ -80,26 +65,13 @@ export function useServerMenus() {
   const fetchedRef = useRef(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(MENUS_CACHE_KEY)
-      .then((raw) => {
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) setServerMenus(parsed);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
     if (!hasServer || fetchedRef.current) return;
     fetchedRef.current = true;
 
     api('/kitchens?menus=1')
       .then((out) => {
         const list = out.menus ?? [];
-        if (list.length > 0) {
-          setServerMenus(list);
-          AsyncStorage.setItem(MENUS_CACHE_KEY, JSON.stringify(list)).catch(() => {});
-        }
+        if (list.length > 0) setServerMenus(list);
       })
       .catch(() => {});
   }, []);

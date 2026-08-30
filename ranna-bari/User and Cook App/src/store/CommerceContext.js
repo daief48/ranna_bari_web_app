@@ -32,12 +32,13 @@
  *
  * ## Offline
  *
- * Reads are cached: the last good projection is written to AsyncStorage and
- * painted immediately on the next cold start, so the app opens to content
- * rather than to a spinner, and keeps showing it on a dead network. Writes
- * are not queued -- money moving is not something to guess about, and a
- * refusal the customer never saw is worse than a button that says it could
- * not reach the server.
+ * Nothing is read from or written to disk. Reads used to be cached — the
+ * last good projection painted immediately on the next cold start — which
+ * opened the app on content instead of a spinner and went on showing that
+ * content on a dead network, where it was indistinguishable from live data.
+ * Writes were never queued, for the same reason they still are not: money
+ * moving is not something to guess about, and a refusal the customer never
+ * saw is worse than a button that says it could not reach the server.
  */
 import React, {
   createContext,
@@ -60,7 +61,16 @@ import { useKitchen } from './KitchenContext';
 import { useSession } from './SessionContext';
 import { call, hasServer } from '../lib/server';
 
-const CACHE_KEY = 'rannabari_commerce_cache_v3';
+/*
+ * Written by earlier versions of this app and now cleared on first run, so a
+ * phone that already holds a copy of the old cache does not carry it around
+ * for ever. Nothing reads them.
+ */
+const DEAD_CACHE_KEYS = [
+  'rannabari_commerce_cache_v3',
+  'rannabari_server_chefs',
+  'rannabari_server_menus',
+];
 
 /* ------------------------------------------------------------------ *
  * dates
@@ -230,36 +240,21 @@ export function CommerceProvider({ children }) {
     [commit],
   );
 
-  /* ---------------- cache ---------------- */
+  /* ---------------- start ---------------- */
 
-  /* Paint last known good immediately. A cold start on a slow network should
-     show the food the customer was looking at yesterday, not an empty board. */
+  /* Nothing to restore, so this only clears what older versions left behind.
+     `hydrated` still goes false to true exactly once, because the loaders
+     below and the screens that show a spinner are both written against that
+     transition. */
   useEffect(() => {
     let alive = true;
-    AsyncStorage.getItem(CACHE_KEY)
-      .then((raw) => {
-        if (!alive || !raw) return;
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          live.current = { ...EMPTY, ...parsed };
-          setState(live.current);
-        }
-      })
+    AsyncStorage.multiRemove(DEAD_CACHE_KEYS)
       .catch(() => {})
       .finally(() => alive && setHydrated(true));
     return () => {
       alive = false;
     };
   }, []);
-
-  /* Cache the directory and the boards, never the money. A stale balance
-     shown as current is a lie the customer would act on; a stale menu is
-     yesterday's menu, which is what a cache is for. */
-  useEffect(() => {
-    if (!hydrated) return;
-    const { wallet, ledger, cart, ...cacheable } = state;
-    AsyncStorage.setItem(CACHE_KEY, JSON.stringify(cacheable)).catch(() => {});
-  }, [state, hydrated]);
 
   /* ---------------- loading ---------------- */
 
