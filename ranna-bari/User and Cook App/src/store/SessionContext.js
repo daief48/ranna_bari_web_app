@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -38,7 +39,25 @@ const SessionContext = createContext(null);
  */
 export function SessionProvider({ children }) {
   const { updateAccount } = useAuth();
-  const [token, setToken] = useState(null);
+  const [token, setTokenState] = useState(null);
+
+  /*
+   * The token is kept in a ref as well as in state, and every write below
+   * reads the ref.
+   *
+   * Signup persists the profile the moment the code is accepted — the line
+   * after `verifyCode` sets the token. React has not re-rendered by then, so
+   * a callback closing over the state variable still sees `null`, and
+   * `write` answers `unauthenticated` and posts nothing at all. It fails
+   * silently, which is how a profile came to be saved on the device and
+   * nowhere else. The ref is assigned synchronously, so the next line already
+   * sees it.
+   */
+  const tokenRef = useRef(null);
+  const setToken = useCallback((next) => {
+    tokenRef.current = next;
+    setTokenState(next);
+  }, []);
   const [identity, setIdentity] = useState(null);
   const [hydrated, setHydrated] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -177,9 +196,10 @@ export function SessionProvider({ children }) {
 
   const write = useCallback(
     async (path, body) => {
-      if (!token || !hasServer) return { ok: false, error: 'unauthenticated' };
+      const auth = tokenRef.current;
+      if (!auth || !hasServer) return { ok: false, error: 'unauthenticated' };
       try {
-        const out = await api(path, { method: 'POST', token, body });
+        const out = await api(path, { method: 'POST', token: auth, body });
         await adopt(out.account);
         return { ok: true, account: out.account };
       } catch (error) {
@@ -190,7 +210,7 @@ export function SessionProvider({ children }) {
         };
       }
     },
-    [token, adopt],
+    [adopt],
   );
 
   const saveProfile = useCallback((patch) => write('/account', patch), [write]);

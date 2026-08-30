@@ -78,7 +78,7 @@ export default function AuthScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { signIn } = useAuth();
-  const { requestCode, verifyCode } = useSession();
+  const { requestCode, verifyCode, saveProfile, saveAddress } = useSession();
   const alert = useAlert();
 
   /* become-cook.js is step 1 of the same funnel: it collects a name, a phone,
@@ -250,6 +250,45 @@ export default function AuthScreen() {
         accountId: identity.accountId,
         kitchenId: identity.kitchenId,
       });
+
+      /*
+       * And the same profile to the server.
+       *
+       * `signIn` above writes to this device only. That is why signup looked
+       * fine on the phone that filled it in, and why a reinstall — or signing
+       * in on a second one — came back to empty fields and asked for
+       * everything again: the server held the phone number the code was sent
+       * to and nothing else. Name, email, area, pin and door number were all
+       * empty strings on the account row.
+       *
+       * The address goes through `/account/addresses` rather than the
+       * profile endpoint because that is the one that mirrors the pin into
+       * the flat `area`/`lat`/`lng` fields the meals board, the shop
+       * directory and every distance on the app are measured from. Without
+       * it a new customer is nowhere, and nothing is near them.
+       */
+      const written = await Promise.all([
+        saveProfile({ name: name.trim(), email: email.trim() }),
+        place
+          ? saveAddress({
+              label: addressLabel,
+              area: place.address,
+              detail: detail.trim(),
+              lat: place.lat,
+              lng: place.lng,
+              select: true,
+            })
+          : { ok: true },
+      ]);
+
+      /* The account exists either way, so this does not block the last step —
+         but it is said out loud rather than swallowed, because a profile that
+         lives only on one phone is the bug this replaced. */
+      if (written.some((r) => !r.ok)) {
+        alert.error(
+          t('Your account is ready, but we could not save your details. Open Profile to add them.'),
+        );
+      }
 
       setStep(4);
     } catch (error) {
