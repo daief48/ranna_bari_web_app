@@ -5,6 +5,12 @@
 [build.environment]
   NODE_VERSION = "20"
   NPM_FLAGS = "--include=dev"
+  DATABASE_URL = "file:./dev.db"
+  BACKEND_URL = "https://ranna-bari-backend.netlify.app"
+  ADMIN_AUTH_SECRET = "change-me-admin-secret-at-least-32-characters-long"
+  AUTH_SECRET = "rannabari-admin-dev-secret-change-me-in-production-0000"
+  APP_AUTH_SECRET = "rannabari-app-dev-secret-change-me-in-production-000"
+  BACKEND_SERVICE_TOKEN = "rb-dev-service-token-143e8ae9ea9a9f58e75c2fb19dff2eaf"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

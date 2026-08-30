@@ -782,6 +782,9 @@ export const bn = {
   '{d} away': '{d} দূরে',
   Nearby: 'খুব কাছে',
 
+  'Check the {field} and try again.': '{field} ঠিক আছে কিনা দেখে আবার চেষ্টা করুন।',
+  'Something in that was not valid. Try again.': 'কিছু একটা ঠিক ছিল না। আবার চেষ্টা করুন।',
+
   'Your account is ready, but we could not save your details. Open Profile to add them.': 'আপনার অ্যাকাউন্ট তৈরি হয়েছে, তবে বিস্তারিত সেভ করা যায়নি। প্রোফাইল থেকে যোগ করুন।',
 
   // The sheet behind the distance chip on every detail page.

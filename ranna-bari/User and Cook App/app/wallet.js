@@ -61,7 +61,20 @@ export default function WalletScreen() {
   };
 
   const topUp = async (value) => {
-    const out = await meals.topUp(value, 'bKash');
+    /*
+     * A number, not whatever the field held.
+     *
+     * The preset buttons pass numbers and worked; the text field holds a
+     * string, and the API takes a strict `z.number()`, so a typed amount came
+     * back "amount-invalid" every time. Checked here as well so an empty or
+     * nonsense box is answered on the spot instead of after a round trip.
+     */
+    const taka = Number(value);
+    if (!Number.isFinite(taka) || taka <= 0) {
+      return alert.error(t('Enter a valid amount.'));
+    }
+
+    const out = await meals.topUp(taka, 'bKash');
     if (!out.ok) {
       alert.error(errorText(out.error, t, n, out));
       return;

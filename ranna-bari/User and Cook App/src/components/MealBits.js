@@ -588,6 +588,12 @@ export function errorText(error, t, n, extra = {}) {
       return t('This order has already been settled.');
     case 'amount-invalid':
       return t('Enter a valid amount.');
+    /* Not an amount — the body carried a field the server could not read, and
+       `detail.field` names it. */
+    case 'request-invalid':
+      return extra.detail?.field
+        ? t('Check the {field} and try again.', { field: extra.detail.field })
+        : t('Something in that was not valid. Try again.');
 
     /* ---- cook stores ---- */
     case 'store-missing':
