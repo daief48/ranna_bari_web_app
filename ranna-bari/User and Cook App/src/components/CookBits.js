@@ -300,8 +300,17 @@ export function ActionRow({ icon, title, sub, tone = 'sage', onPress, style }) {
         </Text>
         {sub ? (
           <Text
-            numberOfLines={1}
-            style={{ fontFamily: font.ui, fontSize: type.sm, color: colors.textMuted }}
+            /* Two lines on a narrow screen, one wherever it fits. After a
+               48px icon, the gaps and a chevron, this column is about 200px
+               on a 320px phone — not enough for a sentence at 14px, and the
+               half that got cut was usually the half that explained the row. */
+            numberOfLines={2}
+            style={{
+              fontFamily: font.ui,
+              fontSize: type.sm,
+              lineHeight: type.sm * 1.35,
+              color: colors.textMuted,
+            }}
           >
             {sub}
           </Text>

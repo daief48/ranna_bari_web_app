@@ -914,10 +914,12 @@ function Row({ icon, variant, title, sub, onPress }) {
           {title}
         </Text>
         <Text
-          numberOfLines={1}
+          /* Two lines on a narrow screen, one wherever it fits. */
+          numberOfLines={2}
           style={{
             fontFamily: font.ui,
             fontSize: type.sm,
+            lineHeight: type.sm * 1.35,
             color: colors.textMuted,
           }}
         >

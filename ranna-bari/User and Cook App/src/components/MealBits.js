@@ -269,11 +269,15 @@ export function MealCard({ meal, km, remaining, interested, onPress, wide }) {
       <View style={{ padding: 14, gap: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
           <Text
-            numberOfLines={1}
+            /* A dish name shares this line with its price, so on a 320px
+               card it has roughly 180px. "Custom Celebration Cake (1kg)"
+               needs 232. Two lines rather than a name nobody can read. */
+            numberOfLines={2}
             style={{
               flex: 1,
               fontFamily: font.displayBold,
               fontSize: 17,
+              lineHeight: 21,
               letterSpacing: -0.2,
               color: colors.text,
             }}

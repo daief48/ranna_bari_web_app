@@ -7,9 +7,9 @@ import React, {
   useState,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, useWindowDimensions } from 'react-native';
 
-import { makeShadows, palettes } from './tokens';
+import { makeShadows, palettes, setTypeWidth } from './tokens';
 import { useLang } from '../i18n/LanguageContext';
 
 const KEY = 'rannabari_theme';
@@ -17,6 +17,17 @@ const KEY = 'rannabari_theme';
 const ThemeContext = createContext(null);
 
 export function ThemeProvider({ children }) {
+  /*
+   * The type scale follows the screen.
+   *
+   * Set before the tree below renders, so the first paint is already at the
+   * right size rather than at 390 and then corrected. Same shape as the
+   * language provider setting the script — both are module-level values that
+   * a few hundred style objects read during render.
+   */
+  const { width } = useWindowDimensions();
+  setTypeWidth(width);
+
   const system = useColorScheme();
   // `null` means "follow the device", matching the web build's behaviour
   // before anything is written to localStorage.

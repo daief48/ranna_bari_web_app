@@ -1399,16 +1399,30 @@ function ExtraResult({ title, subtitle, image, price, km, onPress }) {
       )}
 
       <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+        {/* A search result is scanned, so the name is the one thing that has
+            to survive. After a 58px thumbnail this column is about 210px on a
+            320px phone — "Brown Rice & Fish Curry" needs 268 and was losing
+            the dish. Two lines each, one wherever they fit. */}
         <Text
-          numberOfLines={1}
-          style={{ fontFamily: font.displayBold, fontSize: 15.5, color: colors.text }}
+          numberOfLines={2}
+          style={{
+            fontFamily: font.displayBold,
+            fontSize: 15.5,
+            lineHeight: 19,
+            color: colors.text,
+          }}
         >
           {title}
         </Text>
         {subtitle ? (
           <Text
-            numberOfLines={1}
-            style={{ fontFamily: font.ui, fontSize: type.xs + 1, color: colors.textMuted }}
+            numberOfLines={2}
+            style={{
+              fontFamily: font.ui,
+              fontSize: type.xs + 1,
+              lineHeight: (type.xs + 1) * 1.4,
+              color: colors.textMuted,
+            }}
           >
             {subtitle}
           </Text>

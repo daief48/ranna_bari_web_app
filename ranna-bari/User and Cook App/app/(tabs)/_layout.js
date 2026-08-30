@@ -181,6 +181,12 @@ function AppBar({ state, descriptors, navigation }) {
                   ) : null}
                 </View>
                 <Text
+                  /* Capped, not disabled. A large system font is an
+                     accessibility setting and content must honour it — but
+                     seven tab labels in a 50px cell have nowhere to grow, and
+                     unbounded scaling turns the bar into overlapping fragments.
+                     Content text elsewhere still scales freely. */
+                  maxFontSizeMultiplier={1.2}
                   numberOfLines={1}
                   style={{
                     fontFamily: font.uiSemi,

@@ -55,6 +55,11 @@ export default function Button({
     <>
       {iconPosition === 'left' ? iconNode : null}
       <Text
+        /* A button is a fixed-height pill with an icon beside the word; past
+           about a fifth larger the label starts pushing the icon out or
+           wrapping onto a second line inside a control that has no second
+           line. Body copy is where a large system font should show. */
+        maxFontSizeMultiplier={1.25}
         style={[
           {
             fontFamily: font.uiSemi,

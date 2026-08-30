@@ -339,19 +339,81 @@ export const makeShadows = (p) => {
   };
 };
 
+/* ---------------- width-aware type ---------------- */
+
+/**
+ * The screen this app is currently being drawn on.
+ *
+ * Set by the theme provider, the same way `activeScript` is set by the
+ * language provider — and for the same reason. Roughly 350 style objects read
+ * `type.*` during render, and threading a width through all of them is not a
+ * refactor anybody should attempt; a module-level value behind getters is
+ * picked up on the next render, which a dimensions change already causes.
+ */
+let deviceWidth = 390;
+
+/** Called by the theme provider. Not for screens. */
+export function setTypeWidth(width) {
+  if (typeof width === 'number' && width > 0) deviceWidth = width;
+}
+
+/**
+ * How much bigger type gets on a bigger phone.
+ *
+ * Deliberately one-directional: **1.0 is the floor.** The sizes below were
+ * chosen for a 360–430px screen and they are already right at the small end,
+ * so a 320px phone renders exactly what it always did. Shrinking them to make
+ * a layout fit would trade a spacing problem for a legibility one, and 10.5px
+ * label text has no room left to give.
+ *
+ * Upwards is where the gap was. A 430px Pro Max was rendering the same 14px
+ * as a 320px handset — 34% more screen and identical type, which is most of
+ * why a large phone felt like a small one stretched. 6% is the most that
+ * reads as "sized for this screen" rather than as a different design.
+ */
+const scale = () => Math.min(1.06, Math.max(1, deviceWidth / 390));
+
+/** Rounded to a tenth: React Native takes fractional sizes, and 15.1 is a
+    real size, but 15.083333 in a diff helps nobody. */
+const fluid = (size) => Math.round(size * scale() * 10) / 10;
+
 /**
  * Phone type scale. The CSS uses fluid clamp() against viewport width; these
- * are the values those clamps resolve to on a 360–430px screen, which is the
- * only width this app ever renders at.
+ * are the values those clamps resolve to on a 390px screen, and every one of
+ * them now grows with the screen rather than staying put across the whole
+ * phone range.
+ *
+ * Getters, not values — see `deviceWidth` above.
  */
 export const type = {
-  display: 40,     // clamp(30px, 8.5vw, 40px) at the phone breakpoint
-  h1: 32,
-  h2: 32,          // .section-title @768
-  h2sm: 27,        // .section-title @480
-  h3: 19,
-  body: 16,
-  sm: 14,
-  xs: 12,
-  micro: 10.5,
+  get display() {
+    return fluid(40);
+  },
+  get h1() {
+    return fluid(32);
+  },
+  get h2() {
+    return fluid(32);
+  },
+  get h2sm() {
+    return fluid(27);
+  },
+  get h3() {
+    return fluid(19);
+  },
+  get body() {
+    return fluid(16);
+  },
+  get sm() {
+    return fluid(14);
+  },
+  get xs() {
+    return fluid(12);
+  },
+  get micro() {
+    /* Half the growth. This is the smallest text in the app and it is used
+       for uppercase labels with wide tracking, where a size bump costs more
+       horizontal room than it buys legibility. */
+    return Math.round(10.5 * (1 + (scale() - 1) / 2) * 10) / 10;
+  },
 };

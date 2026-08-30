@@ -118,10 +118,15 @@ export default function ChefCard({ chef, index = 0 }) {
 
           <View style={{ flex: 1 }}>
             <Text
-              numberOfLines={1}
+              /* Kitchen names are long and personal — "Jubair's Heritage
+                 Kitchen" runs 74px past a 320px card. A name is the one thing
+                 on this card somebody is scanning for, so it wraps rather
+                 than being cut halfway through somebody's surname. */
+              numberOfLines={2}
               style={{
                 fontFamily: font.displayBold,
                 fontSize: 20,
+                lineHeight: 24,
                 letterSpacing: -0.2,
                 color: colors.text,
                 marginBottom: 4,
@@ -130,10 +135,14 @@ export default function ChefCard({ chef, index = 0 }) {
               {chef.name}
             </Text>
             <Text
-              numberOfLines={1}
+              /* Uppercase with wide tracking, so a specialty like "Iftar &
+                 Ramadan Specials" is far longer than its character count
+                 suggests — 21px past a 320px card. */
+              numberOfLines={2}
               style={{
                 fontFamily: font.uiSemi,
                 fontSize: type.xs,
+                lineHeight: type.xs * 1.5,
                 letterSpacing: type.xs * tracking.label,
                 textTransform: 'uppercase',
                 color: colors.primary,

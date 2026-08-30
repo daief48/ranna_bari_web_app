@@ -70,6 +70,8 @@ export function StockPill({ availability, stock, style }) {
     >
       <Icon name={meta.icon} size={11} color={meta.fg} />
       <Text
+        /* A 10px uppercase chip on a product tile. */
+        maxFontSizeMultiplier={1.2}
         style={{
           fontFamily: font.uiBold,
           fontSize: 10,
@@ -527,8 +529,15 @@ export function StoreCard({ store, km, products, onPress, onSave, saved = false 
 
           {store.tagline ? (
             <Text
-              numberOfLines={1}
-              style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
+              /* A shop's one-line pitch, which is a whole sentence and was
+                 losing its end on a narrow card. */
+              numberOfLines={2}
+              style={{
+                fontFamily: font.ui,
+                fontSize: type.xs,
+                lineHeight: type.xs * 1.45,
+                color: colors.textMuted,
+              }}
             >
               {store.tagline}
             </Text>

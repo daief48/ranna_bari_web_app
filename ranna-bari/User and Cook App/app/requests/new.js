@@ -389,13 +389,23 @@ export default function NewRequest() {
               placeholder={t('No nuts. Written on top: Happy Birthday.')}
               multiline
             />
-            <View style={{ flexDirection: 'row', gap: 12 }}>
+            {/* Side by side where there is room, stacked where there is not.
+                Two fields sharing a 320px screen leave about 145px each, and
+                "Budget (optional)" does not fit in that — the label was being
+                ellipsised, which on a form is the one place a reader cannot
+                guess what was cut. */}
+            <View
+              style={{
+                flexDirection: r.xs ? 'column' : 'row',
+                gap: 12,
+              }}
+            >
               <FloatLabelInput
                 label={t('How many')}
                 value={quantity}
                 onChangeText={(v) => setQuantity(v.replace(/[^0-9]/g, ''))}
                 keyboardType="number-pad"
-                style={{ flex: 1 }}
+                style={r.xs ? undefined : { flex: 1 }}
               />
               <FloatLabelInput
                 label={t('Budget (optional)')}
@@ -403,7 +413,7 @@ export default function NewRequest() {
                 onChangeText={(v) => setBudget(v.replace(/[^0-9]/g, ''))}
                 keyboardType="number-pad"
                 placeholder={t('Leave blank')}
-                style={{ flex: 1 }}
+                style={r.xs ? undefined : { flex: 1 }}
               />
             </View>
           </View>
