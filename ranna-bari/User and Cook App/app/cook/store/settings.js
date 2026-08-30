@@ -29,7 +29,6 @@ import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import LocationPicker from '../../../src/components/LocationPicker';
 import { RadiusSlider } from '../../../src/components/CookBits';
-import { DEMO_STORE } from '../../../src/lib/demoData';
 import { useAlert } from '../../../src/components/Alert';
 
 export default function StoreSettings() {
@@ -65,12 +64,12 @@ function Form({ store, kitchenId }) {
      open. */
   const [pin, setPin] = useState(null);
   const [radiusKm, setRadiusKm] = useState(
-    store.deliveryRadiusKm ?? DEMO_STORE.deliveryRadiusKm ?? 3,
+    store.deliveryRadiusKm ?? 3,
   );
-  const [name, setName] = useState(store.name || DEMO_STORE.name);
-  const [tagline, setTagline] = useState(store.tagline || DEMO_STORE.tagline);
-  const [description, setDescription] = useState(store.description || DEMO_STORE.description);
-  const [phone, setPhone] = useState(store.phone || DEMO_STORE.phone);
+  const [name, setName] = useState(store.name || '');
+  const [tagline, setTagline] = useState(store.tagline || '');
+  const [description, setDescription] = useState(store.description || '');
+  const [phone, setPhone] = useState(store.phone || '');
   const [area, setArea] = useState(store.area ?? '');
   const [logo, setLogo] = useState(store.logo ?? '');
   const [cover, setCover] = useState(store.cover ?? '');

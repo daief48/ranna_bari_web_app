@@ -21,10 +21,10 @@ const SessionContext = createContext(null);
 /**
  * The server session — the app's first real identity.
  *
- * Everything else in this app signs in by asking: `signIn(demoAccount(id))`
- * builds an account out of whatever string was typed and throws the password
- * away. That is survivable while nothing leaves the device. It stops being
- * survivable the moment two strangers can message each other, because a chat
+ * The app used to sign in by building an account out of whatever string was
+ * typed and throwing the password away. That is survivable while nothing
+ * leaves the device. It stops being survivable the moment two strangers can
+ * message each other, because a chat
  * is exactly where impersonation pays — "I am your cook, confirm your bKash
  * PIN" needs no exploit at all if anyone can claim to be anyone.
  *

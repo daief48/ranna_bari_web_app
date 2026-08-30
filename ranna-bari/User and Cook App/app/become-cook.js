@@ -19,7 +19,6 @@ import { useTheme } from '../src/theme/ThemeProvider';
 import useResponsive from '../src/theme/useResponsive';
 import { font, radius, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
-import { DEMO_COOK_ONBOARDING } from '../src/lib/demoData';
 import { useLang } from '../src/i18n/LanguageContext';
 
 const ZONES = [
@@ -68,11 +67,11 @@ export default function BecomeCookScreen() {
   const { isSignedIn, isCook, hydrated } = useAuth();
   const { t } = useLang();
 
-  const [name, setName] = useState(DEMO_COOK_ONBOARDING.name);
-  const [phone, setPhone] = useState(DEMO_COOK_ONBOARDING.phone);
-  const [zone, setZone] = useState(DEMO_COOK_ONBOARDING.zone);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [zone, setZone] = useState('');
   const [zoneOpen, setZoneOpen] = useState(false);
-  const [nid, setNid] = useState(DEMO_COOK_ONBOARDING.nid);
+  const [nid, setNid] = useState('');
   const [note, setNote] = useState('');
 
   // Below the state, so the hook order is the same on the render that

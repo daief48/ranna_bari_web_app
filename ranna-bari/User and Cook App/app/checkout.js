@@ -23,7 +23,6 @@ import { font, radius, tracking, type } from '../src/theme/tokens';
 import { useCart } from '../src/store/CartContext';
 import { useAuth } from '../src/store/AuthContext';
 import { PAYMENT_METHODS, useOrders } from '../src/store/OrdersContext';
-import { DEMO_CHECKOUT } from '../src/lib/demoData';
 import { useLang } from '../src/i18n/LanguageContext';
 
 const LABELS = [
@@ -68,11 +67,11 @@ function CheckoutForm() {
   /* Prefill from the account the signup flow saved -- the pin it dropped is
      the whole point of that step, so re-typing the address here would be
      asking twice for the same thing. */
-  const [name, setName] = useState(account?.name || DEMO_CHECKOUT.name);
-  const [phone, setPhone] = useState(account?.phone || DEMO_CHECKOUT.phone);
-  const [line, setLine] = useState(account?.addressDetail || DEMO_CHECKOUT.line);
-  const [area, setArea] = useState(account?.area || DEMO_CHECKOUT.area);
-  const [label, setLabel] = useState(account?.addressLabel || DEMO_CHECKOUT.label);
+  const [name, setName] = useState(account?.name || '');
+  const [phone, setPhone] = useState(account?.phone || '');
+  const [line, setLine] = useState(account?.addressDetail || '');
+  const [area, setArea] = useState(account?.area || '');
+  const [label, setLabel] = useState(account?.addressLabel || 'Home');
   const [instructions, setInstructions] = useState(
     typeof params.note === 'string' ? params.note : '',
   );

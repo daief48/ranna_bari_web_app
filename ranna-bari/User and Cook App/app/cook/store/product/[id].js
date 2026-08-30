@@ -27,7 +27,6 @@ import { font, radius, type } from '../../../../src/theme/tokens';
 import { useKitchen } from '../../../../src/store/KitchenContext';
 import { useCommerce } from '../../../../src/store/CommerceContext';
 import { useLang } from '../../../../src/i18n/LanguageContext';
-import { DEMO_PRODUCT } from '../../../../src/lib/demoData';
 import { useAlert } from '../../../../src/components/Alert';
 
 const PLACEHOLDER =
@@ -75,18 +74,18 @@ function Form({ store, product, isNew }) {
 
   const categories = shop.categoriesOf(store.id);
 
-  const [name, setName] = useState(product?.name ?? DEMO_PRODUCT.name);
-  const [description, setDescription] = useState(product?.description ?? DEMO_PRODUCT.description);
-  const [price, setPrice] = useState(product ? String(product.price) : DEMO_PRODUCT.price);
-  const [stock, setStock] = useState(product ? String(product.stock) : DEMO_PRODUCT.stock);
+  const [name, setName] = useState(product?.name ?? '');
+  const [description, setDescription] = useState(product?.description ?? '');
+  const [price, setPrice] = useState(product ? String(product.price) : '');
+  const [stock, setStock] = useState(product ? String(product.stock) : '');
   const [minQty, setMinQty] = useState(String(product?.minQty ?? 1));
-  const [maxQty, setMaxQty] = useState(product?.maxQty == null ? DEMO_PRODUCT.maxQty : String(product.maxQty));
+  const [maxQty, setMaxQty] = useState(product?.maxQty == null ? '' : String(product.maxQty));
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? categories[0]?.id ?? null);
   const [images, setImages] = useState(product?.images?.length ? product.images : [PLACEHOLDER]);
   const [preorder, setPreorder] = useState(!!product?.preorder);
   const [active, setActive] = useState(product ? product.active : true);
-  const [prepTime, setPrepTime] = useState(product?.prepTime ?? DEMO_PRODUCT.prepTime);
-  const [deliveryNote, setDeliveryNote] = useState(product?.deliveryNote ?? DEMO_PRODUCT.deliveryNote);
+  const [prepTime, setPrepTime] = useState(product?.prepTime ?? '');
+  const [deliveryNote, setDeliveryNote] = useState(product?.deliveryNote ?? '');
   const [note, setNote] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 

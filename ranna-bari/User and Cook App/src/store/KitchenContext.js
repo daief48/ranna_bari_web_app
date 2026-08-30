@@ -17,15 +17,14 @@ const KEY = 'rannabari_kitchen';
 /**
  * The signed-in cook's own kitchen.
  *
- * chefs.json is a bundled asset and cannot be written to, so a cook who
- * signs up needs somewhere else to live. This context is that place: one
- * record, shaped exactly like a row of chefs.json plus a `dishes` array, so
- * `useChefs()` can drop it into the customer-facing list without any of the
- * consumers knowing the difference.
+ * A cook who has just signed up exists before the server has confirmed
+ * them, so they need somewhere to live for those few seconds. This context
+ * is that place: one record shaped like a kitchen from the API plus a
+ * `dishes` array, so `useChefs()` can drop it into the customer-facing list
+ * without any of the consumers knowing the difference.
  *
- * The id is a string while every seeded chef's id is a number -- both sides
- * compare with String(), and the prefix makes a local record obvious in a
- * route param.
+ * The id is deliberately not a Mongo id. Everything compares with String(),
+ * and the prefix makes a not-yet-saved record obvious in a route param.
  */
 export const LOCAL_KITCHEN_ID = 'local-1';
 
@@ -33,169 +32,28 @@ export const LOCAL_KITCHEN_ID = 'local-1';
 const DEFAULT_RADIUS_KM = 3;
 
 /**
- * A new kitchen opens with three dishes already listed rather than an empty
- * menu -- an empty kitchen cannot take an order, so the cook would have to
- * finish onboarding before the app does anything. Keyed by the six
- * specialties the signup step offers.
+ * The kinds of cooking the signup step offers.
+ *
+ * This was `Object.keys(STARTER_DISHES)` — a map that also carried three
+ * complete dishes per specialty, with names, prices and photographs, and
+ * every new kitchen was opened holding them. They were invented in this file
+ * and then synced to the server like real listings, so a cook who had listed
+ * nothing at all still had "Shorshe Ilish, ৳520" on their page and a row for
+ * it in the database. A kitchen now starts with an empty menu and the cook
+ * lists their own food.
+ *
+ * The names themselves stay, because they are a fixed set the interface
+ * offers rather than records about anybody — the same job `KNOWN_AREAS` does
+ * for neighbourhoods.
  */
-const STARTER_DISHES = {
-  'Traditional Heritage': [
-    {
-      name: 'Shorshe Ilish',
-      description: 'Hilsa steamed in raw mustard paste, wrapped in banana leaf.',
-      price: 520,
-      image:
-        'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=200&h=200&fit=crop',
-      tags: ['lunch', 'dinner', 'heritage'],
-    },
-    {
-      name: 'Mutton Bhuna',
-      description: 'Slow-cooked mutton, grandmother spicing, no shortcuts.',
-      price: 600,
-      image:
-        'https://images.unsplash.com/photo-1606491048802-8342506d6471?w=200&h=200&fit=crop',
-      tags: ['dinner', 'spicy'],
-    },
-    {
-      name: 'Dal Bhat Thali',
-      description: 'Rice, thick masoor dal, aloo bhorta and a fried egg.',
-      price: 220,
-      image:
-        'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=200&h=200&fit=crop',
-      tags: ['lunch', 'comfort', 'budget'],
-    },
-  ],
-  'Coastal Seafood': [
-    {
-      name: 'Chingri Malai Curry',
-      description: 'Prawns in a thin coconut gravy, cooked down slowly.',
-      price: 560,
-      image:
-        'https://images.unsplash.com/photo-1559847844-5315695dadae?w=200&h=200&fit=crop',
-      tags: ['lunch', 'dinner', 'seafood'],
-    },
-    {
-      name: 'Rui Macher Jhol',
-      description: 'Everyday rohu curry with potato and nigella seed.',
-      price: 380,
-      image:
-        'https://images.unsplash.com/photo-1626804475297-41608ea09aeb?w=200&h=200&fit=crop',
-      tags: ['lunch', 'seafood'],
-    },
-    {
-      name: 'Fish Fry Platter',
-      description: 'Market-fresh fish, semolina crust, kasundi on the side.',
-      price: 320,
-      image:
-        'https://images.unsplash.com/photo-1580476262798-bddd9f4b7369?w=200&h=200&fit=crop',
-      tags: ['snacks', 'seafood'],
-    },
-  ],
-  'Street & Snacks': [
-    {
-      name: 'Fuchka (12 pcs)',
-      description: 'Crisp shells, tamarind water, no compromise on the masala.',
-      price: 140,
-      image:
-        'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=200&h=200&fit=crop',
-      tags: ['snacks', 'spicy'],
-    },
-    {
-      name: 'Beef Chaap',
-      description: 'Flat-fried, spice-heavy, the way the old shops do it.',
-      price: 260,
-      image:
-        'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=200&h=200&fit=crop',
-      tags: ['snacks', 'dinner', 'spicy'],
-    },
-    {
-      name: 'Chotpoti Bowl',
-      description: 'Chickpea and potato, tamarind, boiled egg on top.',
-      price: 120,
-      image:
-        'https://images.unsplash.com/photo-1626074353765-517a681e40be?w=200&h=200&fit=crop',
-      tags: ['snacks', 'budget'],
-    },
-  ],
-  'Biryani & Rice': [
-    {
-      name: 'Kacchi Biryani',
-      description: 'Mutton and rice sealed in one pot, cooked from raw.',
-      price: 480,
-      image:
-        'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=200&h=200&fit=crop',
-      tags: ['lunch', 'dinner', 'heritage'],
-    },
-    {
-      name: 'Morog Polao',
-      description: 'Chicken and ghee rice, mild enough for the whole table.',
-      price: 340,
-      image:
-        'https://images.unsplash.com/photo-1596797038530-2c107229654b?w=200&h=200&fit=crop',
-      tags: ['lunch', 'dinner'],
-    },
-    {
-      name: 'Tehari Box',
-      description: 'Beef tehari packed for one, with salad and borhani.',
-      price: 260,
-      image:
-        'https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=200&h=200&fit=crop',
-      tags: ['lunch', 'budget'],
-    },
-  ],
-  'Vegetarian & Bhorta': [
-    {
-      name: 'Seven Bhorta Thali',
-      description: 'Seven mashes, rice, dal and a green chilli each.',
-      price: 240,
-      image:
-        'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=200&h=200&fit=crop',
-      tags: ['lunch', 'vegan', 'budget'],
-    },
-    {
-      name: 'Shukto',
-      description: 'Bitter-first mixed vegetables, the way lunch should open.',
-      price: 200,
-      image:
-        'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=200&h=200&fit=crop',
-      tags: ['lunch', 'healthy', 'vegan'],
-    },
-    {
-      name: 'Labra with Khichuri',
-      description: 'Rainy-day khichuri and a five-vegetable labra.',
-      price: 260,
-      image:
-        'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=200&h=200&fit=crop',
-      tags: ['lunch', 'comfort', 'vegan'],
-    },
-  ],
-  'Desserts & Pitha': [
-    {
-      name: 'Pitha Platter',
-      description: 'Bhapa, patishapta and chitoi, made to order.',
-      price: 250,
-      image:
-        'https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=200&h=200&fit=crop',
-      tags: ['breakfast', 'snacks', 'sweet'],
-    },
-    {
-      name: 'Nolen Gur Payesh',
-      description: 'Date-palm jaggery rice pudding, cooked down for hours.',
-      price: 180,
-      image:
-        'https://images.unsplash.com/photo-1589308078059-be1415eab4c3?w=200&h=200&fit=crop',
-      tags: ['sweet', 'dessert'],
-    },
-    {
-      name: 'Mishti Doi',
-      description: 'Set yoghurt in a clay pot, caramelised and cold.',
-      price: 120,
-      image:
-        'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=200&h=200&fit=crop',
-      tags: ['sweet', 'dessert'],
-    },
-  ],
-};
+export const SPECIALTIES = [
+  'Traditional Heritage',
+  'Coastal Seafood',
+  'Street & Snacks',
+  'Biryani & Rice',
+  'Vegetarian & Bhorta',
+  'Desserts & Pitha',
+];
 
 /** Tags a kitchen advertises on its card, derived from what it actually lists. */
 const tagsFromDishes = (dishes) =>
@@ -211,13 +69,9 @@ const FALLBACK_COVER =
  * flow collected is reused; the rest gets a sensible opening value.
  */
 export function kitchenFromAccount(account) {
-  const specialty = account?.specialty || 'Traditional Heritage';
-  const starters = STARTER_DISHES[specialty] ?? STARTER_DISHES['Traditional Heritage'];
-  const dishes = starters.map((d, i) => ({
-    ...d,
-    id: `${LOCAL_KITCHEN_ID}-${i + 1}`,
-    available: true,
-  }));
+  const specialty = account?.specialty || SPECIALTIES[0];
+  /* Nothing on the menu until the cook puts something there. */
+  const dishes = [];
 
   return {
     id: LOCAL_KITCHEN_ID,
@@ -477,4 +331,3 @@ export function useKitchen() {
 }
 
 /** The specialty list, shared with the signup and profile editors. */
-export const SPECIALTIES = Object.keys(STARTER_DISHES);

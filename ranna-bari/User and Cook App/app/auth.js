@@ -25,12 +25,6 @@ import { font, radius, tracking, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
 import { useSession } from '../src/store/SessionContext';
 import { useAlert } from '../src/components/Alert';
-import {
-  DEMO_ADDRESS,
-  DEMO_CREDENTIALS,
-  DEMO_KITCHEN,
-  DEMO_SIGNUP,
-} from '../src/lib/demoData';
 import { useLang } from '../src/i18n/LanguageContext';
 
 /* The aside imagery and copy follow the chosen path, so the screen keeps
@@ -102,7 +96,7 @@ export default function AuthScreen() {
   /* Sign in is a phone and a code now, not an id and a password: the server
      has no passwords, and an account here is a handset that proved it holds
      its own number. */
-  const [siPhone, setSiPhone] = useState(DEMO_CREDENTIALS.phone ?? '');
+  const [siPhone, setSiPhone] = useState('');
   const [siCode, setSiCode] = useState('');
   const [siStage, setSiStage] = useState('phone'); // 'phone' | 'code'
   const [siBusy, setSiBusy] = useState(false);
@@ -110,7 +104,7 @@ export default function AuthScreen() {
   /* ---- sign up ---- */
   // Arriving from the cook funnel means the role question is already answered.
   const [step, setStep] = useState(fromCookFunnel ? 2 : 1);
-  const [role, setRole] = useState(fromCookFunnel ? 'cook' : DEMO_SIGNUP.role);
+  const [role, setRole] = useState(fromCookFunnel ? 'cook' : 'user');
   const [roleNote, setRoleNote] = useState('');
   const [detailsNote, setDetailsNote] = useState('');
   const [locNote, setLocNote] = useState('');
@@ -119,26 +113,28 @@ export default function AuthScreen() {
   const [suCode, setSuCode] = useState('');
   const [suBusy, setSuBusy] = useState(false);
 
-  const [name, setName] = useState(param('name', DEMO_SIGNUP.name));
-  const [phone, setPhone] = useState(param('phone', DEMO_SIGNUP.phone));
-  const [email, setEmail] = useState(DEMO_SIGNUP.email);
-  const [pw, setPw] = useState(DEMO_SIGNUP.password);
-  const [kitchen, setKitchen] = useState(DEMO_KITCHEN.kitchen);
-  const [specialty, setSpecialty] = useState(DEMO_KITCHEN.specialty);
-  const [nid, setNid] = useState(param('nid', DEMO_KITCHEN.nid));
-  const [terms, setTerms] = useState(DEMO_SIGNUP.terms);
+  const [name, setName] = useState(param('name', ''));
+  const [phone, setPhone] = useState(param('phone', ''));
+  const [email, setEmail] = useState('');
+  const [pw, setPw] = useState('');
+  const [kitchen, setKitchen] = useState('');
+  const [specialty, setSpecialty] = useState(SPECIALTIES[0]);
+  const [nid, setNid] = useState(param('nid', ''));
+  const [terms, setTerms] = useState(false);
 
-  /* Seeded rather than null, so "Create account" is live the moment step 3
-     opens instead of waiting on the debounced reverse geocode. Dragging the
-     map replaces this with the real pin. */
-  const [place, setPlace] = useState({
-    lat: DEMO_ADDRESS.lat,
-    lng: DEMO_ADDRESS.lng,
-    // The zone chosen on the cook funnel is the pin's starting address.
-    address: param('zone', DEMO_ADDRESS.area),
-  });
-  const [detail, setDetail] = useState(DEMO_ADDRESS.detail);
-  const [addressLabel, setAddressLabel] = useState(DEMO_ADDRESS.label);
+  /*
+   * No pin until somebody drops one.
+   *
+   * This used to open on a seeded flat in Dhanmondi so that "Create account"
+   * was live immediately — which meant an account created without touching
+   * the map was filed at an address its owner had never seen, and every
+   * kitchen's distance was measured from it. `submit` already refuses a null
+   * pin with "Drop your pin on the map so we know where to find you", so the
+   * empty state was always the one the flow was written for.
+   */
+  const [place, setPlace] = useState(null);
+  const [detail, setDetail] = useState('');
+  const [addressLabel, setAddressLabel] = useState('Home');
   const [radiusKm, setRadiusKm] = useState(3);
 
   const aside = ASIDE[tab === 'signup' && role ? role : 'none'];

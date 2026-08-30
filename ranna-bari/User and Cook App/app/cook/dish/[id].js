@@ -25,7 +25,6 @@ import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
-import { DEMO_DISH } from '../../../src/lib/demoData';
 
 /** The tag vocabulary the browse filters and mood pills already understand. */
 const TAGS = [
@@ -98,9 +97,9 @@ function DishForm({ isNew, existing }) {
   const router = useRouter();
   const { addDish, updateDish, removeDish } = useKitchen();
 
-  const [name, setName] = useState(existing?.name ?? DEMO_DISH.name);
-  const [description, setDescription] = useState(existing?.description ?? DEMO_DISH.description);
-  const [price, setPrice] = useState(existing ? String(existing.price) : DEMO_DISH.price);
+  const [name, setName] = useState(existing?.name ?? '');
+  const [description, setDescription] = useState(existing?.description ?? '');
+  const [price, setPrice] = useState(existing ? String(existing.price) : '');
   const [image, setImage] = useState(existing?.image ?? PLACEHOLDER);
   const [tags, setTags] = useState(existing?.tags ?? []);
   const [note, setNote] = useState('');

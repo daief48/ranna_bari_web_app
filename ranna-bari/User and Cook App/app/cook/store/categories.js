@@ -23,7 +23,6 @@ import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
-import { DEMO_STORE_CATEGORY } from '../../../src/lib/demoData';
 import { useAlert } from '../../../src/components/Alert';
 
 /** Fallbacks, for a shelf the platform list has no word for. */
@@ -37,7 +36,7 @@ export default function StoreCategories() {
   const { kitchen } = useKitchen();
   const shop = useCommerce();
 
-  const [name, setName] = useState(DEMO_STORE_CATEGORY.name);
+  const [name, setName] = useState('');
   const [emoji, setEmoji] = useState(EMOJI[0]);
   const [editing, setEditing] = useState(null);
   const [note, setNote] = useState(null);
