@@ -130,8 +130,11 @@ function Root() {
         <Stack.Screen name="meal-order/[id]" options={{ animation: 'fade' }} />
         <Stack.Screen name="wallet" />
         <Stack.Screen name="notifications" />
-        {/* ---- cook stores ---- */}
-        <Stack.Screen name="stores/index" />
+        {/* ---- cook stores ----
+            The shop directory itself is a tab now — `(tabs)/stores` — so it
+            belongs to that group's navigator, not this one. Declaring it here
+            as well left the root stack naming a route it no longer owns, and
+            expo-router says so on every launch. */}
         <Stack.Screen name="stores/[id]" />
         <Stack.Screen name="product/[id]" />
         <Stack.Screen name="store-checkout" />

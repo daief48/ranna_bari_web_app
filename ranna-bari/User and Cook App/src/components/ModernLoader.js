@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
-  Dimensions,
+  useWindowDimensions,
   Easing,
   Image,
   Platform,
@@ -19,7 +19,19 @@ import { useLang } from '../i18n/LanguageContext';
 const LOGO_LIGHT = require('../../assets/logo.png');
 const LOGO_DARK = require('../../assets/logo-dark.png');
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+/*
+ * The screen is measured during render, not when this file is imported.
+ *
+ * This used to be `Dimensions.get('window')` at module scope, which is read
+ * exactly once — when the bundle evaluates. On a cold start that is before
+ * Android has finished measuring the window, so the width could be stale or
+ * zero, and it was baked into a frozen StyleSheet below: a bad reading there
+ * collapsed the loader's centre column and left its contents in the wrong
+ * place, on the one screen somebody sees before anything else.
+ *
+ * It also never updated afterwards — not on rotation, not in split screen,
+ * not on a foldable being opened.
+ */
 
 const BENGALI_QUOTES = [
   'আপনার এলাকার সেরা হোম শেফদের সংযুক্ত করা হচ্ছে…',
@@ -102,6 +114,10 @@ export default function ModernLoader({
 }) {
   const { colors, isDark } = useTheme();
   const { lang, brand } = useLang();
+  const { width: screenWidth } = useWindowDimensions();
+
+  /* 40px of breathing room each side, and never wider than the design. */
+  const centerWidth = Math.min(Math.max(screenWidth - 40, 200), 320);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(visible ? 1 : 0)).current;
@@ -265,7 +281,7 @@ export default function ModernLoader({
       />
 
       {/* Central Interactive Animation Box */}
-      <View style={styles.centerContainer}>
+      <View style={[styles.centerContainer, { width: centerWidth }]}>
         {/* Expanding Golden Ripple Ring */}
         <Animated.View
           style={[
@@ -456,7 +472,8 @@ const styles = StyleSheet.create({
   centerContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: Math.min(SCREEN_WIDTH - 40, 320),
+    /* Width is applied at the call site from `useWindowDimensions`, because
+       a StyleSheet is created once and the screen is not. */
   },
   rippleRing: {
     position: 'absolute',

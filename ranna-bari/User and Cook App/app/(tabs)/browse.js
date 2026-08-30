@@ -1593,10 +1593,14 @@ function DishResult({ dish, chef, km, onPress }) {
 
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text
-          numberOfLines={1}
+          /* The dish result row. Same reasoning as the search row above: after
+             the thumbnail this column is narrow on a 320px phone, and a dish
+             name is what somebody is scanning for. */
+          numberOfLines={2}
           style={{
             fontFamily: font.displayBold,
             fontSize: 16,
+            lineHeight: 20,
             letterSpacing: -0.16,
             color: colors.text,
           }}
