@@ -24,7 +24,7 @@ import { useTheme } from '../src/theme/ThemeProvider';
 import { font, radius, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
 import { useCommerce } from '../src/store/CommerceContext';
-import { customerKeyOf } from '../src/lib/ledger';
+import { addressFromAccount, customerKeyOf } from '../src/lib/ledger';
 import { useLang } from '../src/i18n/LanguageContext';
 import { useAlert } from '../src/components/Alert';
 
@@ -52,7 +52,7 @@ export default function StoreCheckoutScreen() {
     const out = await shop.checkout(key, {
       name: account?.name ?? '',
       phone: account?.phone ?? '',
-      address: account?.address ?? account?.area ?? '',
+      address: addressFromAccount(account),
     });
     setBusy(false);
 

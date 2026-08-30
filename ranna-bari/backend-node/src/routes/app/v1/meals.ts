@@ -77,9 +77,29 @@ const refuse = (reply: Replyish, out: Fail) =>
  * that was wrong instead: a missing title and a negative price are different
  * repairs, and the app rings one field.
  */
-function bodyError(error: z.ZodError): string {
+/*
+ * Which refusal a malformed body deserves, and which field caused it.
+ *
+ * This used to answer `amount-invalid` for everything that was not `title`
+ * or `reason`. So when the app sent `address` as a string instead of an
+ * object, a customer confirming a meal was told "That amount is not valid" —
+ * about a request whose body has no amount in it at all. Every meal confirm
+ * failed that way, and the message pointed the search at the wallet.
+ *
+ * The failing field now travels in `detail` whichever code comes back, so
+ * the log and the client both say which one it was.
+ */
+const AMOUNT_FIELDS = new Set(['price', 'amount', 'capacity', 'take']);
+
+function badBody(reply: Replyish, error: z.ZodError) {
   const field = String(error.issues[0]?.path[0] ?? '');
-  return field === 'title' || field === 'reason' ? ERR.NAME_REQUIRED : ERR.BAD_AMOUNT;
+  const code =
+    field === 'title' || field === 'reason'
+      ? ERR.NAME_REQUIRED
+      : AMOUNT_FIELDS.has(field)
+        ? ERR.BAD_AMOUNT
+        : ERR.BAD_REQUEST;
+  return fail(reply, code, 400, { field });
 }
 
 /* ------------------------------------------------------------------ *
@@ -208,7 +228,7 @@ export async function mealRoutes(app: FastifyInstance) {
         take: z.coerce.number().min(1).max(100).default(50),
       })
       .safeParse(request.query ?? {});
-    if (!query.success) return fail(reply, bodyError(query.error));
+    if (!query.success) return badBody(reply, query.error);
 
     const own = !!query.data.kitchenId && query.data.kitchenId === caller.kitchenId;
 
@@ -337,7 +357,7 @@ export async function mealRoutes(app: FastifyInstance) {
         notifyNearby: z.boolean().default(true),
       })
       .safeParse(request.body ?? {});
-    if (!body.success) return fail(reply, bodyError(body.error));
+    if (!body.success) return badBody(reply, body.error);
 
     /* The token says which kitchen; the document says where it is. The nearby
        announcement is filed against `area`, so a publish that inherits nothing
@@ -403,7 +423,7 @@ export async function mealRoutes(app: FastifyInstance) {
     if (!params.success) return fail(reply, ERR.NO_MEAL, 404);
 
     const body = z.object({ reason: z.string() }).safeParse(request.body ?? {});
-    if (!body.success) return fail(reply, bodyError(body.error));
+    if (!body.success) return badBody(reply, body.error);
 
     const reason = body.data.reason.trim();
     if (!reason) return fail(reply, ERR.NAME_REQUIRED);
@@ -460,7 +480,7 @@ export async function mealRoutes(app: FastifyInstance) {
         address: z.record(z.unknown()).nullable().optional(),
       })
       .safeParse(request.body ?? {});
-    if (!body.success) return fail(reply, bodyError(body.error));
+    if (!body.success) return badBody(reply, body.error);
 
     const out = await confirmOrder({
       mealId: params.data.id,
@@ -525,7 +545,7 @@ export async function mealRoutes(app: FastifyInstance) {
     if (!params.success) return fail(reply, ERR.NO_ORDER, 404);
 
     const body = z.object({ reason: z.string() }).safeParse(request.body ?? {});
-    if (!body.success) return fail(reply, bodyError(body.error));
+    if (!body.success) return badBody(reply, body.error);
 
     const reason = body.data.reason.trim();
     if (!reason) return fail(reply, ERR.NAME_REQUIRED);

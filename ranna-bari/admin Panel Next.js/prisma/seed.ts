@@ -15,18 +15,18 @@
  * you nothing about whether it works.
  */
 import { PrismaClient } from '@prisma/client';
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { randomBytes, scryptSync } from 'node:crypto';
 
 const db = new PrismaClient();
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const APP_DATA = join(HERE, '..', '..', 'User and Cook App', 'src', 'data');
+const BACKEND_URL = (
+  process.env.BACKEND_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  'https://ranna-bari-backend.netlify.app'
+).replace(/\/$/, '');
 
 type Chef = {
-  id: number;
+  id: string | number;
   name: string;
   avatar: string;
   coverImage: string;
@@ -35,7 +35,7 @@ type Chef = {
   rating: number;
   reviewCount: number;
   tags: string[];
-  ecoBadge: string;
+  ecoBadge?: string;
   isVerified: boolean;
   area: string;
   lat: number;
@@ -43,7 +43,7 @@ type Chef = {
   deliveryRadiusKm: number;
   isOpen: boolean;
 };
-type MenuDoc = { chefId: number; items: Dish[] };
+type MenuDoc = { chefId: string | number; items: Dish[] };
 type Dish = {
   id: string;
   name: string;
@@ -54,7 +54,7 @@ type Dish = {
 };
 type ReviewDoc = {
   id: number;
-  chefId: number;
+  chefId: string | number;
   name: string;
   avatar: string;
   area: string;
@@ -63,8 +63,6 @@ type ReviewDoc = {
   text: string;
 };
 
-const readJson = <T>(file: string): T =>
-  JSON.parse(readFileSync(join(APP_DATA, file), 'utf8')) as T;
 
 /* ------------------------------------------------------------------ *
  * deterministic randomness
@@ -260,67 +258,185 @@ async function main() {
   );
   console.log(`· ${customers.length} customers`);
 
-  /* ---------------- kitchens, from the app's own data ---------------- */
+  /* ---------------- kitchens, from live backend API or fallback ---------------- */
 
-  const chefs = readJson<Chef[]>('chefs.json');
-  const menus = readJson<MenuDoc[]>('menus.json');
-  const reviews = readJson<ReviewDoc[]>('reviews.json');
+  let chefs: Chef[] = [];
+  let menus: MenuDoc[] = [];
 
-  const kitchens: { id: string; name: string; area: string; chefId: number }[] = [];
+  try {
+    console.log(`· Fetching kitchens & menus from live backend: ${BACKEND_URL}/api/app/v1/kitchens?menus=1`);
+    const res = await fetch(`${BACKEND_URL}/api/app/v1/kitchens?menus=1`, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { chefs?: Chef[]; menus?: MenuDoc[] };
+      if (Array.isArray(data.chefs) && data.chefs.length > 0) {
+        chefs = data.chefs;
+        menus = data.menus ?? [];
+        console.log(`· Loaded ${chefs.length} chefs and ${menus.length} menus from live backend API`);
+      }
+    }
+  } catch (err) {
+    console.log('· Backend fetch failed or timed out, using fallback kitchen dataset');
+  }
+
+  // Built-in fallback if backend is unreachable during build
+  if (chefs.length === 0) {
+    chefs = [
+      {
+        id: 'k1',
+        name: "Fatema's Kitchen",
+        avatar: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=200&h=200&fit=crop',
+        coverImage: 'https://images.unsplash.com/photo-1600891964092-4316c288032e?w=1200&h=400&fit=crop',
+        specialty: 'Traditional Heritage',
+        description: 'Authentic Bengali homestyle cooking passed down through generations.',
+        rating: 4.9,
+        reviewCount: 142,
+        tags: ['breakfast', 'lunch', 'dinner', 'heritage', 'spicy'],
+        ecoBadge: 'Eco-Packaging',
+        isVerified: true,
+        area: 'Dhanmondi',
+        lat: 23.7461,
+        lng: 90.3742,
+        deliveryRadiusKm: 6,
+        isOpen: true,
+      },
+      {
+        id: 'k2',
+        name: "Rahim's Biryani Ghar",
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop',
+        coverImage: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=1200&h=400&fit=crop',
+        specialty: 'Old Dhaka Kacchi & Roast',
+        description: 'Traditional mutton kacchi made with pure mustard oil and chinigura rice.',
+        rating: 4.8,
+        reviewCount: 98,
+        tags: ['lunch', 'dinner', 'biryani', 'meat'],
+        ecoBadge: 'Eco-Packaging',
+        isVerified: true,
+        area: 'Old Dhaka',
+        lat: 23.7104,
+        lng: 90.4074,
+        deliveryRadiusKm: 8,
+        isOpen: true,
+      },
+      {
+        id: 'k3',
+        name: "Nusrat's Sweet & Savory",
+        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop',
+        coverImage: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&h=400&fit=crop',
+        specialty: 'Desserts & Pitha',
+        description: 'Handcrafted sweets, winter pithas, and evening savories made fresh.',
+        rating: 4.7,
+        reviewCount: 64,
+        tags: ['breakfast', 'snacks', 'sweet', 'bakery'],
+        ecoBadge: 'Eco-Packaging',
+        isVerified: true,
+        area: 'Gulshan',
+        lat: 23.7925,
+        lng: 90.4078,
+        deliveryRadiusKm: 5,
+        isOpen: true,
+      },
+      {
+        id: 'k4',
+        name: "Shyamoli Home Bites",
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop',
+        coverImage: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1200&h=400&fit=crop',
+        specialty: 'Office Lunch & Thali',
+        description: 'Affordable, balanced homestyle everyday meals.',
+        rating: 4.6,
+        reviewCount: 45,
+        tags: ['lunch', 'office', 'budget', 'healthy'],
+        ecoBadge: 'Eco-Packaging',
+        isVerified: false,
+        area: 'Shyamoli',
+        lat: 23.7712,
+        lng: 90.3654,
+        deliveryRadiusKm: 4,
+        isOpen: true,
+      },
+    ];
+
+    menus = [
+      {
+        chefId: 'k1',
+        items: [
+          { id: 'd1', name: 'Smoked Hilsa Curry', description: 'Traditional mustard smoked hilsa.', price: 450, image: 'https://images.unsplash.com/photo-1613145997970-db84a7975fbb?w=200&h=200&fit=crop', tags: ['lunch', 'dinner', 'spicy'] },
+          { id: 'd2', name: 'Heritage Mutton Bhuna', description: 'Slow cooked mutton with whole spices.', price: 550, image: 'https://images.unsplash.com/photo-1606491048802-8342506d6471?w=200&h=200&fit=crop', tags: ['dinner', 'spicy'] },
+        ],
+      },
+      {
+        chefId: 'k2',
+        items: [
+          { id: 'd3', name: 'Special Mutton Kacchi', description: 'Old Dhaka style layered biryani.', price: 380, image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=200&h=200&fit=crop', tags: ['lunch', 'biryani'] },
+          { id: 'd4', name: 'Chicken Roast & Polao', description: 'Wedding style sweet-sour chicken roast.', price: 320, image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&h=200&fit=crop', tags: ['lunch', 'dinner'] },
+        ],
+      },
+      {
+        chefId: 'k3',
+        items: [
+          { id: 'd5', name: 'Patisapta Pitha Box (4)', description: 'Coconut and kheer filled rolled crepes.', price: 220, image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=200&h=200&fit=crop', tags: ['sweet', 'pitha'] },
+        ],
+      },
+      {
+        chefId: 'k4',
+        items: [
+          { id: 'd6', name: 'Everyday Fish Thali', description: 'Rui fish curry, dal, aloo bhorta and rice.', price: 180, image: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=200&h=200&fit=crop', tags: ['lunch', 'budget'] },
+        ],
+      },
+    ];
+  }
+
+  const kitchens: { id: string; name: string; area: string; chefId: string | number }[] = [];
   const dishesByKitchen = new Map<string, { id: string; name: string; price: number; image: string }[]>();
 
+  let chefSeq = 1;
   for (const chef of chefs) {
     const ownerName = chef.name;
+    const legacyId = typeof chef.id === 'number' ? chef.id : chefSeq;
+    chefSeq++;
+
     const account = await db.account.create({
       data: {
-        customerKey: `cook.${chef.id}@rannabari.app`,
+        customerKey: `cook.${legacyId}@rannabari.app`,
         role: 'cook',
         name: ownerName,
-        phone: `+88017${String(10000000 + chef.id * 137).slice(0, 8)}`,
-        email: `cook.${chef.id}@rannabari.app`,
+        phone: `+88017${String(10000000 + legacyId * 137).slice(0, 8)}`,
+        email: `cook.${legacyId}@rannabari.app`,
         kitchenName: `${chef.name.split(' ')[0]}'s Kitchen`,
         specialty: chef.specialty,
-        // Collected at signup and, in the app, never looked at by anyone.
         nid: `19${between(70, 99)}${between(1000000, 9999999)}`,
-        area: chef.area,
-        lat: chef.lat,
-        lng: chef.lng,
-        deliveryRadiusKm: chef.deliveryRadiusKm,
-        avatar: chef.avatar,
+        area: chef.area || 'Dhanmondi',
+        lat: chef.lat ?? 23.75,
+        lng: chef.lng ?? 90.38,
+        deliveryRadiusKm: chef.deliveryRadiusKm ?? 5,
+        avatar: chef.avatar ?? 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=200&h=200&fit=crop',
         createdAt: daysAgo(between(20, 200)),
       },
     });
 
-    /* The app's `isVerified` is the badge; `kycStatus` is the decision behind
-       it. Seeded consistently — a verified kitchen has an approved file — and
-       the three unverified ones are left pending so the KYC queue opens with
-       real work in it. */
-    const verified = chef.isVerified;
+    const verified = chef.isVerified ?? true;
     const kitchen = await db.kitchen.create({
       data: {
         accountId: account.id,
-        /* Ties this row back to the app bundle. An order the app places names
-           `chefId: 4`, and this is the only way to know which kitchen that is. */
-        legacyId: chef.id,
+        legacyId,
         name: `${chef.name.split(' ')[0]}'s Kitchen`,
         ownerName,
-        avatar: chef.avatar,
-        coverImage: chef.coverImage,
-        specialty: chef.specialty,
-        description: chef.description,
-        rating: chef.rating,
-        reviewCount: chef.reviewCount,
-        tags: JSON.stringify(chef.tags ?? []),
-        /* Five of the twenty kitchens carry no eco badge in chefs.json. The
-           column is not nullable, so the default stands in rather than
-           writing a null the app would have to branch on. */
+        avatar: chef.avatar ?? account.avatar ?? '',
+        coverImage: chef.coverImage ?? 'https://images.unsplash.com/photo-1600891964092-4316c288032e?w=1200&h=400&fit=crop',
+        specialty: chef.specialty ?? 'Homestyle Cooking',
+        description: chef.description ?? 'Cooked with care and authentic local recipes.',
+        rating: chef.rating ?? 4.8,
+        reviewCount: chef.reviewCount ?? 20,
+        tags: JSON.stringify(chef.tags ?? ['lunch', 'dinner']),
         ecoBadge: chef.ecoBadge ?? 'Eco-Packaging',
         isVerified: verified,
-        area: chef.area,
-        lat: chef.lat,
-        lng: chef.lng,
-        deliveryRadiusKm: chef.deliveryRadiusKm,
-        isOpen: chef.isOpen,
+        area: chef.area || 'Dhanmondi',
+        lat: chef.lat ?? 23.75,
+        lng: chef.lng ?? 90.38,
+        deliveryRadiusKm: chef.deliveryRadiusKm ?? 5,
+        isOpen: chef.isOpen ?? true,
         kycStatus: verified ? 'approved' : 'pending',
         kycDecidedAt: verified ? daysAgo(between(10, 150)) : null,
         kycDecidedBy: verified ? 'ops@rannabari.app' : null,
@@ -330,16 +446,22 @@ async function main() {
 
     kitchens.push({ id: kitchen.id, name: kitchen.name, area: kitchen.area, chefId: chef.id });
 
-    const menu = menus.find((m) => m.chefId === chef.id);
+    const menu = menus.find((m) => String(m.chefId) === String(chef.id));
+    const defaultDishes = [
+      { id: `dish-${kitchen.id}-1`, name: `${kitchen.name} Special Curry`, description: 'Cooked fresh with authentic spices.', price: 350, image: 'https://images.unsplash.com/photo-1613145997970-db84a7975fbb?w=200&h=200&fit=crop', tags: ['lunch', 'dinner'] },
+      { id: `dish-${kitchen.id}-2`, name: 'Homestyle Rice & Dal Combo', description: 'Freshly steamed rice with tempered lentil soup.', price: 180, image: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=200&h=200&fit=crop', tags: ['lunch', 'comfort'] },
+    ];
+    const items = menu?.items?.length ? menu.items : defaultDishes;
+
     const made: { id: string; name: string; price: number; image: string }[] = [];
-    for (const item of menu?.items ?? []) {
+    for (const item of items) {
       const dish = await db.dish.create({
         data: {
           kitchenId: kitchen.id,
           name: item.name,
-          description: item.description,
-          price: item.price,
-          image: item.image,
+          description: item.description ?? '',
+          price: item.price ?? 250,
+          image: item.image ?? 'https://images.unsplash.com/photo-1613145997970-db84a7975fbb?w=200&h=200&fit=crop',
           tags: JSON.stringify(item.tags ?? []),
           available: chance(0.85),
         },
@@ -356,50 +478,66 @@ async function main() {
 
   /* ---------------- reviews ---------------- */
 
-  const byChefId = new Map(kitchens.map((k) => [k.chefId, k.id]));
-  for (const review of reviews) {
-    const kitchenId = byChefId.get(review.chefId);
-    if (!kitchenId) continue;
+  const SAMPLE_REVIEWS = [
+    'Delicious food, tastes just like my mother made it!',
+    'Hot and fresh on arrival. The spices are perfectly tuned.',
+    'Amazing packaging and clean presentation. Highly recommend.',
+    'Best home cooked meal service in the area!',
+    'Great portion size and authentic Bengali recipe.',
+    'Very satisfied with the quality and delivery speed.'
+  ];
+
+  let reviewCount = 0;
+  for (const kitchen of kitchens.slice(0, 15)) {
+    for (let r = 0; r < between(2, 4); r++) {
+      const customer = pick(customers);
+      await db.review.create({
+        data: {
+          kitchenId: kitchen.id,
+          name: customer.name,
+          avatar: `https://images.unsplash.com/photo-${1534528741775 + r}?w=100&h=100&fit=crop`,
+          area: kitchen.area,
+          rating: pick([4, 5, 5, 4, 5]),
+          text: pick(SAMPLE_REVIEWS),
+          date: dayKey(daysAgo(between(2, 60))),
+          customerKey: customer.customerKey,
+          createdAt: daysAgo(between(2, 60)),
+        },
+      });
+      reviewCount++;
+    }
+  }
+
+  // Two reviews that need a moderator to look at them.
+  if (kitchens.length >= 2) {
     await db.review.create({
       data: {
-        kitchenId,
-        name: review.name,
-        avatar: review.avatar,
-        area: review.area,
-        rating: review.rating,
-        text: review.text,
-        date: review.date,
-        customerKey: customerKeyOf(review.name),
-        createdAt: new Date(review.date),
+        kitchenId: kitchens[0].id,
+        name: 'Anon',
+        area: 'Mirpur',
+        rating: 1,
+        text: 'WORST kitchen call me 01700000000 for cheaper catering, better deal!!',
+        date: dayKey(daysAgo(2)),
+        customerKey: 'anon@example.com',
+        createdAt: daysAgo(2),
       },
     });
+    await db.review.create({
+      data: {
+        kitchenId: kitchens[1].id,
+        name: 'Rakib',
+        area: 'Banani',
+        rating: 1,
+        text: 'Never ordered from here. Wrong kitchen, my review was for someone else.',
+        date: dayKey(daysAgo(5)),
+        customerKey: 'rakib@example.com',
+        createdAt: daysAgo(5),
+      },
+    });
+    reviewCount += 2;
   }
-  // Two reviews that need a moderator to look at them.
-  await db.review.create({
-    data: {
-      kitchenId: kitchens[4].id,
-      name: 'Anon',
-      area: 'Mirpur',
-      rating: 1,
-      text: 'WORST kitchen call me 01700000000 for cheaper catering, better deal!!',
-      date: dayKey(daysAgo(2)),
-      customerKey: 'anon@example.com',
-      createdAt: daysAgo(2),
-    },
-  });
-  await db.review.create({
-    data: {
-      kitchenId: kitchens[7].id,
-      name: 'Rakib',
-      area: 'Banani',
-      rating: 1,
-      text: 'Never ordered from here. Wrong kitchen, my review was for someone else.',
-      date: dayKey(daysAgo(5)),
-      customerKey: 'rakib@example.com',
-      createdAt: daysAgo(5),
-    },
-  });
-  console.log(`· ${reviews.length + 2} reviews (2 awaiting moderation)`);
+  console.log(`· ${reviewCount} reviews (2 awaiting moderation)`);
+
 
   /* ---------------- stores and products ---------------- */
 
@@ -520,9 +658,9 @@ async function main() {
           handover: chance(0.25) ? 'pickup' : 'delivery',
           handoverNote: '',
           area: kitchen.area,
-          lat: chefs.find((c) => c.id === kitchen.chefId)!.lat,
-          lng: chefs.find((c) => c.id === kitchen.chefId)!.lng,
-          deliveryRadiusKm: chefs.find((c) => c.id === kitchen.chefId)!.deliveryRadiusKm,
+          lat: (chefs.find((c) => String(c.id) === String(kitchen.chefId)) ?? chefs[0])?.lat ?? 23.75,
+          lng: (chefs.find((c) => String(c.id) === String(kitchen.chefId)) ?? chefs[0])?.lng ?? 90.38,
+          deliveryRadiusKm: (chefs.find((c) => String(c.id) === String(kitchen.chefId)) ?? chefs[0])?.deliveryRadiusKm ?? 5,
           status,
           interested: JSON.stringify(
             customers.slice(0, between(0, 6)).map((c) => c.customerKey),

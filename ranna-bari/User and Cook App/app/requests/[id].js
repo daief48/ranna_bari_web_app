@@ -33,6 +33,7 @@ import { useAuth } from '../../src/store/AuthContext';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { REQUEST_STATUS, isLiveOffer, standing, turnOf } from '../../src/lib/requestLogic';
 import { distanceKm } from '../../src/lib/geo';
+import { addressFromAccount } from '../../src/lib/ledger';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { useAlert } from '../../src/components/Alert';
 
@@ -132,7 +133,7 @@ export default function RequestScreen() {
     const out = await shop.payForRequest(request.id, {
       name: account?.name ?? '',
       phone: account?.phone ?? '',
-      address: account?.address ?? account?.area ?? '',
+      address: addressFromAccount(account),
     });
     if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     router.replace(`/request-order/${out.result.id}`);

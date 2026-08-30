@@ -73,6 +73,34 @@ export const EMPTY = {
 export const customerKeyOf = (account) =>
   String(account?.email || account?.phone || 'guest').toLowerCase();
 
+/**
+ * Where an order is going, in the shape the API and the order screens agree
+ * on: `{ label, line, area, lat, lng, instructions }`.
+ *
+ * Two screens used to send `account.area` here — a bare string — which the
+ * server rejects, and which it then reported as an invalid *amount* because
+ * its body parser names no field. Checkout built the object correctly and
+ * meals and the shop did not; keeping it in one function is what stops those
+ * three drifting apart again.
+ *
+ * `null` rather than an empty object when there is nothing to send: the API
+ * accepts null, and a half-filled address on an order is worse than none.
+ */
+export const addressFromAccount = (account) => {
+  const line = String(account?.addressDetail ?? '').trim();
+  const area = String(account?.area ?? '').trim();
+  if (!line && !area) return null;
+
+  return {
+    label: account?.addressLabel || 'Home',
+    line,
+    area,
+    lat: typeof account?.lat === 'number' ? account.lat : null,
+    lng: typeof account?.lng === 'number' ? account.lng : null,
+    instructions: '',
+  };
+};
+
 /* ------------------------------------------------------------------ *
  * results
  * ------------------------------------------------------------------ */

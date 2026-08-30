@@ -50,6 +50,9 @@ export const ERR = {
   WRONG_STATE: 'order-wrong-state',
   ALREADY_SETTLED: 'order-already-settled',
   BAD_AMOUNT: 'amount-invalid',
+  /* A body field of the wrong shape, where naming it an amount would be a
+     lie — the failing field travels in `detail`. */
+  BAD_REQUEST: 'request-invalid',
 
   // admin-only, not in the app
   NO_KITCHEN: 'kitchen-missing',
@@ -98,6 +101,7 @@ export const ERR_TEXT: Record<string, string> = {
   [ERR.WRONG_STATE]: 'The order is not in a state that allows this.',
   [ERR.ALREADY_SETTLED]: 'This is already settled.',
   [ERR.BAD_AMOUNT]: 'That amount is not valid.',
+  [ERR.BAD_REQUEST]: 'Some of that was not valid.',
   [ERR.NO_KITCHEN]: 'That kitchen no longer exists.',
   [ERR.FORBIDDEN]: 'Your role cannot do that.',
   [ERR.NO_DISPUTE]: 'That dispute no longer exists.',

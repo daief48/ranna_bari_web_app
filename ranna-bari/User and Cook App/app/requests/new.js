@@ -27,7 +27,7 @@ import { font, radius, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
 import { useChefs } from '../../src/data';
 import { useCommerce } from '../../src/store/CommerceContext';
-import { customerKeyOf } from '../../src/lib/ledger';
+import { addressFromAccount, customerKeyOf } from '../../src/lib/ledger';
 import { addDays, dayKey } from '../../src/store/CommerceContext';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { useAlert } from '../../src/components/Alert';
@@ -127,7 +127,7 @@ export default function NewRequest() {
         customerKey: customerKeyOf(account),
         customerName: account?.name ?? '',
         phone: account?.phone ?? '',
-        address: account?.address ?? account?.area ?? '',
+        address: addressFromAccount(account),
         items: list,
         /* The headline the server composes from `items` is what every reader
            of a request shows; this is the fallback for anything that has not

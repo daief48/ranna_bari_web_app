@@ -27,6 +27,7 @@ import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/mealLogic';
+import { addressFromAccount } from '../../src/lib/ledger';
 import DistanceChip from '../../src/components/DistanceChip';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { useAlert } from '../../src/components/Alert';
@@ -101,7 +102,7 @@ export default function MealScreen() {
       key,
       name: account?.name ?? '',
       phone: account?.phone ?? '',
-      address: account?.address ?? account?.area ?? '',
+      address: addressFromAccount(account),
     });
     setBusy(false);
     setConfirming(false);
