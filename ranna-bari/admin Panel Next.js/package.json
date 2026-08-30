@@ -20,25 +20,25 @@
   "dependencies": {
     "@prisma/client": "^6.3.1",
     "@tanstack/react-table": "^8.21.2",
+    "@types/node": "^22.13.5",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@types/ws": "^8.18.1",
     "jose": "^6.0.8",
     "next": "^16.3.3",
     "otpauth": "^9.4.0",
+    "prisma": "^6.3.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "recharts": "^3.10.1",
+    "server-only": "^0.0.1",
+    "typescript": "^5.7.3",
     "ws": "^8.21.3",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.9",
-    "@types/node": "^22.13.5",
-    "@types/react": "^19.0.10",
-    "@types/react-dom": "^19.0.4",
-    "@types/ws": "^8.18.1",
-    "prisma": "^6.3.1",
-    "server-only": "^0.0.1",
     "tailwindcss": "^4.0.9",
-    "tsx": "^4.19.3",
-    "typescript": "^5.7.3"
+    "tsx": "^4.19.3"
   }
 }
