@@ -26,6 +26,7 @@ import { useAuth } from '../src/store/AuthContext';
 import { useSession } from '../src/store/SessionContext';
 import { useAlert } from '../src/components/Alert';
 import { useLang } from '../src/i18n/LanguageContext';
+import { normaliseArea } from '../src/lib/areas';
 
 /* The aside imagery and copy follow the chosen path, so the screen keeps
    talking about the thing the visitor picked. */
@@ -272,7 +273,10 @@ export default function AuthScreen() {
         place
           ? saveAddress({
               label: addressLabel,
-              area: place.address,
+              /* The picker hands back a full postal address — 'Lane 11 East,
+                 1212 Dhaka'. An area is a neighbourhood, and that is what the
+                 filters, the cards and the shop directory all match on. */
+              area: normaliseArea(place.address),
               detail: detail.trim(),
               lat: place.lat,
               lng: place.lng,

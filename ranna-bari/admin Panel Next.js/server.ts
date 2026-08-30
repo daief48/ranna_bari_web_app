@@ -58,7 +58,7 @@ const app = next({ dev });
 const handle = app.getRequestHandler();
 
 /** The backend's hub — the one place chat traffic actually lives. */
-const BACKEND_WS = `${(process.env.BACKEND_URL ?? 'http://localhost:4000')
+const BACKEND_WS = `${(process.env.BACKEND_URL ?? 'https://ranna-bari-backend.netlify.app')
   .replace(/\/$/, '')
   .replace(/^http/, 'ws')}/ws`;
 

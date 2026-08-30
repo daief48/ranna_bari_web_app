@@ -26,7 +26,7 @@ import { errText } from './domain';
  * bundle that carried it would hand every visitor the whole platform.
  */
 
-const BASE = (process.env.BACKEND_URL ?? 'http://localhost:4000').replace(/\/$/, '');
+const BASE = (process.env.BACKEND_URL ?? 'https://ranna-bari-backend.netlify.app').replace(/\/$/, '');
 
 /** How long to wait before deciding the backend is not going to answer. */
 const TIMEOUT_MS = 15_000;

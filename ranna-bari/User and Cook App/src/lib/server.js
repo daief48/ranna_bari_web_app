@@ -53,7 +53,8 @@ function inferHost() {
  * development convenience and nothing more.
  */
 export const API_BASE =
-  process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') || inferHost();
+  process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ||
+  'https://ranna-bari-backend.netlify.app';
 
 export const WS_URL = API_BASE
   ? `${API_BASE.replace(/^http/, 'ws')}/ws`
