@@ -248,3 +248,35 @@ Named so the gaps are known rather than discovered:
   painted before the network answers; writes are not replayed. Money moving
   is not something to guess about, and a refusal the customer never saw is
   worse than a button that says it could not reach the server.
+
+---
+
+## Netlify Deployment
+
+This backend is pre-configured to run serverlessly on **Netlify Functions** (`@fastify/aws-lambda`).
+
+### Quick Deploy Steps:
+
+1. **Option A — Git Repository (Recommended)**
+   - Push this repo / folder to GitHub.
+   - In Netlify, click **Add new site** > **Import an existing project**.
+   - Base directory: `backend-node` (if in monorepo, or root if standalone).
+   - Netlify will auto-detect `netlify.toml`, build command `npm run build`, and function directory `netlify/functions`.
+
+2. **Option B — Netlify CLI / Manual Deploy**
+   ```bash
+   cd backend-node
+   npm install
+   npm run build
+   npx netlify deploy --prod
+   ```
+
+3. **Set Environment Variables on Netlify (Site configuration > Environment variables):**
+   - `MONGODB_URI` — Your MongoDB Atlas connection URI
+   - `ADMIN_AUTH_SECRET` — Min 32 character random string
+   - `APP_AUTH_SECRET` — Min 32 character random string (different from admin)
+   - `BACKEND_SERVICE_TOKEN` — Min 32 character random string
+   - `NODE_ENV` — `production`
+   - `ADMIN_ORIGIN` — URL of your deployed Admin Panel (e.g., `https://your-admin.vercel.app` or `*`)
+   - `SMS_PROVIDER` — `none` (or your SMS provider)
+

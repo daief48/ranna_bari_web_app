@@ -15,7 +15,6 @@ export async function handler(event: APIGatewayProxyEvent, context: Context) {
   // Lazy initialize Fastify app instance once per Lambda container
   if (!proxy) {
     const app = await buildApp();
-    await app.ready();
     proxy = awsLambdaFastify(app);
   }
 
