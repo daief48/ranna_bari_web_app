@@ -27,7 +27,7 @@ import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/mealLogic';
-import { distanceKm, formatDistance } from '../../src/lib/geo';
+import DistanceChip from '../../src/components/DistanceChip';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { useAlert } from '../../src/components/Alert';
 
@@ -73,12 +73,6 @@ export default function MealScreen() {
       </Screen>
     );
   }
-
-  const km =
-    typeof account?.lat === 'number' && typeof meal.lat === 'number'
-      ? distanceKm({ lat: account.lat, lng: account.lng }, { lat: meal.lat, lng: meal.lng })
-      : null;
-  const away = formatDistance(km, t, n);
 
   const left = meals.remaining(meal);
   const confirmed = meals.confirmedCount(meal.id);
@@ -160,17 +154,23 @@ export default function MealScreen() {
         />
 
         <View style={{ paddingTop: 20, gap: 10 }}>
-          <Text
-            style={{
-              fontFamily: font.uiBold,
-              fontSize: type.xs + 1,
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-              color: colors.primary,
-            }}
-          >
-            {serviceLabel(meal, t, lang)}
-          </Text>
+          {/* Which service, and how far it has to travel: the two facts
+              that decide whether the rest of the page is worth reading. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Text
+              style={{
+                flex: 1,
+                fontFamily: font.uiBold,
+                fontSize: type.xs + 1,
+                letterSpacing: 1,
+                textTransform: 'uppercase',
+                color: colors.primary,
+              }}
+            >
+              {serviceLabel(meal, t, lang)}
+            </Text>
+            <DistanceChip target={{ ...meal, name: meal.cookName }} kind="meal" />
+          </View>
 
           <Heading size={26}>{meal.title}</Heading>
 
@@ -233,7 +233,6 @@ export default function MealScreen() {
               style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
             >
               {meal.area}
-              {away ? ` · ${away}` : ''}
             </Text>
           </View>
           <Icon name="chevronRight" size={16} color={colors.textLight} />

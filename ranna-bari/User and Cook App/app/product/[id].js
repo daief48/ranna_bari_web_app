@@ -26,6 +26,7 @@ import { customerKeyOf } from '../../src/lib/ledger';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { useAlert } from '../../src/components/Alert';
 import { useNavbarOffset } from '../../src/components/Navbar';
+import DistanceChip from '../../src/components/DistanceChip';
 
 export default function ProductScreen() {
   const { id } = useLocalSearchParams();
@@ -227,6 +228,9 @@ export default function ProductScreen() {
                 {category.name}
               </Text>
             ) : null}
+            {/* Measured to the shop the item ships from, which is the only
+                place it has ever been. */}
+            <DistanceChip target={store} kind="product" style={{ marginLeft: 'auto' }} />
           </View>
 
           <Heading size={26}>{product.name}</Heading>

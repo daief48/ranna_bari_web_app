@@ -14,8 +14,7 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useDish, useMenu } from '../../src/data';
 import { useCart } from '../../src/store/CartContext';
-import { useAuth } from '../../src/store/AuthContext';
-import { distanceKm, formatDistance } from '../../src/lib/geo';
+import DistanceChip from '../../src/components/DistanceChip';
 import { isOpenNow } from '../../src/lib/kitchen';
 import { useLang } from '../../src/i18n/LanguageContext';
 
@@ -33,7 +32,6 @@ export default function DishScreen() {
   const router = useRouter();
   const { t, n } = useLang();
   const { add } = useCart();
-  const { account } = useAuth();
 
   const found = useDish(id);
   const menu = useMenu(found?.chef?.id);
@@ -58,18 +56,6 @@ export default function DishScreen() {
 
   const { dish, chef } = found;
   const closed = !isOpenNow(chef);
-
-  const km =
-    typeof account?.lat === 'number' &&
-    typeof account?.lng === 'number' &&
-    typeof chef.lat === 'number' &&
-    typeof chef.lng === 'number'
-      ? distanceKm(
-          { lat: account.lat, lng: account.lng },
-          { lat: chef.lat, lng: chef.lng },
-        )
-      : null;
-  const away = formatDistance(km, t, n);
 
   /* The rest of the same menu, so the page is a way into the kitchen rather
      than a dead end. Three is enough to suggest there is more. */
@@ -297,31 +283,9 @@ export default function DishScreen() {
                     {chef.area}
                   </Text>
 
-                  {away ? (
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 3,
-                        paddingVertical: 2,
-                        paddingHorizontal: 7,
-                        borderRadius: radius.pill,
-                        backgroundColor: colors.sage50,
-                      }}
-                    >
-                      <Icon name="navigation" size={9} color={colors.sage} />
-                      <Text
-                        style={{
-                          fontFamily: font.uiBold,
-                          fontSize: 10,
-                          color: colors.sage,
-                          fontVariant: ['tabular-nums'],
-                        }}
-                      >
-                        {away}
-                      </Text>
-                    </View>
-                  ) : null}
+                  {/* A dish is cooked somewhere, so the distance is to the
+                      kitchen — the same resolution the map makes. */}
+                  <DistanceChip target={chef} kind="dish" />
 
                   {chef.reviewCount ? (
                     <View

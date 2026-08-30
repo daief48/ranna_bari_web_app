@@ -782,6 +782,23 @@ export const bn = {
   '{d} away': '{d} দূরে',
   Nearby: 'খুব কাছে',
 
+  // The sheet behind the distance chip on every detail page.
+  'Distance': 'দূরত্ব',
+  'Distance: {d}. Tap for details.': 'দূরত্ব: {d}। বিস্তারিত দেখতে চাপ দিন।',
+  'Show how far away this is': 'এটি কত দূরে দেখুন',
+  'No address yet': 'ঠিকানা দেওয়া নেই',
+  'Not on the map yet': 'এখনো ম্যাপে নেই',
+  'in a straight line from your delivery address': 'আপনার ডেলিভারি ঠিকানা থেকে সরলরেখায়',
+  'Add your delivery address and this will show how far away it is.': 'আপনার ডেলিভারি ঠিকানা যোগ করলে এটি কত দূরে তা দেখা যাবে।',
+  '{name} has not pinned a location yet.': '{name} এখনো ম্যাপে অবস্থান দেয়নি।',
+  'Your address': 'আপনার ঠিকানা',
+  'This place': 'এই জায়গা',
+  'Within their {r} km delivery range.': 'তাদের {r} কিমি ডেলিভারি সীমার মধ্যে।',
+  'Outside their {r} km delivery range.': 'তাদের {r} কিমি ডেলিভারি সীমার বাইরে।',
+  'Add address': 'ঠিকানা যোগ করুন',
+  'Change address': 'ঠিকানা বদলান',
+  'See on map': 'ম্যাপে দেখুন',
+
   'Type an area': 'এলাকার নাম লিখুন',
   'No area matches that.': 'ওই নামে কোনো এলাকা নেই।',
   Close: 'বন্ধ',
@@ -1132,6 +1149,11 @@ export const bn = {
   /* Adding items to a custom request. */
   'Add this item': 'এই আইটেমটি যোগ করুন',
   'Remove {name}': '{name} সরান',
+  /* The map, searching everything it shows. */
+  'Dish, kitchen, shop or area': 'পদ, রান্নাঘর, দোকান বা এলাকা',
+  '{n} places': '{n}টি জায়গা',
+  'Nothing found. Try a dish, a kitchen, a shop or an area.': 'কিছু পাওয়া যায়নি। একটি পদ, রান্নাঘর, দোকান বা এলাকা লিখে দেখুন।',
+  'Nothing on the map has a location on file yet.': 'মানচিত্রে এখনো কোনো কিছুর অবস্থান দেওয়া নেই।',
   /* The address book. */
   'Delivery addresses': 'ডেলিভারি ঠিকানা',
   '{n} saved · delivering to {label}': '{n}টি সংরক্ষিত · {label}-এ যাচ্ছে',

@@ -32,7 +32,7 @@ import { font, radius, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/ledger';
-import { distanceKm, formatDistance } from '../../src/lib/geo';
+import DistanceChip from '../../src/components/DistanceChip';
 import { expand } from '../../src/lib/search';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { useAlert } from '../../src/components/Alert';
@@ -155,12 +155,6 @@ export default function StoreScreen() {
       </Screen>
     );
   }
-
-  const km =
-    typeof account?.lat === 'number' && typeof store.lat === 'number'
-      ? distanceKm({ lat: account.lat, lng: account.lng }, { lat: store.lat, lng: store.lng })
-      : null;
-  const away = formatDistance(km, t, n);
 
   const add = async (product) => {
     if (!isSignedIn) return router.push('/auth');
@@ -303,23 +297,10 @@ export default function StoreScreen() {
             <Text style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}>
               {store.area}
             </Text>
-            {away ? (
-              <>
-                <View
-                  style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textLight }}
-                />
-                <Text
-                  style={{
-                    fontFamily: font.uiBold,
-                    fontSize: 10,
-                    color: colors.sage,
-                    fontVariant: ['tabular-nums'],
-                  }}
-                >
-                  {away}
-                </Text>
-              </>
-            ) : null}
+            <View
+              style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textLight }}
+            />
+            <DistanceChip target={store} kind="shop" />
             {store.phone ? (
               <>
                 <View

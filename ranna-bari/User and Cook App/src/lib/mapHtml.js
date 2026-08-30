@@ -37,20 +37,26 @@ const esc = (s) =>
  * @param {'light'|'dark'} opts.theme
  * @param {object} opts.colors  resolved palette, so popups match the app
  */
-export function buildMapHtml({ chefs, theme, colors }) {
-  const points = chefs
+export function buildMapHtml({ places, theme, colors }) {
+  const points = (places ?? [])
     .filter((c) => typeof c.lat === 'number' && typeof c.lng === 'number')
     .map((c) => ({
       id: c.id,
+      /* 'kitchen' | 'shop' | 'meal' — decides the pin's colour and glyph, and
+         which screen its popup opens. */
+      kind: c.kind ?? 'kitchen',
       lat: c.lat,
       lng: c.lng,
       name: esc(c.name),
-      specialty: esc(c.specialty),
-      avatar: esc(c.avatar),
-      area: esc(c.area),
-      /* Whether the kitchen is trading, and how far it will come. The pin is
-         drawn grey when shut and rings its radius when tapped, so both have
-         to travel with the point rather than being looked up again. */
+      /* One line under the name. What belongs there differs by kind — a
+         kitchen's specialty and area, a shop's tagline, a meal's day — so it
+         is composed by the caller rather than assembled from fields this
+         function would have to know the meaning of. */
+      sub: esc(c.sub),
+      image: esc(c.image),
+      /* Whether it is trading, and how far it will come. The pin is drawn
+         grey when shut and rings its radius when tapped, so both have to
+         travel with the point rather than being looked up again. */
       isOpen: c.isOpen !== false,
       deliveryRadiusKm:
         typeof c.deliveryRadiusKm === 'number' ? c.deliveryRadiusKm : null,
@@ -118,6 +124,26 @@ export function buildMapHtml({ chefs, theme, colors }) {
     z-index: 500;
   }
   .map-marker.is-dim { opacity: 0.32; }
+
+  /*
+   * What kind of place this is.
+   *
+   * Vermilion is a kitchen and stays the default, because that is what the
+   * map was and what most pins still are. Sage is a shop — the same green the
+   * cook panel uses for its shelf everywhere else in the app — and saffron is
+   * a meal, which is the app's accent for something happening on a date.
+   *
+   * The shut and hit states are deliberately left to override these: a closed
+   * shop and a closed kitchen are the same fact and should read the same way.
+   */
+  .map-marker.kind-shop {
+    background: linear-gradient(145deg, ${colors.sage}, ${colors.sage});
+    box-shadow: 0 10px 26px -8px rgba(${colors.rgbSage}, 0.42);
+  }
+  .map-marker.kind-meal {
+    background: linear-gradient(145deg, ${colors.saffron}, ${colors.saffron});
+    box-shadow: 0 10px 26px -8px rgba(${colors.rgbSaffron}, 0.42);
+  }
 
   /*
    * A kitchen that is shut.
@@ -265,6 +291,13 @@ export function buildMapHtml({ chefs, theme, colors }) {
 
   var HAT = '<svg viewBox="0 0 24 24"><path d="M6.4 17.2h11.2"/><path d="M17.6 20.4H6.4v-3.9c0-.6-.4-1.1-.9-1.4a4.4 4.4 0 0 1 2.3-8.3 5.2 5.2 0 0 1 9.4 0 4.4 4.4 0 0 1 2.3 8.3c-.5.3-.9.8-.9 1.4Z"/></svg>';
 
+  /* A shelf, and a covered dish. Same 24-grid and stroke weight as the hat
+     so the three read as one family. */
+  var BOX = '<svg viewBox="0 0 24 24"><path d="M21 8V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M2 3h20v5H2z"/><path d="M10 12h4"/></svg>';
+  var POT = '<svg viewBox="0 0 24 24"><path d="M4 10h16v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-6Z"/><path d="M2 10h20"/><path d="M8 6c0-1 1-1.5 1-2.5"/><path d="M12 6c0-1 1-1.5 1-2.5"/><path d="M16 6c0-1 1-1.5 1-2.5"/></svg>';
+
+  var GLYPH = { kitchen: HAT, shop: BOX, meal: POT };
+
   var chefIcon = L.divIcon({
     className: 'custom-map-marker',
     html: '<div class="map-marker">' + HAT + '</div>',
@@ -298,7 +331,19 @@ export function buildMapHtml({ chefs, theme, colors }) {
    */
   var cluster = L.markerClusterGroup({
     showCoverageOnHover: false,
-    spiderfyOnMaxZoom: false,
+    /*
+     * Fan out markers that share a point.
+     *
+     * This was off when everything on the map was a kitchen and no two of
+     * them stood in the same doorway. A shop takes its cook's coordinates
+     * when it has none of its own — which is the common case, because most
+     * cooks sell off the shelf from the kitchen they cook in — so a kitchen
+     * and its shop are now frequently the *same point*. Clustering never
+     * separates those at any zoom, so without this the shop is unreachable:
+     * it exists, it is in the cluster's count, and no amount of zooming will
+     * ever draw it.
+     */
+    spiderfyOnMaxZoom: true,
     zoomToBoundsOnClick: true,
     maxClusterRadius: 46,
     iconCreateFunction: function (c) {
@@ -350,7 +395,14 @@ export function buildMapHtml({ chefs, theme, colors }) {
       .replace(/"/g, '&quot;');
   }
 
-  function setChefs(list) {
+  /**
+   * Draw every place the map knows about.
+   *
+   * One list rather than three layers: they cluster together, they are
+   * searched together, and a customer looking at a neighbourhood wants to see
+   * what is there — not to toggle which halves of it are allowed on screen.
+   */
+  function setPlaces(list) {
     cluster.clearLayers();
     clearRadius();
     markers = {};
@@ -358,10 +410,14 @@ export function buildMapHtml({ chefs, theme, colors }) {
     (list || []).forEach(function (c) {
       if (typeof c.lat !== 'number' || typeof c.lng !== 'number') return;
 
+      var kind = c.kind || 'kitchen';
       var shut = c.isOpen === false;
       var icon = L.divIcon({
         className: 'custom-map-marker',
-        html: '<div class="map-marker' + (shut ? ' is-shut' : '') + '">' + HAT + '</div>',
+        html:
+          '<div class="map-marker kind-' + kind + (shut ? ' is-shut' : '') + '">' +
+            (GLYPH[kind] || HAT) +
+          '</div>',
         iconSize: [40, 40],
         iconAnchor: [20, 20],
         popupAnchor: [0, -22]
@@ -373,13 +429,41 @@ export function buildMapHtml({ chefs, theme, colors }) {
       m.__rbId = c.id;
       markers[c.id] = m;
 
+      var action =
+        kind === 'shop' ? 'window.__openStore' :
+        kind === 'meal' ? 'window.__openMeal' :
+        'window.__openChef';
+
+      var cta =
+        kind === 'shop' ? 'Open the shop' :
+        kind === 'meal' ? 'See this meal' :
+        'View Menu &amp; Order';
+
       m.bindPopup(
         '<div class="pop">' +
-          '<img src="' + safe(c.avatar) + '" alt="">' +
+          '<img src="' + safe(c.image || c.avatar) + '" alt="">' +
           '<h4>' + safe(c.name) + '</h4>' +
-          '<p>' + safe(c.specialty) + ' &middot; ' + safe(c.area) +
+          '<p>' + safe(c.sub) +
             (shut ? ' &middot; <b>Closed now</b>' : '') + '</p>' +
-          '<button onclick="window.__openChef(' + JSON.stringify(c.id) + ')">View Menu &amp; Order</button>' +
+          /*
+           * The id is a JavaScript string inside an HTML attribute, so it is
+           * quoted for both layers.
+           *
+           * This was JSON.stringify(c.id) dropped straight into
+           * onclick="…", which worked only for as long as every id was a
+           * number: stringify puts double quotes around a string, and those
+           * closed the attribute early and left the button inert. Kitchen ids
+           * became strings when kitchens, shops and meals were unified into
+           * one list of places, so every popup button on the map stopped
+           * navigating at once.
+           *
+           * safe() turns the quotes into &quot;, which the parser decodes
+           * back to a quote when it reads the attribute — so the JavaScript
+           * that eventually runs sees a properly quoted string.
+           */
+          '<button onclick="' + safe(action + '(' + JSON.stringify(String(c.id)) + ')') + '">' +
+            cta +
+          '</button>' +
         '</div>',
         { minWidth: 200 }
       );
@@ -411,7 +495,7 @@ export function buildMapHtml({ chefs, theme, colors }) {
     });
   }
 
-  setChefs(POINTS);
+  setPlaces(POINTS);
 
   /**
    * Ring the kitchens a search matched, and step the rest back.
@@ -462,6 +546,8 @@ export function buildMapHtml({ chefs, theme, colors }) {
   // The popup CTA is a real navigation in the app, so it hands the id back
   // to React Native rather than following an href.
   window.__openChef = function (id) { post({ type: 'openChef', id: id }); };
+  window.__openStore = function (id) { post({ type: 'openStore', id: id }); };
+  window.__openMeal = function (id) { post({ type: 'openMeal', id: id }); };
 
   var meMarker = null, meCircle = null;
 
@@ -513,7 +599,19 @@ export function buildMapHtml({ chefs, theme, colors }) {
 
     } else if (msg.type === 'focus') {
       var m = markers[msg.id];
-      if (m) { map.flyTo(m.getLatLng(), 15, { duration: 0.6 }); m.openPopup(); }
+      if (m) {
+        /*
+         * Ask the cluster to reveal it, rather than flying to a coordinate
+         * and hoping.
+         *
+         * flyTo moved the camera to the right place and then opened a
+         * popup on a marker that was still inside a cluster — so nothing
+         * appeared. zoomToShowLayer is the cluster plugin's own answer: it
+         * zooms, and spiderfies if the marker shares its point with others,
+         * and only then hands the marker back.
+         */
+        cluster.zoomToShowLayer(m, function () { m.openPopup(); });
+      }
 
     } else if (msg.type === 'flyTo') {
       map.flyTo([msg.lat, msg.lng], msg.zoom || 14, { duration: 0.7 });
@@ -530,8 +628,8 @@ export function buildMapHtml({ chefs, theme, colors }) {
     } else if (msg.type === 'highlight') {
       highlight(msg.ids);
 
-    } else if (msg.type === 'setChefs') {
-      setChefs(msg.chefs);
+    } else if (msg.type === 'setPlaces') {
+      setPlaces(msg.places);
 
     } else if (msg.type === 'setChrome') {
       /* Where the app's own overlays are, so Leaflet's controls can sit
