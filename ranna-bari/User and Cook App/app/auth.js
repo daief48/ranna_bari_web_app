@@ -27,6 +27,7 @@ import { useSession } from '../src/store/SessionContext';
 import { useAlert } from '../src/components/Alert';
 import { useLang } from '../src/i18n/LanguageContext';
 import { normaliseArea } from '../src/lib/areas';
+import { useKitchen } from '../src/store/KitchenContext';
 
 /* The aside imagery and copy follow the chosen path, so the screen keeps
    talking about the thing the visitor picked. */
@@ -80,6 +81,7 @@ export default function AuthScreen() {
   const router = useRouter();
   const { signIn } = useAuth();
   const { requestCode, verifyCode, saveProfile, saveAddress } = useSession();
+  const { ensureKitchen } = useKitchen();
   const alert = useAlert();
 
   /* become-cook.js is step 1 of the same funnel: it collects a name, a phone,
@@ -233,9 +235,10 @@ export default function AuthScreen() {
     try {
       const identity = await verifyCode(phone.trim(), suCode.trim(), name.trim());
 
-      await signIn({
-        /* The profile the three steps collected, kept because it is real and
-           the server holds none of it: an area, a pin, a door number. */
+      /* Everything the three steps collected, in one shape: it is what this
+         device stores, what the server is told, and what a cook's kitchen is
+         built from. */
+      const profile = {
         role,
         name: name.trim(),
         phone: identity.phone ?? phone.trim(),
@@ -250,7 +253,9 @@ export default function AuthScreen() {
         deliveryRadiusKm: role === 'cook' ? radiusKm : null,
         accountId: identity.accountId,
         kitchenId: identity.kitchenId,
-      });
+      };
+
+      await signIn(profile);
 
       /*
        * And the same profile to the server.
@@ -292,6 +297,24 @@ export default function AuthScreen() {
         alert.error(
           t('Your account is ready, but we could not save your details. Open Profile to add them.'),
         );
+      }
+
+      /*
+       * A cook's kitchen, created here rather than by a later effect.
+       *
+       * `KitchenSync` in the root layout does this too, but only while the
+       * *local* account says `role: 'cook'` — a flag that lives on the phone.
+       * Close the app before that effect runs and the kitchen is never made;
+       * the server then reports the account as a customer, and on the next
+       * install the local flag is restored from the server as `user`, so the
+       * effect never fires again and the kitchen is lost for good. Measured
+       * on a real signup: `role: "user"`, `kitchen: null`.
+       *
+       * `ensureKitchen` asks the server before it writes, so running here as
+       * well as there is safe — the second caller finds the kitchen and stops.
+       */
+      if (role === 'cook') {
+        await ensureKitchen(profile).catch(() => {});
       }
 
       setStep(4);

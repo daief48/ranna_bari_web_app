@@ -58,6 +58,11 @@ export function SessionProvider({ children }) {
     tokenRef.current = next;
     setTokenState(next);
   }, []);
+
+  /* For callers that need the token in the same tick it was minted — signup
+     registers a kitchen immediately after the code is accepted, and the state
+     variable is still the previous render's `null` at that point. */
+  const getToken = useCallback(() => tokenRef.current, []);
   const [identity, setIdentity] = useState(null);
   const [hydrated, setHydrated] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -244,6 +249,7 @@ export function SessionProvider({ children }) {
       hydrated,
       checking,
       hasServer,
+      getToken,
       requestCode,
       verifyCode,
       signOutServer,
@@ -259,6 +265,7 @@ export function SessionProvider({ children }) {
       identity,
       hydrated,
       checking,
+      getToken,
       requestCode,
       verifyCode,
       signOutServer,

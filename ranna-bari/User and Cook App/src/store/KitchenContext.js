@@ -122,7 +122,11 @@ const KitchenContext = createContext(null);
  * to see the ones they have taken off in order to put them back.
  */
 export function KitchenProvider({ children }) {
-  const { token, identity, isVerified } = useSession();
+  const { token, getToken, identity, isVerified } = useSession();
+
+  /* The state copy is a render behind whenever signup calls straight through
+     to `ensureKitchen`, so every request below asks for the live one. */
+  const auth = useCallback(() => getToken() || token, [getToken, token]);
 
   const [kitchen, setKitchen] = useState(null);
   const [hydrated, setHydrated] = useState(false);
@@ -162,8 +166,9 @@ export function KitchenProvider({ children }) {
    * on a new device gets their kitchen overwritten by a blank one.
    */
   const reload = useCallback(async () => {
-    if (!token || !hasServer) return null;
-    const out = await call('/kitchens/mine', { token });
+    const bearer = auth();
+    if (!bearer || !hasServer) return null;
+    const out = await call('/kitchens/mine', { token: bearer });
     if (!out.ok) return null;
 
     setLoaded(true);
@@ -195,10 +200,11 @@ export function KitchenProvider({ children }) {
 
   const save = useCallback(
     async (patch) => {
-      if (!token) return { ok: false, error: 'unauthenticated' };
+      const bearer = auth();
+      if (!bearer) return { ok: false, error: 'unauthenticated' };
       setSaving(true);
       try {
-        const out = await call('/kitchens/mine', { method: 'POST', token, body: patch });
+        const out = await call('/kitchens/mine', { method: 'POST', token: bearer, body: patch });
         if (!out.ok) return out;
         await reload();
         return { ok: true, result: out.result };
@@ -206,7 +212,7 @@ export function KitchenProvider({ children }) {
         setSaving(false);
       }
     },
-    [token, reload],
+    [auth, reload],
   );
 
   /**
