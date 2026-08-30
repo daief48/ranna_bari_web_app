@@ -782,6 +782,8 @@ export const bn = {
   '{d} away': '{d} দূরে',
   Nearby: 'খুব কাছে',
 
+  'No delivery address on file.': 'কোনো ডেলিভারি ঠিকানা দেওয়া নেই।',
+
   'Check the {field} and try again.': '{field} ঠিক আছে কিনা দেখে আবার চেষ্টা করুন।',
   'Something in that was not valid. Try again.': 'কিছু একটা ঠিক ছিল না। আবার চেষ্টা করুন।',
 

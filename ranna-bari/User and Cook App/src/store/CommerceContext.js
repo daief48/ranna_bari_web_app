@@ -66,6 +66,33 @@ import { call, hasServer } from '../lib/server';
  * phone that already holds a copy of the old cache does not carry it around
  * for ever. Nothing reads them.
  */
+/**
+ * One order, in the words the screens use.
+ *
+ * `shapeOrder` on the server answers `lines`, `amount`, `cookName` and a
+ * flat `customerName`/`phone`. Every order screen in this app predates that
+ * and reads `items`, `total`, `chefName` and `contact` — so the receipt ran
+ * `order.items.map(...)` on something that was never sent under that name and
+ * took the screen down with it.
+ *
+ * Translating once here rather than renaming across five screens: the two
+ * vocabularies stay one function apart instead of scattered, and a cook's
+ * order list and a customer's receipt cannot drift into disagreeing about
+ * which is right.
+ */
+const asOrder = (o) =>
+  !o
+    ? o
+    : {
+        ...o,
+        items: o.items ?? o.lines ?? [],
+        total: o.total ?? o.amount ?? 0,
+        chefName: o.chefName ?? o.cookName ?? '',
+        contact: o.contact ?? { name: o.customerName ?? '', phone: o.phone ?? '' },
+      };
+
+const asOrders = (list) => (Array.isArray(list) ? list.map(asOrder) : []);
+
 const DEAD_CACHE_KEYS = [
   'rannabari_commerce_cache_v3',
   'rannabari_server_chefs',
@@ -343,7 +370,7 @@ export function CommerceProvider({ children }) {
       fields.meals = [...own, ...rest];
     }
 
-    if (orders.ok) fields.orders = orders.result.orders ?? [];
+    if (orders.ok) fields.orders = asOrders(orders.result.orders);
     if (notifications.ok) fields.notifications = notifications.result.notifications ?? [];
     if (requests.ok) fields.requests = requests.result.requests ?? [];
     if (cart.ok) fields.cart = cart.result.cart ?? EMPTY.cart;
@@ -593,10 +620,10 @@ export function CommerceProvider({ children }) {
       commit({
         ...live.current,
         orders: live.current.orders.some((o) => String(o.id) === id)
-          ? live.current.orders.map((o) => (String(o.id) === id ? out.result.order : o))
-          : [out.result.order, ...live.current.orders],
+          ? live.current.orders.map((o) => (String(o.id) === id ? asOrder(out.result.order) : o))
+          : [asOrder(out.result.order), ...live.current.orders],
       });
-      return out.result.order;
+      return asOrder(out.result.order);
     },
     [token, commit],
   );
@@ -754,7 +781,7 @@ export function CommerceProvider({ children }) {
       kitchenId ? call('/preorders', { token }) : null,
     ]);
     const fields = {};
-    if (orders.ok) fields.orders = orders.result.orders ?? [];
+    if (orders.ok) fields.orders = asOrders(orders.result.orders);
     if (preorders?.ok) fields.preorders = preorders.result.preorders ?? [];
     if (Object.keys(fields).length) patch(fields);
   }, [token, kitchenId, patch]);
@@ -1056,7 +1083,7 @@ export function CommerceProvider({ children }) {
           },
           /* A basket spanning two shops comes back as two orders, and the
              screen routes to the first one's receipt. */
-          shape: (r) => r.orders ?? [],
+          shape: (r) => asOrders(r.orders),
         }),
       acceptPreorder: (orderId) =>
         write(`/preorders/${orderId}/accept`, {

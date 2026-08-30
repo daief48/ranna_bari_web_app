@@ -360,7 +360,7 @@ export default function OrderScreen() {
             <CardHeading icon="pot" title={order.chefName || 'Your order'} />
 
             <View style={{ gap: 12, marginBottom: 20 }}>
-              {order.items.map((i) => (
+              {(order.items ?? []).map((i) => (
                 <View
                   key={i.id}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
@@ -443,18 +443,26 @@ export default function OrderScreen() {
           <View style={[card(colors), shadow.sm, { marginTop: 16 }]}>
             <CardHeading icon="navigation" title={t('Delivering to')} />
 
-            <Detail icon="user" text={order.contact.name} />
-            <Detail icon="phone" text={order.contact.phone} />
-            <Detail
-              icon="pin"
-              text={[order.address.line, order.address.area]
-                .filter(Boolean)
-                .join(', ')}
-              badge={order.address.label}
-            />
-            {order.address.instructions ? (
-              <Detail icon="alertCircle" text={order.address.instructions} />
-            ) : null}
+            <Detail icon="user" text={order.contact?.name || '—'} />
+            <Detail icon="phone" text={order.contact?.phone || '—'} />
+            {/* Null for an account that never set an address, so this asks
+                rather than assuming. */}
+            {order.address ? (
+              <>
+                <Detail
+                  icon="pin"
+                  text={[order.address.line, order.address.area]
+                    .filter(Boolean)
+                    .join(', ')}
+                  badge={order.address.label}
+                />
+                {order.address.instructions ? (
+                  <Detail icon="alertCircle" text={order.address.instructions} />
+                ) : null}
+              </>
+            ) : (
+              <Detail icon="pin" text={t('No delivery address on file.')} />
+            )}
           </View>
         </Reveal>
 

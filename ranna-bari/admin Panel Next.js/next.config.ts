@@ -19,6 +19,13 @@ const config: NextConfig = {
   images: { remotePatterns: [{ protocol: 'https', hostname: '**' }] },
   typedRoutes: false,
 
+  // Bundle the SQLite database file with every serverless lambda so that
+  // Prisma can find it at runtime on Netlify (file tracing alone is not
+  // enough — the DB file is generated at build time, not imported).
+  outputFileTracingIncludes: {
+    '**': ['./dev.db', './prisma/dev.db'],
+  },
+
   async headers() {
     return [
       {

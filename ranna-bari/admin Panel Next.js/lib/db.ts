@@ -1,7 +1,12 @@
+import path from 'path';
 import { PrismaClient } from '@prisma/client';
 
 if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = 'file:./dev.db';
+  // __dirname here resolves to the directory of this compiled module.
+  // Using an absolute path ensures Prisma can find dev.db both locally
+  // and inside Netlify's serverless lambda (where CWD is unpredictable).
+  const dbPath = path.resolve(__dirname, '../dev.db');
+  process.env.DATABASE_URL = `file:${dbPath}`;
 }
 
 

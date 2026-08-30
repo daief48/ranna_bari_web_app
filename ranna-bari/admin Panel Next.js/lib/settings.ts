@@ -127,18 +127,22 @@ export async function getSettings(): Promise<PlatformSettings> {
   const cached = holder[CACHE_KEY];
   if (cached && Date.now() - cached.at < 5_000) return cached.value;
 
-  const rows = await db.setting.findMany();
-  const value = { ...DEFAULT_SETTINGS };
-  for (const row of rows) {
-    if (!(row.key in value)) continue;
-    const parsed = Number(JSON.parse(row.value));
-    if (Number.isFinite(parsed)) {
-      (value as unknown as Record<string, number>)[row.key] = parsed;
+  try {
+    const rows = await db.setting.findMany();
+    const value = { ...DEFAULT_SETTINGS };
+    for (const row of rows) {
+      if (!(row.key in value)) continue;
+      const parsed = Number(JSON.parse(row.value));
+      if (Number.isFinite(parsed)) {
+        (value as unknown as Record<string, number>)[row.key] = parsed;
+      }
     }
+    holder[CACHE_KEY] = { at: Date.now(), value };
+    return value;
+  } catch {
+    // Database unavailable (e.g. Netlify cold start before DB is accessible)
+    return { ...DEFAULT_SETTINGS };
   }
-
-  holder[CACHE_KEY] = { at: Date.now(), value };
-  return value;
 }
 
 export function invalidateSettings() {
@@ -168,7 +172,12 @@ export const DEFAULT_FLAGS = [
 ];
 
 export async function getFlags() {
-  const rows = await db.featureFlag.findMany({ orderBy: { key: 'asc' } });
-  if (rows.length) return rows;
+  try {
+    const rows = await db.featureFlag.findMany({ orderBy: { key: 'asc' } });
+    if (rows.length) return rows;
+  } catch {
+    // Database unavailable — return defaults
+  }
   return DEFAULT_FLAGS.map((f) => ({ ...f, updatedAt: new Date(), updatedBy: null }));
 }
+
