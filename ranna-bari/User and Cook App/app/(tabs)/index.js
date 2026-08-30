@@ -254,7 +254,9 @@ export default function HomeScreen() {
                 onChangeText={setArea}
                 onSubmitEditing={search}
                 returnKeyType="search"
-                placeholder={t('Search a dish, kitchen or area…')}
+                /* The full sentence is cut off mid-word in a 320px field, which
+                     reads as a rendering fault rather than as a hint. */
+                placeholder={r.xs ? t('Search food or kitchens…') : t('Search a dish, kitchen or area…')}
                 placeholderTextColor={colors.textLight}
                 style={{
                   fontFamily: font.ui,
@@ -843,27 +845,38 @@ export default function HomeScreen() {
   );
 }
 
+/**
+ * The dot positions, worked out once.
+ *
+ * 198 absolutely-positioned dots at 5% opacity — texture behind the map tile,
+ * not content. The positions never change, so building them inside the
+ * component meant every render of the home screen produced 198 fresh elements
+ * for React to reconcile in service of something nobody consciously sees.
+ *
+ * Only the colour varies with the theme, so that stays a prop and the
+ * geometry is shared.
+ */
+const DOT_POSITIONS = Array.from({ length: 9 }, (_, y) =>
+  Array.from({ length: 22 }, (_, x) => ({ key: `${x}-${y}`, left: x * 20, top: y * 20 })),
+).flat();
+
 /** `.map-bg-pattern` — the 20px dot grid at 5% opacity behind the map tile. */
 function DotGrid({ color }) {
-  const dots = [];
-  for (let y = 0; y < 9; y++) {
-    for (let x = 0; x < 22; x++) {
-      dots.push(
-        <View
-          key={`${x}-${y}`}
-          style={{
-            position: 'absolute',
-            left: x * 20,
-            top: y * 20,
-            width: 2,
-            height: 2,
-            borderRadius: 1,
-            backgroundColor: color,
-          }}
-        />,
-      );
-    }
-  }
+  const dots = DOT_POSITIONS.map((d) => (
+    <View
+      key={d.key}
+      style={{
+        position: 'absolute',
+        left: d.left,
+        top: d.top,
+        width: 2,
+        height: 2,
+        borderRadius: 1,
+        backgroundColor: color,
+      }}
+    />
+  ));
+
   return (
     <View
       pointerEvents="none"

@@ -15,6 +15,7 @@ import Icon from './Icon';
 import { Price } from './Typography';
 import { useTheme } from '../theme/ThemeProvider';
 import { font, radius, tracking, type } from '../theme/tokens';
+import { photo } from '../lib/image';
 import { useLang } from '../i18n/LanguageContext';
 import { formatDistance } from '../lib/geo';
 
@@ -182,8 +183,12 @@ export function ProductCard({ product, availability, onPress, onAdd, wide }) {
       <View>
         {image ? (
           <Image
-            source={{ uri: image }}
+            /* Two to a row on a phone, so about half the widest screen. The
+               stored URL is an 800×800 square — four times the pixels this
+               tile can show, on a grid that draws eight of them. */
+            source={photo(image, wide ? 220 : 215, 120)}
             contentFit="cover"
+            cachePolicy="memory-disk"
             transition={200}
             style={{ width: '100%', height: 120, backgroundColor: colors.sunken }}
           />
@@ -443,7 +448,8 @@ export function StoreCard({ store, km, products, onPress, onSave, saved = false 
     >
       <View>
         <Image
-          source={{ uri: store.cover }}
+          source={photo(store.cover, 430, 110)}
+          cachePolicy="memory-disk"
           contentFit="cover"
           transition={200}
           style={{ width: '100%', height: 110, backgroundColor: colors.sunken }}
@@ -487,7 +493,8 @@ export function StoreCard({ store, km, products, onPress, onSave, saved = false 
 
       <View style={{ flexDirection: 'row', gap: 12, padding: 14 }}>
         <Image
-          source={{ uri: store.logo }}
+          source={photo(store.logo, 46, 46)}
+          cachePolicy="memory-disk"
           contentFit="cover"
           transition={200}
           style={{

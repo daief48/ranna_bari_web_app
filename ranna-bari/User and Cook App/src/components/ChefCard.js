@@ -8,6 +8,7 @@ import Icon from './Icon';
 import Reveal from './Reveal';
 import { EcoBadge, Tag } from './Surfaces';
 import { useTheme } from '../theme/ThemeProvider';
+import { photo } from '../lib/image';
 import { useLang } from '../i18n/LanguageContext';
 import { useAuth } from '../store/AuthContext';
 import { distanceKm, formatDistance } from '../lib/geo';
@@ -97,7 +98,9 @@ export default function ChefCard({ chef, index = 0 }) {
           }}
         >
           <Image
-            source={{ uri: chef.avatar }}
+            /* A 64px portrait. The stored avatar is a 200px square. */
+            source={photo(chef.avatar, 64, 64)}
+            cachePolicy="memory-disk"
             contentFit="cover"
             transition={200}
             style={[

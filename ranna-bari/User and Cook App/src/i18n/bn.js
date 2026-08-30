@@ -760,6 +760,8 @@ export const bn = {
 
   /* ---------------- search ---------------- */
   'Search a dish, kitchen or area…': 'পদ, রান্নাঘর বা এলাকা খুঁজুন…',
+  /* The short form, for a 320px field where the long one is cut off. */
+  'Search food or kitchens…': 'খাবার বা রান্নাঘর খুঁজুন…',
   'Clear search': 'খোঁজা মুছুন',
   From: 'যেখান থেকে',
   '{n} dish': '{n}টি পদ',

@@ -679,7 +679,9 @@ export default function BrowseScreen() {
               setQuery(draft);
               remember(draft);
             }}
-            placeholder={t('Search a dish, kitchen or area…')}
+            /* The full sentence is cut off mid-word in a 320px field, which
+                     reads as a rendering fault rather than as a hint. */
+                placeholder={r.xs ? t('Search food or kitchens…') : t('Search a dish, kitchen or area…')}
             placeholderTextColor={colors.textLight}
             returnKeyType="search"
             style={{

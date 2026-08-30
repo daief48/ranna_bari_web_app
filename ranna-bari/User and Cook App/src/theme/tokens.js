@@ -193,6 +193,8 @@ export const radius = {
 /** Phone gutter — the CSS `--page-gutter` at the 768 / 480 breakpoints. */
 export const GUTTER = 16;
 export const GUTTER_SM = 14;
+/** Narrower again below 360px, where 14 a side leaves a card looking boxed in. */
+export const GUTTER_XS = 12;
 
 /* ---------------- script-aware typography ---------------- */
 

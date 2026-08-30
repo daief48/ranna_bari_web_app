@@ -839,32 +839,39 @@ function Stat({ value, label }) {
 }
 
 /** White dot field at low opacity — depth without another image asset. */
+/**
+ * A dot field, built once.
+ *
+ * 280 absolutely-positioned dots at 0.14 opacity — texture, not content.
+ * It used to be rebuilt inside the component, so every render of the card
+ * around it produced 280 fresh elements for React to reconcile in
+ * service of something nobody consciously sees. The positions never change,
+ * so the array is made at module scope and reused.
+ */
+const DOT_FIELD =  Array.from({ length: 14 }, (_, y) =>
+  Array.from({ length: 20 }, (_, x) => (
+    <View
+      key={`${x}-${y}`}
+      style={{
+        position: 'absolute',
+        left: x * 20,
+        top: y * 20,
+        width: 2,
+        height: 2,
+        borderRadius: 1,
+        backgroundColor: '#FFFFFF',
+      }}
+    />
+  )),
+).flat();
+
 function CardDots() {
-  const dots = [];
-  for (let y = 0; y < 14; y++) {
-    for (let x = 0; x < 20; x++) {
-      dots.push(
-        <View
-          key={`${x}-${y}`}
-          style={{
-            position: 'absolute',
-            left: x * 20,
-            top: y * 20,
-            width: 2,
-            height: 2,
-            borderRadius: 1,
-            backgroundColor: '#FFFFFF',
-          }}
-        />,
-      );
-    }
-  }
   return (
     <View
       pointerEvents="none"
       style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.14 }}
     >
-      {dots}
+      {DOT_FIELD}
     </View>
   );
 }

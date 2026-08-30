@@ -14,6 +14,7 @@ import Icon from './Icon';
 import { Price } from './Typography';
 import { useTheme } from '../theme/ThemeProvider';
 import { font, radius, tracking, type } from '../theme/tokens';
+import { photo } from '../lib/image';
 import { useLang } from '../i18n/LanguageContext';
 import { formatDistance } from '../lib/geo';
 import { slotMeta, todayKey, tomorrowKey } from '../store/CommerceContext';
@@ -204,7 +205,10 @@ export function MealCard({ meal, km, remaining, interested, onPress, wide }) {
     >
       <View>
         <Image
-          source={{ uri: meal.image }}
+          /* Full width of the card, 132 tall — not the 800px square the dish
+             photograph is stored as, on a board that lists a dozen. */
+          source={photo(meal.image, 430, 132)}
+          cachePolicy="memory-disk"
           contentFit="cover"
           transition={200}
           style={{ width: '100%', height: 132, backgroundColor: colors.sunken }}
