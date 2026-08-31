@@ -15,6 +15,9 @@ import { useSession } from './SessionContext';
 
 const OUTBOX_KEY = 'rannabari_chat_outbox';
 
+/** How often to pull, while there is no socket to be pushed down. */
+const POLL_MS = 6_000;
+
 const ChatContext = createContext(null);
 
 /** A message id the device owns, generated before the message leaves it. */
@@ -39,6 +42,13 @@ const makeClientId = () =>
  *
  * The socket carries *delivery* only. Sending is an HTTP POST, because a send
  * needs a status code to act on and a WebSocket frame has none.
+ *
+ * Delivery has two implementations for the same reason. The socket is the
+ * good one and needs a host that keeps a process alive; the deployed backend
+ * is on serverless functions, which cannot, so there is also a poll that runs
+ * whenever the socket is down. Both write through the same `loadThreads` and
+ * `loadMessages`, so nothing downstream knows or cares which one is feeding
+ * it — see the polling effect below.
  */
 export function ChatProvider({ children }) {
   const { token, isVerified } = useSession();
@@ -56,6 +66,11 @@ export function ChatProvider({ children }) {
   const attemptRef = useRef(0);
   const activeRef = useRef(null);
   const drainingRef = useRef(false);
+  /* Whether the poll below is getting answers. The socket cannot be the only
+     judge of "connected" any more: on a host that refuses the upgrade it is
+     permanently closed, and its close handler would otherwise hold both chat
+     screens on "Reconnecting…" while messages arrived perfectly well. */
+  const pollOkRef = useRef(false);
 
   /* ---------------- outbox persistence ---------------- */
 
@@ -75,28 +90,67 @@ export function ChatProvider({ children }) {
 
   /* ---------------- reads ---------------- */
 
-  const loadThreads = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const out = await api('/chat/threads', { token });
-      setThreads(out.threads ?? []);
-    } catch {
-      // An inbox that cannot load is not an error worth a dialog; the cached
-      // list stays on screen and the next refresh tries again.
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+  /**
+   * Pull the inbox. Answers whether the server was actually reachable.
+   *
+   * `quiet` is for the background poll below: the inbox screen drives a
+   * pull-to-refresh spinner off `loading`, and a timer that flips it every
+   * few seconds would spin that control on its own, which reads as the app
+   * doing something the user did not ask for.
+   */
+  const loadThreads = useCallback(
+    async ({ quiet = false } = {}) => {
+      if (!token) return false;
+      if (!quiet) setLoading(true);
+      try {
+        const out = await api('/chat/threads', { token });
+        setThreads(out.threads ?? []);
+        return true;
+      } catch {
+        // An inbox that cannot load is not an error worth a dialog; the cached
+        // list stays on screen and the next refresh tries again.
+        return false;
+      } finally {
+        if (!quiet) setLoading(false);
+      }
+    },
+    [token],
+  );
 
+  /**
+   * Pull a transcript, without losing what has not been sent yet.
+   *
+   * The server list is authoritative for everything it knows about, but it
+   * cannot know about a message still sitting in the outbox. Replacing the
+   * array wholesale would make an offline message vanish from the screen and
+   * come back when it finally posts — so anything still `pending` or `failed`
+   * that the server has not echoed is carried over and kept at the end, where
+   * it was written.
+   */
   const loadMessages = useCallback(
     async (threadId) => {
-      if (!token || !threadId) return;
+      if (!token || !threadId) return false;
       try {
         const out = await api(`/chat/messages?threadId=${threadId}`, { token });
-        setMessages((prev) => ({ ...prev, [threadId]: out.messages ?? [] }));
+        const incoming = out.messages ?? [];
+
+        setMessages((prev) => {
+          const known = new Set();
+          for (const m of incoming) {
+            if (m.id) known.add(m.id);
+            if (m.clientId) known.add(m.clientId);
+          }
+
+          const unsent = (prev[threadId] ?? []).filter(
+            (m) => (m.pending || m.failed) && !known.has(m.clientId) && !known.has(m.id),
+          );
+
+          return { ...prev, [threadId]: [...incoming, ...unsent] };
+        });
+        return true;
       } catch {
         /* keep whatever is already rendered */
+        return false;
       }
     },
     [token],
@@ -139,7 +193,7 @@ export function ChatProvider({ children }) {
       };
 
       socket.onclose = () => {
-        setConnected(false);
+        setConnected(pollOkRef.current);
         if (closed) return;
         /* Exponential backoff, capped. A phone that loses signal in a lift
            should not spend the outage opening sockets. */
@@ -220,7 +274,7 @@ export function ChatProvider({ children }) {
       const socket = socketRef.current;
       if (!socket || socket.readyState > 1) {
         attemptRef.current = 0;
-        setConnected(false);
+        setConnected(pollOkRef.current);
       } else {
         drain();
         loadThreads();
@@ -229,6 +283,93 @@ export function ChatProvider({ children }) {
     return () => sub.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, loadThreads]);
+
+  /* ---------------- delivery without a socket ---------------- */
+
+  /**
+   * Poll, for as long as the socket is not up.
+   *
+   * The socket above is correct and stays. What it cannot do is survive the
+   * hosting: `backend-node` serves `/ws` from a long-lived Node process, and
+   * the deploy is Netlify functions, where a request is a Lambda invocation
+   * with no upgrade path. The handshake never completes, so `connect()` loops
+   * on its backoff forever and every screen sits on "Reconnecting…".
+   *
+   * Sending was never affected — that is an HTTP POST and always was. What
+   * goes missing is *delivery*: a reply exists on the server and the phone
+   * has no idea, so messages appear only when you leave the thread and come
+   * back. Pulling on a timer is the honest fix for a host that cannot hold a
+   * connection open.
+   *
+   * This stands down on its own. The first tick after a socket opens sees an
+   * open socket and returns, so moving the backend to a host that keeps Node
+   * up costs nothing here and changes nothing else.
+   */
+  useEffect(() => {
+    if (!token || !isVerified) return undefined;
+
+    let cancelled = false;
+    let inFlight = false;
+    let tick = 0;
+
+    const poll = async () => {
+      if (cancelled || inFlight) return;
+      // A live socket is already delivering. Polling on top of it would be
+      // the same work twice, on a battery.
+      if (socketRef.current?.readyState === 1) return;
+      // A backgrounded app has nobody looking at it.
+      if (AppState.currentState !== 'active') return;
+
+      inFlight = true;
+      try {
+        const threadId = activeRef.current;
+
+        /* The open thread every tick, the inbox every fourth. An unread badge
+           can be a minute stale; the conversation somebody is reading cannot. */
+        const results = [];
+        if (threadId) results.push(await loadMessages(threadId));
+
+        if (!threadId || tick % 4 === 0) {
+          /* A message that arrives while the thread is open has been read the
+             moment it renders, but the server only learns that from a receipt
+             — and `setActive` sent one on open, before this message existed.
+             Without a second receipt the inbox refresh below hands back a
+             badge for a conversation the user is looking at. */
+          if (threadId) {
+            await api('/chat/read', { method: 'POST', token, body: { threadId } }).catch(
+              () => {},
+            );
+          }
+          results.push(await loadThreads({ quiet: true }));
+          if (threadId && !cancelled) {
+            setThreads((prev) =>
+              prev.map((t) => (t.id === threadId ? { ...t, unread: 0 } : t)),
+            );
+          }
+        }
+        tick += 1;
+
+        /* `connected` means "chat is reaching the server", not "a socket is
+           open" — it drives the dot both chat screens render, and a desk that
+           is answering over polling is not offline. */
+        if (results.length) {
+          const reachable = results.some(Boolean);
+          pollOkRef.current = reachable;
+          if (!cancelled) setConnected(reachable);
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void poll();
+    const interval = setInterval(poll, POLL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [token, isVerified, loadMessages, loadThreads]);
 
   /* ---------------- sending ---------------- */
 

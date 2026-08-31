@@ -10,9 +10,8 @@ export const dynamic = 'force-dynamic';
  * The support desk.
  *
  * Server-rendered once with the inbox and whichever thread is open, then
- * handed to a client component that keeps it live over the socket. The first
- * paint is real data rather than a spinner, and everything after it arrives
- * without asking.
+ * handed to a client component that keeps it live. The first paint is real
+ * data rather than a spinner, and everything after it arrives without asking.
  *
  * On the backend now, through `/api/admin/v1/chat/*`. That surface was the
  * open question this file used to describe: chat is served to the phone under
@@ -22,6 +21,12 @@ export const dynamic = 'force-dynamic';
  * the client, the backend grew an admin-prefixed desk: the same
  * `logic/chat.ts` underneath, the same `visibleTo()` authorisation, and no
  * path through it that can construct a customer viewer.
+ *
+ * "Live" is a poll, not a socket, and that is a hosting fact rather than a
+ * preference: the panel runs on serverless functions, which cannot hold a
+ * connection open. The desk therefore needs same-origin routes to poll —
+ * `app/api/admin/v1/chat/*` — because the service token `lib/backend.ts`
+ * signs with is a secret and cannot be handed to a browser.
  */
 export default async function ChatPage({
   searchParams,

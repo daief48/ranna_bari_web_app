@@ -36,6 +36,8 @@ export type Thread = {
 
 export type Message = {
   id: string;
+  /** The sender's own key for this message; the backend's replay guard. */
+  clientId?: string | null;
   senderType: string;
   senderName: string;
   body: string;
@@ -120,12 +122,23 @@ export function ChatDesk({
             if (!cancelled && data.messages) {
               setMessages((prev) => {
                 const incoming: Message[] = data.messages;
-                const knownIds = new Set(prev.map((m) => m.id));
-                const next = [...prev];
+
+                /* The server list is the truth, and it is already ordered.
+                   The only thing it cannot know about is a reply still in
+                   flight — that row is held under the `clientId` the POST was
+                   sent with, so matching on it is what stops a message the
+                   server has since stored from being drawn a second time. */
+                const known = new Set<string>();
                 for (const msg of incoming) {
-                  if (!knownIds.has(msg.id)) next.push(msg);
+                  known.add(msg.id);
+                  if (msg.clientId) known.add(msg.clientId);
                 }
-                return next;
+
+                const inFlight = prev.filter(
+                  (m) => !known.has(m.id) && !(m.clientId && known.has(m.clientId)),
+                );
+
+                return [...incoming, ...inFlight];
               });
             }
           }
@@ -176,6 +189,9 @@ export function ChatDesk({
     const clientId = `admin-${crypto.randomUUID()}`;
     const optimistic: Message = {
       id: clientId,
+      /* Carried so a poll that lands before the POST answers recognises the
+         stored copy as this row rather than as a second message. */
+      clientId,
       senderType: 'admin',
       senderName: me.name,
       body,

@@ -45,8 +45,3 @@ export async function POST(request: Request) {
     throw error;
   }
 }
-
-/** Preflight. The headers themselves come from `next.config.ts`. */
-export function OPTIONS() {
-  return new Response(null, { status: 204 });
-}
