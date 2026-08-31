@@ -18,6 +18,7 @@ import { taka } from '@/lib/format';
 export function OrderControls({
   orderId,
   code,
+  kind,
   status,
   payment,
   amount,
@@ -29,6 +30,7 @@ export function OrderControls({
 }: {
   orderId: string;
   code: string;
+  kind: string;
   status: string;
   payment: string;
   amount: number;
@@ -56,6 +58,37 @@ export function OrderControls({
 
   const settled = ['completed', 'cancelled', 'rejected'].includes(status);
   const held = payment === 'held';
+
+  /**
+   * Why the money buttons are off, in the operator's terms.
+   *
+   * "Nothing is held against this order" is true of four quite different
+   * situations and an operator staring at a dead Release button cannot tell
+   * which one they are in. Cash on delivery is the one that confuses: there
+   * is no escrow to release *by design* — the customer pays the rider at the
+   * door and the cook already has the money — so the button is not broken and
+   * never will be enabled on this order.
+   */
+  const moneyNote = held
+    ? 'Releasing splits the held amount between the cook and the platform. Both post to the ledger; neither can be edited afterwards.'
+    : kind === 'cod'
+      ? 'Cash on delivery: the customer pays the rider at the door, so the platform never holds this money and there is nothing to release. The cook was paid in cash.'
+      : payment === 'released'
+        ? 'Already released to the cook. The ledger is append-only, so this cannot be undone — only corrected with an entry in the opposite direction.'
+        : payment === 'refunded'
+          ? 'Already refunded to the customer. Nothing is left in escrow.'
+          : 'Nothing is held against this order.';
+
+  /** The same sentence, short enough for a tooltip on the dead button. */
+  const whyOff = held
+    ? undefined
+    : kind === 'cod'
+      ? 'Cash on delivery — the platform never held this money'
+      : payment === 'released'
+        ? 'Already released'
+        : payment === 'refunded'
+          ? 'Already refunded'
+          : 'Nothing is held against this order';
 
   if (!canWrite && !canMoney && !canDispute) {
     return (
@@ -109,19 +142,16 @@ export function OrderControls({
       {canMoney ? (
         <div>
           <div className="label mb-1.5">Move the money</div>
-          <p className="mb-2 text-[11.5px] leading-relaxed text-ink3">
-            {held
-              ? 'Releasing splits the held amount between the cook and the platform. Both post to the ledger; neither can be edited afterwards.'
-              : 'Nothing is held against this order.'}
-          </p>
+          <p className="mb-2 text-[11.5px] leading-relaxed text-ink3">{moneyNote}</p>
 
           <ActionButton
             action={() => forceRelease(orderId, 'Released by an operator')}
             variant="good"
             disabled={!held}
+            title={whyOff}
             confirm={`Release ${taka(amount)} on ${code}? This cannot be undone — only corrected with a new entry.`}
           >
-            Release to cook
+            {payment === 'released' ? 'Already released' : 'Release to cook'}
           </ActionButton>
 
           <div className="mt-3 border-t border-line pt-3">
@@ -145,9 +175,10 @@ export function OrderControls({
               action={() => forceRefund(orderId, Number(refundAmount), refundReason)}
               variant="danger"
               disabled={!held || !refundReason.trim()}
+              title={whyOff}
               confirm={`Refund ${taka(Number(refundAmount) || 0)} to the customer?`}
             >
-              Refund
+              {payment === 'refunded' ? 'Already refunded' : 'Refund'}
             </ActionButton>
           </div>
         </div>

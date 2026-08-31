@@ -372,6 +372,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         <OrderControls
           orderId={order.id}
           code={order.code}
+          kind={order.kind}
           status={order.status}
           payment={order.payment}
           amount={order.amount}
