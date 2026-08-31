@@ -45,6 +45,7 @@ type MealView = {
   kitchenId: string;
   title: string;
   description: string;
+  image: string;
   price: number;
   capacity: number;
   serveDate: string;
@@ -121,6 +122,11 @@ export default async function MealDetail({ params }: { params: Promise<{ id: str
      would look at this screen. */
   const converted = interested.length > 0 ? sold / interested.length : null;
   const past = new Date(meal.deadline).getTime() < Date.now();
+
+  /* Only an absolute http(s) URL is worth putting in an `<img>`. Anything else
+     — most often a `blob:` from the web picker — renders as a broken frame
+     that looks like the panel's fault rather than the record's. */
+  const servable = /^https?:\/\//i.test(meal.image ?? '');
 
   return (
     <>
@@ -217,11 +223,39 @@ export default async function MealDetail({ params }: { params: Promise<{ id: str
         </Card>
       </Grid>
 
-      {meal.description ? (
-        <Card className="mt-3" title="Description">
-          <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-ink2">
-            {meal.description}
-          </p>
+      {meal.image || meal.description ? (
+        <Card className="mt-3" title="What the customer sees">
+          {servable ? (
+            /* Not next/image: these are arbitrary cook-supplied URLs on hosts
+               the panel does not control, and the optimiser would need each
+               one allow-listed. */
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={meal.image}
+              alt=""
+              className="mb-3 max-h-[320px] w-full rounded-[10px] border border-line object-cover"
+            />
+          ) : meal.image ? (
+            /* A `blob:` or `file:` URL is a handle into one browser tab's
+               memory, not a location. It cannot load here, on another device,
+               or in the app itself once that tab is gone — so the row has, in
+               effect, no image, and saying so is more use than a broken frame. */
+            <div className="mb-3 rounded-[10px] border border-saffron-100 bg-saffron-50 px-3.5 py-3 text-[12.5px] leading-relaxed text-ink2">
+              <strong className="text-saffron">This image cannot load anywhere.</strong>{' '}
+              It was saved as <code className="break-all">{meal.image.slice(0, 48)}…</code>,
+              which is a handle into the memory of the one browser tab that picked
+              the file. It is already dead — in the app too, not just here. The cook
+              needs to re-add the photo from their phone.
+            </div>
+          ) : null}
+
+          {meal.description ? (
+            <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-ink2">
+              {meal.description}
+            </p>
+          ) : (
+            <p className="text-[13px] text-ink3">No description.</p>
+          )}
         </Card>
       ) : null}
 

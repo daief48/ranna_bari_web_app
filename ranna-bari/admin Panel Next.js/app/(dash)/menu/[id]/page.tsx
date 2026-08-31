@@ -68,6 +68,11 @@ export default async function DishDetailPage({
   const { dish, kitchen, siblings, store } = data;
   const tags = tagsOf(dish.tags);
 
+  /* Only an absolute http(s) URL is worth putting in an `<img>`. Anything else
+     — most often a `blob:` from the web picker — renders as a broken frame
+     that looks like the panel's fault rather than the record's. */
+  const servable = /^https?:\/\//i.test(dish.image ?? '');
+
   /* Where this price sits on its own menu. A number is high or low against
      the cook's other dishes, not against the platform. */
   const prices = [dish, ...siblings].map((d) => d.price).sort((a, b) => a - b);
@@ -140,13 +145,27 @@ export default async function DishDetailPage({
 
       <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
         <Card title="The dish" className="lg:col-span-2">
-          {dish.image ? (
+          {servable ? (
+            /* Not next/image: these are arbitrary cook-supplied URLs on hosts
+               the panel does not control, and the optimiser would need each
+               one allow-listed. */
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={dish.image}
               alt=""
               className="mb-3 h-44 w-full rounded-[10px] border border-line object-cover"
             />
+          ) : dish.image ? (
+            /* A `blob:` or `file:` URL is a handle into one browser tab's
+               memory, not a location. It cannot load here, on another device,
+               or in the app itself once that tab is gone. */
+            <div className="mb-3 rounded-[10px] border border-saffron-100 bg-saffron-50 px-3.5 py-3 text-[12.5px] leading-relaxed text-ink2">
+              <strong className="text-saffron">This image cannot load anywhere.</strong>{' '}
+              It was saved as <code className="break-all">{dish.image.slice(0, 48)}…</code>,
+              which is a handle into the memory of the one browser tab that picked the
+              file. It is already dead — in the app too, not just here. The cook needs
+              to re-add the photo from their phone.
+            </div>
           ) : null}
 
           <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-ink2">
