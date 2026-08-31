@@ -186,6 +186,22 @@ export function OrderControls({
         </div>
       ) : null}
 
+      {/* Money is finance's job, so this column is simply absent for
+          operations and support — and an absent column explains nothing. An
+          operator looking for the Release button on an order that is plainly
+          holding money should be told it exists and who has it, rather than
+          be left to conclude the panel is broken. */}
+      {!canMoney && held ? (
+        <div>
+          <div className="label mb-1.5">Move the money</div>
+          <p className="text-[11.5px] leading-relaxed text-ink3">
+            {taka(amount)} is held against this order and your role cannot release
+            it. Releasing and refunding belong to <strong>finance</strong> — sign in
+            as a finance or super-admin operator to do it here.
+          </p>
+        </div>
+      ) : null}
+
       {canDispute ? (
         <div>
           <div className="label mb-1.5">Open a case</div>
