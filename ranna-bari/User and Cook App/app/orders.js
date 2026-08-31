@@ -111,6 +111,19 @@ export default function OrdersScreen() {
                  won request each arrive as a single line with no `qty`, and
                  `undefined` here would render the count as NaN. */
               const count = (order.items ?? []).reduce((s, it) => s + (it.qty ?? 1), 0);
+              /* Only pictures that can actually load, capped at three: an
+                 empty or `blob:` uri renders as a grey square that reads as a
+                 failed load rather than as absent art.
+                 A meal has no lines to take one from, but the order itself
+                 carries an image — so the card falls back to that rather than
+                 going bare. */
+              const usable = (src) => /^https?:\/\//i.test(src ?? '');
+              const linePics = (order.items ?? []).filter((it) => usable(it.image));
+              const pics = linePics.length
+                ? linePics.slice(0, 3)
+                : usable(order.image)
+                  ? [{ id: order.id, image: order.image }]
+                  : [];
 
               return (
                 <Reveal key={order.id} delay={(i % 5) + 1}>
@@ -134,11 +147,20 @@ export default function OrdersScreen() {
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',
-                        gap: 10,
+                        // Wraps rather than squeezing: at 390px the reference
+                        // and two pills do not fit on one line, and without
+                        // this the pills shrink until their text clips.
+                        flexWrap: 'wrap',
+                        gap: 8,
                         marginBottom: 14,
                       }}
                     >
+                      {/* `code` — RB-T4W5HN — not `id`. The id is a 24-character
+                          ObjectId that fills a phone's width on its own, and it
+                          is not the reference either side of a support call
+                          reads out. */}
                       <Text
+                        numberOfLines={1}
                         style={{
                           fontFamily: font.uiBold,
                           fontSize: type.sm,
@@ -147,7 +169,7 @@ export default function OrdersScreen() {
                           fontVariant: ['tabular-nums'],
                         }}
                       >
-                        {order.id}
+                        {order.code || order.id}
                       </Text>
 
                       <View
@@ -197,21 +219,23 @@ export default function OrdersScreen() {
                         </Text>
                       </View>
 
-                      <View style={{ flex: 1 }} />
+                      {/* `flexGrow` rather than `flex: 1`: a spacer that may
+                          not fit must be allowed to collapse to nothing and
+                          let the chevron sit next to the pills, instead of
+                          claiming a basis and pushing it onto its own line. */}
+                      <View style={{ flexGrow: 1, minWidth: 0 }} />
                       <Icon name="chevronRight" size={17} color={colors.textLight} strokeWidth={2} />
                     </View>
 
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                       {/* A stacked peek of the dishes, capped at three.
-                          Filtered on having a usable image: a meal seat and a
-                          won request carry lines with no picture, and an
-                          empty `uri` renders as three grey squares that read
-                          as failed loads rather than as absent art. */}
+                          Rendered only when there is something to show: a
+                          meal seat and a won request carry no pictures, and
+                          an empty stack would still claim the row's 12px gap
+                          and push the name off-centre on a phone. */}
+                      {pics.length ? (
                       <View style={{ flexDirection: 'row' }}>
-                        {(order.items ?? [])
-                          .filter((it) => /^https?:\/\//i.test(it.image ?? ''))
-                          .slice(0, 3)
-                          .map((it, k) => (
+                        {pics.map((it, k) => (
                           <Image
                             key={it.id ?? k}
                             source={{ uri: it.image }}
@@ -229,6 +253,7 @@ export default function OrdersScreen() {
                           />
                         ))}
                       </View>
+                      ) : null}
 
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text
@@ -242,6 +267,10 @@ export default function OrdersScreen() {
                         >
                           {order.chefName || t('RannaBari member')}
                         </Text>
+                        {/* A meal is one seat at one service and carries no
+                            lines at all, so "0 items" was both true and
+                            useless. What the order is beats how many of it
+                            there are; the count returns when there is one. */}
                         <Text
                           numberOfLines={1}
                           style={{
@@ -250,8 +279,10 @@ export default function OrdersScreen() {
                             color: colors.textMuted,
                           }}
                         >
-                          {t(count === 1 ? '{n} item' : '{n} items', { n: n(count) })} ·{' '}
-                          {formatOrderDate(order.createdAt, lang)}
+                          {count > 0
+                            ? t(count === 1 ? '{n} item' : '{n} items', { n: n(count) })
+                            : order.title || t(kind.label)}{' '}
+                          · {formatOrderDate(order.createdAt, lang)}
                         </Text>
                       </View>
 
