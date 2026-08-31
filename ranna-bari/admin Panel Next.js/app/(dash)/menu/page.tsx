@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { get } from '@/lib/backend';
+import { BackendError, get } from '@/lib/backend';
 import { taka } from '@/lib/format';
 import { paging, pageCount } from '@/lib/queries';
 import {
@@ -51,7 +51,36 @@ export default async function MenuPage({
   if (params.available) query.set('available', params.available);
   if (params.kitchen) query.set('kitchenId', params.kitchen);
 
-  const data = await get<DishList>(`/dishes?${query}`).catch(down);
+  /**
+   * `down` swallows only an unreachable backend and re-throws every 4xx,
+   * which is right for a money screen and wrong for exactly one case here:
+   * this board is the first caller of `GET /dishes`, so a backend that has
+   * not picked up that route yet answers 404. That is a deploy still in
+   * flight, not a bug, and it should read as one instead of as a stack trace.
+   */
+  const data = await get<DishList>(`/dishes?${query}`).catch((error: unknown) => {
+    if (error instanceof BackendError && error.status === 404) return 'no-endpoint' as const;
+    return down(error);
+  });
+
+  if (data === 'no-endpoint') {
+    return (
+      <>
+        <PageHeader
+          title="Menus"
+          subtitle="Every dish on every kitchen's menu, on one board"
+        />
+        <div className="rounded-[10px] border border-saffron-100 bg-saffron-50 px-3.5 py-3 text-[13px] leading-relaxed text-ink2">
+          <strong className="text-saffron">This board needs a newer backend.</strong>{' '}
+          It reads <code>GET /dishes</code>, and the backend answering right now does
+          not have that route — it is the one endpoint this screen cannot work
+          around. Nothing is broken: once <code>backend-node</code> redeploys, reload
+          and the menus appear.
+        </div>
+      </>
+    );
+  }
+
   if (!data) {
     return (
       <BackendDown
