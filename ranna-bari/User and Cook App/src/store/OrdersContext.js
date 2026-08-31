@@ -27,9 +27,19 @@ export const ORDER_STEPS = [
 export const stepIndex = (status) =>
   ORDER_STEPS.findIndex((s) => s.key === status);
 
-/** Neither `cancelled` nor `rejected` is a step, so both sit outside the rail. */
+/**
+ * Neither `cancelled` nor `rejected` is a step, so both sit outside the rail.
+ *
+ * `completed` is here because the escrow rail has one more state than the COD
+ * one: `delivered` is the courier's word and `completed` is the customer's,
+ * and money moves on the second. Without it a finished escrow order counted
+ * as still open on the cook's board forever.
+ */
 export const isClosed = (status) =>
-  status === 'delivered' || status === 'cancelled' || status === 'rejected';
+  status === 'delivered' ||
+  status === 'completed' ||
+  status === 'cancelled' ||
+  status === 'rejected';
 
 /** What the cook's button says at each stage, and where it goes. */
 export const NEXT_STEP = {
@@ -87,10 +97,26 @@ export function OrdersProvider({ children }) {
   const shop = useCommerce();
   const { token } = useSession();
 
-  /* Cash on delivery only. Meals, shop baskets and won requests are escrow
-     orders and have their own screens; this rail is the one the rider walks. */
+  /**
+   * Every order this account is on, newest first.
+   *
+   * This used to be `filter(kind === 'cod')` — the cash-on-delivery rail the
+   * rider walks — on the grounds that meals, shop baskets and won requests
+   * are escrow orders with their own screens. Those screens do exist, but
+   * nothing led to them: a customer who pre-booked a meal saw "5 orders so
+   * far" counting only their dish orders, and no way from that page to the
+   * others. One list of everything you have bought is what a person means by
+   * "my orders", and the kind is a fact about a row, not a reason to hide it.
+   *
+   * Sorted here rather than at each call site so the order is the same
+   * everywhere, and by `createdAt` rather than by id — the ids are ObjectIds,
+   * which sort by creation time only by accident of encoding.
+   */
   const orders = useMemo(
-    () => shop.orders.filter((o) => o.kind === 'cod'),
+    () =>
+      [...shop.orders].sort(
+        (a, b) => new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0),
+      ),
     [shop.orders],
   );
 
