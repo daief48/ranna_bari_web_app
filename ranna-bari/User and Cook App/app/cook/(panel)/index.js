@@ -66,6 +66,10 @@ export default function CookDashboard() {
   /* The shop's one urgent number, on the screen a cook opens first. */
   const shopStore = kitchen ? meals.storeForKitchen(kitchen.id) : null;
   const storeOpen = !!shopStore?.isOpen;
+  /* A shop that exists and is shut. Distinct from having no shop at all, and
+     the more urgent of the two: the cook has already done the work of
+     stocking it, and none of it is reachable. */
+  const shopClosed = !!shopStore && !shopStore.isOpen;
   const waitingPreorders = kitchen ? meals.pendingPreorders(kitchen.id).length : 0;
 
   /* Requests this kitchen could bid on and has not answered yet. */
@@ -505,16 +509,25 @@ export default function CookDashboard() {
               }
               onPress={() => router.push('/cook/requests')}
             />
+            {/* Three states, not two. A cook with no shop and a cook whose
+                shop is shut both used to read "Open a shop for the things you
+                make to keep", which tells the second one nothing: their shop
+                exists, has products in it, and is invisible to customers.
+                The kitchen switch on this same screen does not open it —
+                they are separate shutters — so a cook who flipped the kitchen
+                open reasonably believes everything is live. */}
             <ActionRow
               icon="box"
-              tone={waitingPreorders ? 'primary' : 'sage'}
+              tone={waitingPreorders || shopClosed ? 'primary' : 'sage'}
               title={t('Your shop')}
               sub={
                 waitingPreorders
                   ? t('{n} pre-orders waiting for your answer', { n: n(waitingPreorders) })
-                  : storeOpen
-                    ? t('Products, stock and shop orders')
-                    : t('Open a shop for the things you make to keep')
+                  : shopClosed
+                    ? t('Closed — nothing in it can be bought. Tap to open.')
+                    : storeOpen
+                      ? t('Products, stock and shop orders')
+                      : t('Open a shop for the things you make to keep')
               }
               onPress={() => router.push('/cook/store')}
             />

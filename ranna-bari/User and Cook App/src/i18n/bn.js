@@ -1363,6 +1363,8 @@ export const bn = {
   'Products, stock and shop orders': 'পণ্য, স্টক আর দোকানের অর্ডার',
   'Open a shop for the things you make to keep':
     'যা বানিয়ে রাখেন তার জন্য দোকান খুলুন',
+  'Closed — nothing in it can be bought. Tap to open.':
+    'বন্ধ — ভেতরের কিছুই কেউ কিনতে পারছে না। খুলতে চাপ দিন।',
   '{n} pre-orders waiting for your answer': '{n}টি প্রি-অর্ডার আপনার উত্তরের অপেক্ষায়',
 
   /* ---------------- cook stores: settings and categories ---------------- */
