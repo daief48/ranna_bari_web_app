@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { get } from '@/lib/backend';
 import { fmtDateTime, timeAgo } from '@/lib/format';
 import { paging, pageCount } from '@/lib/queries';
@@ -10,6 +11,7 @@ import {
   Table,
   EmptyRow,
 } from '@/components/ui';
+import { RowLink } from '@/components/ui/row-link';
 import { FilterSelect, Pager } from '@/components/ui/client';
 import { BackendDown, down } from '@/components/backend-down';
 import { requirePage } from '@/lib/guard';
@@ -135,9 +137,14 @@ export default async function SearchTermsPage({
       >
         <Table head={['Term', 'Searches', 'Found nothing', 'People', 'Areas', 'Last searched']}>
           {rows.map((row) => (
-            <tr key={row.term}>
+            <RowLink key={row.term} href={`/search-terms/${encodeURIComponent(row.term)}`}>
               <td className="max-w-[240px]">
-                <span className="font-semibold text-ink">{row.term}</span>
+                <Link
+                  href={`/search-terms/${encodeURIComponent(row.term)}`}
+                  className="font-semibold text-ink hover:text-primary"
+                >
+                  {row.term}
+                </Link>
                 {/* The spellings people actually reached for. Worth showing:
                     a term missed under one spelling and found under another
                     is a search problem, not a supply problem. */}
@@ -162,7 +169,7 @@ export default async function SearchTermsPage({
               <td className="text-ink2" title={fmtDateTime(row.lastAt)}>
                 {timeAgo(row.lastAt)}
               </td>
-            </tr>
+            </RowLink>
           ))}
           {!rows.length ? (
             <EmptyRow span={6}>

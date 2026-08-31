@@ -1,10 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 
 import { createAdmin, setAdminActive, setAdminRole } from '@/actions/platform';
 import { ActionButton } from '@/components/ui/client';
 import { Badge } from '@/components/ui';
+import { RowLink } from '@/components/ui/row-link';
 import { ROLES, ROLE_LABEL } from '@/lib/domain';
 
 const INPUT =
@@ -34,10 +36,12 @@ export function AdminRow({
   const [nextRole, setNextRole] = useState(role);
 
   return (
-    <tr className={active ? '' : 'opacity-55'}>
+    <RowLink href={`/admins/${id}`} className={active ? '' : 'opacity-55'}>
       <td>
         <span className="block font-medium">
-          {name}
+          <Link href={`/admins/${id}`} className="hover:text-primary">
+            {name}
+          </Link>
           {isSelf ? (
             <span className="ml-1.5">
               <Badge tone="info">you</Badge>
@@ -85,7 +89,7 @@ export function AdminRow({
           <span className="text-[11.5px] text-ink3">—</span>
         )}
       </td>
-    </tr>
+    </RowLink>
   );
 }
 

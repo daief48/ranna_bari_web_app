@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import type { Prisma } from '@prisma/client';
+import { get } from '@/lib/backend';
 
 import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
@@ -25,12 +27,50 @@ import { requirePage } from '@/lib/guard';
 
 export const dynamic = 'force-dynamic';
 
-export default async function OrderDetail({ params }: { params: Promise<{ id: string }> }) {
-  await requirePage('order.read');
-  const { id } = await params;
-  const user = await currentUser();
+/** Exactly what the render below reads, named once so both loads must match. */
+type OrderView = Prisma.OrderGetPayload<{
+  include: {
+    kitchen: { select: { id: true; name: true; area: true } };
+    dispute: true;
+    ledger: true;
+    meal: { select: { id: true; title: true; serveDate: true; slot: true } };
+    store: { select: { id: true; name: true } };
+  };
+}>;
 
-  const order = await db.order.findUnique({
+/**
+ * The order, from whichever store holds it.
+ *
+ * `GET /orders/:id` has existed for a while and this page never used it, so
+ * every row on the orders board — which *is* served by the backend, and
+ * therefore carries the backend's ids — opened a 404. The endpoint returns the
+ * kitchen, the dispute and the ledger entries alongside the order, which is
+ * everything here except the meal and store rows.
+ */
+async function loadOrder(id: string): Promise<OrderView | null> {
+  const remote = await get<{
+    order: Record<string, unknown> & { id: string };
+    kitchen: { id: string; name: string; area: string } | null;
+    dispute: unknown;
+    entries: unknown[];
+  }>(`/orders/${id}`).catch(() => null);
+
+  if (remote) {
+    return {
+      ...(remote.order as unknown as OrderView),
+      id: remote.order.id,
+      kitchen: remote.kitchen,
+      dispute: remote.dispute,
+      ledger: remote.entries,
+      /* The endpoint does not join these two. Null renders as "not from a
+         meal / not a shop order", which is also what a genuinely absent one
+         looks like — and inventing a row to fill the slot would be worse. */
+      meal: null,
+      store: null,
+    } as unknown as OrderView;
+  }
+
+  return db.order.findUnique({
     where: { id },
     include: {
       kitchen: { select: { id: true, name: true, area: true } },
@@ -40,6 +80,14 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       store: { select: { id: true, name: true } },
     },
   });
+}
+
+export default async function OrderDetail({ params }: { params: Promise<{ id: string }> }) {
+  await requirePage('order.read');
+  const { id } = await params;
+  const user = await currentUser();
+
+  const order = await loadOrder(id);
   if (!order) notFound();
 
   const history = parseJson<StatusStamp[]>(order.history, []);

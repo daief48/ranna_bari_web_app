@@ -23,6 +23,7 @@ import {
   Table,
   EmptyRow,
 } from '@/components/ui';
+import { RowLink } from '@/components/ui/row-link';
 import { GmvChart, KindBars, EscrowAgeChart } from '@/components/Charts';
 
 export const metadata = { title: 'Dashboard · RannaBari Admin' };
@@ -296,7 +297,7 @@ export default async function Dashboard({
         >
           <Table head={['Request', 'Area', 'Budget', 'Posted', '']}>
             {dead.rows.slice(0, 6).map((request) => (
-              <tr key={request.id}>
+              <RowLink key={request.id} href={`/requests/${request.id}`}>
                 <td className="max-w-[320px] truncate font-medium text-ink">{request.title}</td>
                 <td className="text-ink2">{request.area ?? '—'}</td>
                 <td>{request.budget ? <Money amount={request.budget} /> : <span className="text-ink3">—</span>}</td>
@@ -309,7 +310,7 @@ export default async function Dashboard({
                     Open
                   </Link>
                 </td>
-              </tr>
+              </RowLink>
             ))}
             {dead.rows.length === 0 ? <EmptyRow span={5}>Nothing here.</EmptyRow> : null}
           </Table>

@@ -26,6 +26,7 @@ export const NAV: {
     items: [
       { href: '/kitchens', label: 'Kitchens & cooks', cap: 'kitchen.read' },
       { href: '/kyc', label: 'KYC queue', cap: 'kitchen.read', badge: 'kyc' },
+      { href: '/menu', label: 'Menus & dishes', cap: 'kitchen.read' },
       { href: '/meals', label: 'Meals', cap: 'order.read' },
       { href: '/stores', label: 'Stores & products', cap: 'order.read' },
     ],
@@ -73,6 +74,9 @@ const ICON: Record<string, string> = {
     'M4 10h16M6 10v5a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4v-5M9.5 7c0-1.6 1-1.6 1-3M14 7c0-1.6 1-1.6 1-3',
   '/kyc':
     'M3 6h18v12H3zM10.4 11a1.9 1.9 0 1 1-3.8 0 1.9 1.9 0 0 1 3.8 0M5.6 16c.5-1.4 1.6-2.1 2.9-2.1s2.4.7 2.9 2.1M14 10h4M14 13.5h3',
+  /* Fork and knife — the same glyph the cook's app puts on its Menu tab, so
+     the two screens read as the same thing seen from two sides. */
+  '/menu': 'M7 3v5.5a2 2 0 0 0 4 0V3M9 10.5V21M16.5 3c-1.3 1.3-1.3 6.2 0 7.5V21',
   '/meals': 'M3 14h18M4 14a8 8 0 0 1 16 0M2.5 17.5h19M12 6V4.5',
   '/stores': 'M4.5 10h15v9h-15zM3 10l1.6-5h14.8L21 10M10 19v-5h4v5',
   '/orders': 'M6.5 3h11v18l-2.75-1.8L12 21l-2.75-1.8L6.5 21zM10 8.5h4.5M10 12.5h4.5',

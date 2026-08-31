@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { get } from '@/lib/backend';
 import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/lib/domain';
@@ -26,18 +27,151 @@ import { requirePage } from '@/lib/guard';
 
 export const dynamic = 'force-dynamic';
 
-export default async function KitchenDetail({ params }: { params: Promise<{ id: string }> }) {
-  await requirePage('kitchen.read');
-  const { id } = await params;
-  const user = await currentUser();
+/**
+ * One kitchen, from whichever store actually holds it.
+ *
+ * ## Why there are two reads
+ *
+ * The list on `/kitchens` is served by `GET /kitchens`, so every id it links
+ * with is a Mongo ObjectId. This page used to read Prisma only, whose ids are
+ * cuids — so *every* link off that board landed on `notFound()`. The page
+ * worked exactly once: against locally seeded rows nothing links to.
+ *
+ * `GET /kitchens/:id` exists now (it did not when this page was written, which
+ * is what the previous comment here said), and it returns the store, dishes,
+ * recent orders, meals, counts and money in one round trip. So: try the
+ * backend first, because that is where the links come from, and fall back to
+ * Prisma for a cuid the backend has never seen.
+ *
+ * Both are shaped into the same object, so the render below does not know or
+ * care which one answered.
+ */
+type Remote = {
+  kitchen: Record<string, unknown> & { id: string; tags?: unknown };
+  store:
+    | {
+        id: string;
+        name: string;
+        isOpen: boolean;
+        deliveryFee: number;
+        freeDeliveryOver: number | null;
+        productCount: number;
+      }
+    | null;
+  dishes: { id: string; name: string; price: number; available: boolean }[];
+  orders: {
+    id: string;
+    code: string;
+    kind: string;
+    status: string;
+    amount: number;
+    createdAt: string;
+  }[];
+  meals: { id: string; title: string; serveDate: string; slot: string; status: string }[];
+  counts: { orders: number; cancelled: number; meals: number; reviews: number };
+  money: { gmv: number; owed: number; releasedToCook: number; platformTook: number };
+};
 
-  /* Still Prisma, all of it. There is no `GET /kitchens/:id`: the list
-     endpoint filters and pages but cannot fetch one kitchen, and nothing
-     serves this page's dishes, store, linked account, per-kitchen totals or
-     the cook's balance. Splitting it — orders and meals over HTTP, the rest
-     from here — would query the backend with a cuid it has never seen and
-     render two confidently empty tables, so the whole read stays put until
-     the endpoint exists. */
+/**
+ * The shape the render works against, declared once so both branches have to
+ * meet it. Without it TypeScript infers a union of two structurally different
+ * objects and every `kitchen.name` below stops compiling.
+ *
+ * Dates are `Date | string` because Prisma hands back the first and JSON the
+ * second; `fmtDate` and `timeAgo` already take either.
+ */
+type KitchenView = {
+  kitchen: {
+    id: string;
+    name: string;
+    ownerName: string;
+    avatar: string;
+    specialty: string;
+    description: string;
+    tags: unknown;
+    ecoBadge: string;
+    isVerified: boolean;
+    area: string;
+    lat: number;
+    lng: number;
+    deliveryRadiusKm: number;
+    isOpen: boolean;
+    suspended: boolean;
+    suspendedReason: string | null;
+    kycStatus: string;
+    kycNote: string | null;
+    kycDecidedAt: Date | string | null;
+    kycDecidedBy: string | null;
+    createdAt: Date | string;
+    updatedAt: Date | string;
+    account: { name: string; phone: string | null; email: string | null; nid: string | null } | null;
+    store:
+      | {
+          name: string;
+          isOpen: boolean;
+          deliveryFee: number;
+          freeDeliveryOver: number | null;
+          _count: { products: number };
+        }
+      | null;
+    dishes: { id: string; name: string; price: number; available: boolean }[];
+    _count: { meals: number; orders: number; reviews: number; offers: number };
+  };
+  orders: {
+    id: string;
+    code: string;
+    kind: string;
+    status: string;
+    amount: number;
+    createdAt: Date | string;
+  }[];
+  meals: { id: string; title: string; serveDate: string; slot: string; status: string }[];
+  gmv: { _sum: { amount: number | null }; _count: number };
+  cancelled: number;
+  owed: number;
+  released: { _sum: { cookAmount: number | null; platformAmount: number | null } };
+};
+
+async function loadKitchen(id: string): Promise<KitchenView | null> {
+  const remote = await get<Remote>(`/kitchens/${id}`).catch(() => null);
+
+  if (remote) {
+    const k = remote.kitchen as unknown as KitchenView['kitchen'];
+    return {
+      kitchen: {
+        ...k,
+        id: remote.kitchen.id,
+        /* No linked account on this endpoint. Null rather than invented: the
+           panel shows "not linked", which is honest, instead of blank fields
+           that read as missing data. */
+        account: null as { name: string; phone: string | null; email: string | null; nid: string | null } | null,
+        store: remote.store
+          ? { ...remote.store, _count: { products: remote.store.productCount } }
+          : null,
+        dishes: remote.dishes,
+        /* The endpoint carries no offer count, and `orders` here is the
+           lifetime figure rather than the ten rows it also returns. */
+        _count: {
+          meals: remote.counts.meals,
+          orders: remote.counts.orders,
+          reviews: remote.counts.reviews,
+          offers: 0,
+        },
+      },
+      orders: remote.orders,
+      meals: remote.meals,
+      gmv: { _sum: { amount: remote.money.gmv }, _count: remote.counts.orders },
+      cancelled: remote.counts.cancelled,
+      owed: remote.money.owed,
+      released: {
+        _sum: {
+          cookAmount: remote.money.releasedToCook,
+          platformAmount: remote.money.platformTook,
+        },
+      },
+    };
+  }
+
   const kitchen = await db.kitchen.findUnique({
     where: { id },
     include: {
@@ -47,14 +181,10 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
       _count: { select: { meals: true, orders: true, reviews: true, offers: true } },
     },
   });
-  if (!kitchen) notFound();
+  if (!kitchen) return null;
 
   const [orders, meals, gmv, cancelled, owed, released] = await Promise.all([
-    db.order.findMany({
-      where: { kitchenId: id },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    }),
+    db.order.findMany({ where: { kitchenId: id }, orderBy: { createdAt: 'desc' }, take: 10 }),
     db.meal.findMany({ where: { kitchenId: id }, orderBy: { serveDate: 'desc' }, take: 8 }),
     db.order.aggregate({
       where: { kitchenId: id, status: { notIn: ['cancelled', 'rejected'] } },
@@ -69,7 +199,26 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
     }),
   ]);
 
-  const tags = parseJson<string[]>(kitchen.tags, []);
+  return { kitchen, orders, meals, gmv, cancelled, owed, released };
+}
+
+export default async function KitchenDetail({ params }: { params: Promise<{ id: string }> }) {
+  await requirePage('kitchen.read');
+  const { id } = await params;
+  const user = await currentUser();
+
+  const data = await loadKitchen(id);
+  if (!data) notFound();
+
+  const { kitchen, orders, meals, gmv, cancelled, owed, released } = data;
+
+  /* Prisma keeps tags as a JSON string; Mongo hands back a real array. Passing
+     an array to `parseJson` would stringify it into `JSON.parse`, fail, and
+     silently return the empty fallback — every tag on the page disappearing
+     with nothing to show for it. */
+  const tags = Array.isArray(kitchen.tags)
+    ? (kitchen.tags as string[])
+    : parseJson<string[]>(String(kitchen.tags ?? ''), []);
   const canWrite = can(user?.role ?? '', 'kitchen.write');
 
   return (

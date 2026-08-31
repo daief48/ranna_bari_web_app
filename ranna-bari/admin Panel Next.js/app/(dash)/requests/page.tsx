@@ -16,6 +16,7 @@ import {
   Table,
   EmptyRow,
 } from '@/components/ui';
+import { RowLink } from '@/components/ui/row-link';
 import { SearchBox, FilterSelect, Pager } from '@/components/ui/client';
 import { requirePage } from '@/lib/guard';
 
@@ -141,7 +142,7 @@ export default async function RequestsPage({
             const priced = request.priced ?? 0;
 
             return (
-              <tr key={request.id}>
+              <RowLink key={request.id} href={`/requests/${request.id}`}>
                 <td className="max-w-[260px]">
                   <Link
                     href={`/requests/${request.id}`}
@@ -195,7 +196,7 @@ export default async function RequestsPage({
                   <StatusBadge status={request.status} />
                 </td>
                 <td className="whitespace-nowrap text-ink2">{timeAgo(request.createdAt)}</td>
-              </tr>
+              </RowLink>
             );
           })}
           {rows.length === 0 ? (

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Prisma } from '@prisma/client';
 
 import { BackendError, get } from '@/lib/backend';
@@ -16,6 +17,7 @@ import {
   EmptyRow,
 } from '@/components/ui';
 import { SearchBox, FilterSelect, Pager } from '@/components/ui/client';
+import { RowLink } from '@/components/ui/row-link';
 import { requirePage } from '@/lib/guard';
 
 export const metadata = { title: 'Audit log · RannaBari Admin' };
@@ -222,9 +224,11 @@ export default async function AuditPage({
             const isMoney = MONEY_ACTIONS.includes(row.action);
 
             return (
-              <tr key={row.id}>
-                <td className="whitespace-nowrap text-ink2" title={fmtDateTime(row.at)}>
-                  {timeAgo(row.at)}
+              <RowLink key={row.id} href={`/audit/${row.id}`}>
+                <td className="whitespace-nowrap" title={fmtDateTime(row.at)}>
+                  <Link href={`/audit/${row.id}`} className="text-ink2 hover:text-primary">
+                    {timeAgo(row.at)}
+                  </Link>
                 </td>
                 <td className="max-w-[150px] truncate">
                   <span className="block truncate text-[12.5px]">{row.actorEmail}</span>
@@ -267,7 +271,7 @@ export default async function AuditPage({
                     <span className="text-[11.5px] text-ink3">—</span>
                   )}
                 </td>
-              </tr>
+              </RowLink>
             );
           })}
           {rows.length === 0 ? (

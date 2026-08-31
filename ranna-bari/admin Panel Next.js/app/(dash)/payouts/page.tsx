@@ -15,6 +15,7 @@ import {
   Table,
   EmptyRow,
 } from '@/components/ui';
+import { RowLink } from '@/components/ui/row-link';
 import { BackendDown, down } from '@/components/backend-down';
 import { RunActions } from './actions';
 import { createPayoutRun } from '@/actions/money';
@@ -124,7 +125,7 @@ export default async function PayoutsPage() {
         >
           <Table head={['Kitchen', 'Area', 'Owed', '']}>
             {owed.slice(0, 20).map((row) => (
-              <tr key={row.kitchenId}>
+              <RowLink key={row.kitchenId} href={`/kitchens/${row.kitchenId}`}>
                 <td className="max-w-[200px] truncate">
                   <Link
                     href={`/kitchens/${row.kitchenId}`}
@@ -140,7 +141,7 @@ export default async function PayoutsPage() {
                 <td className="text-right text-[11.5px] text-ink3">
                   {row.carried ? 'under minimum' : ''}
                 </td>
-              </tr>
+              </RowLink>
             ))}
             {owed.length === 0 ? (
               <EmptyRow span={4}>

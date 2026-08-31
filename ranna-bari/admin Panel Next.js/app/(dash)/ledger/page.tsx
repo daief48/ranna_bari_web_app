@@ -16,6 +16,7 @@ import {
   Table,
   EmptyRow,
 } from '@/components/ui';
+import { RowLink } from '@/components/ui/row-link';
 import { FilterSelect, Pager, ActionButton } from '@/components/ui/client';
 import { BackendDown, down } from '@/components/backend-down';
 import { sweepEscrow } from '@/actions/money';
@@ -318,7 +319,7 @@ export default async function LedgerPage({
         >
           <Table head={['Kind', 'From', 'To', 'Amount', 'Order', 'Note', 'When']}>
             {entries.map((entry) => (
-              <tr key={entry.id}>
+              <RowLink key={entry.id} href={`/ledger/${entry.id}`}>
                 <td>
                   <Badge
                     tone={
@@ -333,6 +334,14 @@ export default async function LedgerPage({
                   >
                     {entry.kind}
                   </Badge>
+                  {/* The row's real link: the whole row is clickable as a
+                      convenience, but that is a mouse affordance only. */}
+                  <Link
+                    href={`/ledger/${entry.id}`}
+                    className="ml-1.5 text-[11px] text-ink3 hover:text-primary"
+                  >
+                    open
+                  </Link>
                 </td>
                 <td className="text-ink2">{entry.from}</td>
                 <td className="text-ink2">{entry.to}</td>
@@ -348,7 +357,7 @@ export default async function LedgerPage({
                 <td className="whitespace-nowrap text-ink2" title={fmtDateTime(entry.at)}>
                   {timeAgo(entry.at)}
                 </td>
-              </tr>
+              </RowLink>
             ))}
             {entries.length === 0 ? <EmptyRow span={7}>No entries match that.</EmptyRow> : null}
           </Table>

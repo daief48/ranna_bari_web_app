@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Prisma } from '@prisma/client';
 
 import { db } from '@/lib/db';
@@ -15,6 +16,7 @@ import {
   Table,
   EmptyRow,
 } from '@/components/ui';
+import { RowLink } from '@/components/ui/row-link';
 import { FilterSelect, Pager } from '@/components/ui/client';
 import { Composer } from './composer';
 import { requirePage } from '@/lib/guard';
@@ -103,7 +105,7 @@ export default async function NotificationsPage({
         >
           <Table head={['Audience', 'Kind', 'Title', 'Read', 'From', 'When']}>
             {rows.map((note) => (
-              <tr key={note.id}>
+              <RowLink key={note.id} href={`/notifications/${note.id}`}>
                 <td>
                   <Badge tone={note.audience === 'cook' ? 'warn' : 'info'}>
                     {note.audience}
@@ -111,7 +113,9 @@ export default async function NotificationsPage({
                 </td>
                 <td className="text-ink2">{note.kind}</td>
                 <td className="max-w-[260px]">
-                  <span className="block truncate font-medium">{note.title}</span>
+                  <Link href={`/notifications/${note.id}`} className="hover:text-primary">
+                    <span className="block truncate font-medium">{note.title}</span>
+                  </Link>
                   <span className="block truncate text-[11.5px] text-ink3">{note.body}</span>
                 </td>
                 <td>
@@ -123,7 +127,7 @@ export default async function NotificationsPage({
                 <td className="whitespace-nowrap text-ink2" title={fmtDateTime(note.at)}>
                   {timeAgo(note.at)}
                 </td>
-              </tr>
+              </RowLink>
             ))}
             {rows.length === 0 ? <EmptyRow span={6}>Nothing matches that.</EmptyRow> : null}
           </Table>

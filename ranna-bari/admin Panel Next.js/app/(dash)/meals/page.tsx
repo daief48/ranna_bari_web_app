@@ -19,6 +19,7 @@ import {
   Table,
   EmptyRow,
 } from '@/components/ui';
+import { RowLink } from '@/components/ui/row-link';
 import { FilterSelect, Pager } from '@/components/ui/client';
 import { BackendDown, down } from '@/components/backend-down';
 import { MealControls } from './controls';
@@ -251,9 +252,11 @@ export default async function MealsPage({
             const overdue = meal.status === 'published' && meal.serveDate < today;
 
             return (
-              <tr key={meal.id}>
+              <RowLink key={meal.id} href={`/meals/${meal.id}`}>
                 <td className="max-w-[200px]">
-                  <span className="block truncate font-medium">{meal.title}</span>
+                  <Link href={`/meals/${meal.id}`} className="hover:text-primary">
+                    <span className="block truncate font-medium">{meal.title}</span>
+                  </Link>
                   <span className="tnum block text-[11px] text-ink3">{meal.code}</span>
                 </td>
                 <td className="max-w-[140px] truncate text-ink2">
@@ -304,7 +307,7 @@ export default async function MealsPage({
                     <span className="text-[11.5px] text-ink3">ops only</span>
                   )}
                 </td>
-              </tr>
+              </RowLink>
             );
           })}
           {rows.length === 0 ? (

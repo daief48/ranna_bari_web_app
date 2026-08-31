@@ -19,6 +19,7 @@ import {
   Table,
   EmptyRow,
 } from '@/components/ui';
+import { RowLink } from '@/components/ui/row-link';
 import { SearchBox, FilterSelect, Pager, ActionButton } from '@/components/ui/client';
 
 import { StockCell, DelistButton, StoreToggle } from './stock';
@@ -154,7 +155,7 @@ async function StoresTable({
         head={['Shop', 'Kitchen', 'Area', 'Shelves', 'Products', 'Orders', 'Delivery', 'State', '']}
       >
         {rows.map((store) => (
-          <tr key={store.id}>
+          <RowLink key={store.id} href={`/stores/${store.id}`}>
             <td className="max-w-[190px] truncate font-medium">{store.name}</td>
             <td className="max-w-[150px] truncate text-ink2">
               <Link href={`/kitchens/${store.kitchen.id}`} className="hover:text-primary">
@@ -179,7 +180,7 @@ async function StoresTable({
                 <StoreToggle storeId={store.id} isOpen={store.isOpen} />
               ) : null}
             </td>
-          </tr>
+          </RowLink>
         ))}
         {rows.length === 0 ? <EmptyRow span={9}>No shop matches that.</EmptyRow> : null}
       </Table>

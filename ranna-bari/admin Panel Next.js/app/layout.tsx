@@ -59,6 +59,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/*
+          A bare `<script>`, deliberately, and it stays that way.
+
+          React 19 logs "Encountered a script tag while rendering React
+          component" for this in development. The warning is about client
+          renders, where a script tag genuinely does nothing; on the server
+          render — the only one that matters here — it is emitted into the
+          HTML and runs while the parser is still above `<body>`, which is
+          the entire point.
+
+          `next/script` with `strategy="beforeInteractive"` is the documented
+          replacement and was tried. It does not work for this. It compiles to
+          `(self.__next_s=self.__next_s||[]).push([0,{...}])`, which queues the
+          code for Next's runtime to execute once the framework bundle has
+          loaded — well after first paint. The white flash this exists to
+          prevent came straight back.
+
+          So: a dev-only console warning, in exchange for no flash on every
+          navigation for anyone working at night. That is the right trade, and
+          it is not worth "fixing" again.
+        */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       </head>
       <body className={`${fraunces.variable} ${inter.variable} ${bengali.variable}`}>

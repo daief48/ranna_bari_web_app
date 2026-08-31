@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import type { Prisma } from '@prisma/client';
+import { get } from '@/lib/backend';
 
 import { db } from '@/lib/db';
 import { taka, fmtDateTime, timeAgo } from '@/lib/format';
@@ -19,11 +21,40 @@ import { requirePage } from '@/lib/guard';
 
 export const dynamic = 'force-dynamic';
 
-export default async function RequestDetail({ params }: { params: Promise<{ id: string }> }) {
-  await requirePage('request.read');
-  const { id } = await params;
+type RequestView = Prisma.RequestGetPayload<{
+  include: {
+    offers: {
+      include: { kitchen: { select: { id: true; name: true; area: true; isVerified: true } } };
+    };
+  };
+}>;
 
-  const request = await db.request.findUnique({
+async function loadRequest(id: string): Promise<RequestView | null> {
+  const remote = await get<{
+    request: Record<string, unknown> & { id: string };
+    offers: (Record<string, unknown> & { id: string; kitchenId: string; kitchenName: string })[];
+  }>(`/requests/${id}`).catch(() => null);
+
+  if (remote) {
+    return {
+      ...(remote.request as unknown as RequestView),
+      id: remote.request.id,
+      /* The endpoint flattens the kitchen to a name, which is what the offer
+         list actually shows; the id comes off the offer itself so the link
+         still resolves. */
+      offers: remote.offers.map((offer) => ({
+        ...offer,
+        kitchen: {
+          id: offer.kitchenId,
+          name: offer.kitchenName,
+          area: '',
+          isVerified: false,
+        },
+      })),
+    } as unknown as RequestView;
+  }
+
+  return db.request.findUnique({
     where: { id },
     include: {
       offers: {
@@ -32,6 +63,16 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
       },
     },
   });
+}
+
+export default async function RequestDetail({ params }: { params: Promise<{ id: string }> }) {
+  await requirePage('request.read');
+  const { id } = await params;
+
+  /* Backend first: `/requests` serves the board, so its ids are the
+     backend's, and reading only the panel's mirror here answered every row on
+     that board with a 404. `GET /requests/:id` has existed all along. */
+  const request = await loadRequest(id);
   if (!request) notFound();
 
   const eligible = parseJson<string[]>(request.eligible, []);

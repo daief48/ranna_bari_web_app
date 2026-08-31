@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { get } from '@/lib/backend';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/lib/domain';
@@ -14,6 +16,7 @@ import {
   Table,
   EmptyRow,
 } from '@/components/ui';
+import { RowLink } from '@/components/ui/row-link';
 import { FilterSelect, Pager } from '@/components/ui/client';
 import { BackendDown, down } from '@/components/backend-down';
 import { ReconcileRow } from './row';
@@ -136,8 +139,15 @@ export default async function TopUpsPage({
           head={['Customer', 'Credited', 'Method', 'State', 'PSP reference', 'When', 'Reconcile']}
         >
           {rows.map((row) => (
-            <tr key={row.id}>
-              <td className="max-w-[200px] truncate text-ink2">{row.customerKey}</td>
+            <RowLink key={row.id} href={`/topups/${row.id}`}>
+              <td className="max-w-[200px] truncate">
+                <Link
+                  href={`/topups/${row.id}`}
+                  className="font-medium text-ink hover:text-primary"
+                >
+                  {row.customerKey}
+                </Link>
+              </td>
               <td>
                 <Money amount={row.amount} bold />
               </td>
@@ -171,7 +181,7 @@ export default async function TopUpsPage({
                   </span>
                 )}
               </td>
-            </tr>
+            </RowLink>
           ))}
           {rows.length === 0 ? <EmptyRow span={7}>Nothing matches that.</EmptyRow> : null}
         </Table>

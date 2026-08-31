@@ -12,6 +12,7 @@ import {
   Table,
   EmptyRow,
 } from '@/components/ui';
+import { RowLink } from '@/components/ui/row-link';
 import { SearchBox, FilterSelect, Pager } from '@/components/ui/client';
 import { requirePage } from '@/lib/guard';
 
@@ -135,7 +136,7 @@ export default async function KitchensPage({
           ]}
         >
           {rows.map((kitchen) => (
-            <tr key={kitchen.id}>
+            <RowLink key={kitchen.id} href={`/kitchens/${kitchen.id}`}>
               <td>
                 <Link
                   href={`/kitchens/${kitchen.id}`}
@@ -179,7 +180,7 @@ export default async function KitchensPage({
                   </>
                 )}
               </td>
-            </tr>
+            </RowLink>
           ))}
           {rows.length === 0 ? (
             <EmptyRow span={8}>No kitchen matches that.</EmptyRow>

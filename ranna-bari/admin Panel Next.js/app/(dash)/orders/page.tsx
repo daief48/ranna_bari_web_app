@@ -18,6 +18,7 @@ import {
   Table,
   EmptyRow,
 } from '@/components/ui';
+import { RowLink } from '@/components/ui/row-link';
 import { SearchBox, FilterSelect, Pager } from '@/components/ui/client';
 import { requirePage } from '@/lib/guard';
 
@@ -195,7 +196,7 @@ export default async function OrdersPage({
           head={['Code', 'System', 'Item', 'Kitchen', 'Customer', 'Status', 'Money', 'Amount', 'When']}
         >
           {rows.map((order) => (
-            <tr key={order.id}>
+            <RowLink key={order.id} href={`/orders/${order.id}`}>
               <td>
                 <Link
                   href={`/orders/${order.id}`}
@@ -231,7 +232,7 @@ export default async function OrdersPage({
                 <Money amount={order.amount} />
               </td>
               <td className="whitespace-nowrap text-ink2">{timeAgo(order.createdAt)}</td>
-            </tr>
+            </RowLink>
           ))}
           {rows.length === 0 ? <EmptyRow span={9}>No order matches that.</EmptyRow> : null}
         </Table>

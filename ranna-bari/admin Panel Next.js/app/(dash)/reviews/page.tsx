@@ -17,6 +17,7 @@ import {
   Table,
   EmptyRow,
 } from '@/components/ui';
+import { RowLink } from '@/components/ui/row-link';
 import { FilterSelect, Pager } from '@/components/ui/client';
 import { ModerateReview } from './moderate';
 import { requirePage } from '@/lib/guard';
@@ -108,11 +109,17 @@ export default async function ReviewsPage({
       >
         <Table head={['Reviewer', 'Kitchen', 'Rating', 'Review', 'Date', 'State', 'Moderate']}>
           {rows.map((review) => (
-            <tr key={review.id} className={review.hidden ? 'opacity-55' : ''}>
+            <RowLink
+              key={review.id}
+              href={`/reviews/${review.id}`}
+              className={review.hidden ? 'opacity-55' : ''}
+            >
               <td>
                 <div className="flex items-center gap-2">
                   <Avatar src={review.avatar} name={review.name} size={24} />
-                  <span className="truncate">{review.name}</span>
+                  <Link href={`/reviews/${review.id}`} className="truncate hover:text-primary">
+                    {review.name}
+                  </Link>
                 </div>
               </td>
               <td className="max-w-[150px] truncate text-ink2">
@@ -154,7 +161,7 @@ export default async function ReviewsPage({
                   <span className="text-[11.5px] text-ink3">—</span>
                 )}
               </td>
-            </tr>
+            </RowLink>
           ))}
           {rows.length === 0 ? <EmptyRow span={7}>No review matches that.</EmptyRow> : null}
         </Table>
