@@ -64,6 +64,9 @@ export function ChatProvider({ children }) {
   const socketRef = useRef(null);
   const retryRef = useRef(null);
   const attemptRef = useRef(0);
+  /* Has a socket ever opened against this host? It decides how hard a failed
+     reconnect is worth chasing — see `onclose`. */
+  const everOpenedRef = useRef(false);
   const activeRef = useRef(null);
   const drainingRef = useRef(false);
   /* Whether the poll below is getting answers. The socket cannot be the only
@@ -183,6 +186,8 @@ export function ChatProvider({ children }) {
 
       socket.onopen = () => {
         attemptRef.current = 0;
+        // This host does hold sockets, so a later drop is worth chasing hard.
+        everOpenedRef.current = true;
         setConnected(true);
         if (activeRef.current) {
           socket.send(JSON.stringify({ type: 'subscribe', threadId: activeRef.current }));
@@ -196,9 +201,23 @@ export function ChatProvider({ children }) {
         setConnected(pollOkRef.current);
         if (closed) return;
         /* Exponential backoff, capped. A phone that loses signal in a lift
-           should not spend the outage opening sockets. */
-        attemptRef.current = Math.min(attemptRef.current + 1, 6);
-        retryRef.current = setTimeout(connect, Math.min(1000 * 2 ** attemptRef.current, 30_000));
+           should not spend the outage opening sockets.
+           Two caps, not one. A socket that has opened before on this host is
+           worth chasing every half minute — the network dropped, and it will
+           come back. One that has never opened once is usually a host that
+           cannot hold a connection at all: serverless functions answer the
+           HTTP endpoints and refuse the upgrade forever, and retrying that
+           every thirty seconds is a failed request every thirty seconds for
+           the life of the session, for an answer that will not change.
+           Polling already covers delivery in that case, so the retry slows to
+           five minutes rather than stopping — a host that gains WebSocket
+           support later is still picked up, just not urgently. */
+        /* Capped at 9, not 6: 2^6 is 64s, so the old cap could never reach the
+           five-minute ceiling below no matter how many times it failed. The
+           `Math.min` against `ceiling` is what actually bounds the wait. */
+        attemptRef.current = Math.min(attemptRef.current + 1, 9);
+        const ceiling = everOpenedRef.current ? 30_000 : 300_000;
+        retryRef.current = setTimeout(connect, Math.min(1000 * 2 ** attemptRef.current, ceiling));
       };
 
       socket.onerror = () => {
@@ -320,16 +339,27 @@ export function ChatProvider({ children }) {
       // A backgrounded app has nobody looking at it.
       if (AppState.currentState !== 'active') return;
 
+      const threadId = activeRef.current;
+      /* The open thread every tick, the inbox every fourth. An unread badge
+         can be a minute stale; the conversation somebody is reading cannot.
+         `!threadId ||` used to stand in front of the modulo, which inverted
+         the rule it was written to express: sitting on the inbox — the most
+         common place to be — refetched every thread every six seconds
+         instead of every twenty-four. */
+      const wantThreads = tick % 4 === 0;
+
+      // Nothing due this tick. Bail before the flag and the awaits.
+      if (!threadId && !wantThreads) {
+        tick += 1;
+        return;
+      }
+
       inFlight = true;
       try {
-        const threadId = activeRef.current;
-
-        /* The open thread every tick, the inbox every fourth. An unread badge
-           can be a minute stale; the conversation somebody is reading cannot. */
         const results = [];
         if (threadId) results.push(await loadMessages(threadId));
 
-        if (!threadId || tick % 4 === 0) {
+        if (wantThreads) {
           /* A message that arrives while the thread is open has been read the
              moment it renders, but the server only learns that from a receipt
              — and `setActive` sent one on open, before this message existed.
