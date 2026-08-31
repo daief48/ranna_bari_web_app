@@ -155,15 +155,18 @@ export default async function MenuPage({
       >
         <Table head={['Dish', 'Kitchen', 'Tags', 'Price', 'Today']}>
           {dishes.map((dish) => (
-            /* A dish has no page of its own — there is no `GET /dishes/:id`,
-               and the place a dish actually lives is its kitchen's menu. */
             <RowLink
               key={dish.id}
-              href={`/kitchens/${dish.kitchenId}`}
+              href={`/menu/${dish.id}`}
               className={dish.available ? '' : 'opacity-60'}
             >
               <td className="max-w-[280px]">
-                <span className="block truncate font-medium text-ink">{dish.name}</span>
+                <Link
+                  href={`/menu/${dish.id}`}
+                  className="block truncate font-medium text-ink hover:text-primary"
+                >
+                  {dish.name}
+                </Link>
                 {dish.description ? (
                   <span className="block truncate text-[11.5px] text-ink3">
                     {dish.description}

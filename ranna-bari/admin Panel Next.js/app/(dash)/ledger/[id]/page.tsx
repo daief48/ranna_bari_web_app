@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { get } from '@/lib/backend';
 
 import { db } from '@/lib/db';
 import { taka, fmtDateTime, timeAgo } from '@/lib/format';
@@ -26,34 +27,94 @@ const BUCKET: Record<string, string> = {
   platform: 'platform revenue',
 };
 
-export default async function LedgerDetail({ params }: { params: Promise<{ id: string }> }) {
-  await requirePage('ledger.read');
-  const { id } = await params;
+type Entry = {
+  id: string;
+  kind: string;
+  amount: number;
+  from: string;
+  to: string;
+  fromRef: string | null;
+  toRef: string | null;
+  mealId: string | null;
+  orderId: string | null;
+  payoutRunId: string | null;
+  note: string;
+  idemKey: string | null;
+  at: Date | string;
+};
 
-  const entry = await db.ledgerEntry.findUnique({
+type OrderRef = {
+  id: string;
+  code: string;
+  title: string;
+  status: string;
+  amount: number;
+  kitchenId: string;
+  cookName: string;
+  customerName: string;
+};
+
+/**
+ * The entry, and the movement it belongs to.
+ *
+ * `/ledger` serves the board, so its ids are the backend's — reading only the
+ * panel's mirror here answered every row on that board with a 404. The
+ * endpoint returns the order and every sibling entry posted against it, which
+ * is the whole movement rather than the single row asked for: a release and
+ * its commission are written together, and reading one without the other is
+ * how people conclude the numbers do not add up.
+ */
+async function loadEntry(id: string) {
+  const remote = await get<{
+    entry: Entry;
+    order: OrderRef | null;
+    siblings: Entry[];
+  }>(`/ledger/${id}`).catch(() => null);
+
+  if (remote) {
+    return {
+      entry: { ...remote.entry, order: remote.order, payoutRun: null },
+      siblings: remote.siblings,
+    };
+  }
+
+  const local = await db.ledgerEntry.findUnique({
     where: { id },
     include: {
       order: { select: { id: true, code: true, title: true, status: true, amount: true, kitchenId: true, cookName: true, customerName: true } },
       payoutRun: { select: { id: true, code: true, status: true, total: true } },
     },
   });
-  if (!entry) notFound();
+  if (!local) return null;
 
-  /* The rest of the movement this entry belongs to. A release and its
-     commission are two rows written together, and reading one without the
-     other is how people conclude the numbers do not add up. */
-  const siblings = entry.orderId
+  const siblings = local.orderId
     ? await db.ledgerEntry.findMany({
-        where: { orderId: entry.orderId },
+        where: { orderId: local.orderId },
         orderBy: { at: 'asc' },
       })
     : [];
 
+  return { entry: local, siblings: siblings as unknown as Entry[] };
+}
+
+export default async function LedgerDetail({ params }: { params: Promise<{ id: string }> }) {
+  await requirePage('ledger.read');
+  const { id } = await params;
+
+  const loaded = await loadEntry(id);
+  if (!loaded) notFound();
+
+  const { entry, siblings } = loaded;
+
+  /* Only ever in the panel's own mirror — the endpoint does not join a meal,
+     and a wrong title here would be worse than none. */
   const meal = entry.mealId
-    ? await db.meal.findUnique({
-        where: { id: entry.mealId },
-        select: { id: true, title: true, code: true, kitchenId: true, cookName: true },
-      })
+    ? await db.meal
+        .findUnique({
+          where: { id: entry.mealId },
+          select: { id: true, title: true, code: true, kitchenId: true, cookName: true },
+        })
+        .catch(() => null)
     : null;
 
   return (

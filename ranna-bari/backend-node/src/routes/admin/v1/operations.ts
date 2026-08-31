@@ -759,6 +759,44 @@ export async function operationRoutes(app: FastifyInstance) {
     };
   });
 
+  /**
+   * One dish, with the rest of the menu it sits on.
+   *
+   * A dish is only judgeable next to its neighbours — a price is high or low
+   * against the same cook's other dishes, and "switched off" means something
+   * different on a menu where everything else is on than on one where nothing
+   * is. So the siblings come back with it rather than costing a second call.
+   */
+  app.get('/dishes/:id', async (request, reply) => {
+    const actor = await require(request, reply, 'kitchen.read');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const dish = await Dish.findById(id)
+      .lean()
+      .catch(() => null);
+    if (!dish) return fail(reply, MISSING, 404);
+
+    const [kitchen, siblings, store] = await Promise.all([
+      Kitchen.findById(dish.kitchenId)
+        .select({ name: 1, area: 1, isVerified: 1, isOpen: 1, ownerName: 1 })
+        .lean()
+        .catch(() => null),
+      Dish.find({ kitchenId: dish.kitchenId, _id: { $ne: dish._id } })
+        .sort({ name: 1 })
+        .lean(),
+      Store.findOne({ kitchenId: dish.kitchenId }).select({ name: 1 }).lean(),
+    ]);
+
+    return {
+      dish: withId(dish),
+      kitchen: kitchen ? { ...kitchen, id: String(kitchen._id) } : null,
+      siblings: siblings.map(withId),
+      store: store ? { ...store, id: String(store._id) } : null,
+    };
+  });
+
   app.post('/reviews/:id/moderate', async (request, reply) => {
     const actor = await require(request, reply, 'review.moderate');
     if (!actor) return;

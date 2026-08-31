@@ -817,6 +817,43 @@ export async function adminRoutes(app: FastifyInstance) {
     };
   });
 
+  /**
+   * One ledger entry, with everything posted alongside it.
+   *
+   * A release and its commission are two rows written together, and reading
+   * one without the other is how people conclude the numbers do not add up.
+   * So the whole movement for that order comes back, not just the row asked
+   * for — the entry is the question, the movement is the answer.
+   */
+  app.get('/ledger/:id', async (request, reply) => {
+    const actor = await require(request, reply as never, 'ledger.read');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const entry = await LedgerEntry.findById(id)
+      .lean()
+      .catch(() => null);
+    if (!entry) return fail(reply as never, ERR.NO_ORDER, 404);
+
+    const [order, siblings] = await Promise.all([
+      entry.orderId
+        ? Order.findById(entry.orderId)
+            .lean()
+            .catch(() => null)
+        : null,
+      entry.orderId
+        ? LedgerEntry.find({ orderId: entry.orderId }).sort({ at: 1 }).lean()
+        : [],
+    ]);
+
+    return {
+      entry: { ...entry, id: String(entry._id) },
+      order: order ? { ...order, id: String(order._id) } : null,
+      siblings: siblings.map((row) => ({ ...row, id: String(row._id) })),
+    };
+  });
+
   app.post('/orders/:id/release', async (request, reply) => {
     const actor = await require(request, reply as never, 'payout.write');
     if (!actor) return;
