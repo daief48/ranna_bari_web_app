@@ -16,6 +16,7 @@ import { Body, Heading, Price } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
+import { useAction } from '../../../src/components/Alert';
 import {
   cookPayout,
   isClosed,
@@ -42,6 +43,8 @@ export default function CookDashboard() {
   const { ordersForKitchen, advanceOrder } = useOrders();
   const meals = useCommerce();
   const { t, n } = useLang();
+  /* Every write below reports what happened. */
+  const run = useAction();
 
   /* Tomorrow's service, summarised: plates already paid for, and the softer
      number of people who said they were interested. */
@@ -145,7 +148,12 @@ export default function CookDashboard() {
             }
             onPress={() => {
               Haptics.selectionAsync().catch(() => {});
-              toggleOpen();
+              /* Worth announcing: whether the kitchen is taking orders is the
+                 one thing a cook most needs to be sure of. */
+              run(
+                () => toggleOpen(),
+                () => (kitchen?.isOpen ? t('Kitchen closed.') : t('Kitchen is open for orders.')),
+              );
             }}
             style={({ pressed }) => [
               {
@@ -357,7 +365,7 @@ export default function CookDashboard() {
                         style={{ flex: 1 }}
                         onPress={() => {
                           Haptics.selectionAsync().catch(() => {});
-                          advanceOrder(order.id);
+                          run(() => advanceOrder(order.id));
                         }}
                       />
                     </View>

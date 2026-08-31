@@ -26,6 +26,7 @@ import {
   useOrders,
 } from '../../../src/store/OrdersContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import { useAction } from '../../../src/components/Alert';
 
 /** The four reasons a kitchen actually turns an order down. */
 const REJECT_REASONS = [
@@ -42,6 +43,8 @@ export default function CookOrderScreen() {
   const { getOrder, advanceOrder, rejectOrder, hydrated } = useOrders();
   const [rejecting, setRejecting] = useState(false);
   const { t, n, lang } = useLang();
+  /* Every write below reports what happened. */
+  const run = useAction();
 
   const order = getOrder(String(id));
 
@@ -560,7 +563,7 @@ export default function CookOrderScreen() {
               block
               onPress={() => {
                 Haptics.selectionAsync().catch(() => {});
-                advanceOrder(order.id);
+                run(() => advanceOrder(order.id));
               }}
             />
 
@@ -594,7 +597,7 @@ export default function CookOrderScreen() {
                       key={reason}
                       accessibilityRole="button"
                       onPress={() => {
-                        rejectOrder(order.id, reason);
+                        run(() => rejectOrder(order.id, reason), t('Order rejected.'));
                         setRejecting(false);
                       }}
                       style={({ pressed }) => ({

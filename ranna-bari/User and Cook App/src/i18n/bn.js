@@ -782,6 +782,14 @@ export const bn = {
   '{d} away': '{d} দূরে',
   Nearby: 'খুব কাছে',
 
+  // Outcomes announced by useAction.
+  'Kitchen is open for orders.': 'রান্নাঘর এখন অর্ডার নিচ্ছে।',
+  'Kitchen closed.': 'রান্নাঘর বন্ধ করা হয়েছে।',
+  'Shop is open.': 'দোকান খোলা হয়েছে।',
+  'Shop closed.': 'দোকান বন্ধ করা হয়েছে।',
+  'Order rejected.': 'অর্ডার বাতিল করা হয়েছে।',
+  'Order cancelled.': 'অর্ডার বাতিল হয়েছে।',
+
   'No delivery address on file.': 'কোনো ডেলিভারি ঠিকানা দেওয়া নেই।',
 
   'Check the {field} and try again.': '{field} ঠিক আছে কিনা দেখে আবার চেষ্টা করুন।',

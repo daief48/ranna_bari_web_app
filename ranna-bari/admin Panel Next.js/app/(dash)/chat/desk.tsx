@@ -8,15 +8,14 @@ import { Badge, BTN } from '@/components/ui';
 import { fmtDateTime, timeAgo } from '@/lib/format';
 
 /**
- * The support desk, live.
+ * The support desk, HTTP-polling edition.
  *
- * One socket for the whole page. The inbox and the open transcript both read
- * from it, which is what keeps a reply landing in the list *and* in the pane
- * without two subscriptions disagreeing about what arrived.
+ * WebSocket requires a persistent long-lived process — Netlify serverless
+ * functions cannot hold one. Instead this component polls the backend every
+ * 10 seconds for new messages and thread updates. Not real-time to the
+ * millisecond, but reliable and simple to host.
  *
- * Sending is a POST, not a socket frame — it has to be transactional and
- * idempotent, and a frame has no status code to act on. The socket is only
- * for delivery.
+ * Sending is still a POST — transactional, idempotent on `clientId`.
  */
 
 export type Thread = {
@@ -45,6 +44,8 @@ export type Message = {
   systemKind: string | null;
 };
 
+const POLL_MS = 10_000; // refresh every 10 seconds
+
 export function ChatDesk({
   me,
   threads: initialThreads,
@@ -64,12 +65,12 @@ export function ChatDesk({
   const [threads, setThreads] = useState(initialThreads);
   const [messages, setMessages] = useState(initialMessages);
   const [draft, setDraft] = useState('');
-  const [connected, setConnected] = useState(false);
-  const [typing, setTyping] = useState<string | null>(null);
+  const [connected, setConnected] = useState(true);
   const [sending, setSending] = useState(false);
 
-  const socketRef = useRef<WebSocket | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const activeIdRef = useRef(activeId);
+  activeIdRef.current = activeId;
 
   // Server-rendered props change on navigation; adopt them.
   useEffect(() => setThreads(initialThreads), [initialThreads]);
@@ -81,108 +82,67 @@ export function ChatDesk({
 
   useEffect(scrollDown, [messages.length, scrollDown]);
 
-  /* ---- the socket ---- */
+  /* ---- HTTP polling ---- */
 
   useEffect(() => {
-    let closed = false;
-    let retry: ReturnType<typeof setTimeout> | undefined;
-    let attempt = 0;
+    let cancelled = false;
 
-    const connect = () => {
-      if (closed) return;
+    const poll = async () => {
+      if (cancelled) return;
 
-      const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
-      // The operator's session cookie rides along automatically; no token in
-      // the URL for the panel, unlike the app.
-      const socket = new WebSocket(url);
-      socketRef.current = socket;
-
-      socket.onopen = () => {
-        attempt = 0;
-        setConnected(true);
-        if (activeId) socket.send(JSON.stringify({ type: 'subscribe', threadId: activeId }));
-      };
-
-      socket.onclose = () => {
-        setConnected(false);
-        if (closed) return;
-        /* Backing off rather than hammering. A desk left open overnight
-           through a deploy should reconnect, not generate ten thousand
-           handshakes against a server that is still starting. */
-        attempt = Math.min(attempt + 1, 6);
-        retry = setTimeout(connect, Math.min(1000 * 2 ** attempt, 30_000));
-      };
-
-      socket.onerror = () => socket.close();
-
-      socket.onmessage = (event) => {
-        let payload: {
-          type: string;
-          threadId?: string;
-          message?: Message;
-          thread?: Thread;
-          side?: string;
-          name?: string;
-        };
-        try {
-          payload = JSON.parse(event.data);
-        } catch {
-          return;
-        }
-
-        if (payload.type === 'message' && payload.message && payload.threadId) {
-          const incoming = payload.message;
-          const threadId = payload.threadId;
-
-          if (threadId === activeId) {
-            setMessages((prev) =>
-              prev.some((m) => m.id === incoming.id) ? prev : [...prev, incoming],
-            );
+      try {
+        // Refresh thread list
+        const threadsRes = await fetch('/api/admin/v1/chat/threads?take=80', {
+          cache: 'no-store',
+        });
+        if (threadsRes.ok) {
+          const data = await threadsRes.json();
+          if (!cancelled && data.threads) {
+            setThreads(() => {
+              const incoming: Thread[] = data.threads;
+              return incoming.map((t) => {
+                if (t.id === activeIdRef.current) return { ...t, unread: 0 };
+                return t;
+              });
+            });
           }
-
-          setThreads((prev) => {
-            const next = prev.map((t) =>
-              t.id === threadId
-                ? {
-                    ...t,
-                    lastMessageAt: incoming.sentAt,
-                    lastMessageBody: incoming.body,
-                    lastMessageFrom: incoming.senderType,
-                    unread:
-                      threadId === activeId || incoming.senderType === 'admin'
-                        ? t.unread
-                        : t.unread + 1,
-                  }
-                : t,
-            );
-            // Newest conversation first, the way an inbox is read.
-            return next.sort(
-              (a, b) => +new Date(b.lastMessageAt) - +new Date(a.lastMessageAt),
-            );
-          });
         }
 
-        if (payload.type === 'thread' && payload.thread) {
-          // A conversation that did not exist when this page rendered.
-          const arriving = payload.thread;
-          setThreads((prev) =>
-            prev.some((t) => t.id === arriving.id) ? prev : [arriving, ...prev],
+        // Refresh messages for the open thread
+        const currentId = activeIdRef.current;
+        if (currentId) {
+          const msgsRes = await fetch(
+            `/api/admin/v1/chat/messages?threadId=${encodeURIComponent(currentId)}&take=80`,
+            { cache: 'no-store' },
           );
+          if (msgsRes.ok) {
+            const data = await msgsRes.json();
+            if (!cancelled && data.messages) {
+              setMessages((prev) => {
+                const incoming: Message[] = data.messages;
+                const knownIds = new Set(prev.map((m) => m.id));
+                const next = [...prev];
+                for (const msg of incoming) {
+                  if (!knownIds.has(msg.id)) next.push(msg);
+                }
+                return next;
+              });
+            }
+          }
         }
 
-        if (payload.type === 'typing' && payload.threadId === activeId) {
-          setTyping(payload.name ?? 'Someone');
-          setTimeout(() => setTyping(null), 3000);
-        }
-      };
+        setConnected(true);
+      } catch {
+        setConnected(false);
+      }
     };
 
-    connect();
+    const interval = setInterval(poll, POLL_MS);
+    void poll(); // poll immediately on mount / thread change
 
     return () => {
-      closed = true;
-      if (retry) clearTimeout(retry);
-      socketRef.current?.close();
+      cancelled = true;
+      clearInterval(interval);
     };
   }, [activeId]);
 
@@ -190,7 +150,7 @@ export function ChatDesk({
 
   const open = (threadId: string) => {
     setThreads((prev) => prev.map((t) => (t.id === threadId ? { ...t, unread: 0 } : t)));
-    fetch('/api/app/v1/chat/read', {
+    fetch('/api/admin/v1/chat/read', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ threadId }),
@@ -200,7 +160,7 @@ export function ChatDesk({
 
   useEffect(() => {
     if (!activeId) return;
-    fetch('/api/app/v1/chat/read', {
+    fetch('/api/admin/v1/chat/read', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ threadId: activeId }),
@@ -229,7 +189,7 @@ export function ChatDesk({
     setSending(true);
 
     try {
-      const response = await fetch('/api/app/v1/chat/messages', {
+      const response = await fetch('/api/admin/v1/chat/messages', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ threadId: activeId, body, clientId }),
@@ -241,7 +201,6 @@ export function ChatDesk({
       // Swap the optimistic row for the stored one, so its id is real.
       setMessages((prev) => prev.map((m) => (m.id === clientId ? json.message : m)));
     } catch {
-      // Put the text back rather than losing it, and drop the ghost.
       setMessages((prev) => prev.filter((m) => m.id !== clientId));
       setDraft(body);
     } finally {
@@ -259,10 +218,10 @@ export function ChatDesk({
           <span className="label">Conversations</span>
           <span
             className={`inline-flex items-center gap-1 text-[11px] ${connected ? 'text-sage' : 'text-ink3'}`}
-            title={connected ? 'Live' : 'Reconnecting…'}
+            title={connected ? 'Polling — refreshes every 10s' : 'Connection error, retrying…'}
           >
             <span
-              className={`inline-block h-1.5 w-1.5 rounded-full ${connected ? 'bg-sage' : 'bg-ink3'}`}
+              className={`inline-block h-1.5 w-1.5 rounded-full ${connected ? 'bg-sage animate-pulse' : 'bg-ink3'}`}
               aria-hidden
             />
             {connected ? 'live' : 'offline'}
@@ -345,9 +304,6 @@ export function ChatDesk({
               {messages.map((message) => (
                 <Bubble key={message.id} message={message} />
               ))}
-              {typing ? (
-                <div className="text-[11.5px] text-ink3">{typing} is typing…</div>
-              ) : null}
               <div ref={bottomRef} />
             </div>
 
@@ -356,12 +312,9 @@ export function ChatDesk({
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  // Enter sends; shift-enter is a newline. A support desk types
-                  // fast and reaching for a button every time costs more than
-                  // the occasional accidental send.
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    send();
+                    void send();
                   }
                 }}
                 rows={2}
@@ -370,7 +323,7 @@ export function ChatDesk({
               />
               <button
                 type="button"
-                onClick={send}
+                onClick={() => void send()}
                 disabled={!draft.trim() || sending}
                 className={BTN.primary}
               >
@@ -380,7 +333,7 @@ export function ChatDesk({
           </>
         ) : (
           <div className="grid flex-1 place-items-center px-4 py-16 text-center text-[13px] text-ink3">
-            Nothing to answer. New conversations appear here the moment they open.
+            Nothing to answer. New conversations appear here automatically.
           </div>
         )}
       </section>

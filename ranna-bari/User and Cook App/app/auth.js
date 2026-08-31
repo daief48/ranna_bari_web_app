@@ -273,20 +273,40 @@ export default function AuthScreen() {
        * directory and every distance on the app are measured from. Without
        * it a new customer is nowhere, and nothing is near them.
        */
+      /*
+       * One retry, and only for the one failure that is transient.
+       *
+       * These run moments after the token is minted. Anything that reads it a
+       * render too early answers `unauthenticated` — not because the caller
+       * is unauthorised, but because the value has not arrived yet — and the
+       * profile would then be saved on the device and nowhere else, which is
+       * exactly the bug this replaced. Every other refusal is real, and is
+       * reported rather than repeated.
+       */
+      const persist = async (send) => {
+        const first = await send();
+        if (first.ok || first.error !== 'unauthenticated') return first;
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        return send();
+      };
+
       const written = await Promise.all([
-        saveProfile({ name: name.trim(), email: email.trim() }),
+        persist(() => saveProfile({ name: name.trim(), email: email.trim() })),
         place
-          ? saveAddress({
-              label: addressLabel,
-              /* The picker hands back a full postal address — 'Lane 11 East,
-                 1212 Dhaka'. An area is a neighbourhood, and that is what the
-                 filters, the cards and the shop directory all match on. */
-              area: normaliseArea(place.address),
-              detail: detail.trim(),
-              lat: place.lat,
-              lng: place.lng,
-              select: true,
-            })
+          ? persist(() =>
+              saveAddress({
+                label: addressLabel,
+                /* The picker hands back a full postal address — 'Lane 11
+                   East, 1212 Dhaka'. An area is a neighbourhood, and that is
+                   what the filters, the cards and the shop directory match
+                   on. */
+                area: normaliseArea(place.address),
+                detail: detail.trim(),
+                lat: place.lat,
+                lng: place.lng,
+                select: true,
+              }),
+            )
           : { ok: true },
       ]);
 

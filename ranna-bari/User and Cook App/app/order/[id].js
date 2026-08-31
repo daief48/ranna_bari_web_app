@@ -21,6 +21,7 @@ import {
   useOrders,
 } from '../../src/store/OrdersContext';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { useAction } from '../../src/components/Alert';
 
 export default function OrderScreen() {
   const { id } = useLocalSearchParams();
@@ -29,6 +30,8 @@ export default function OrderScreen() {
   const { getOrder, cancelOrder, hydrated } = useOrders();
   const [confirmCancel, setConfirmCancel] = useState(false);
   const { t, n, lang } = useLang();
+  /* Every write below reports what happened. */
+  const run = useAction();
 
   const order = useMemo(() => getOrder(String(id)), [getOrder, id]);
 
@@ -509,7 +512,7 @@ export default function OrderScreen() {
                     label={t('Cancel order')}
                     small
                     onPress={() => {
-                      cancelOrder(order.id);
+                      run(() => cancelOrder(order.id), t('Order cancelled.'));
                       setConfirmCancel(false);
                     }}
                     style={{ flex: 1 }}

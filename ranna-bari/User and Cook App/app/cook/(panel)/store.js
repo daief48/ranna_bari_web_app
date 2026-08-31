@@ -27,11 +27,14 @@ import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
+import { useAction } from '../../../src/components/Alert';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 export default function CookStoreHub() {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
+  /* Every write below reports what happened. */
+  const run = useAction();
   const router = useRouter();
   const { kitchen } = useKitchen();
   const shop = useCommerce();
@@ -110,7 +113,10 @@ export default function CookStoreHub() {
             accessibilityLabel={store.isOpen ? t('Shop open') : t('Tap to open your shop')}
             onPress={() => {
               Haptics.selectionAsync().catch(() => {});
-              shop.toggleStoreOpen(store.id);
+              run(
+                () => shop.toggleStoreOpen(store.id),
+                () => (store.isOpen ? t('Shop closed.') : t('Shop is open.')),
+              );
             }}
             style={({ pressed }) => [
               {

@@ -43,6 +43,7 @@ import Button from './Button';
 import { useTheme } from '../theme/ThemeProvider';
 import { font, radius, type } from '../theme/tokens';
 import { useLang } from '../i18n/LanguageContext';
+import { errorText } from '../lib/errors';
 
 const AlertContext = createContext(null);
 
@@ -112,6 +113,50 @@ export function AlertProvider({ children }) {
       <Dialog spec={dialog} onClose={dismiss} />
       <Toast spec={toast} onClose={() => setToast(null)} />
     </AlertContext.Provider>
+  );
+}
+
+/**
+ * Run one API write and say what happened.
+ *
+ * Half the writes in this app were fire-and-forget — `advanceOrder(id)`,
+ * `toggleOpen()`, `removeProduct(id)` — so a refusal produced nothing at
+ * all: no dialog, no toast, just a button that appeared not to work. The
+ * other half each rebuilt the same three lines of `if (!out.ok)` around
+ * `errorText`.
+ *
+ * Failure is a dialog, because it answers something the person just did and
+ * has to be acknowledged. Success is a toast and is opt-in: the outcome of
+ * most writes is already visible on the screen behind, and a banner
+ * confirming every change of quantity would be noise rather than feedback.
+ *
+ *   const run = useAction();
+ *   await run(() => shop.toggleProduct(id));
+ *   await run(() => meals.publishMeal(draft), t('Meal published.'));
+ */
+export function useAction() {
+  const alert = useAlert();
+  const { t, n } = useLang();
+
+  return useCallback(
+    async (write, successMessage) => {
+      const out = await write();
+
+      /* A write that answers nothing at all is treated as having worked —
+         some of these are local-only and return undefined. */
+      if (out && out.ok === false) {
+        alert.error(errorText(out.error, t, n, out));
+        return out;
+      }
+
+      if (successMessage) {
+        alert.success(
+          typeof successMessage === 'function' ? successMessage(out) : successMessage,
+        );
+      }
+      return out;
+    },
+    [alert, t, n],
   );
 }
 

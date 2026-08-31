@@ -31,6 +31,7 @@ import { RadiusSlider } from '../../src/components/CookBits';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { SPECIALTIES, useKitchen } from '../../src/store/KitchenContext';
+import { useAction } from '../../src/components/Alert';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 export default function KitchenDetails() {
@@ -58,6 +59,8 @@ export default function KitchenDetails() {
 function DetailsForm({ kitchen }) {
   const { colors } = useTheme();
   const { t } = useLang();
+  /* Every write below reports what happened. */
+  const run = useAction();
   const router = useRouter();
   const { updateKitchen } = useKitchen();
 
@@ -72,18 +75,26 @@ function DetailsForm({ kitchen }) {
   const back = () =>
     router.canGoBack() ? router.back() : router.replace('/cook/kitchen');
 
-  const save = () => {
+  const save = async () => {
     if (!name.trim()) {
       setNote(t('Your kitchen needs a name for customers to find it.'));
       return;
     }
     setNote('');
-    updateKitchen({
-      name: name.trim(),
-      specialty,
-      description: description.trim(),
-      deliveryRadiusKm: radiusKm,
-    });
+
+    /* Awaited, and the tick only follows a write the server accepted. This
+       used to set "Saved" the instant it fired, so a refusal still showed a
+       confirmation and the cook walked away believing it had worked. */
+    const out = await run(() =>
+      updateKitchen({
+        name: name.trim(),
+        specialty,
+        description: description.trim(),
+        deliveryRadiusKm: radiusKm,
+      }),
+    );
+    if (out && out.ok === false) return;
+
     setSaved(true);
     Haptics.selectionAsync().catch(() => {});
   };

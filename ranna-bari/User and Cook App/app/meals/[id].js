@@ -28,6 +28,7 @@ import { useAuth } from '../../src/store/AuthContext';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/mealLogic';
 import { addressFromAccount } from '../../src/lib/ledger';
+import { useAction } from '../../src/components/Alert';
 import DistanceChip from '../../src/components/DistanceChip';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { useAlert } from '../../src/components/Alert';
@@ -36,6 +37,8 @@ export default function MealScreen() {
   const { id } = useLocalSearchParams();
   const { colors, shadow } = useTheme();
   const { t, n, lang } = useLang();
+  /* Every write below reports what happened. */
+  const run = useAction();
   const alert = useAlert();
   const router = useRouter();
   const { account, isSignedIn } = useAuth();
@@ -88,7 +91,8 @@ export default function MealScreen() {
 
   const onInterest = () => {
     if (!isSignedIn) return router.push('/auth');
-    meals.toggleInterest(meal.id, key);
+    /* The heart fills in immediately, so only a refusal needs saying. */
+    run(() => meals.toggleInterest(meal.id, key));
   };
 
   const onConfirm = () => {
