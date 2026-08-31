@@ -32,11 +32,29 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   /*
-   * Everything except Next's own assets and the app-facing API.
+   * Everything except Next's own assets, the app-facing API, and anything
+   * that is a file rather than a page.
    *
    * `/api/app/*` is the endpoint set the Expo client will eventually call; it
    * authenticates as an app account, not as an operator, so an admin session
    * cookie must not be what opens it.
+   *
+   * ## Why the extension list is here
+   *
+   * `_next/static` covers what the bundler emits, and nothing else. Files in
+   * `public/` are served from the root — `/logo.png`, not `/_next/...` — so
+   * they fell through to the gate below, and an unauthenticated request for
+   * the wordmark was answered with a 307 to `/login?next=%2Flogo.png`. The
+   * browser got an HTML page where it expected a PNG, so the logo on the
+   * sign-in screen was broken: the one page guaranteed to have no session is
+   * the one page that shows the logo.
+   *
+   * `favicon.ico` was already excluded by name, but the file in `public/` is
+   * `favicon.png`, so the tab icon was broken for the same reason. Matching
+   * on the extension covers both, and covers whatever gets added later
+   * without anyone having to remember this.
    */
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/app).*)'],
+  matcher: [
+    '/((?!_next/static|_next/image|api/app|.*\\.(?:png|jpg|jpeg|webp|avif|gif|svg|ico|woff|woff2|ttf|otf|webmanifest|txt|xml|map)$).*)',
+  ],
 };
