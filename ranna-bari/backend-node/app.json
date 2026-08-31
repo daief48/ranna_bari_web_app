@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "fe0c4d56-9bdc-49b4-9867-fd33dbde2b50"
+      }
+    },
+    "android": {
+      "package": "com.daief004.rannabaribackend"
+    }
+  }
+}
