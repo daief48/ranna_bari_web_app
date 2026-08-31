@@ -813,6 +813,44 @@
     color: var(--ink3);
     cursor: not-allowed;
   }
+
+  /* --- the front door --------------------------------------------- *
+   *
+   * Used by /login and nowhere else. The desk is deliberately flat, so
+   * these live behind their own names rather than becoming tokens that
+   * some table could reach for later.
+   * ---------------------------------------------------------------- */
+
+  /* Three washes from the status palette, blurred past the point of being
+     shapes and drifting against each other. Blurred with `filter` rather
+     than a soft gradient stop because the blur is what stops the three from
+     reading as three circles. */
+  .rb-aurora {
+    background-image:
+      radial-gradient(
+        38% 42% at 22% 26%,
+        color-mix(in oklab, var(--primary) 24%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        34% 38% at 74% 20%,
+        color-mix(in oklab, var(--saffron) 20%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        40% 40% at 58% 76%,
+        color-mix(in oklab, var(--sage) 17%, transparent),
+        transparent 72%
+      );
+    filter: blur(48px);
+    animation: rb-drift 26s var(--ease) infinite alternate;
+  }
+
+  /* The card arrives once, on load. `both` so it holds the start frame
+     before it runs rather than flashing at full opacity first. */
+  .rb-enter {
+    animation: rb-rise 260ms var(--ease) both;
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -870,6 +908,16 @@
 @keyframes rb-fade {
   from {
     opacity: 0;
+  }
+}
+
+/* The one long, slow exception to "no decorative motion", and it is allowed
+   because it is on the sign-in ground rather than on the desk: 26s to cross a
+   few per cent, under a 48px blur, on a screen nobody is reading a number off.
+   Composited — transform only, no layout, no paint. */
+@keyframes rb-drift {
+  to {
+    transform: translate3d(2.5%, -2%, 0) scale(1.06);
   }
 }
 
