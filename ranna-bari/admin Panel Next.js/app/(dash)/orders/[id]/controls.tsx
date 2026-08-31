@@ -70,7 +70,9 @@ export function OrderControls({
    * never will be enabled on this order.
    */
   const moneyNote = held
-    ? 'Releasing splits the held amount between the cook and the platform. Both post to the ledger; neither can be edited afterwards.'
+    ? status === 'completed'
+      ? 'The customer has confirmed the food arrived. Nothing else moves this money — releasing it is your call, and it splits between the cook and the platform. Both post to the ledger; neither can be edited afterwards.'
+      : 'Releasing splits the held amount between the cook and the platform. Both post to the ledger; neither can be edited afterwards.'
     : kind === 'cod'
       ? 'Cash on delivery: the customer pays the rider at the door, so the platform never holds this money and there is nothing to release. The cook was paid in cash.'
       : payment === 'released'

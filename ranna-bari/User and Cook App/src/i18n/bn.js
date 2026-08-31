@@ -988,13 +988,13 @@ export const bn = {
   /* ---------------- meal system: order tracking ---------------- */
   'Did your food arrive?': 'খাবার কি পৌঁছেছে?',
   'Food received': 'খাবার পেয়েছি',
-  '৳{n} is still held. Confirming releases it to {cook}.':
-    '৳{n} এখনো জমা আছে। নিশ্চিত করলেই {cook} টাকাটা পেয়ে যাবেন।',
+  'Confirming closes this order. ৳{n} stays held until RannaBari releases it to {cook}.':
+    'নিশ্চিত করলে অর্ডারটি সম্পন্ন হবে। ৳{n} জমা থাকবে, রান্নাবাড়ি {cook}-কে পরে দেবে।',
   'Confirm you received the food?': 'খাবার পেয়েছেন নিশ্চিত করছেন?',
-  'This releases ৳{n} to {cook} and completes the order. It cannot be undone.':
-    'এতে ৳{n} {cook}-কে দেওয়া হবে আর অর্ডারটি সম্পন্ন হবে। এটি আর ফেরানো যাবে না।',
+  'This completes the order and cannot be undone. ৳{n} stays held until RannaBari releases it to {cook}.':
+    'এতে অর্ডারটি সম্পন্ন হবে, আর ফেরানো যাবে না। ৳{n} জমা থাকবে, রান্নাবাড়ি {cook}-কে পরে দেবে।',
   'Yes, it arrived': 'হ্যাঁ, পেয়েছি',
-  '৳{n} has been released to the cook.': '৳{n} রাঁধুনিকে দেওয়া হয়েছে।',
+  'Thank you — this order is complete.': 'ধন্যবাদ — অর্ডারটি সম্পন্ন হয়েছে।',
   'Cancel this order?': 'এই অর্ডারটি বাতিল করবেন?',
   '৳{n} goes back to your wallet, and the cook is told.':
     '৳{n} আপনার ওয়ালেটে ফিরে যাবে, আর রাঁধুনিকে জানানো হবে।',

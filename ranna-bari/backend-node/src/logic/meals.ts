@@ -670,39 +670,40 @@ export async function advanceOrder(args: {
 }
 
 /**
- * The customer says it arrived, and only now does the cook get paid.
+ * The customer says it arrived. The order is finished; the money is not.
  *
  * A courier marking an order delivered is a claim about a van, not about a
- * doorstep, which is why that moves the status and this moves the money. The
- * two are deliberately not collapsed.
+ * doorstep, which is why that moves the status and this closes the order.
  *
- * What the app could not do is split the release. `releaseEscrow` pays the
- * cook their share and the platform its commission out of the same held
- * amount, which is why the cook's line carries a real figure rather than the
- * `{amount}` placeholder: the client fills that from the order total, and the
- * order total is what the *customer* paid.
+ * ## Why this no longer pays the cook
+ *
+ * It used to do both in one transaction: release the escrow and set
+ * `completed`. That made the customer the last authority on money, and there
+ * is no step between them pressing a button and a cook being paid — nothing
+ * catches an order confirmed by mistake, under pressure, or by someone who
+ * has already opened a dispute in the same minute.
+ *
+ * So the two are now separate decisions with separate owners. The customer
+ * closes the order; releasing the hold is an operator's call, from the
+ * panel's order screen or the escrow sweep. `payment` stays `held`, which is
+ * what keeps the row on the release queue and what stops it being released
+ * twice by any route.
  */
 export async function confirmReceived(args: {
   orderId: string;
   /** The customer acting. Only they can say the food arrived. */
   customerKey?: string;
-}): Promise<Result<{ amount: number; cook: number; platform: number }>> {
+}): Promise<Result<{ amount: number }>> {
   const order = await findOrder(args.orderId);
   if (!order) return fail(ERR.NO_ORDER);
   if (args.customerKey && order.customerKey !== args.customerKey) return fail(ERR.FORBIDDEN);
   if (order.status !== 'delivered') return fail(ERR.WRONG_STATE);
-  // Belt and braces: the status check implies this, and a released hold must
-  // never be releasable a second time by any route.
+  // A hold that has already been settled has nothing left to confirm against.
   if (order.payment !== 'held') return fail(ERR.ALREADY_SETTLED);
 
   const orderId = String(order._id);
 
   return tx(async (session) => {
-    const out = await releaseEscrow(session, orderId, {
-      note: `Released for ${order.title}`,
-    });
-    if (!out.ok) return out;
-
     await Order.updateOne(
       { _id: orderId },
       {
@@ -714,10 +715,10 @@ export async function confirmReceived(args: {
 
     await notify(session, {
       audience: 'cook',
-      kind: 'payment-released',
-      key: `cook:payment-released:${orderId}`,
-      title: 'Payment released',
-      body: `${taka(out.result.cook)} for ${order.title} is in your wallet.`,
+      kind: 'order-confirmed',
+      key: `cook:order-confirmed:${orderId}`,
+      title: 'Customer confirmed delivery',
+      body: `${order.title} is complete. ${taka(order.amount)} is held and will be released to you by RannaBari.`,
       kitchenId: order.kitchenId,
       mealId: order.mealId,
       orderId,
@@ -728,13 +729,13 @@ export async function confirmReceived(args: {
       kind: 'order-completed',
       key: `customer:order-completed:${orderId}`,
       title: 'Order completed',
-      body: '৳{amount} has been released to the cook.',
+      body: 'Thank you — this order is closed.',
       customerKey: order.customerKey,
       mealId: order.mealId,
       orderId,
     });
 
-    return ok({ amount: order.amount, cook: out.result.cook, platform: out.result.platform });
+    return ok({ amount: order.amount });
   });
 }
 

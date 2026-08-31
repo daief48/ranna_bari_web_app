@@ -8,9 +8,13 @@
  * the half handling money.
  *
  * The rail is not decoration. Its last step belongs to the person reading it:
- * nothing pays the cook until "Food received" is pressed here, so that button
- * is the loudest thing on the screen the moment it applies and absent the
- * rest of the time.
+ * the order is not closed until "Food received" is pressed here, so that
+ * button is the loudest thing on the screen the moment it applies and absent
+ * the rest of the time.
+ *
+ * Pressing it no longer pays the cook. Closing the order and releasing the
+ * hold are two decisions with two owners now — the customer makes the first,
+ * RannaBari makes the second — so nothing here should promise money moving.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
@@ -86,7 +90,7 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
     const out = await shop.confirmReceived(order.id);
     setAsking(null);
     if (!out.ok) return alert.error(errorText(out.error, t, n, out));
-    alert.success(t('৳{n} has been released to the cook.', { n: n(out.result) }));
+    alert.success(t('Thank you — this order is complete.'));
   };
 
   const cancel = async () => {
@@ -204,7 +208,7 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
               </Heading>
             </View>
             <Body muted size={14}>
-              {t('৳{n} is still held. Confirming releases it to {cook}.', {
+              {t('Confirming closes this order. ৳{n} stays held until RannaBari releases it to {cook}.', {
                 n: n(order.amount),
                 cook: order.cookName,
               })}
@@ -407,7 +411,7 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
       <Confirm
         open={asking === 'receive'}
         title={t('Confirm you received the food?')}
-        body={t('This releases ৳{n} to {cook} and completes the order. It cannot be undone.', {
+        body={t('This completes the order and cannot be undone. ৳{n} stays held until RannaBari releases it to {cook}.', {
           n: n(order.amount),
           cook: order.cookName,
         })}

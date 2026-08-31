@@ -19,6 +19,8 @@ import {
   releaseEscrow,
 } from '../../../logic/ledger.js';
 import { getFlags, getSettings, saveSetting, SETTING_META } from '../../../logic/settings.js';
+import { notify } from '../../../logic/wallet.js';
+import { taka } from '../../../lib/format.js';
 import {
   markRead,
   messagesFor,
@@ -524,9 +526,12 @@ export async function adminRoutes(app: FastifyInstance) {
         reconcile(),
         Kitchen.countDocuments({ kycStatus: 'pending' }),
         Dispute.countDocuments({ status: { $in: ['open', 'investigating'] } }),
+        /* Same two states as the escrow board: a confirmed order still holds
+           its money, because confirming closes the order and no longer
+           releases the hold. */
         Order.countDocuments({
           payment: 'held',
-          status: 'delivered',
+          status: { $in: ['delivered', 'completed'] },
           deliveredAt: { $lt: escrowCutoff },
         }),
         Order.countDocuments({ status: 'pending', preorder: true }),
@@ -869,6 +874,22 @@ export async function adminRoutes(app: FastifyInstance) {
       if (!result.ok) return result;
 
       await Order.updateOne({ _id: id }, { status: 'completed' }, { session });
+
+      /* The cook has to be told, and this is now the only place that can tell
+         them. `confirmReceived` used to release the hold and raise this
+         notification in the same breath; it no longer moves money, so without
+         this line a cook is paid and never hears about it. */
+      await notify(session, {
+        audience: 'cook',
+        kind: 'payment-released',
+        key: `cook:payment-released:${id}`,
+        title: 'Payment released',
+        body: `${taka(result.result.cook)} for ${before?.title ?? 'your order'} is in your wallet.`,
+        kitchenId: before?.kitchenId,
+        mealId: before?.mealId ?? undefined,
+        orderId: id,
+      });
+
       await audit(
         actor,
         {

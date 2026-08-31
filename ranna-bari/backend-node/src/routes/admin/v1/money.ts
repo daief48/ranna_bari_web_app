@@ -13,6 +13,7 @@ import {
   splitEscrow,
 } from '../../../logic/ledger.js';
 import { getSettings } from '../../../logic/settings.js';
+import { notify } from '../../../logic/wallet.js';
 import {
   AuditLog,
   Dispute,
@@ -433,7 +434,17 @@ export async function moneyRoutes(app: FastifyInstance) {
 
     const settings = await getSettings();
     const cutoff = new Date(Date.now() - settings.escrowAutoReleaseDays * 86_400_000);
-    const where = { payment: 'held', status: 'delivered', deliveredAt: { $lt: cutoff } };
+    /* Both states hold money. `delivered` is the courier's word and the
+       customer has not answered yet; `completed` is the customer confirming,
+       which closes the order but no longer releases the hold — that is an
+       operator's call now. Filtering on `delivered` alone would hide every
+       order a customer had actually confirmed, which is the half of this
+       queue that is most ready to pay out. */
+    const where = {
+      payment: 'held',
+      status: { $in: ['delivered', 'completed'] },
+      deliveredAt: { $lt: cutoff },
+    };
 
     const [rows, count, held] = await Promise.all([
       /* Oldest first: the queue is worked from the end that has waited most. */
@@ -475,10 +486,13 @@ export async function moneyRoutes(app: FastifyInstance) {
 
     const due = await Order.find({
       payment: 'held',
-      status: 'delivered',
+      status: { $in: ['delivered', 'completed'] },
       deliveredAt: { $lt: cutoff },
     })
-      .select('code')
+      /* `kitchenId` and `title` are here for the notification below, not for
+         the sweep itself — a cook has to be told their money landed, and this
+         is one of the two places that can tell them. */
+      .select('code kitchenId title mealId')
       .lean();
 
     let released = 0;
@@ -494,6 +508,18 @@ export async function moneyRoutes(app: FastifyInstance) {
         if (!result.ok) return result;
 
         await Order.updateOne({ _id: id }, { status: 'completed' }, { session });
+
+        await notify(session, {
+          audience: 'cook',
+          kind: 'payment-released',
+          key: `cook:payment-released:${id}`,
+          title: 'Payment released',
+          body: `${taka(result.result.cook)} for ${order.title ?? 'your order'} is in your wallet.`,
+          kitchenId: order.kitchenId,
+          mealId: order.mealId ?? undefined,
+          orderId: id,
+        });
+
         await audit(
           actor,
           {
