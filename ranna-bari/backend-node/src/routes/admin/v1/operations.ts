@@ -22,6 +22,7 @@ import {
 } from '../../../logic/taxonomy.js';
 import {
   AuditLog,
+  Dish,
   Kitchen,
   Meal,
   Notification,
@@ -328,6 +329,40 @@ export async function operationRoutes(app: FastifyInstance) {
   });
 
   /* ---------------- stores ---------------- */
+
+  /**
+   * One meal, with the orders against it.
+   *
+   * The board links every row to a detail page, and the ids on that board are
+   * this database's. Without this the panel had to read its own mirror to
+   * open one of them, which holds different rows under different ids — so the
+   * link resolved to nothing and the screen 404'd.
+   */
+  app.get('/meals/:id', async (request, reply) => {
+    const actor = await require(request, reply, 'order.read');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const meal = await Meal.findById(id)
+      .lean()
+      .catch(() => null);
+    if (!meal) return fail(reply, ERR.NO_MEAL, 404);
+
+    const [kitchen, orders] = await Promise.all([
+      Kitchen.findById(meal.kitchenId)
+        .select({ name: 1, area: 1, isVerified: 1 })
+        .lean()
+        .catch(() => null),
+      Order.find({ mealId: id }).sort({ createdAt: -1 }).lean(),
+    ]);
+
+    return {
+      meal: withId(meal),
+      kitchen: kitchen ? { ...kitchen, id: String(kitchen._id) } : null,
+      orders: orders.map(withId),
+    };
+  });
 
   app.get('/stores', async (request, reply) => {
     const actor = await require(request, reply, 'order.read');
@@ -665,6 +700,65 @@ export async function operationRoutes(app: FastifyInstance) {
     };
   });
 
+  /**
+   * Every dish on every menu.
+   *
+   * The cook's app has a Menu tab and the panel had no way to see it. A
+   * kitchen's dishes were reachable only through `GET /kitchens/:id`, one
+   * kitchen at a time — which answers "what does this cook sell" but never
+   * "who sells this", "what is unavailable right now", or "what does a
+   * biryani cost across the platform", and those are the questions an
+   * operator actually opens a menu board for.
+   *
+   * `available` is the cook's own toggle, the switch in the screenshot of
+   * their Menu tab. It is not moderation and the panel does not write it.
+   */
+  app.get('/dishes', async (request, reply) => {
+    const actor = await require(request, reply, 'kitchen.read');
+    if (!actor) return;
+
+    const query = z
+      .object({
+        kitchenId: z.string().optional(),
+        available: z.enum(['true', 'false']).optional(),
+        q: z.string().optional(),
+        ...paging,
+      })
+      .parse(request.query ?? {});
+
+    const where: Record<string, unknown> = {};
+    if (query.kitchenId) where.kitchenId = query.kitchenId;
+    if (query.available) where.available = query.available === 'true';
+    if (query.q?.trim()) {
+      /* Escaped before it becomes a regex: a dish search for "100% beef" is a
+         customer's words, not a pattern, and an unescaped one is both a wrong
+         result and a way to hand the database a catastrophic backtrack. */
+      const safe = query.q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      where.$or = [
+        { name: { $regex: safe, $options: 'i' } },
+        { description: { $regex: safe, $options: 'i' } },
+      ];
+    }
+
+    const [rows, total, unavailable] = await Promise.all([
+      Dish.find(where).sort({ name: 1 }).skip(query.skip).limit(query.take).lean(),
+      Dish.countDocuments(where),
+      Dish.countDocuments({ ...where, available: false }),
+    ]);
+
+    const kitchens = await kitchensByIds(rows.map((row) => row.kitchenId));
+
+    return {
+      dishes: rows.map((row) => ({
+        ...withId(row),
+        // A menu row without the kitchen behind it is an orphan price.
+        kitchenName: kitchens.get(row.kitchenId)?.name ?? '',
+      })),
+      total,
+      unavailable,
+    };
+  });
+
   app.post('/reviews/:id/moderate', async (request, reply) => {
     const actor = await require(request, reply, 'review.moderate');
     if (!actor) return;
@@ -925,6 +1019,43 @@ export async function operationRoutes(app: FastifyInstance) {
    * `/config` the phone fetches filters them out, which is the surface where
    * "not offered any more" actually means something.
    */
+  /**
+   * One credit, and the rest of that customer's.
+   *
+   * Reconciliation is comparative: a single orphaned top-up is a clerical
+   * question, and the same customer's fourth orphan in a week is a different
+   * one entirely. The neighbours are half the answer, so they come back with
+   * it rather than costing a second round trip.
+   */
+  app.get('/topups/:id', async (request, reply) => {
+    const actor = await require(request, reply, 'ledger.read');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const topup = await TopUp.findById(id)
+      .lean()
+      .catch(() => null);
+    if (!topup) return fail(reply, MISSING, 404);
+
+    const [others, totals] = await Promise.all([
+      TopUp.find({ customerKey: topup.customerKey, _id: { $ne: topup._id } })
+        .sort({ at: -1 })
+        .limit(8)
+        .lean(),
+      TopUp.aggregate<{ _id: null; amount: number; count: number }>([
+        { $match: { customerKey: topup.customerKey } },
+        { $group: { _id: null, amount: { $sum: '$amount' }, count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    return {
+      topup: withId(topup),
+      others: others.map(withId),
+      wallet: { amount: totals[0]?.amount ?? 0, count: totals[0]?.count ?? 0 },
+    };
+  });
+
   app.get('/taxonomy', async (request, reply) => {
     const actor = await require(request, reply, 'config.read');
     if (!actor) return;
