@@ -1,12 +1,27 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { db } from '@/lib/db';
+import { get } from '@/lib/backend';
 import { fmtDateTime, timeAgo } from '@/lib/format';
 import { Badge, Card, Field, Grid, LinkButton, PageHeader } from '@/components/ui';
 import { requirePage } from '@/lib/guard';
 
 export const dynamic = 'force-dynamic';
+
+/** One trail row as the backend serves it. */
+type AuditRow = {
+  id: string;
+  at: string;
+  action: string;
+  actorEmail: string;
+  actorRole: string;
+  targetType: string;
+  targetId: string;
+  summary: string;
+  ip: string | null;
+  before: unknown;
+  after: unknown;
+};
 
 /** Where a target of this type is read in the panel, if anywhere. */
 const TARGET_HREF: Record<string, (id: string) => string> = {
@@ -25,8 +40,18 @@ const TARGET_HREF: Record<string, (id: string) => string> = {
   ledger: (id) => `/ledger/${id}`,
 };
 
-function parse(raw: string | null): Record<string, unknown> | null {
+/**
+ * The before/after side of a row, from either store.
+ *
+ * Prisma kept these as JSON strings; Mongo holds real objects. Handing an
+ * object to `JSON.parse` would throw, be swallowed, and collapse every diff on
+ * the page to "no change" — which reads as a row that did nothing rather than
+ * a reader that could not read it.
+ */
+function parse(raw: unknown): Record<string, unknown> | null {
   if (!raw) return null;
+  if (typeof raw === 'object') return raw as Record<string, unknown>;
+  if (typeof raw !== 'string') return null;
   try {
     const value = JSON.parse(raw);
     return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
@@ -46,11 +71,19 @@ export default async function AuditDetail({ params }: { params: Promise<{ id: st
   await requirePage('order.read');
   const { id } = await params;
 
-  const row = await db.auditLog.findUnique({
-    where: { id },
-    include: { actor: { select: { id: true, name: true, email: true, role: true } } },
-  });
-  if (!row) notFound();
+  /* The trail is written and held by the backend, so the row is read from
+     there. The operator behind it is matched on the email the row recorded
+     rather than an id, because the row is the record — an operator renamed or
+     deleted afterwards must not change what the trail says happened. */
+  const loaded = await get<{
+    row: AuditRow;
+    operator: { id: string; name: string; email: string; role: string } | null;
+    byActor: AuditRow[];
+    sameTarget: AuditRow[];
+  }>(`/audit/${id}`).catch(() => null);
+  if (!loaded) notFound();
+
+  const row = { ...loaded.row, actor: loaded.operator };
 
   const before = parse(row.before);
   const after = parse(row.after);
@@ -62,19 +95,10 @@ export default async function AuditDetail({ params }: { params: Promise<{ id: st
   const changed = keys.filter((k) => show(before?.[k]) !== show(after?.[k]));
 
   /* What else this operator did around the same time, and what else was done
-     to this target. Either is usually the reason someone opened this row. */
-  const [nearby, sameTarget] = await Promise.all([
-    db.auditLog.findMany({
-      where: { actorEmail: row.actorEmail, id: { not: row.id } },
-      orderBy: { at: 'desc' },
-      take: 8,
-    }),
-    db.auditLog.findMany({
-      where: { targetType: row.targetType, targetId: row.targetId, id: { not: row.id } },
-      orderBy: { at: 'desc' },
-      take: 8,
-    }),
-  ]);
+     to this target. Either is usually the reason someone opened this row —
+     both come back with it. */
+  const nearby = loaded.byActor;
+  const sameTarget = loaded.sameTarget;
 
   const targetHref = TARGET_HREF[row.targetType]?.(row.targetId);
 

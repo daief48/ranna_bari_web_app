@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { db } from '@/lib/db';
+import { get } from '@/lib/backend';
 import { fmtDateTime, timeAgo } from '@/lib/format';
 import {
   Avatar,
@@ -17,6 +17,27 @@ import { requirePage } from '@/lib/guard';
 
 export const dynamic = 'force-dynamic';
 
+type ReviewRow = {
+  id: string;
+  kitchenId: string;
+  customerKey: string | null;
+  name: string;
+  avatar: string | null;
+  area: string | null;
+  rating: number;
+  text: string;
+  date: string | null;
+  hidden: boolean;
+  hiddenBy: string | null;
+  hiddenNote: string | null;
+  hiddenAt: string | null;
+  createdAt: string;
+  /** Only on the "same customer" list, where the kitchen differs per row. */
+  kitchenName?: string;
+};
+
+type Score = { avg: number | null; count: number };
+
 /** Five glyphs rather than a number: a rating is read, not calculated. */
 function Stars({ rating }: { rating: number }) {
   return (
@@ -31,35 +52,28 @@ export default async function ReviewDetail({ params }: { params: Promise<{ id: s
   await requirePage('kitchen.read');
   const { id } = await params;
 
-  const review = await db.review.findUnique({
-    where: { id },
-    include: { kitchen: { select: { id: true, name: true, area: true, isVerified: true } } },
-  });
-  if (!review) notFound();
+  /* What this review does to the kitchen it is attached to, and what else the
+     same person has said, all in one read. Hidden reviews are out of the
+     rating, so both averages come back: an operator about to hide one should
+     see what that will do to the score before they do it. */
+  const loaded = await get<{
+    review: ReviewRow;
+    kitchen: { id: string; name: string; area: string; isVerified: boolean } | null;
+    visible: Score;
+    all: Score;
+    byCustomer: ReviewRow[];
+  }>(`/reviews/${id}`).catch(() => null);
 
-  /* What this review does to the kitchen it is attached to, and what else
-     the same person has said. Hidden reviews are out of the rating, so the
-     two averages are both worth showing. */
-  const [visible, all, bySameCustomer] = await Promise.all([
-    db.review.aggregate({
-      where: { kitchenId: review.kitchenId, hidden: false },
-      _avg: { rating: true },
-      _count: true,
-    }),
-    db.review.aggregate({
-      where: { kitchenId: review.kitchenId },
-      _avg: { rating: true },
-      _count: true,
-    }),
-    review.customerKey
-      ? db.review.findMany({
-          where: { customerKey: review.customerKey, id: { not: review.id } },
-          orderBy: { createdAt: 'desc' },
-          take: 6,
-          include: { kitchen: { select: { id: true, name: true } } },
-        })
-      : [],
-  ]);
+  /* Every panel here is about the kitchen this review scores, so a review
+     whose kitchen has gone has nothing to show. */
+  if (!loaded || !loaded.kitchen) notFound();
+
+  const review = { ...loaded.review, kitchen: loaded.kitchen };
+  const bySameCustomer = loaded.byCustomer;
+
+  /* Kept in Prisma's aggregate shape so the markup below is untouched. */
+  const visible = { _avg: { rating: loaded.visible.avg }, _count: loaded.visible.count };
+  const all = { _avg: { rating: loaded.all.avg }, _count: loaded.all.count };
 
   const hiddenCount = all._count - visible._count;
 
@@ -178,10 +192,10 @@ export default async function ReviewDetail({ params }: { params: Promise<{ id: s
                 <span className="flex shrink-0 items-center gap-2.5">
                   <Stars rating={row.rating} />
                   <Link
-                    href={`/kitchens/${row.kitchen.id}`}
+                    href={`/kitchens/${row.kitchenId}`}
                     className="text-[12px] text-ink3 hover:text-primary"
                   >
-                    {row.kitchen.name}
+                    {row.kitchenName}
                   </Link>
                   <span className="w-[70px] text-right text-[12px] text-ink3">
                     {timeAgo(row.createdAt)}

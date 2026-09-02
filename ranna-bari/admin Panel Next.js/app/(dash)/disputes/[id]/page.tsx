@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { db } from '@/lib/db';
+import { get } from '@/lib/backend';
 import { taka, fmtDateTime, timeAgo } from '@/lib/format';
 import {
   Badge,
@@ -20,7 +20,8 @@ export const dynamic = 'force-dynamic';
 
 type Note = { at?: string; by?: string; text?: string };
 
-function parseNotes(raw: string): Note[] {
+function parseNotes(raw: string | null | undefined): Note[] {
+  if (!raw) return [];
   try {
     const value = JSON.parse(raw);
     return Array.isArray(value) ? (value as Note[]) : [];
@@ -33,20 +34,61 @@ export default async function DisputeDetail({ params }: { params: Promise<{ id: 
   await requirePage('order.read');
   const { id } = await params;
 
-  const dispute = await db.dispute.findUnique({
-    where: { id },
-    include: { order: true },
-  });
-  if (!dispute) notFound();
+  /* Backend, because the board that links here is the backend's. The order
+     and the postings against it come back with the dispute — reading one
+     without the others is how people conclude the numbers do not add up. */
+  const loaded = await get<{
+    dispute: Record<string, unknown>;
+    order: {
+      id: string;
+      code: string;
+      title: string;
+      status: string;
+      payment: string;
+      amount: number;
+      cookName: string;
+      customerName: string;
+      kitchenId: string;
+    } | null;
+    entries: {
+      id: string;
+      kind: string;
+      amount: number;
+      at: string;
+      note: string;
+      from: string;
+      to: string;
+    }[];
+  }>(`/disputes/${id}`).catch(() => null);
+
+  /* A dispute whose order has gone is a broken record, not a page: every panel
+     on this screen is about that order, so there is nothing honest to render. */
+  if (!loaded || !loaded.order) notFound();
+
+  const dispute = { ...loaded.dispute, order: loaded.order } as typeof loaded.dispute & {
+    id: string;
+    code: string;
+    status: string;
+    reason: string;
+    openedBy: string;
+    orderId: string;
+    notes: string;
+    resolution: string | null;
+    resolutionNote: string | null;
+    resolvedBy: string | null;
+    resolvedAt: string | null;
+    refundAmount: number | null;
+    releaseAmount: number | null;
+    createdAt: string;
+    updatedAt: string;
+    order: NonNullable<typeof loaded.order>;
+  };
 
   const notes = parseNotes(dispute.notes);
 
   /* Every taka that has moved on the disputed order. A dispute is an argument
      about money, so the ledger is the evidence. */
-  const entries = await db.ledgerEntry.findMany({
-    where: { orderId: dispute.orderId },
-    orderBy: { at: 'asc' },
-  });
+  const entries = loaded.entries;
 
   const open = dispute.status !== 'resolved';
   const ageDays = Math.max(

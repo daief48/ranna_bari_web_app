@@ -1,12 +1,32 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { db } from '@/lib/db';
+import { get } from '@/lib/backend';
 import { fmtDateTime, timeAgo } from '@/lib/format';
 import { Badge, Card, Field, Grid, LinkButton, PageHeader, Stat } from '@/components/ui';
 import { requirePage } from '@/lib/guard';
 
 export const dynamic = 'force-dynamic';
+
+type Note = {
+  id: string;
+  key: string;
+  audience: string;
+  kind: string;
+  title: string;
+  body: string;
+  customerKey: string | null;
+  kitchenId: string | null;
+  zone: string | null;
+  orderId: string | null;
+  mealId: string | null;
+  requestId: string | null;
+  offerId: string | null;
+  /** Set when an operator sent it by hand rather than the system raising it. */
+  broadcastBy: string | null;
+  read: boolean;
+  at: string;
+};
 
 export default async function NotificationDetail({
   params,
@@ -16,26 +36,25 @@ export default async function NotificationDetail({
   await requirePage('order.read');
   const { id } = await params;
 
-  const note = await db.notification.findUnique({ where: { id } });
-  if (!note) notFound();
+  /* Everything that went out under the same dedupe key is counted with it:
+     `key` is unique only while unread, so a repeat is a real second send
+     rather than a duplicate row, and how many landed against how many were
+     opened is the only honest measure of whether the message worked. All of
+     it, and the three things it might point at, come back in one read. */
+  const loaded = await get<{
+    note: Note;
+    counts: { sent: number; opened: number };
+    kitchen: { id: string; name: string } | null;
+    order: { id: string; code: string } | null;
+    meal: { id: string; title: string } | null;
+    siblings: Note[];
+  }>(`/notifications/${id}`).catch(() => null);
+  if (!loaded) notFound();
 
-  /* Everything that went out under the same dedupe key. `key` is unique only
-     while unread, so a repeat is a real second send, not a duplicate row —
-     and how many landed against how many were opened is the only honest
-     measure of whether the message worked. */
-  const [batch, opened, kitchen, order, meal] = await Promise.all([
-    db.notification.count({ where: { key: note.key } }),
-    db.notification.count({ where: { key: note.key, read: true } }),
-    note.kitchenId
-      ? db.kitchen.findUnique({ where: { id: note.kitchenId }, select: { id: true, name: true } })
-      : null,
-    note.orderId
-      ? db.order.findUnique({ where: { id: note.orderId }, select: { id: true, code: true } })
-      : null,
-    note.mealId
-      ? db.meal.findUnique({ where: { id: note.mealId }, select: { id: true, title: true } })
-      : null,
-  ]);
+  const note = loaded.note;
+  const batch = loaded.counts.sent;
+  const opened = loaded.counts.opened;
+  const { kitchen, order, meal } = loaded;
 
   const targeted = note.customerKey || note.kitchenId || note.zone;
 
@@ -168,19 +187,16 @@ export default async function NotificationDetail({
       </Card>
 
       <Card className="mt-3" title="Recent notifications">
-        <RecentList currentId={note.id} audience={note.audience} />
+        <RecentList rows={loaded.siblings} />
       </Card>
     </>
   );
 }
 
-async function RecentList({ currentId, audience }: { currentId: string; audience: string }) {
-  const rows = await db.notification.findMany({
-    where: { audience, id: { not: currentId } },
-    orderBy: { at: 'desc' },
-    take: 10,
-  });
-
+/* Handed the rows rather than fetching them: the endpoint already returned
+   everything else that went to this audience, and a second read would be a
+   second round trip for a list that is on screen beside its source. */
+function RecentList({ rows }: { rows: Note[] }) {
   if (rows.length === 0) {
     return <p className="text-[13px] text-ink3">Nothing else has gone to this audience.</p>;
   }

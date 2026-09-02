@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { db } from '@/lib/db';
+import { get } from '@/lib/backend';
 import { taka, fmtDateTime, timeAgo } from '@/lib/format';
 import {
   Badge,
@@ -22,14 +22,31 @@ export default async function PayoutRunDetail({ params }: { params: Promise<{ id
   await requirePage('ledger.read');
   const { id } = await params;
 
-  const run = await db.payoutRun.findUnique({
-    where: { id },
-    include: {
-      items: { orderBy: { amount: 'desc' } },
-      ledger: { orderBy: { at: 'asc' } },
-    },
-  });
-  if (!run) notFound();
+  /* The board's ids are the backend's, so this reads the backend. Reshaped
+     into the shape below it: the items and the postings hang off the run, the
+     way the page has always drawn them. */
+  const loaded = await get<{
+    run: Record<string, unknown>;
+    items: { id: string; kitchenId: string; kitchenName: string; amount: number }[];
+    entries: { id: string; kind: string; amount: number; at: string; from: string; to: string; toRef: string | null; note: string }[];
+  }>(`/payouts/${id}`).catch(() => null);
+  if (!loaded) notFound();
+
+  const run = { ...loaded.run, items: loaded.items, ledger: loaded.entries } as typeof loaded.run & {
+    id: string;
+    code: string;
+    status: string;
+    method: string;
+    note: string;
+    total: number;
+    cookCount: number;
+    createdBy: string;
+    createdAt: string;
+    paidAt: string | null;
+    paidBy: string | null;
+    items: typeof loaded.items;
+    ledger: typeof loaded.entries;
+  };
 
   /* The declared total against what the ledger actually moved. These agree on
      a healthy run, and the moment they do not is the moment somebody needs to

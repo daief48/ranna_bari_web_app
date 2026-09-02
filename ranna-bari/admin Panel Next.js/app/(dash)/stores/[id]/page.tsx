@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { db } from '@/lib/db';
+import { get } from '@/lib/backend';
 import { taka, fmtDate, fmtDateTime, timeAgo } from '@/lib/format';
 import {
   Badge,
@@ -18,36 +18,83 @@ import { requirePage } from '@/lib/guard';
 
 export const dynamic = 'force-dynamic';
 
+type Shelf = { id: string; name: string; emoji: string | null; products: number };
+
+type ProductRow = {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  active: boolean;
+  preorder: boolean;
+  outOfStockSince: string | null;
+  categoryName: string | null;
+};
+
+type OrderRow = {
+  id: string;
+  code: string;
+  title: string;
+  status: string;
+  amount: number;
+  customerName: string;
+  createdAt: string;
+};
+
 export default async function StoreDetail({ params }: { params: Promise<{ id: string }> }) {
   await requirePage('order.read');
   const { id } = await params;
 
-  const store = await db.store.findUnique({
-    where: { id },
-    include: {
-      kitchen: { select: { id: true, name: true, area: true, isVerified: true } },
-      categories: { orderBy: { order: 'asc' }, include: { _count: { select: { products: true } } } },
-      _count: { select: { products: true, orders: true } },
-    },
-  });
-  if (!store) notFound();
+  /* The shops board serves this database's ids, so the shop is read from it
+     too. Everything the page draws comes back in one call. */
+  const loaded = await get<{
+    store: Record<string, unknown>;
+    kitchen: { id: string; name: string; area: string; isVerified: boolean } | null;
+    categories: Shelf[];
+    products: ProductRow[];
+    counts: { products: number; empty: number; preorder: number; orders: number };
+    orders: OrderRow[];
+    revenue: number;
+  }>(`/stores/${id}`).catch(() => null);
 
-  const [products, outOfStock, preorders, recentOrders, revenue] = await Promise.all([
-    db.product.findMany({
-      where: { storeId: store.id },
-      orderBy: [{ active: 'desc' }, { stock: 'asc' }],
-      take: 40,
-      include: { category: { select: { name: true } } },
-    }),
-    db.product.count({ where: { storeId: store.id, active: true, stock: 0 } }),
-    db.product.count({ where: { storeId: store.id, preorder: true } }),
-    db.order.findMany({
-      where: { storeId: store.id },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    }),
-    db.order.aggregate({ where: { storeId: store.id }, _sum: { amount: true } }),
-  ]);
+  /* A shop without its kitchen has no owner to name and no link to follow —
+     the header alone is built from it. */
+  if (!loaded || !loaded.kitchen) notFound();
+
+  /* Reshaped into what the markup below already reads. */
+  const store = {
+    ...loaded.store,
+    kitchen: loaded.kitchen,
+    categories: loaded.categories.map((c) => ({ ...c, _count: { products: c.products } })),
+    _count: { products: loaded.counts.products, orders: loaded.counts.orders },
+  } as Record<string, never> & {
+    id: string;
+    name: string;
+    tagline: string | null;
+    description: string | null;
+    phone: string | null;
+    area: string | null;
+    isOpen: boolean;
+    deliveryFee: number;
+    deliveryRadiusKm: number | null;
+    freeDeliveryOver: number | null;
+    kitchenId: string;
+    createdAt: string;
+    updatedAt: string;
+    kitchen: NonNullable<typeof loaded.kitchen>;
+    categories: (Shelf & { _count: { products: number } })[];
+    _count: { products: number; orders: number };
+  };
+
+  const products = loaded.products.map((p) => ({
+    ...p,
+    /* The endpoint flattens the shelf to a name, which is all the row shows. */
+    category: p.categoryName ? { name: p.categoryName } : null,
+  }));
+  const outOfStock = loaded.counts.empty;
+  const preorders = loaded.counts.preorder;
+  const recentOrders = loaded.orders;
+  const revenue = { _sum: { amount: loaded.revenue } };
 
   return (
     <>
