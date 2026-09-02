@@ -1,7 +1,6 @@
 import Link from 'next/link';
 
 import { BackendError } from '@/lib/backend';
-import { db } from '@/lib/db';
 import { getSettings } from '@/lib/settings';
 import { taka, fmtDate, timeAgo, daysSince } from '@/lib/format';
 import {
@@ -92,7 +91,7 @@ export default async function Dashboard({
   }
 
   const { board, dead } = remote;
-  const { balances: bal, books, attention } = board;
+  const { balances: bal, books, attention, escrow } = board;
 
   /* Escrow, bucketed by how long it has been sitting. Held money is the worst
      state in the system — the customer has paid, the cook has cooked, and
@@ -108,26 +107,8 @@ export default async function Dashboard({
      numbers come from. The row count beside `bal.held` in the stat above is
      folded from the same read, so the two stay consistent with each other
      rather than one of them half-migrating. */
-  const heldOrders = await db.order.findMany({
-    where: { payment: 'held' },
-    select: { amount: true, deliveredAt: true, createdAt: true, status: true },
-  });
-
   const window = settings.escrowAutoReleaseDays;
-  const buckets = [
-    { bucket: '< 1 day', min: 0, max: 1 },
-    { bucket: '1–3 days', min: 1, max: 3 },
-    { bucket: '3–7 days', min: 3, max: 7 },
-    { bucket: '7 days +', min: 7, max: Infinity },
-  ].map((b) => {
-    const amount = heldOrders
-      .filter((o) => {
-        const age = daysSince(o.deliveredAt ?? o.createdAt);
-        return age >= b.min && age < b.max;
-      })
-      .reduce((sum, o) => sum + o.amount, 0);
-    return { bucket: b.bucket, amount, overdue: b.min >= window };
-  });
+  const buckets = escrow.aging;
 
   const driftTotal = Object.values(books.drift).reduce((s, v) => s + Math.abs(v), 0);
 
@@ -220,7 +201,7 @@ export default async function Dashboard({
           label="Held in escrow"
           value={taka(bal.held)}
           tone={attention.escrowAged > 0 ? 'warn' : 'neutral'}
-          sub={`${heldOrders.length} orders · ${attention.escrowAged} past ${window} days`}
+          sub={`${escrow.count} orders · ${attention.escrowAged} past ${window} days`}
           href="/ledger?view=aged"
         />
         <Stat

@@ -47,6 +47,10 @@ type OverviewResponse = {
     stockZero: number;
     reviewsFlagged: number;
   };
+  escrow: {
+    aging: { bucket: string; amount: number; overdue: boolean }[];
+    count: number;
+  };
 };
 
 export type DeadRequest = {
@@ -113,6 +117,9 @@ export async function overview() {
       orphanTopups,
       reviewsFlagged: core.attention.reviewsFlagged,
     },
+    /* Bucketed by the database over every held order, rather than by the page
+       over the first hundred it could fetch. */
+    escrow: core.escrow ?? { aging: [], count: 0 },
   };
 }
 

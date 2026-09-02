@@ -524,8 +524,18 @@ export async function adminRoutes(app: FastifyInstance) {
     const escrowCutoff = new Date(Date.now() - settings.escrowAutoReleaseDays * 86_400_000);
     const stockCutoff = new Date(Date.now() - settings.stockAlarmDays * 86_400_000);
 
-    const [bal, books, kyc, disputes, escrowAged, preorders, stockZero, reviewsFlagged] =
-      await Promise.all([
+    const [
+      bal,
+      books,
+      kyc,
+      disputes,
+      escrowAged,
+      preorders,
+      stockZero,
+      reviewsFlagged,
+      aging,
+      heldCount,
+    ] = await Promise.all([
         balances(),
         reconcile(),
         Kitchen.countDocuments({ kycStatus: 'pending' }),
@@ -545,12 +555,64 @@ export async function adminRoutes(app: FastifyInstance) {
           outOfStockSince: { $lt: stockCutoff },
         }),
         Review.countDocuments({ hidden: false, rating: 1 }),
+        /* Every held order bucketed by how long it has been held, done in the
+           database because the panel cannot: it would have to hold all of them
+           to bucket them, and its paged read quietly stopped counting at a
+           hundred.
+
+           Age runs from delivery where there is one and from creation where
+           there is not — an order still on its way has been holding money
+           since it was placed. */
+        Order.aggregate<{ _id: string; amount: number }>([
+          { $match: { payment: 'held' } },
+          {
+            $group: {
+              _id: {
+                $let: {
+                  vars: {
+                    age: {
+                      $divide: [
+                        { $subtract: ['$$NOW', { $ifNull: ['$deliveredAt', '$createdAt'] }] },
+                        86_400_000,
+                      ],
+                    },
+                  },
+                  in: {
+                    $switch: {
+                      branches: [
+                        { case: { $lt: ['$$age', 1] }, then: '< 1 day' },
+                        { case: { $lt: ['$$age', 3] }, then: '1–3 days' },
+                        { case: { $lt: ['$$age', 7] }, then: '3–7 days' },
+                      ],
+                      default: '7 days +',
+                    },
+                  },
+                },
+              },
+              amount: { $sum: '$amount' },
+            },
+          },
+        ]),
+        Order.countDocuments({ payment: 'held' }),
       ]);
+
+    /* The buckets come back unordered and only for ages that exist, so they
+       are laid onto the fixed four the chart draws. A bucket with nothing in
+       it is a zero bar, not a missing one — a chart that drops its empty
+       categories reads as though the money moved. */
+    const held = new Map(aging.map((row) => [row._id, row.amount]));
+    const escrowAging = ['< 1 day', '1–3 days', '3–7 days', '7 days +'].map((bucket, i) => ({
+      bucket,
+      amount: held.get(bucket) ?? 0,
+      /* Saffron once the bucket's floor is past the release window. */
+      overdue: [0, 1, 3, 7][i] >= settings.escrowAutoReleaseDays,
+    }));
 
     return {
       balances: bal,
       books,
       attention: { kyc, disputes, escrowAged, preorders, stockZero, reviewsFlagged },
+      escrow: { aging: escrowAging, count: heldCount },
     };
   });
 
