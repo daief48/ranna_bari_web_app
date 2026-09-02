@@ -300,6 +300,45 @@ export async function closeMeal(args: {
   );
   if (closed.matchedCount === 0) return fail(ERR.MEAL_CLOSED);
 
+  /*
+   * Tell the people who said they were interested and did not book.
+   *
+   * Marking interest is free and reversible, and its entire purpose is to
+   * hear what happens to the meal. Closing it is what happens, and until now
+   * that was the one transition in the whole order flow that told nobody
+   * anything.
+   *
+   * Anyone who actually ordered is skipped: their plate is safe, nothing has
+   * changed for them, and "this meal is closed" beside an order they are
+   * waiting on reads as a cancellation.
+   *
+   * Outside the update on purpose. A notification that fails must not undo a
+   * close the cook already saw succeed.
+   */
+  const [interested, ordered] = await Promise.all([
+    MealInterest.find({ mealId: args.mealId }).select({ customerKey: 1 }).lean(),
+    Order.find({ mealId: args.mealId, status: { $nin: ['cancelled', 'rejected'] } })
+      .select({ customerKey: 1 })
+      .lean(),
+  ]);
+
+  const booked = new Set(ordered.map((o) => o.customerKey));
+  const missed = interested.map((i) => i.customerKey).filter((key) => key && !booked.has(key));
+
+  for (const customerKey of missed) {
+    await notify(null, {
+      audience: 'customer',
+      kind: 'meal-closed',
+      key: `customer:meal-closed:${args.mealId}:${customerKey}`,
+      title: 'A meal you liked has closed',
+      body: `${meal.title} is no longer taking bookings.`,
+      customerKey,
+      mealId: args.mealId,
+    }).catch(() => {
+      /* One unreachable customer must not stop the rest being told. */
+    });
+  }
+
   return ok({ mealId: args.mealId });
 }
 
