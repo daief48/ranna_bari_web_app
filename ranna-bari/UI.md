@@ -99,7 +99,7 @@ Every screen is wrapped in `<Screen>`, which supplies the same furniture:
 │    FilmGrain overlay                     │  ← subtle texture over everything
 │                                          │
 │  ╭────────────────────────────────────╮  │  ← the tab bar: a floating pill
-│  │ Home Browse Meals Shops Map ...    │  │    12px above the home indicator
+│  │ Home Browse Meals Cart Profile     │  │    12px above the home indicator
 │  ╰────────────────────────────────────╯  │
 └──────────────────────────────────────────┘
 ```
@@ -115,6 +115,12 @@ Every screen is wrapped in `<Screen>`, which supplies the same furniture:
 ---
 
 ## Customer screens
+
+The bar carries five: **Home · Browse · Meals · Cart · Profile**, with a live
+order strip above it whenever something is in flight. Shops and Map are not
+missing — Browse carries Shops as a segment and the map as a view, and both
+keep their own routes for every link that already points at them.
+
 
 ### Home — `(tabs)/index`
 
@@ -297,6 +303,11 @@ meal, a shop basket and a haggled cake are the same object.
 ---
 
 ## Cook panel screens
+
+The bar carries four: **Today · Orders · Listings · Business**. Listings is a
+hub over the menu, the meal board and the shelf; Business is one over earnings,
+the kitchen and its details. The five screens behind them are unchanged.
+
 
 Wrapped in `<CookScreen>` rather than `<Screen>` — same shell, cook chrome.
 

@@ -8,7 +8,7 @@ Every figure here was counted from the working tree — routes from the filesyst
 endpoints from the Fastify registrations, collections from the Mongoose models.
 Figures drift as the code does.
 
-**Last counted:** 2026-08-31
+**Last counted:** 2026-09-02
 
 ---
 
@@ -38,7 +38,7 @@ Figures drift as the code does.
 | `admin Panel Next.js` | Next.js 16 · server components | 3100 | 101 | 21,533 |
 | `backend-node` | Fastify 5 · Mongoose 8 · MongoDB Atlas | 4000 | 83 | 33,582 |
 
-Totals: **~100,000 lines · 56 mobile screens · 34 admin pages · 140 API endpoints · 30 collections.**
+Totals: **~100,000 lines · 58 mobile screens · 40 admin pages · 145 API endpoints · 30 collections.**
 
 ```
                     ┌──────────────────────┐
@@ -66,14 +66,19 @@ The same app is a customer app **and** a cook's back office. Which one you see i
 decided by `account.role` plus a view-mode toggle — a cook can flip between
 ordering dinner and running their kitchen without signing out.
 
-Each side has its own seven-tab floating bar.
+Each side has its own floating bar — five tabs for the customer, four for
+the cook. Both were seven until the screens behind them were grouped: Map and
+Shops became segments of Browse, and Menu / Meals / Shop and Earnings /
+Kitchen became two cook hubs. Every one of those routes still exists and every
+link to them still works; they simply are not bar residents.
 
 ### Customer tab bar — `app/(tabs)/`
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│  Home    Browse    Meals    Shops    Map    Cart    Profile     │
-└────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│  Home    Browse    Meals    Cart    Profile      │
+└──────────────────────────────────────────────────┘
+   + a live order strip above it whenever something is in flight
 ```
 
 | Tab | Route | What it is |
@@ -81,10 +86,11 @@ Each side has its own seven-tab floating bar.
 | Home | `(tabs)/index` | The feed — nearby kitchens, what's cooking |
 | Browse | `(tabs)/browse` | Search and filter every dish, ranked by distance |
 | Meals | `(tabs)/meals` | Tomorrow's meal board |
-| Shops | `(tabs)/stores` | Directory of packaged-goods shelves |
-| Map | `(tabs)/map` | Live map — dishes, meals, kitchens and shops as pins |
-| Cart | `(tabs)/cart` | The cooked-to-order basket |
+| Cart | `(tabs)/cart` | Both baskets — kitchen dishes and the shelf |
 | Profile | `(tabs)/profile` | Account, orders, wallet, mode switch |
+
+Off the bar but still routed: `(tabs)/stores` is the Shops segment of Browse,
+and `(tabs)/map` is its map view.
 
 ### Customer screens — 32 total
 
@@ -140,20 +146,19 @@ Live chat with a cook or with support, over a WebSocket.
 ### Cook panel tab bar — `app/cook/(panel)/`
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│  Today   Orders   Meals   Menu   Shop   Earnings   Kitchen          │
-└────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│  Today   Orders   Listings   Business            │
+└──────────────────────────────────────────────────┘
 ```
 
 | Tab | Route | What it is |
 |---|---|---|
 | Today | `(panel)/index` | What is cooking, what is owed, what needs a decision now |
 | Orders | `(panel)/orders` | Incoming orders and their state |
-| Meals | `(panel)/meals` | The cook's published meal board |
-| Menu | `(panel)/menu` | Dishes cookable to order |
-| Shop | `(panel)/store` | The shelf |
-| Earnings | `(panel)/earnings` | Balance, held funds, payouts |
-| Kitchen | `(panel)/kitchen` | Open/closed, profile, delivery radius |
+| Listings | `(panel)/listings` | Hub: menu, meals and the shelf |
+| Business | `(panel)/business` | Hub: earnings, kitchen and its details |
+
+Behind the hubs, still routed: `menu`, `meals`, `store`, `earnings`, `kitchen`.
 
 ### Cook panel screens — 24 total
 
@@ -208,9 +213,12 @@ not by database table. Every list page has a matching detail page.
 │    Menus & dishes           │
 │    Meals                    │
 │    Stores & products        │
+│    Coverage map             │
+│    Pre-orders               │
 │                             │
 │  DEMAND                     │
 │    Orders                   │
+│    Customers                │
 │    Live chat                │
 │    Requests & offers        │
 │    Reviews                  │
@@ -220,6 +228,7 @@ not by database table. Every list page has a matching detail page.
 │    Ledger & escrow          │
 │    Payouts                  │
 │    Top-up reconciliation    │
+│    Refunds                  │
 │    Disputes                 │
 │                             │
 │  PLATFORM                   │
@@ -391,25 +400,43 @@ direction, never updates, which is what keeps the history auditable.
 
 ### Migration debt
 
-- **8 admin pages still read Prisma/SQLite** instead of the backend:
-  `audit`, `notifications`, `orders`, `orders/[id]`, `requests/[id]`, `reviews`,
-  `stores`, and the dash `layout.tsx`. Until they move, the console has two
-  sources of truth.
-- **Dead API routes inside the panel.** `app/api/app/v1/*` still hosts auth,
-  config, kitchens, offers and orders handlers that nothing calls — the phone
-  talks to Fastify directly. The two `chat` routes there *are* live.
+- **24 admin pages still read Prisma/SQLite** — most of the console. An
+  earlier count said eight, because it grepped for the word "prisma"; these
+  pages import `db` from `@/lib/db` instead and never write it. The full list:
+  `admins`, `admins/[id]`, `audit`, `audit/[id]`, `disputes/[id]`, `kitchens`,
+  `kitchens/[id]`, `kyc`, `ledger/[id]`, `meals`, `meals/[id]`,
+  `notifications`, `notifications/[id]`, `orders`, `orders/[id]`, the
+  dashboard, `payouts/[id]`, `requests/[id]`, `reviews`, `reviews/[id]`,
+  `search-terms/[term]`, `stores`, `stores/[id]`, `topups/[id]`.
+
+  Several read *both* — the backend for the rows and Prisma for a filter list
+  or a count the endpoint does not carry yet, which is why some show "—" where
+  a number belongs. Until they move, the console has two sources of truth.
+
+  The pages added since — `customers`, `customers/[id]`, `preorders`,
+  `refunds`, `coverage` — are backend-only, and are the shape the rest should
+  end up in.
+- **9 dead API routes inside the panel.** `app/api/app/v1/*` still hosts
+  `auth/me`, `auth/request-otp`, `auth/verify-otp`, `chat/threads`, `config`,
+  `kitchens`, `kitchens/mine`, `offers` and `orders` — nothing calls them; the
+  phone talks to Fastify directly. The two `chat` routes under `admin/v1` *are*
+  live, so check which is which before deleting.
+- **`prisma/dev.db` is 1.8 MB** and still in the tree. It goes once the pages
+  above do — not before, or twenty-four screens break at once.
 - **Custom admin roles** exist as backend endpoints with no UI on `/admins`.
 - **`prisma/` and the SQLite file** can go once the 8 pages move.
 
-### Open bugs
+### Bugs, since fixed
 
-| Bug | Where | Evidence |
-|---|---|---|
-| **Every meal order confirm fails** | `app/meals/[id].js` sends `address` as a string; the route requires an object | Same call with a proper object returns `201` |
-| **Same bug in the shop** | `app/store-checkout.js:55` | identical string/object mismatch |
-| **The error message misleads** | `bodyError` in `src/routes/app/v1/meals.ts:80` maps *any* failed field to `amount-invalid` | "That amount is not valid" for a bad address, on a request carrying no amount |
-| **Order screen crashes** | `app/order/[id].js:363` — `order.items.map` when `items` is undefined | stack trace from the running app |
-| **Wallet top-up by typing fails** | field holds a string, route uses `z.number()` with no coercion | preset buttons pass numbers and work |
+All five are closed. Kept here because each is the kind that comes back:
+
+| Bug | What it was |
+|---|---|
+| Every meal order confirm failed | the app sent `address` as a string where the route wanted an object — now `addressFromAccount()`, used by both checkouts |
+| The error message misled | `badBody` called every invalid field an `amount-invalid`, so a bad address read "That amount is not valid" on a request with no amount. It names the failing field now |
+| The order screen crashed | `order.items.map` on an order with no items |
+| Wallet top-up by typing failed | the field holds a string, the route takes `z.number()` with no coercion |
+| Wallet orders claimed a phantom escrow | `recordOrder` wrote `payment: 'held'` for any non-cash kind and never posted a ledger entry — the shape existed, the money did not |
 
 The canonical address shape, from `app/checkout.js`:
 

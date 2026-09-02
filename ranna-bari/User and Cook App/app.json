@@ -16,7 +16,7 @@
     },
     "android": {
       "package": "com.rannabari.app",
-      "versionCode": 4,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#FAF7F0",
         "foregroundImage": "./assets/android-icon-foreground.png",
