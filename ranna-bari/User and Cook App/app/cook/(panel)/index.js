@@ -24,6 +24,7 @@ import {
   useOrders,
 } from '../../../src/store/OrdersContext';
 import { tomorrowKey, useCommerce } from '../../../src/store/CommerceContext';
+import { useChat } from '../../../src/store/ChatContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 const isToday = (iso) => {
@@ -62,6 +63,10 @@ export default function CookDashboard() {
     0,
   );
   const unread = meals.unreadFor('cook');
+  /* The inbox already renders a cook's side — it greets them with "Your
+     customers, and our support desk." It simply had no door into it from
+     this panel, so a customer writing about an order reached nobody. */
+  const { pendingCount } = useChat();
 
   /* The shop's one urgent number, on the screen a cook opens first. */
   const shopStore = kitchen ? meals.storeForKitchen(kitchen.id) : null;
@@ -530,6 +535,16 @@ export default function CookDashboard() {
                       : t('Open a shop for the things you make to keep')
               }
               onPress={() => router.push('/cook/store')}
+            />
+            <ActionRow
+              icon="chat"
+              title={t('Messages')}
+              sub={
+                pendingCount
+                  ? t('{n} unread', { n: n(pendingCount) })
+                  : t('Questions about your orders')
+              }
+              onPress={() => router.push('/chat')}
             />
             <ActionRow
               icon="sparkles"

@@ -36,6 +36,14 @@ export const ICONS = {
     ["path", {"d":"M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"}],
     ["path", {"d":"M13.73 21a2 2 0 0 1-3.46 0"}],
   ],
+  /* A speech bubble with a tail. The inbox is the one place a customer and a
+     cook actually talk, and nothing in this set said "talk" — bell is the
+     platform announcing, phone is a call, and neither is a conversation. */
+  chat: [
+    ["path", {"d":"M20 14.4a2 2 0 0 1-2 2H9l-4 3.4V6a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2Z"}],
+    ["path", {"d":"M9 9.6h6"}],
+    ["path", {"d":"M9 12.8h4"}],
+  ],
   box: [
     ["path", {"d":"M20.8 8.6v6.8a1 1 0 0 1-.5.87l-7.8 4.4a1 1 0 0 1-1 0l-7.8-4.4a1 1 0 0 1-.5-.87V8.6a1 1 0 0 1 .5-.87l7.8-4.4a1 1 0 0 1 1 0l7.8 4.4a1 1 0 0 1 .5.87Z"}],
     ["path", {"d":"m3.5 8.2 8.5 4.8 8.5-4.8"}],
