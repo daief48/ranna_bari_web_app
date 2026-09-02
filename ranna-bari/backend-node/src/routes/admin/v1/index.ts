@@ -965,12 +965,21 @@ export async function adminRoutes(app: FastifyInstance) {
     if (query.status === 'unverified') where.isVerified = false;
     if (query.status === 'suspended') where.suspended = true;
 
-    const [rows, total] = await Promise.all([
+    const [rows, total, areas] = await Promise.all([
       Kitchen.find(where).sort({ createdAt: -1 }).skip(query.skip).limit(query.take).lean(),
       Kitchen.countDocuments(where),
+      /* Every area that has a kitchen in it, deliberately not narrowed by the
+         filter above: the dropdown has to offer Mirpur while you are looking
+         at Dhanmondi, and narrowing it would delete the only option that gets
+         you back out of the area you are already in. */
+      Kitchen.distinct('area'),
     ]);
 
-    return { kitchens: rows.map((k) => ({ ...k, id: String(k._id) })), total };
+    return {
+      kitchens: rows.map((k) => ({ ...k, id: String(k._id) })),
+      total,
+      areas: (areas as string[]).filter(Boolean).sort((a, b) => a.localeCompare(b)),
+    };
   });
 
   /**

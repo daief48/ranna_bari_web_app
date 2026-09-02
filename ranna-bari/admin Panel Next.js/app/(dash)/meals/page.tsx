@@ -1,7 +1,6 @@
 import Link from 'next/link';
 
 import { get } from '@/lib/backend';
-import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { can, SLOTS } from '@/lib/domain';
 import { todayKey } from '@/lib/format';
@@ -106,15 +105,23 @@ async function loadMeals(
 
   const local = !stale && Boolean(params.slot || params.when);
 
-  const [list, staleList, publishedList] = await Promise.all([
+  const [list, staleList, publishedList, todayList] = await Promise.all([
     local
       ? scanMeals(query).then((meals) => ({ meals, total: meals.length }))
       : get<MealList>(listUrl(query, skip, take)),
     get<MealList>('/meals?view=stale&skip=0&take=1'),
     get<MealList>('/meals?status=published&skip=0&take=1'),
+    /* Serving today, counted by the store that serves the rows. The endpoint
+       takes a serveDate now, so the number no longer comes from a second
+       database that can drift away from the board beside it. */
+    get<MealList>('/meals?serveDate=' + today + '&skip=0&take=1'),
   ]);
 
-  const counts = { staleCount: staleList.total, published: publishedList.total };
+  const counts = {
+    staleCount: staleList.total,
+    published: publishedList.total,
+    todayCount: todayList.total,
+  };
   if (!local) return { rows: list.meals, total: list.total, ...counts };
 
   /* `serveDate` is a Dhaka calendar day written 'YYYY-MM-DD', so these are
@@ -152,14 +159,7 @@ export default async function MealsPage({
     );
   }
 
-  const { rows, total, staleCount, published } = board;
-
-  /* The last read this page makes of the panel's own database. `GET /meals`
-     takes no serveDate parameter, so there is nowhere on the backend for this
-     count to come from yet — and it will disagree with every other figure here
-     as soon as the two stores diverge. A `serveDate` filter on the endpoint is
-     what deletes this line. */
-  const todayCount = await db.meal.count({ where: { serveDate: today } });
+  const { rows, total, staleCount, published, todayCount } = board;
 
   return (
     <>

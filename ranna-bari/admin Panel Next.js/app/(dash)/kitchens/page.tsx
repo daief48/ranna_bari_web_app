@@ -1,6 +1,5 @@
 import Link from 'next/link';
 
-import { db } from '@/lib/db';
 import { BackendError, get } from '@/lib/backend';
 import { BackendDown, down } from '@/components/backend-down';
 import { paging, pageCount } from '@/lib/queries';
@@ -58,24 +57,22 @@ export default async function KitchensPage({
   let total = 0;
   let unreachable = false;
 
+  /* The area list rides along with the rows now rather than coming out of the
+     panel's own database, so the filter and the table cannot disagree about
+     which areas exist. */
+  let areas: string[] = [];
+
   try {
-    const data = await get<{ kitchens: KitchenRow[]; total: number }>(`/kitchens?${query}`);
+    const data = await get<{ kitchens: KitchenRow[]; total: number; areas?: string[] }>(
+      `/kitchens?${query}`,
+    );
     rows = data.kitchens;
     total = data.total;
+    areas = data.areas ?? [];
   } catch (error) {
     if (error instanceof BackendError && error.status === 0) unreachable = true;
     else throw error;
   }
-
-  /* Still Prisma: nothing serves the distinct list of areas. It survives the
-     split because the filter is keyed on the area *name* rather than on an id
-     — the two stores agree about the string "Dhanmondi" and about nothing
-     else. Replace with an endpoint before the SQLite file goes. */
-  const areas = await db.kitchen.findMany({
-    distinct: ['area'],
-    select: { area: true },
-    orderBy: { area: 'asc' },
-  });
 
   /* Dishes, orders, GMV and the cancellation rate came from two grouped
      Prisma queries keyed on the kitchen id. They cannot be joined any more:
@@ -107,7 +104,7 @@ export default async function KitchensPage({
             <FilterSelect
               name="area"
               allLabel="All areas"
-              options={areas.map((a) => ({ value: a.area, label: a.area }))}
+              options={areas.map((a) => ({ value: a, label: a }))}
             />
             <FilterSelect
               name="status"

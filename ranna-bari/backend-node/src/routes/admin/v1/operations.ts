@@ -211,6 +211,7 @@ export async function operationRoutes(app: FastifyInstance) {
       .object({
         status: z.string().optional(),
         kitchenId: z.string().optional(),
+        serveDate: z.string().optional(),
         view: z.string().optional(),
         ...paging,
       })
@@ -219,6 +220,11 @@ export async function operationRoutes(app: FastifyInstance) {
     const where: Record<string, unknown> = {};
     if (query.status) where.status = query.status;
     if (query.kitchenId) where.kitchenId = query.kitchenId;
+
+    /* An exact day, not a range: serveDate is stored as the Dhaka calendar key
+       'YYYY-MM-DD', so equality on the string is the whole comparison. The
+       panel asks for today's board with it. */
+    if (query.serveDate) where.serveDate = query.serveDate;
 
     /* Stale is a meal whose day has gone and which nobody closed: still on the
        board, still taking orders for food that will not be cooked.
