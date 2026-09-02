@@ -99,6 +99,29 @@ const ICON: Record<string, string> = {
   '/admins':
     'M12.2 8.4a3.1 3.1 0 1 1-6.2 0 3.1 3.1 0 0 1 6.2 0M3.2 19c.6-3 2.9-4.7 5.9-4.7s5.3 1.7 5.9 4.7M16 5.6a2.9 2.9 0 0 1 0 5.6M17.4 14.6c1.9.7 3.1 2.2 3.4 4.4',
   '/audit': 'M4 12a8 8 0 1 0 2.4-5.7M4 4.5v4h4M12 8v4.6l3.2 1.9',
+
+  /* A folded paper map. Nothing else in this list is rectangular-and-creased,
+     so it is findable at a glance even at the rail's 16px. */
+  '/coverage': 'M9 4.8 3.5 7v12.2L9 17l6 2.2 5.5-2.2V4.6L15 6.8zM9 4.8V17M15 6.8v12.4',
+
+  /* An hourglass: this queue is money sitting still while somebody waits. A
+     clock would have read as the audit log's, which rewinds. */
+  '/preorders':
+    'M7.5 3.5h9M7.5 20.5h9M9 3.5v3c0 2 3 3.5 3 5.5s-3 3.5-3 5.5v3M15 3.5v3c0 2-3 3.5-3 5.5s3 3.5 3 5.5v3',
+
+  /* A basket, not a trolley — the app calls it a basket, and Stores already
+     owns the shopfront silhouette. */
+  '/carts':
+    'M3.5 8.5h17l-1.7 9.2a2 2 0 0 1-2 1.6H7.2a2 2 0 0 1-2-1.6zM8.8 8.5 11.2 3.8M15.2 8.5 12.8 3.8M9.8 12.2v3.6M14.2 12.2v3.6',
+
+  /* One person. Admin users is two, and the difference between an operator and
+     a customer is exactly the distinction this sidebar has to make. */
+  '/customers': 'M12 12.4a3.7 3.7 0 1 0 0-7.4 3.7 3.7 0 0 0 0 7.4M4.9 20a7.1 7.1 0 0 1 14.2 0',
+
+  /* A note with the arrow pointing back into it. Payouts and Top-ups are bare
+     arrows out and in; a refund is money returning to where it came from, so
+     it keeps the note and turns the arrow around. */
+  '/refunds': 'M3 6.5h18v11H3zM13.8 12H7.2M9.9 9.3 7.2 12l2.7 2.7M17 9.8v4.4',
 };
 
 const FALLBACK_ICON = 'M12 9.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5';
