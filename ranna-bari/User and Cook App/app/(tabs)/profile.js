@@ -584,7 +584,7 @@ function AccountCard({ account, orders, activeOrders, onEdit }) {
 
   return (
     <LinearGradient
-      colors={[colors.primary300, colors.primary, colors.primary600]}
+      colors={[colors.heroFrom, colors.heroMid, colors.heroTo]}
       locations={[0, 0.45, 1]}
       start={{ x: 0.05, y: 0 }}
       end={{ x: 0.95, y: 1 }}
@@ -636,7 +636,7 @@ function AccountCard({ account, orders, activeOrders, onEdit }) {
               <Icon
                 name={isCook ? 'chefHat' : 'user'}
                 size={28}
-                color={colors.onPrimary}
+                color={colors.onHero}
               />
             </View>
           )}
@@ -650,7 +650,7 @@ function AccountCard({ account, orders, activeOrders, onEdit }) {
               fontSize: 21,
               lineHeight: 24,
               letterSpacing: -0.42,
-              color: colors.onPrimary,
+              color: colors.onHero,
               marginBottom: 7,
             }}
           >
@@ -674,7 +674,7 @@ function AccountCard({ account, orders, activeOrders, onEdit }) {
               <Icon
                 name={isCook ? 'chefHat' : 'utensils'}
                 size={12}
-                color={colors.onPrimary}
+                color={colors.onHero}
               />
               <Text
                 style={{
@@ -682,7 +682,7 @@ function AccountCard({ account, orders, activeOrders, onEdit }) {
                   fontSize: 9.5,
                   letterSpacing: 0.85,
                   textTransform: 'uppercase',
-                  color: colors.onPrimary,
+                  color: colors.onHero,
                 }}
               >
                 {isCook ? t('Home cook') : t('Customer')}
@@ -698,7 +698,7 @@ function AccountCard({ account, orders, activeOrders, onEdit }) {
                 fontFamily: font.ui,
                 fontSize: type.xs,
                 opacity: 0.88,
-                color: colors.onPrimary,
+                color: colors.onHero,
               }}
             >
               {account.email || account.phone}
@@ -722,7 +722,7 @@ function AccountCard({ account, orders, activeOrders, onEdit }) {
             borderColor: 'rgba(255, 255, 255, 0.2)',
           }}
         >
-          <Icon name="pin" size={15} color={colors.onPrimary} />
+          <Icon name="pin" size={15} color={colors.onHero} />
           <Text
             numberOfLines={2}
             style={{
@@ -731,7 +731,7 @@ function AccountCard({ account, orders, activeOrders, onEdit }) {
               fontSize: type.sm,
               lineHeight: 20,
               opacity: 0.94,
-              color: colors.onPrimary,
+              color: colors.onHero,
             }}
           >
             {address}
@@ -744,7 +744,7 @@ function AccountCard({ account, orders, activeOrders, onEdit }) {
                 letterSpacing: 0.75,
                 textTransform: 'uppercase',
                 opacity: 0.8,
-                color: colors.onPrimary,
+                color: colors.onHero,
               }}
             >
               {account.addressLabel}
@@ -790,14 +790,14 @@ function AccountCard({ account, orders, activeOrders, onEdit }) {
           transform: [{ scale: pressed ? 0.98 : 1 }],
         })}
       >
-        <Icon name="sliders" size={16} color={colors.onPrimary} />
+        <Icon name="sliders" size={16} color={colors.onHero} />
         <Text
           style={{
             fontFamily: font.uiSemi,
             fontSize: 13,
             letterSpacing: 13 * tracking.label,
             textTransform: 'uppercase',
-            color: colors.onPrimary,
+            color: colors.onHero,
           }}
         >
           {t('Edit profile')}
@@ -817,7 +817,7 @@ function Stat({ value, label }) {
           fontSize: 22,
           lineHeight: 25,
           letterSpacing: -0.5,
-          color: colors.onPrimary,
+          color: colors.onHero,
         }}
       >
         {value}
@@ -829,7 +829,7 @@ function Stat({ value, label }) {
           letterSpacing: 0.8,
           textTransform: 'uppercase',
           opacity: 0.82,
-          color: colors.onPrimary,
+          color: colors.onHero,
         }}
       >
         {label}

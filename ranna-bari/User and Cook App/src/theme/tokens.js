@@ -58,6 +58,18 @@ const light = {
   onPrimary: '#FFFFFF',
 
   /*
+   * The profile card's fill — the one full-bleed colour surface in the app.
+   *
+   * On paper it is the brand at full strength, which is exactly what it should
+   * be: a warm block on a cream page reads as confident. These are the three
+   * stops it has always drawn, named so the dark theme can disagree.
+   */
+  heroFrom: '#DB7A5F',
+  heroMid: '#C7381A',
+  heroTo: '#A62B10',
+  onHero: '#FFFFFF',
+
+  /*
    * The floating navbar's glass, and the controls sitting on it.
    *
    * These are palette decisions, not component ones, because the bar carries
@@ -127,6 +139,27 @@ const dark = {
   /* Dark-mode vermilion is bright enough that white drops to 3.1:1 and fails
      AA, so text on a primary fill flips to sumi (5.5:1). */
   onPrimary: '#221A15',
+
+  /*
+   * The profile card, banked down.
+   *
+   * Lit vermilion works for a button, which is small and wants to be found.
+   * Across a whole card it is the brightest thing on the screen by a wide
+   * margin, and with sumi text on it the card stops reading as a surface and
+   * starts reading as a highlighter — the one plate in the app that does not
+   * belong to the room it is in.
+   *
+   * Same pigment, taken down until it sits on the ground instead of off it.
+   * It is still unmistakably the brand: a dark ember is what vermilion looks
+   * like at night, where a desaturated brown would just look dirty.
+   *
+   * Banking it down flips the text back to white, which is where light mode
+   * has it — the sumi was only ever a consequence of the fill being lit.
+   */
+  heroFrom: '#4A1508',
+  heroMid: '#6B2210',
+  heroTo: '#8C2F17',
+  onHero: '#FFF6F1',
 
   /*
    * The navbar's glass — sumi, not nori.
