@@ -43,49 +43,26 @@ async function call<T>(run: () => Promise<T>): Promise<Called<T>> {
 /**
  * Push an order one step along its own rail, on the cook's behalf.
  *
- * Still on Prisma: the backend exposes no transition for an order, only the
- * two money endpoints. It needs a `POST /orders/:id/advance` before this can
- * move, and until then this write — and its audit row — stay here.
+ * The backend runs the same `advanceOrder` the cook's own screen calls, minus
+ * the kitchen id — an operator doing this is standing in for a kitchen that is
+ * not answering, which is the whole reason the button exists. That helper is
+ * transactional, refuses if somebody else moved the order first, stamps
+ * `deliveredAt` only on the delivery step, and tells the customer.
+ *
+ * This used to write to the panel's own database with an id from a board
+ * reading the other one, so it answered "that order no longer exists" for
+ * every order.
  */
 export async function forceAdvance(orderId: string): Promise<ActionResult> {
   return guard(async () => {
-    const user = await requireCapability('order.write');
-    const order = await db.order.findUnique({ where: { id: orderId } });
-    if (!order) return bad(ERR.NO_ORDER);
+    await requireCapability('order.write');
 
-    const to = nextStatus(order);
-    if (!to) return bad(ERR.WRONG_STATE);
-
-    await db.$transaction(async (tx) => {
-      await tx.order.update({
-        where: { id: orderId },
-        data: {
-          status: to,
-          history: pushHistory(order.history, {
-            status: to,
-            at: new Date().toISOString(),
-            by: user.email,
-          }),
-          ...(to === 'delivered' ? { deliveredAt: new Date() } : null),
-        },
-      });
-      await audit(
-        user,
-        {
-          action: 'order.advance',
-          targetType: 'Order',
-          targetId: orderId,
-          summary: `${order.code} — ${order.status} → ${to}`,
-          before: { status: order.status },
-          after: { status: to },
-        },
-        tx,
-      );
-    });
+    const out = await call(() => post<{ status: string }>(`/orders/${orderId}/advance`));
+    if (!out.ok) return out.refusal;
 
     revalidatePath('/orders');
     revalidatePath(`/orders/${orderId}`);
-    return good(`Moved to ${to.replace(/_/g, ' ')}.`);
+    return good(`Moved to ${out.value.status.replace(/_/g, ' ')}.`);
   });
 }
 

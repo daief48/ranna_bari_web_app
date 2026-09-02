@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { ClientSession } from 'mongoose';
 import { z } from 'zod';
 
 import {
@@ -19,6 +20,7 @@ import {
   releaseEscrow,
 } from '../../../logic/ledger.js';
 import { getFlags, getSettings, saveSetting, SETTING_META } from '../../../logic/settings.js';
+import { advanceOrder } from '../../../logic/meals.js';
 import { pendingPreorders } from '../../../logic/stores.js';
 import { notify } from '../../../logic/wallet.js';
 import { taka } from '../../../lib/format.js';
@@ -58,6 +60,13 @@ import {
  * becomes a client of these, one module at a time — reads first, then
  * non-money writes, then money — so each step is verifiable on its own.
  */
+
+/** What a refusal from the logic layer is over HTTP. */
+const STATUS_FOR: Record<string, number> = {
+  [ERR.NO_ORDER]: 404,
+  [ERR.FORBIDDEN]: 403,
+  [ERR.WRONG_STATE]: 409,
+};
 
 const fail = (reply: never, code: string, status = 400) =>
   (reply as unknown as { status: (n: number) => { send: (b: unknown) => unknown } })
@@ -131,7 +140,11 @@ async function audit(
     before?: unknown;
     after?: unknown;
   },
-  session?: Parameters<typeof AuditLog.create>[1] extends { session: infer S } ? S : never,
+  /* A real session type. The conditional that stood here resolved to `never`,
+     so the parameter existed but nothing could ever be passed to it — the
+     first caller that tried to write an audit row inside a transaction did
+     not compile. */
+  session?: ClientSession,
 ) {
   await AuditLog.create(
     [
@@ -1250,6 +1263,164 @@ export async function adminRoutes(app: FastifyInstance) {
       held: { amount: held[0]?.amount ?? 0, count: held[0]?.count ?? 0 },
       disputed: [...new Set(disputed.map((d) => d.orderId))],
     };
+  });
+
+  /**
+   * Grant or withdraw the verified badge.
+   *
+   * Separate from the KYC decision: that one closes an application, this one
+   * corrects a badge afterwards, and conflating them would let a correction
+   * silently reopen a decided case.
+   */
+  app.post('/kitchens/:id/verified', async (request, reply) => {
+    const actor = await require(request, reply as never, 'kitchen.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z.object({ verified: z.boolean() }).safeParse(request.body ?? {});
+    if (!body.success) return fail(reply as never, ERR.NAME_REQUIRED);
+
+    const kitchen = await Kitchen.findById(id).catch(() => null);
+    if (!kitchen) return fail(reply as never, ERR.NO_KITCHEN, 404);
+
+    const before = { isVerified: kitchen.isVerified };
+    kitchen.isVerified = body.data.verified;
+    kitchen.kycStatus = body.data.verified ? 'approved' : 'pending';
+    kitchen.kycDecidedAt = new Date();
+    kitchen.kycDecidedBy = actor.email;
+    await kitchen.save();
+
+    await audit(actor, {
+      action: body.data.verified ? 'kitchen.verify' : 'kitchen.unverify',
+      targetType: 'Kitchen',
+      targetId: id,
+      summary: kitchen.name,
+      before,
+      after: { isVerified: body.data.verified },
+    });
+
+    return { id, isVerified: kitchen.isVerified };
+  });
+
+  /**
+   * Suspend a kitchen, and the account behind it.
+   *
+   * Not a delete — the orders, the menu and the history are evidence. Both
+   * rows move together: a cook whose kitchen is hidden but who can still sign
+   * in and accept an order is not suspended in any sense a customer notices.
+   */
+  app.post('/kitchens/:id/suspend', async (request, reply) => {
+    const actor = await require(request, reply as never, 'kitchen.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({ suspended: z.boolean(), reason: z.string().default('') })
+      .safeParse(request.body ?? {});
+    if (!body.success) return fail(reply as never, ERR.NAME_REQUIRED);
+
+    const reason = body.data.reason.trim();
+    /* A suspension with no reason is one nobody can review later. */
+    if (body.data.suspended && !reason) return fail(reply as never, ERR.NAME_REQUIRED);
+
+    const kitchen = await Kitchen.findById(id).catch(() => null);
+    if (!kitchen) return fail(reply as never, ERR.NO_KITCHEN, 404);
+
+    const before = { suspended: kitchen.suspended, suspendedReason: kitchen.suspendedReason };
+
+    await tx(async (session) => {
+      kitchen.suspended = body.data.suspended;
+      kitchen.suspendedReason = body.data.suspended ? reason : null;
+      await kitchen.save({ session });
+
+      if (kitchen.accountId) {
+        await Account.updateOne(
+          { _id: kitchen.accountId },
+          { $set: { suspended: body.data.suspended, suspendedReason: body.data.suspended ? reason : null } },
+          { session },
+        );
+      }
+
+      await audit(
+        actor,
+        {
+          action: body.data.suspended ? 'kitchen.suspend' : 'kitchen.unsuspend',
+          targetType: 'Kitchen',
+          targetId: id,
+          summary: kitchen.name + (reason ? ' — ' + reason : ''),
+          before,
+          after: { suspended: body.data.suspended, suspendedReason: reason },
+        },
+        session,
+      );
+    });
+
+    return { id, suspended: body.data.suspended };
+  });
+
+  /** The two fields that decide who can see a kitchen at all. */
+  app.post('/kitchens/:id/coverage', async (request, reply) => {
+    const actor = await require(request, reply as never, 'kitchen.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({ area: z.string().trim().min(1), radiusKm: z.coerce.number().min(1).max(50) })
+      .safeParse(request.body ?? {});
+    if (!body.success) return fail(reply as never, ERR.NAME_REQUIRED);
+
+    const kitchen = await Kitchen.findById(id).catch(() => null);
+    if (!kitchen) return fail(reply as never, ERR.NO_KITCHEN, 404);
+
+    const before = { area: kitchen.area, deliveryRadiusKm: kitchen.deliveryRadiusKm };
+    kitchen.area = body.data.area;
+    kitchen.deliveryRadiusKm = body.data.radiusKm;
+    await kitchen.save();
+
+    await audit(actor, {
+      action: 'kitchen.coverage',
+      targetType: 'Kitchen',
+      targetId: id,
+      summary: kitchen.name + ' to ' + body.data.area + ', ' + body.data.radiusKm + ' km',
+      before,
+      after: { area: body.data.area, deliveryRadiusKm: body.data.radiusKm },
+    });
+
+    return { id, area: kitchen.area, deliveryRadiusKm: kitchen.deliveryRadiusKm };
+  });
+
+  /**
+   * Push an order one step along its rail, on a cook's behalf.
+   *
+   * Same helper the cook's own screen calls, without a kitchen id — an
+   * operator doing this is standing in for a kitchen that is not answering,
+   * which is the whole reason the button is on the order page.
+   */
+  app.post('/orders/:id/advance', async (request, reply) => {
+    const actor = await require(request, reply as never, 'order.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const before = await Order.findById(id)
+      .select({ status: 1, code: 1 })
+      .lean()
+      .catch(() => null);
+    if (!before) return fail(reply as never, ERR.NO_ORDER, 404);
+
+    const out = await advanceOrder({ orderId: id });
+    if (!out.ok) return fail(reply as never, out.error, STATUS_FOR[out.error] ?? 400);
+
+    await audit(actor, {
+      action: 'order.advance',
+      targetType: 'Order',
+      targetId: id,
+      summary: before.code + ' — ' + before.status + ' to ' + out.result.status,
+      before: { status: before.status },
+      after: { status: out.result.status },
+    });
+
+    return { id, status: out.result.status };
   });
 
   /* ---------------- money ---------------- */
