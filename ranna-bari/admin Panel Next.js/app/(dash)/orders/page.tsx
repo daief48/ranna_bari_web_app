@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import type { Prisma } from '@prisma/client';
 
 import { db } from '@/lib/db';
 import { BackendError, get } from '@/lib/backend';
@@ -59,20 +58,6 @@ export default async function OrdersPage({
   await requirePage('order.read');
   const params = await searchParams;
   const { page, skip, take } = paging(params);
-
-  const where: Prisma.OrderWhereInput = {};
-  if (params.q) {
-    where.OR = [
-      { code: { contains: params.q.toUpperCase() } },
-      { customerName: { contains: params.q } },
-      { title: { contains: params.q } },
-      { cookName: { contains: params.q } },
-    ];
-  }
-  if (params.kind) where.kind = params.kind;
-  if (params.status) where.status = params.status;
-  if (params.payment) where.payment = params.payment;
-  if (params.kitchen) where.kitchenId = params.kitchen;
 
   let rows: Row[] = [];
   let total = 0;

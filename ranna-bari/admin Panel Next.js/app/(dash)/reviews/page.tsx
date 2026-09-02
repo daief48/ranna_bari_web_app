@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import type { Prisma } from '@prisma/client';
 
 import { BackendError, get } from '@/lib/backend';
 import { BackendDown } from '@/components/backend-down';
@@ -54,15 +53,14 @@ export default async function ReviewsPage({
   const user = await currentUser();
   const canModerate = can(user?.role ?? '', 'review.moderate');
 
-  const where: Prisma.ReviewWhereInput = {};
-  if (params.state === 'hidden') where.hidden = true;
-  if (params.state === 'visible') where.hidden = false;
-  if (params.rating) where.rating = Number(params.rating);
-
   const query = new URLSearchParams({ skip: String(skip), take: String(take) });
   if (params.kitchenId) query.set('kitchenId', params.kitchenId);
   if (params.rating) query.set('rating', params.rating);
-  if (params.hidden) query.set('hidden', params.hidden);
+  /* The control is named `state` and offers visible/hidden; the endpoint takes
+     a boolean called `hidden`. Translating between the two is this line, and
+     leaving it out meant the dropdown moved while the list stood still. */
+  if (params.state === 'hidden') query.set('hidden', 'true');
+  if (params.state === 'visible') query.set('hidden', 'false');
 
   let rows: ReviewRow[];
   let total: number;

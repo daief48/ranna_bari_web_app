@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import type { Prisma } from '@prisma/client';
 
 import { BackendError, get } from '@/lib/backend';
 import { BackendDown } from '@/components/backend-down';
@@ -57,10 +56,6 @@ export default async function NotificationsPage({
   const { page, skip, take } = paging(params);
   const user = await currentUser();
   const canSend = can(user?.role ?? '', 'notification.broadcast');
-
-  const where: Prisma.NotificationWhereInput = {};
-  if (params.audience) where.audience = params.audience;
-  if (params.kind) where.kind = params.kind;
 
   const query = new URLSearchParams({ skip: String(skip), take: String(take) });
   if (params.audience) query.set('audience', params.audience);
