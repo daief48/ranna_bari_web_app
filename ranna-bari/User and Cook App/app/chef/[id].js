@@ -17,7 +17,7 @@ import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useChef, useMenu } from '../../src/data';
 import { useCart } from '../../src/store/CartContext';
 import { useAuth } from '../../src/store/AuthContext';
-import { distanceKm, formatDistance } from '../../src/lib/geo';
+import DistanceChip from '../../src/components/DistanceChip';
 import { isOpenNow } from '../../src/lib/kitchen';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { useLang } from '../../src/i18n/LanguageContext';
@@ -62,21 +62,6 @@ export default function ChefScreen() {
   ];
 
   const closed = !isOpenNow(chef);
-
-  const away =
-    typeof account?.lat === 'number' &&
-    typeof account?.lng === 'number' &&
-    typeof chef.lat === 'number' &&
-    typeof chef.lng === 'number'
-      ? formatDistance(
-          distanceKm(
-            { lat: account.lat, lng: account.lng },
-            { lat: chef.lat, lng: chef.lng },
-          ),
-          t,
-          n,
-        )
-      : null;
 
   return (
     <Screen footer={<CartBar />}>
@@ -193,34 +178,15 @@ export default function ChefScreen() {
                 {t(chef.specialty)} • {chef.area}
               </Text>
 
-              {/* How far this kitchen is from the address you order to. */}
-              {away ? (
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 5,
-                    alignSelf: 'center',
-                    paddingVertical: 4,
-                    paddingHorizontal: 11,
-                    marginBottom: 16,
-                    borderRadius: radius.pill,
-                    backgroundColor: colors.sage50,
-                  }}
-                >
-                  <Icon name="navigation" size={11} color={colors.sage} />
-                  <Text
-                    style={{
-                      fontFamily: font.uiBold,
-                      fontSize: type.xs,
-                      color: colors.sage,
-                      fontVariant: ['tabular-nums'],
-                    }}
-                  >
-                    {t('{d} away', { d: away })}
-                  </Text>
-                </View>
-              ) : null}
+              {/* The same chip the dish, meal, shop and product pages carry —
+                  this page printed the number as plain text, so the one
+                  screen a customer lands on first was the one place the
+                  distance could not be tapped for the detail behind it. */}
+              <DistanceChip
+                target={chef}
+                kind="kitchen"
+                style={{ alignSelf: 'center', marginBottom: 16 }}
+              />
 
               <Body muted size={14} style={{ textAlign: 'center' }}>
                 {chef.description}

@@ -782,6 +782,47 @@ export const bn = {
   '{d} away': '{d} দূরে',
   Nearby: 'খুব কাছে',
 
+  // The cook panel, reduced to four tabs.
+  'LISTINGS': 'তালিকা',
+  'BUSINESS': 'ব্যবসা',
+  'Listings': 'তালিকা',
+  'Business': 'ব্যবসা',
+  'Everything you have out there, and what it is doing.': 'আপনি যা যা দিয়েছেন, আর সেগুলোর অবস্থা।',
+  'What you are owed, and how customers find you.': 'আপনি কত পাবেন, আর কাস্টমার আপনাকে কীভাবে খুঁজে পায়।',
+  '{live} of {total} available to order': '{total}-এর মধ্যে {live}টি অর্ডারের জন্য আছে',
+  '{n} taking orders': '{n}টি অর্ডার নিচ্ছে',
+  'Plan tomorrow’s meal tonight': 'আজ রাতেই কালকের মিল ঠিক করুন',
+  '৳{n} released to you': '৳{n} আপনাকে দেওয়া হয়েছে',
+  'Payouts run every Sunday': 'প্রতি রোববার পেআউট হয়',
+  'Closed — nothing can be ordered': 'বন্ধ — কিছুই অর্ডার করা যাবে না',
+
+  // The shelf basket, now a section of the Cart.
+  'From the shelf': 'তাক থেকে',
+  'Paid from your wallet, and held until it reaches you.': 'ওয়ালেট থেকে কাটা, আর আপনার কাছে পৌঁছানো পর্যন্ত জমা থাকবে।',
+  'Place shop order': 'দোকানের অর্ডার দিন',
+  'Item': 'পণ্য',
+
+  // Profile section headings.
+  'Activity': 'কার্যক্রম',
+  'Money': 'টাকা',
+
+  // The live order strip above the tab bar.
+  'The kitchen has it': 'রান্নাঘর পেয়েছে',
+  'Cooking': 'রান্না হচ্ছে',
+  'Ready': 'তৈরি',
+  'Did it arrive?': 'পৌঁছেছে কি?',
+  '+{n} more': '+আরও {n}',
+  '{name}, {state}. Open your order.': '{name}, {state}। অর্ডার খুলুন।',
+
+  // Meals and Shops search.
+  'Search a shop or something they sell…': 'দোকান বা তারা যা বেচে খুঁজুন…',
+  'Search a meal or a cook…': 'মিল বা রাঁধুনি খুঁজুন…',
+  'Clear filters': 'ফিল্টার মুছুন',
+  'Nothing matches that': 'এমন কিছু পাওয়া যায়নি',
+  'Try a different word, or clear the filters.': 'অন্য শব্দ চেষ্টা করুন, বা ফিল্টার মুছে দিন।',
+  'Collection': 'কালেকশন',
+  'on': 'চালু',
+
   // Outcomes announced by useAction.
   'Kitchen is open for orders.': 'রান্নাঘর এখন অর্ডার নিচ্ছে।',
   'Kitchen closed.': 'রান্নাঘর বন্ধ করা হয়েছে।',

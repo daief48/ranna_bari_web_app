@@ -1,5 +1,7 @@
 import { Account, Kitchen, Order, type OrderDoc } from '../models/index.js';
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
+import { balanceFor, post } from './ledger.js';
+import { tx } from '../config/db.js';
 import type { AppIdentity } from '../auth/app-auth.js';
 
 /**
@@ -137,7 +139,7 @@ export async function registerKitchen(
 export type OrderDraft = {
   /** The app's own order code, e.g. "RB-4KX9". The natural idempotency key. */
   code: string;
-  kind?: 'cod' | 'meal' | 'store' | 'request';
+  kind?: 'cod' | 'wallet' | 'meal' | 'store' | 'request';
   chefId: string;
   chefName?: string;
   title?: string;
@@ -195,6 +197,22 @@ export async function recordOrder(
   const createdAt = draft.createdAt ? new Date(draft.createdAt) : new Date();
   const kind = draft.kind ?? 'cod';
 
+  /*
+   * Wallet orders take the money now; cash orders take it at the door.
+   *
+   * Checked before the order exists rather than after: an order written and
+   * then found unaffordable would have to be deleted, and a half-written
+   * order is exactly the state the ledger is meant to make impossible.
+   */
+  const payFromWallet = kind === 'wallet';
+
+  if (payFromWallet) {
+    const balance = await balanceFor('customer', caller.customerKey);
+    if (balance < total) {
+      return fail(ERR.LOW_BALANCE, { short: total - balance, balance });
+    }
+  }
+
   const order = await Order.create({
     code,
     kind,
@@ -217,13 +235,40 @@ export async function recordOrder(
     price: total,
     amount: total,
 
-    status: draft.status ?? 'placed',
-    // Cash on delivery never touches escrow — the rider takes the money.
+    /* The two rails start with different words: COD opens at `placed`,
+       escrow at `confirmed`, and a wallet order that opened at `placed`
+       would sit on a rail with no step of that name. */
+    status: draft.status ?? (payFromWallet ? 'confirmed' : 'placed'),
+    /* Cash on delivery never touches escrow — the rider takes the money.
+       Anything else is held until the customer says the food arrived. */
     payment: kind === 'cod' ? 'cod' : 'held',
 
-    history: draft.history ?? [{ status: draft.status ?? 'placed', at: createdAt.toISOString() }],
+    history: draft.history ?? [
+      {
+        status: draft.status ?? (payFromWallet ? 'confirmed' : 'placed'),
+        at: createdAt.toISOString(),
+      },
+    ],
     createdAt,
   });
+
+  if (payFromWallet) {
+    /* `fromRef` is the customer's key and not decoration: `balanceFor` folds
+       a debit only when it can see whose it was, so a hold posted without one
+       leaves the wallet reading as though nothing had been spent. */
+    await tx(async (session) =>
+      post(session, {
+        kind: 'hold',
+        amount: total,
+        from: 'customer',
+        to: 'held',
+        fromRef: caller.customerKey,
+        orderId: String(order._id),
+        note: `Held for ${order.title}`,
+        idemKey: `hold:${String(order._id)}`,
+      }),
+    );
+  }
 
   return ok({ orderId: String(order._id), code, created: true });
 }

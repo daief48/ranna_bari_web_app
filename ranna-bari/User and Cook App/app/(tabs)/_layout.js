@@ -9,6 +9,7 @@ import Icon from '../../src/components/Icon';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useAuth } from '../../src/store/AuthContext';
 import { useCart } from '../../src/store/CartContext';
+import LiveOrderStrip from '../../src/components/LiveOrderStrip';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/mealLogic';
 import { useLang } from '../../src/i18n/LanguageContext';
@@ -29,12 +30,23 @@ import { font, radius } from '../../src/theme/tokens';
  * basket in the middle of the browsing tabs reads as a mistake. Cart also
  * carries a badge, which is its own way of being found.
  */
+/*
+ * Five, not seven.
+ *
+ * Map and Shops are gone from the bar and not from the app. Map is a view of
+ * Browse — the round shortcut in Browse's own toolbar was already saying so —
+ * and Shops is a category of it, which Browse now carries as a segment. Seven
+ * labels across a phone leaves each about forty pixels, which is the point at
+ * which a bar stops being read and starts being hunted through.
+ *
+ * Meals stays. It is time-boxed — book tonight, eat tomorrow — and it carries
+ * a "to confirm" badge; a deadline behind a segment is a deadline nobody
+ * meets.
+ */
 const TABS = [
   { name: 'index', icon: 'home', label: 'Home' },
   { name: 'browse', icon: 'search', label: 'Browse' },
   { name: 'meals', icon: 'pot', label: 'Meals' },
-  { name: 'stores', icon: 'box', label: 'Shops' },
-  { name: 'map', icon: 'map', label: 'Map' },
   { name: 'cart', icon: 'cart', label: 'Cart' },
   { name: 'profile', icon: 'user', label: 'Profile' },
 ];
@@ -48,6 +60,10 @@ const TABS = [
  * every destination; on a phone it *is* the navigation, which is why the
  * navbar up top only keeps the icon cluster.
  */
+/* The floating pill: 8 padding, a ~46 tall row, 8 padding, and the 12 it
+   sits above the home indicator by. */
+const BAR_HEIGHT = 74;
+
 function AppBar({ state, descriptors, navigation }) {
   const { colors, shadow, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -217,7 +233,20 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true }}
-      tabBar={(props) => <AppBar {...props} />}
+      /*
+       * The bar, and the order strip that rides above it.
+       *
+       * Both are absolutely positioned and both belong to the foot of the
+       * screen, so they are drawn by the same callback — that way the strip
+       * cannot drift away from the bar when the safe-area inset changes.
+       * BAR_HEIGHT is the pill's own height plus the 12 it floats at.
+       */
+      tabBar={(props) => (
+        <>
+          <LiveOrderStrip bottom={BAR_HEIGHT + 8} />
+          <AppBar {...props} />
+        </>
+      )}
     >
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="browse" options={{ title: 'Browse' }} />

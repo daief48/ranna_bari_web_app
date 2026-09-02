@@ -488,7 +488,7 @@ const orderSchema = new Schema(
   {
     /** The app's own code, `RB-XXXXXX`. Its natural idempotency key. */
     code: { type: String, required: true, unique: true },
-    /** 'cod' | 'meal' | 'store' | 'request' */
+    /** 'cod' | 'wallet' | 'meal' | 'store' | 'request' */
     kind: { type: String, required: true, index: true },
 
     mealId: { type: String, default: null, index: true },

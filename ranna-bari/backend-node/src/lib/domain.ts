@@ -132,10 +132,19 @@ export const fail = (error: string, detail?: Record<string, unknown>): Fail => (
  * order rails
  * ------------------------------------------------------------------ */
 
-export type OrderKind = 'cod' | 'meal' | 'store' | 'request';
+/*
+ * Which rail an order runs on.
+ *
+ * `cod` and `wallet` are both à-la-carte kitchen orders and differ only in
+ * where the money sits: cash is handed to the rider, so that rail ends at
+ * `delivered`; a wallet order is held in escrow and needs the customer's
+ * confirmation before it is released, which is the step after.
+ */
+export type OrderKind = 'cod' | 'wallet' | 'meal' | 'store' | 'request';
 
 export const ORDER_KINDS: { key: OrderKind; label: string }[] = [
   { key: 'cod', label: 'Cash on delivery' },
+  { key: 'wallet', label: 'Paid from the wallet' },
   { key: 'meal', label: 'Pre-booked meal' },
   { key: 'store', label: 'Cook store' },
   { key: 'request', label: 'Food request' },

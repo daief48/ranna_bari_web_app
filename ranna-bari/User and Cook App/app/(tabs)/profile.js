@@ -114,7 +114,13 @@ export default function ProfileScreen() {
 
         {isCook ? <GroupLabel icon="utensils" text={t('As a customer')} style={{ marginTop: 28 }} /> : null}
 
-        <View style={{ gap: 12, marginTop: isCook ? 0 : 16 }}>
+        <GroupLabel
+          icon="activity"
+          text={t('Activity')}
+          style={{ marginTop: isCook ? 20 : 24 }}
+        />
+
+        <View style={{ gap: 12, marginTop: 14 }}>
           <Row
             icon="receipt"
             variant="primary"
@@ -128,15 +134,13 @@ export default function ProfileScreen() {
             }
             onPress={() => router.push('/orders')}
           />
-          <Row
-            icon="cart"
-            variant="saffron"
-            title={t('Your cart')}
-            sub={count ? t(count === 1 ? '{n} item waiting' : '{n} items waiting', { n: n(count) }) : t('Empty right now')}
-            onPress={() => router.push('/cart')}
-          />
-          {/* Meals are paid for from the wallet, so the balance is a thing
-              people check before they go looking, not after. */}
+        </View>
+
+        {/* Meals are paid for from the wallet, so the balance is a thing
+            people check before they go looking, not after. */}
+        <GroupLabel icon="banknote" text={t('Money')} style={{ marginTop: 28 }} />
+
+        <View style={{ gap: 12, marginTop: 14 }}>
           <Row
             icon="banknote"
             variant="sage"
@@ -183,13 +187,11 @@ export default function ProfileScreen() {
             }
             onPress={() => router.push('/requests')}
           />
-          <Row
-            icon="box"
-            variant="primary"
-            title={t('Home shops')}
-            sub={t('Cakes, pitha, achar and gifts')}
-            onPress={() => router.push('/stores')}
-          />
+        </View>
+
+        <GroupLabel icon="pin" text={t('Saved')} style={{ marginTop: 28 }} />
+
+        <View style={{ gap: 12, marginTop: 14 }}>
           <Row
             icon="pin"
             variant="sage"
@@ -215,13 +217,11 @@ export default function ProfileScreen() {
             }
             onPress={() => router.push('/saved-shops')}
           />
-          <Row
-            icon="map"
-            variant="saffron"
-            title={t('Kitchen map')}
-            sub={t('See who is cooking near you')}
-            onPress={() => router.push('/map')}
-          />
+        </View>
+
+        <GroupLabel icon="user" text={t('Account')} style={{ marginTop: 28 }} />
+
+        <View style={{ gap: 12, marginTop: 14 }}>
           {/* Guests only.
               For someone already signed in this was a trap: `/become-cook`
               feeds the three-step signup, and finishing it calls signIn(),

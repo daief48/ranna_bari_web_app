@@ -29,12 +29,15 @@ export const NAV: {
       { href: '/menu', label: 'Menus & dishes', cap: 'kitchen.read' },
       { href: '/meals', label: 'Meals', cap: 'order.read' },
       { href: '/stores', label: 'Stores & products', cap: 'order.read' },
+      { href: '/coverage', label: 'Coverage map', cap: 'kitchen.read' },
+      { href: '/preorders', label: 'Pre-orders', cap: 'order.read' },
     ],
   },
   {
     group: 'Demand',
     items: [
       { href: '/orders', label: 'Orders', cap: 'order.read' },
+      { href: '/customers', label: 'Customers', cap: 'order.read' },
       { href: '/chat', label: 'Live chat', cap: 'order.read', badge: 'chat' },
       { href: '/requests', label: 'Requests & offers', cap: 'request.read' },
       { href: '/reviews', label: 'Reviews', cap: 'kitchen.read' },
@@ -47,6 +50,7 @@ export const NAV: {
       { href: '/ledger', label: 'Ledger & escrow', cap: 'ledger.read', badge: 'escrow' },
       { href: '/payouts', label: 'Payouts', cap: 'ledger.read' },
       { href: '/topups', label: 'Top-up reconciliation', cap: 'ledger.read' },
+      { href: '/refunds', label: 'Refunds', cap: 'ledger.read' },
       { href: '/disputes', label: 'Disputes', cap: 'order.read', badge: 'disputes' },
     ],
   },

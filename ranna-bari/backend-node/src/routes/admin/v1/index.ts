@@ -19,6 +19,7 @@ import {
   releaseEscrow,
 } from '../../../logic/ledger.js';
 import { getFlags, getSettings, saveSetting, SETTING_META } from '../../../logic/settings.js';
+import { pendingPreorders } from '../../../logic/stores.js';
 import { notify } from '../../../logic/wallet.js';
 import { taka } from '../../../lib/format.js';
 import {
@@ -30,7 +31,9 @@ import {
   threadsFor,
 } from '../../../logic/chat.js';
 import {
+  Account,
   AdminUser,
+  SearchTerm,
   AuditLog,
   ChatMessage,
   ChatThread,
@@ -551,6 +554,395 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   /* ---------------- kitchens and KYC ---------------- */
+
+
+  /* ------------------------------------------------------------------ *
+   * customers
+   * ------------------------------------------------------------------ */
+
+  /**
+   * The people who buy the food.
+   *
+   * Every other list here is about supply — kitchens, menus, shelves, payouts.
+   * This is the other half, and it was missing entirely: an operator on a
+   * support call could not look a caller up by the number they were calling
+   * from, which is the first thing anyone needs.
+   *
+   * Sorted by most recent order rather than by sign-up, because the question
+   * a support desk asks is "who is active", and an account that ordered this
+   * morning matters more than one that registered this morning.
+   */
+  app.get('/accounts', async (request, reply) => {
+    const actor = await require(request, reply as never, 'order.read');
+    if (!actor) return;
+
+    const query = z
+      .object({
+        q: z.string().optional(),
+        area: z.string().optional(),
+        /* active = ordered in the last 30 days · dormant = has ordered, but
+           not lately · new = an account that has never ordered at all. */
+        state: z.enum(['active', 'dormant', 'new']).optional(),
+        skip: z.coerce.number().default(0),
+        take: z.coerce.number().max(100).default(25),
+      })
+      .parse(request.query ?? {});
+
+    const where: Record<string, unknown> = {};
+    if (query.q) {
+      /* A support call gives you a number or a name, and the number is
+         stored with a country code the caller will not say. */
+      const loose = new RegExp(query.q.replace(/[^\w\u0980-\u09FF]/g, ''), 'i');
+      where.$or = [
+        { name: new RegExp(query.q, 'i') },
+        { phone: loose },
+        { customerKey: loose },
+        { email: new RegExp(query.q, 'i') },
+      ];
+    }
+    if (query.area) where.area = query.area;
+
+    const rows = await Account.find(where)
+      .sort({ updatedAt: -1 })
+      .skip(query.skip)
+      .limit(query.take)
+      .lean();
+    const total = await Account.countDocuments(where);
+
+    /*
+     * Orders and money are folded per account in two queries rather than two
+     * per row: twenty-five customers would otherwise be fifty round trips to
+     * render one page.
+     */
+    const keys = rows.map((a) => a.customerKey);
+
+    const [orderStats, held] = await Promise.all([
+      Order.aggregate<{ _id: string; orders: number; spent: number; last: Date }>([
+        { $match: { customerKey: { $in: keys }, status: { $ne: 'cancelled' } } },
+        {
+          $group: {
+            _id: '$customerKey',
+            orders: { $sum: 1 },
+            spent: { $sum: '$amount' },
+            last: { $max: '$createdAt' },
+          },
+        },
+      ]),
+      LedgerEntry.aggregate<{ _id: string; total: number }>([
+        { $match: { kind: 'hold', fromRef: { $in: keys } } },
+        { $group: { _id: '$fromRef', total: { $sum: '$amount' } } },
+      ]),
+    ]);
+
+    const byKey = new Map(orderStats.map((r) => [r._id, r]));
+    const heldBy = new Map(held.map((r) => [r._id, r.total]));
+
+    const monthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+    const accounts = await Promise.all(
+      rows.map(async (a) => {
+        const stat = byKey.get(a.customerKey);
+        const last = stat?.last ? new Date(stat.last).getTime() : null;
+        return {
+          id: String(a._id),
+          name: a.name ?? '',
+          phone: a.phone ?? a.customerKey,
+          email: a.email ?? '',
+          area: a.area ?? '',
+          role: a.role ?? 'user',
+          orders: stat?.orders ?? 0,
+          spent: stat?.spent ?? 0,
+          lastOrderAt: stat?.last ?? null,
+          wallet: await balanceFor('customer', a.customerKey),
+          held: heldBy.get(a.customerKey) ?? 0,
+          addresses: (a.addresses ?? []).length,
+          state: !last ? 'new' : last > monthAgo ? 'active' : 'dormant',
+        };
+      }),
+    );
+
+    const filtered = query.state
+      ? accounts.filter((a) => a.state === query.state)
+      : accounts;
+
+    return { accounts: filtered, total };
+  });
+
+  /**
+   * One customer, with everything a support conversation needs on screen at
+   * once: who they are, where they asked for food to go, what they ordered,
+   * and every taka that moved.
+   */
+  app.get('/accounts/:id', async (request, reply) => {
+    const actor = await require(request, reply as never, 'order.read');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const account = await Account.findById(id)
+      .lean()
+      .catch(() => null);
+    if (!account) return fail(reply as never, ERR.NO_ORDER, 404);
+
+    const key = account.customerKey;
+
+    const [orders, ledger, requests, reviews, threads, wallet] = await Promise.all([
+      Order.find({ customerKey: key }).sort({ createdAt: -1 }).limit(20).lean(),
+      LedgerEntry.find({ $or: [{ fromRef: key }, { toRef: key }] })
+        .sort({ createdAt: -1 })
+        .limit(30)
+        .lean(),
+      Request.find({ customerKey: key }).sort({ createdAt: -1 }).limit(10).lean(),
+      Review.find({ reviewerKey: key }).sort({ createdAt: -1 }).limit(10).lean(),
+      ChatThread.find({ customerKey: key }).sort({ updatedAt: -1 }).limit(10).lean(),
+      balanceFor('customer', key),
+    ]);
+
+    const lifetime = orders
+      .filter((o) => o.status !== 'cancelled')
+      .reduce((sum, o) => sum + (o.amount ?? 0), 0);
+
+    return {
+      account: {
+        id: String(account._id),
+        customerKey: key,
+        name: account.name ?? '',
+        phone: account.phone ?? key,
+        email: account.email ?? '',
+        avatar: account.avatar ?? '',
+        role: account.role ?? 'user',
+        area: account.area ?? '',
+        addressDetail: account.addressDetail ?? '',
+        addressLabel: account.addressLabel ?? '',
+        lat: account.lat ?? null,
+        lng: account.lng ?? null,
+        addresses: account.addresses ?? [],
+        createdAt: account.createdAt ?? null,
+      },
+      wallet,
+      lifetime,
+      orders: orders.map((o) => ({ ...o, id: String(o._id) })),
+      ledger: ledger.map((e) => ({ ...e, id: String(e._id) })),
+      requests: requests.map((r) => ({ ...r, id: String(r._id) })),
+      reviews: reviews.map((r) => ({ ...r, id: String(r._id) })),
+      threads: threads.map((th) => ({ ...th, id: String(th._id) })),
+    };
+  });
+
+
+  /* ------------------------------------------------------------------ *
+   * pre-orders and refunds
+   * ------------------------------------------------------------------ */
+
+  /**
+   * Pre-orders nobody has answered.
+   *
+   * A pre-order holds the customer's money the moment they ask — the cook's
+   * own screen says "৳{n} is held. Declining returns it in full." A cook who
+   * never answers leaves that money held indefinitely, and until now the
+   * console showed only a count on the stores board, with no way to see whose
+   * money or for how long.
+   *
+   * Oldest first, because age is the whole problem.
+   */
+  app.get('/preorders', async (request, reply) => {
+    const actor = await require(request, reply as never, 'order.read');
+    if (!actor) return;
+
+    const rows = await pendingPreorders();
+
+    const now = Date.now();
+    const preorders = rows
+      .map((order) => {
+        const at = order.createdAt ? new Date(order.createdAt).getTime() : now;
+        return {
+          id: String(order._id),
+          code: order.code,
+          title: order.title,
+          cookName: order.cookName,
+          kitchenId: order.kitchenId ? String(order.kitchenId) : null,
+          storeId: order.storeId ? String(order.storeId) : null,
+          customerKey: order.customerKey,
+          customerName: order.customerName ?? '',
+          amount: order.amount ?? 0,
+          createdAt: order.createdAt ?? null,
+          waitingHours: Math.max(0, Math.round((now - at) / 3_600_000)),
+        };
+      })
+      .sort((a, b) => b.waitingHours - a.waitingHours);
+
+    return {
+      preorders,
+      total: preorders.length,
+      held: preorders.reduce((sum, o) => sum + o.amount, 0),
+    };
+  });
+
+  /**
+   * Money that went back out, in one place.
+   *
+   * `POST /orders/:id/refund` and `POST /ledger/adjustment` both existed and
+   * neither had a board: the only way to see a refund was to scroll the whole
+   * ledger or open the dispute that caused it. This is the first thing asked
+   * for in a finance review and the second thing an auditor asks for.
+   */
+  app.get('/refunds', async (request, reply) => {
+    const actor = await require(request, reply as never, 'ledger.read');
+    if (!actor) return;
+
+    const query = z
+      .object({
+        kind: z.enum(['refund', 'adjustment']).optional(),
+        skip: z.coerce.number().default(0),
+        take: z.coerce.number().max(100).default(25),
+      })
+      .parse(request.query ?? {});
+
+    const where: Record<string, unknown> = {
+      kind: query.kind ? query.kind : { $in: ['refund', 'adjustment'] },
+    };
+
+    const [rows, total] = await Promise.all([
+      LedgerEntry.find(where)
+        .sort({ at: -1 })
+        .skip(query.skip)
+        .limit(query.take)
+        .lean(),
+      LedgerEntry.countDocuments(where),
+    ]);
+
+    /* Folded over everything, not the page — a finance question is about the
+       whole period, not about whichever twenty-five rows are on screen. */
+    const totals = await LedgerEntry.aggregate<{ _id: string; total: number; count: number }>([
+      { $match: { kind: { $in: ['refund', 'adjustment'] } } },
+      { $group: { _id: '$kind', total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]);
+
+    return {
+      refunds: rows.map((entry) => ({
+        id: String(entry._id),
+        kind: entry.kind,
+        amount: entry.amount,
+        from: entry.from,
+        to: entry.to,
+        toRef: entry.toRef ?? null,
+        orderId: entry.orderId ? String(entry.orderId) : null,
+        note: entry.note ?? '',
+        at: entry.at ?? null,
+      })),
+      total,
+      totals: Object.fromEntries(totals.map((t) => [t._id, { amount: t.total, count: t.count }])),
+    };
+  });
+
+
+  /**
+   * The map the product runs on.
+   *
+   * Three layers, because the gap between them is the answer: kitchens with
+   * the circle they will actually deliver inside, customers with a pin, and
+   * the searches that came back empty. Somewhere a customer sits outside
+   * every circle is somewhere the catalogue cannot serve, however many
+   * kitchens exist in total.
+   *
+   * Coordinates only — no names on the customer layer. An operator planning
+   * supply needs the density, not the identity, and shipping a list of every
+   * customer's home address to a browser to draw dots would be a poor trade.
+   */
+  app.get('/coverage', async (request, reply) => {
+    const actor = await require(request, reply as never, 'kitchen.read');
+    if (!actor) return;
+
+    const [kitchens, customers, misses] = await Promise.all([
+      Kitchen.find(
+        { lat: { $ne: null }, lng: { $ne: null } },
+        { name: 1, area: 1, lat: 1, lng: 1, deliveryRadiusKm: 1, isOpen: 1, isVerified: 1 },
+      ).lean(),
+      Account.find(
+        { lat: { $ne: null }, lng: { $ne: null } },
+        { lat: 1, lng: 1, area: 1 },
+      ).lean(),
+      SearchTerm.aggregate<{ _id: string | null; searches: number; terms: string[] }>([
+        { $match: { results: 0 } },
+        {
+          $group: {
+            _id: '$area',
+            searches: { $sum: 1 },
+            terms: { $addToSet: '$term' },
+          },
+        },
+        { $sort: { searches: -1 } },
+        { $limit: 40 },
+      ]),
+    ]);
+
+    /*
+     * Who is outside every circle.
+     *
+     * Straight-line distance rather than a road network: the app itself ranks
+     * and filters on the same measure, so this agrees with what the customer
+     * was actually shown.
+     */
+    const R = 6371;
+    const rad = (d: number) => (d * Math.PI) / 180;
+    const km = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+      const dLat = rad(b.lat - a.lat);
+      const dLng = rad(b.lng - a.lng);
+      const h =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    };
+
+    const reachable = (point: { lat: number; lng: number }) =>
+      kitchens.some((k) => {
+        if (k.lat == null || k.lng == null) return false;
+        const radius = typeof k.deliveryRadiusKm === 'number' && k.deliveryRadiusKm > 0
+          ? k.deliveryRadiusKm
+          : 3;
+        return km(point, { lat: k.lat, lng: k.lng }) <= radius;
+      });
+
+    const points = customers
+      .filter((a) => typeof a.lat === 'number' && typeof a.lng === 'number')
+      .map((a) => ({
+        lat: a.lat as number,
+        lng: a.lng as number,
+        area: a.area ?? '',
+        covered: reachable({ lat: a.lat as number, lng: a.lng as number }),
+      }));
+
+    const areasWithKitchen = new Set(kitchens.map((k) => k.area).filter(Boolean));
+
+    return {
+      kitchens: kitchens.map((k) => ({
+        id: String(k._id),
+        name: k.name,
+        area: k.area ?? '',
+        lat: k.lat,
+        lng: k.lng,
+        radiusKm:
+          typeof k.deliveryRadiusKm === 'number' && k.deliveryRadiusKm > 0
+            ? k.deliveryRadiusKm
+            : 3,
+        isOpen: k.isOpen !== false,
+        isVerified: !!k.isVerified,
+      })),
+      customers: points,
+      misses: misses.map((m) => ({
+        area: m._id ?? '',
+        searches: m.searches,
+        terms: m.terms.slice(0, 6),
+        hasKitchen: !!m._id && areasWithKitchen.has(m._id),
+      })),
+      summary: {
+        kitchens: kitchens.length,
+        pinned: points.length,
+        stranded: points.filter((p) => !p.covered).length,
+        emptySearches: misses.reduce((sum, m) => sum + m.searches, 0),
+      },
+    };
+  });
 
   app.get('/kitchens', async (request, reply) => {
     const actor = await require(request, reply as never, 'kitchen.read');

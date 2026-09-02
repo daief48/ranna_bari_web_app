@@ -23,6 +23,7 @@ import { font, radius, tracking, type } from '../src/theme/tokens';
 import { useCart } from '../src/store/CartContext';
 import { useAuth } from '../src/store/AuthContext';
 import { PAYMENT_METHODS, useOrders } from '../src/store/OrdersContext';
+import { useCommerce } from '../src/store/CommerceContext';
 import { useLang } from '../src/i18n/LanguageContext';
 
 const LABELS = [
@@ -55,6 +56,7 @@ function CheckoutForm() {
   const params = useLocalSearchParams();
   const { account } = useAuth();
   const { placeOrder } = useOrders();
+  const { wallet } = useCommerce();
   const {
     items,
     subtotal,
@@ -283,13 +285,17 @@ function CheckoutForm() {
 
               <View style={{ gap: 12 }}>
                 {PAYMENT_METHODS.map((m) => {
+                  /* Offered only when it can actually pay: an option that is
+                     always refused costs a tap to learn nothing. */
+                  const affordable = (wallet?.customer ?? 0) >= total;
+                  const usable = m.key === 'wallet' ? affordable : m.available;
                   const on = method === m.key;
                   return (
                     <Pressable
                       key={m.key}
                       accessibilityRole="radio"
-                      accessibilityState={{ selected: on, disabled: !m.available }}
-                      disabled={!m.available}
+                      accessibilityState={{ selected: on, disabled: !usable }}
+                      disabled={!usable}
                       onPress={() => setMethod(m.key)}
                       style={[
                         {

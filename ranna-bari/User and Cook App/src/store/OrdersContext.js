@@ -57,6 +57,24 @@ export const PAYMENT_METHODS = [
     desc: 'Pay the rider in cash when your food arrives.',
     available: true,
   },
+  /*
+   * The wallet, for the one purchase path that could not use it.
+   *
+   * Meals, the shelf and a won request all took payment from here; kitchen
+   * dishes did not, so a customer topped up a balance that could not buy
+   * them dinner — and a cash order that went wrong had no held money for a
+   * refund to come from.
+   *
+   * `available` is decided at the checkout, where the balance and the total
+   * are both known.
+   */
+  {
+    key: 'wallet',
+    icon: 'lock',
+    title: 'Wallet',
+    desc: 'Held until you confirm the food arrived, then paid to the cook.',
+    available: true,
+  },
   {
     key: 'bkash',
     icon: 'lock',
@@ -150,7 +168,10 @@ export function OrdersProvider({ children }) {
              retry after a dropped connection returns the order that already
              exists rather than making a second one. */
           code: makeCode(),
-          kind: 'cod',
+          /* The rail this order runs on, which is decided by where the
+             money is: cash ends at delivered, the wallet is held in escrow
+             and needs the customer to confirm receipt before it is released. */
+          kind: draft.paymentMethod === 'wallet' ? 'wallet' : 'cod',
           chefId,
           chefName: items[0]?.chefName ?? '',
           title: items[0]?.name,

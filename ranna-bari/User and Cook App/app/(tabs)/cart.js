@@ -60,7 +60,7 @@ export default function CartScreen() {
   /* The shop basket, which is a different basket: wallet-paid, stock-checked
      and held in escrow. Summarised here rather than merged in, because
      merging two payment rails into one list would make the totals a lie. */
-  const { account } = useAuth();
+  const { account, isSignedIn } = useAuth();
   const shop = useCommerce();
   const shopPriced = shop.priceCart(customerKeyOf(account));
   const shopCount = shopPriced.lines.reduce((sum, l) => sum + l.qty, 0);
@@ -80,11 +80,23 @@ export default function CartScreen() {
   /* Carry the instructions forward rather than asking for them again on the
      next screen -- the field exists here because the web build had no
      checkout page to put it on. */
-  const checkout = () =>
-    router.push({
+  /*
+   * Sent to sign in from here rather than from checkout.
+   *
+   * A guest could fill a basket, tap through, and only be told at the
+   * payment screen that the whole thing needs an account — two screens after
+   * the point where saying so would have cost them nothing.
+   */
+  const checkout = () => {
+    if (!isSignedIn) return router.push('/auth');
+    return router.push({
       pathname: '/checkout',
       params: instructions.trim() ? { note: instructions.trim() } : {},
     });
+  };
+
+  const checkoutShelf = () =>
+    isSignedIn ? router.push('/store-checkout') : router.push('/auth');
 
   return (
     <Screen>
@@ -104,53 +116,125 @@ export default function CartScreen() {
         </View>
 
         {shopCount ? (
-          <Pressable
-            accessibilityRole="link"
-            onPress={() => router.push('/store-checkout')}
-            style={({ pressed }) => [
+          <View
+            style={[
               {
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 12,
                 padding: 16,
                 marginBottom: 24,
                 borderRadius: radius.md,
                 backgroundColor: colors.surfaceSolid,
                 borderWidth: 1,
-                borderColor: pressed ? colors.primary200 : colors.line,
+                borderColor: colors.line,
               },
               shadow.sm,
             ]}
           >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 14,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: colors.primary50,
+                }}
+              >
+                <Icon name="box" size={19} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text
+                  style={{ fontFamily: font.uiSemi, fontSize: type.sm + 2, color: colors.text }}
+                >
+                  {t('From the shelf')}
+                </Text>
+                <Text
+                  style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
+                >
+                  {t('Paid from your wallet, and held until it reaches you.')}
+                </Text>
+              </View>
+            </View>
+
+            {/* The lines themselves, so nothing about this basket is hidden
+                behind a tap. */}
+            <View style={{ gap: 8, marginTop: 14 }}>
+              {shopPriced.lines.map((line) => (
+                <View
+                  key={line.key ?? line.productId}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      fontFamily: font.ui,
+                      fontSize: type.sm,
+                      color: colors.text,
+                    }}
+                  >
+                    {/* The server's cart line carries the name; the local
+                        product lookup is empty for a shop the customer has
+                        not opened, which is most of them. */}
+                    {line.name ?? line.product?.name ?? t('Item')}
+                    <Text style={{ color: colors.textMuted }}>{`  ×${n(line.qty)}`}</Text>
+                  </Text>
+                  {line.preorder ? (
+                    <Text
+                      style={{ fontFamily: font.uiBold, fontSize: 10, color: colors.saffron }}
+                    >
+                      {t('Pre-order')}
+                    </Text>
+                  ) : null}
+                  <Text
+                    style={{
+                      fontFamily: font.uiSemi,
+                      fontSize: type.sm,
+                      color: colors.text,
+                      fontVariant: ['tabular-nums'],
+                    }}
+                  >
+                    ৳{n(line.lineTotal)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
             <View
               style={{
-                width: 40,
-                height: 40,
-                borderRadius: 14,
+                flexDirection: 'row',
                 alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: colors.primary50,
+                marginTop: 14,
+                paddingTop: 12,
+                borderTopWidth: 1,
+                borderTopColor: colors.line2,
               }}
             >
-              <Icon name="box" size={19} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
               <Text
-                style={{ fontFamily: font.uiSemi, fontSize: type.sm + 2, color: colors.text }}
+                style={{ flex: 1, fontFamily: font.ui, fontSize: type.sm, color: colors.textMuted }}
               >
-                {t('Shop basket')}
+                {t('{n} items', { n: n(shopCount) })}
               </Text>
               <Text
-                style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
+                style={{
+                  fontFamily: font.uiBold,
+                  fontSize: type.md,
+                  color: colors.text,
+                  fontVariant: ['tabular-nums'],
+                }}
               >
-                {t('{n} items · ৳{total} · paid from your wallet', {
-                  n: n(shopCount),
-                  total: n(shopPriced.total),
-                })}
+                ৳{n(shopPriced.total)}
               </Text>
             </View>
-            <Icon name="chevronRight" size={16} color={colors.textLight} />
-          </Pressable>
+
+            <Button
+              label={t('Place shop order')}
+              block
+              onPress={checkoutShelf}
+              style={{ marginTop: 12 }}
+            />
+          </View>
         ) : null}
 
         {!items.length ? (

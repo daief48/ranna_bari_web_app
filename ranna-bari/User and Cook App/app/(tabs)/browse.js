@@ -17,6 +17,7 @@ import ChefCard from '../../src/components/ChefCard';
 import Reveal from '../../src/components/Reveal';
 import { Price } from '../../src/components/Typography';
 import SectionHeader from '../../src/components/SectionHeader';
+import ShopResults from '../../src/components/ShopResults';
 import FilterSheet, {
   DEFAULT_FILTERS,
   DIETS,
@@ -599,6 +600,10 @@ export default function BrowseScreen() {
   const chipLabel = (key) => chips.find((c) => c.key === key)?.label ?? key;
 
   const filterCount = activeCount(filters);
+  /* Dishes or shops. The search box, the area picker and the sort all
+     belong to whichever is showing — one question, two catalogues. */
+  const [lane, setLane] = useState('dishes');
+
   const sortLabel = SORTS.find((s) => s.key === filters.sort)?.label;
 
   /** Turn one of the empty state's suggestions into the state change it names. */
@@ -947,6 +952,57 @@ export default function BrowseScreen() {
         })}
       </ScrollView>
 
+      {/* ---- Dishes or shops ----
+          Shops used to be a tab of its own. It is a category of this screen:
+          same cooks, different errand. */}
+      <Container style={{ paddingTop: 16 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            gap: 4,
+            padding: 4,
+            borderRadius: radius.pill,
+            backgroundColor: colors.sunken,
+          }}
+        >
+          {[
+            { key: 'dishes', label: t('Dishes') },
+            { key: 'shops', label: t('Shops') },
+          ].map((seg) => {
+            const on = lane === seg.key;
+            return (
+              <Pressable
+                key={seg.key}
+                /* A button, not a tab: the floating bar at the foot of the
+                   screen is the tablist, and a second one here would give a
+                   screen reader two competing sets of tabs for one screen. */
+                accessibilityRole="button"
+                aria-pressed={on}
+                accessibilityState={{ selected: on }}
+                onPress={() => setLane(seg.key)}
+                style={{
+                  flex: 1,
+                  alignItems: 'center',
+                  paddingVertical: 9,
+                  borderRadius: radius.pill,
+                  backgroundColor: on ? colors.surfaceSolid : 'transparent',
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: on ? font.uiBold : font.ui,
+                    fontSize: 13.5,
+                    color: on ? colors.text : colors.textMuted,
+                  }}
+                >
+                  {seg.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Container>
+
       {/* ---- Recent searches ----
           Only with an empty box: once there is a query these are answers to
           a question nobody is asking any more. */}
@@ -1028,6 +1084,11 @@ export default function BrowseScreen() {
         </Container>
       ) : null}
 
+      {lane === 'shops' ? (
+        <Container style={{ paddingTop: 24 }}>
+          <ShopResults query={query} onClearFilters={() => { setDraft(''); setQuery(''); }} />
+        </Container>
+      ) : (
       <Container style={{ paddingTop: 24 }}>
         {/* ---- Food first ----
             A query that matched a dish is a query about food. Every row names
@@ -1319,6 +1380,7 @@ export default function BrowseScreen() {
           </View>
         ) : null}
       </Container>
+      )}
 
       <AreaPicker
         open={areaOpen}

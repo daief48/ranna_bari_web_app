@@ -13,17 +13,23 @@ import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { font, radius } from '../../../src/theme/tokens';
 
+/*
+ * Four, not seven.
+ *
+ * Menu, Meals and Shop were three separate destinations for one idea — the
+ * things this kitchen offers — and Earnings and Kitchen were two for another.
+ * Seven labels in a phone-width pill leaves each of them about forty pixels,
+ * which is how a bar stops being read and starts being hunted through.
+ *
+ * The five screens keep their routes and every link to them still works:
+ * `state.routes.map` below draws nothing for a route with no entry here, so
+ * leaving them out hides them from the bar without unmounting anything.
+ */
 const TABS = [
   { name: 'index', icon: 'activity', label: 'Today' },
   { name: 'orders', icon: 'receipt', label: 'Orders' },
-  { name: 'meals', icon: 'pot', label: 'Meals' },
-  { name: 'menu', icon: 'utensils', label: 'Menu' },
-  /* The shelf, beside the menu. A cook's two catalogues — what they cook to
-     order and what they sell off the shelf — were one tap apart and a whole
-     navigation apart: the shop lived at a URL with nothing pointing at it. */
-  { name: 'store', icon: 'box', label: 'Shop' },
-  { name: 'earnings', icon: 'banknote', label: 'Earnings' },
-  { name: 'kitchen', icon: 'chefHat', label: 'Kitchen' },
+  { name: 'listings', icon: 'utensils', label: 'Listings' },
+  { name: 'business', icon: 'banknote', label: 'Business' },
 ];
 
 /**
@@ -97,8 +103,11 @@ function CookBar({ state, descriptors, navigation }) {
 
             const focused = state.index === i;
             const { options } = descriptors[route.key];
+            /* Meals moved under Listings, so the plates-to-cook count moves
+               with it — a number that vanished when its tab did would be a
+               count the cook simply stops seeing. */
             const badge =
-              meta.name === 'orders' ? waiting : meta.name === 'meals' ? toCook : 0;
+              meta.name === 'orders' ? waiting : meta.name === 'listings' ? toCook : 0;
 
             const onPress = () => {
               const event = navigation.emit({
@@ -211,6 +220,8 @@ export default function CookPanelLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Today' }} />
       <Tabs.Screen name="orders" options={{ title: 'Orders' }} />
+      <Tabs.Screen name="listings" options={{ title: 'Listings' }} />
+      <Tabs.Screen name="business" options={{ title: 'Business' }} />
       <Tabs.Screen name="meals" options={{ title: 'Meals' }} />
       <Tabs.Screen name="menu" options={{ title: 'Menu' }} />
       {/* `(panel)` is a group, so this is still `/cook/store` — the rows and

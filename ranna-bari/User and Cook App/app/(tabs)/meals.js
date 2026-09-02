@@ -6,7 +6,7 @@
  * app. Meals from kitchens that will not deliver to your address are not
  * shown at all: a meal you cannot be sent is not an option, it is a tease.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -15,6 +15,7 @@ import Icon from '../../src/components/Icon';
 import Button from '../../src/components/Button';
 import Reveal from '../../src/components/Reveal';
 import SectionHeader from '../../src/components/SectionHeader';
+import SearchBar from '../../src/components/SearchBar';
 import { EmptyState, MealCard } from '../../src/components/MealBits';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
@@ -27,6 +28,40 @@ import {
   useCommerce,
 } from '../../src/store/CommerceContext';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { makeMatcher, RANK } from '../../src/lib/search';
+
+/** A filter that is either on or off. */
+function Chip({ on, onPress, label }) {
+  const { colors } = useTheme();
+  const { t } = useLang();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      accessibilityLabel={`${label}${on ? `, ${t('on')}` : ''}`}
+      style={({ pressed }) => ({
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: radius.pill,
+        backgroundColor: on ? colors.primary : colors.surfaceSolid,
+        borderWidth: 1,
+        borderColor: on ? colors.primary : colors.line,
+        opacity: pressed ? 0.75 : 1,
+      })}
+    >
+      <Text
+        style={{
+          fontFamily: font.uiSemi,
+          fontSize: type.xs,
+          color: on ? colors.onPrimary : colors.text,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
 
 export default function MealsScreen() {
   const { colors, shadow } = useTheme();
@@ -45,8 +80,38 @@ export default function MealsScreen() {
 
   /* Tomorrow, today, and the rest of the week in that order. A meal being
      cooked in four days is real but it is not what this screen is for. */
+  const [query, setQuery] = useState('');
+  const [handover, setHandover] = useState('any');
+
   const groups = useMemo(() => {
-    const all = mealsNearby(origin);
+    const matcher = makeMatcher(query);
+
+    /*
+     * The box and the handover chips narrow the list before it is grouped, so
+     * a day with nothing left in it disappears rather than showing an empty
+     * heading.
+     */
+    let all = mealsNearby(origin);
+
+    if (handover !== 'any') {
+      all = all.filter((r) => (r.meal.handover ?? 'delivery') === handover);
+    }
+
+    if (matcher) {
+      all = all
+        .map((row) => ({
+          row,
+          rank: matcher.rank({
+            name: row.meal.title,
+            tags: [row.meal.slot, row.meal.area],
+            text: [row.meal.description, row.meal.cookName].join(' '),
+          }),
+        }))
+        .filter((hit) => hit.rank !== RANK.NONE)
+        .sort((a, b) => a.rank - b.rank)
+        .map((hit) => hit.row);
+    }
+
     const later = new Set(
       [2, 3, 4, 5, 6].map((d) => dayKey(addDays(d))),
     );
@@ -56,7 +121,7 @@ export default function MealsScreen() {
       { key: 'today', label: 'Later today', rows: all.filter((r) => r.meal.serveDate === todayKey()) },
       { key: 'later', label: 'This week', rows: all.filter((r) => later.has(r.meal.serveDate)) },
     ].filter((g) => g.rows.length);
-  }, [mealsNearby, origin]);
+  }, [mealsNearby, origin, query, handover]);
 
   const total = groups.reduce((sum, g) => sum + g.rows.length, 0);
 
@@ -114,6 +179,27 @@ export default function MealsScreen() {
           <Icon name="chevronRight" size={15} color={colors.textLight} />
         </Pressable>
 
+        <SearchBar
+          value={query}
+          onChange={setQuery}
+          placeholder={t('Search a meal or a cook…')}
+          style={{ marginBottom: 10 }}
+        />
+
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 22 }}>
+          <Chip on={handover === 'any'} onPress={() => setHandover('any')} label={t('All')} />
+          <Chip
+            on={handover === 'delivery'}
+            onPress={() => setHandover('delivery')}
+            label={t('Delivery')}
+          />
+          <Chip
+            on={handover === 'collection'}
+            onPress={() => setHandover('collection')}
+            label={t('Collection')}
+          />
+        </View>
+
         {!origin && isSignedIn ? (
           <Note
             icon="pin"
@@ -164,7 +250,11 @@ export default function MealsScreen() {
         {hydrated && !total ? (
           <EmptyState
             icon="pot"
-            title={t('No meals planned near you yet')}
+            title={
+              query.trim() || handover !== 'any'
+                ? t('Nothing matches that')
+                : t('No meals planned near you yet')
+            }
             body={t(
               'Cooks publish tomorrow’s meals the evening before. Check back tonight, or browse kitchens cooking to order right now.',
             )}
