@@ -21,11 +21,14 @@ import {
   updateCategory,
 } from '../../../logic/taxonomy.js';
 import {
+  Account,
   AuditLog,
+  Cart,
   Dish,
   Kitchen,
   LedgerEntry,
   Meal,
+  MealInterest,
   Notification,
   Offer,
   Order,
@@ -34,6 +37,7 @@ import {
   Review,
   SearchTerm,
   Store,
+  StoreCategory,
   TopUp,
   Zone,
 } from '../../../models/index.js';
@@ -189,12 +193,17 @@ const paging = {
 };
 
 /** Kitchens behind a set of ids. A malformed id is a miss, not a crash. */
-async function kitchensByIds(ids: string[]): Promise<Map<string, { name?: string }>> {
+async function kitchensByIds(
+  ids: string[],
+): Promise<Map<string, { name?: string; area?: string }>> {
   const unique = [...new Set(ids.filter(Boolean))];
   if (!unique.length) return new Map();
 
+  /* The area rides along because every board that names a kitchen also places
+     it — the shops list draws both, and fetching one string separately would
+     be a second round trip per page. */
   const rows = await Kitchen.find({ _id: { $in: unique } })
-    .select({ name: 1 })
+    .select({ name: 1, area: 1 })
     .lean()
     .catch(() => []);
 
@@ -248,23 +257,34 @@ export async function operationRoutes(app: FastifyInstance) {
        25 round trips otherwise, and the number is what makes a stale meal
        urgent — forty plates of held money is not the same problem as none. */
     const ids = rows.map((row) => String(row._id));
-    const counts = await Order.aggregate<{ _id: string; confirmed: number; held: number }>([
-      { $match: { mealId: { $in: ids }, status: { $ne: 'cancelled' } } },
-      {
-        $group: {
-          _id: '$mealId',
-          confirmed: { $sum: 1 },
-          held: { $sum: { $cond: [{ $eq: ['$payment', 'held'] }, 1, 0] } },
+    const [counts, interest] = await Promise.all([
+      Order.aggregate<{ _id: string; confirmed: number; held: number }>([
+        { $match: { mealId: { $in: ids }, status: { $ne: 'cancelled' } } },
+        {
+          $group: {
+            _id: '$mealId',
+            confirmed: { $sum: 1 },
+            held: { $sum: { $cond: [{ $eq: ['$payment', 'held'] }, 1, 0] } },
+          },
         },
-      },
+      ]),
+      /* Interest is its own collection, and this endpoint never folded it back
+         in — so the panel's Interest column has been an em dash on every row.
+         One grouped count for the page, the same shape as the orders above. */
+      MealInterest.aggregate<{ _id: string; n: number }>([
+        { $match: { mealId: { $in: ids } } },
+        { $group: { _id: '$mealId', n: { $sum: 1 } } },
+      ]),
     ]);
     const byMeal = new Map(counts.map((row) => [row._id, row]));
+    const byInterest = new Map(interest.map((row) => [row._id, row.n]));
 
     return {
       meals: rows.map((row) => ({
         ...withId(row),
         confirmed: byMeal.get(String(row._id))?.confirmed ?? 0,
         held: byMeal.get(String(row._id))?.held ?? 0,
+        interested: byInterest.get(String(row._id)) ?? 0,
       })),
       total,
     };
@@ -356,18 +376,120 @@ export async function operationRoutes(app: FastifyInstance) {
       .catch(() => null);
     if (!meal) return fail(reply, ERR.NO_MEAL, 404);
 
-    const [kitchen, orders] = await Promise.all([
+    const [kitchen, orders, interested] = await Promise.all([
       Kitchen.findById(meal.kitchenId)
         .select({ name: 1, area: 1, isVerified: 1 })
         .lean()
         .catch(() => null),
       Order.find({ mealId: id }).sort({ createdAt: -1 }).lean(),
+      MealInterest.countDocuments({ mealId: id }),
     ]);
 
     return {
       meal: withId(meal),
       kitchen: kitchen ? { ...kitchen, id: String(kitchen._id) } : null,
       orders: orders.map(withId),
+      interested,
+    };
+  });
+
+  /**
+   * Baskets with something in them and no order behind them.
+   *
+   * A cart row is kept per customer and emptied at checkout, so "still has
+   * lines" is the whole definition of abandoned — there is no separate state
+   * to read.
+   *
+   * This is worth more here than in ordinary commerce. `store-checkout` tells
+   * a customer to top the wallet up before they can order, so a basket left
+   * full is not always hesitation: some of these are people who could not
+   * afford the top-up, which is a price signal and is invisible everywhere
+   * else in the console.
+   */
+  app.get('/carts', async (request, reply) => {
+    const actor = await require(request, reply, 'order.read');
+    if (!actor) return;
+
+    const query = z.object({ ...paging }).parse(request.query ?? {});
+
+    const where = { 'lines.0': { $exists: true } };
+
+    const [rows, total] = await Promise.all([
+      Cart.find(where).sort({ updatedAt: -1 }).skip(query.skip).limit(query.take).lean(),
+      Cart.countDocuments(where),
+    ]);
+
+    /* A cart line carries { productId, option, qty } and no price — the price
+       lives on the product, and an option overrides it. So the products come
+       back in one read for the whole page rather than one per line, and the
+       worth of each basket is computed from them. Guessing at a line.price
+       gave a column of zeros, which is the kind of plausible nothing this
+       screen exists to prevent. */
+    const linesOf = (row: { lines?: unknown }) => (Array.isArray(row.lines) ? row.lines : []);
+    const productIds = [
+      ...new Set(
+        rows.flatMap((row) =>
+          linesOf(row).map((line: Record<string, unknown>) => String(line?.productId ?? '')),
+        ),
+      ),
+    ].filter(Boolean);
+
+    const [accounts, products] = await Promise.all([
+      /* Names in one read rather than one per basket. A key with no account
+         behind it is a guest, which the panel shows as such rather than
+         inventing a name for. */
+      Account.find({ customerKey: { $in: rows.map((r) => r.customerKey) } })
+        .select({ customerKey: 1, name: 1, phone: 1 })
+        .lean(),
+      Product.find({ _id: { $in: productIds } })
+        .select({ name: 1, price: 1, options: 1, storeId: 1 })
+        .lean(),
+    ]);
+
+    const byKey = new Map(accounts.map((a) => [a.customerKey, a]));
+    const byProduct = new Map(products.map((p) => [String(p._id), p]));
+
+    /** What one line is worth: the option's price where it names one. */
+    const lineValue = (line: Record<string, unknown>) => {
+      const product = byProduct.get(String(line?.productId ?? ''));
+      if (!product) return 0;
+
+      const options = Array.isArray(product.options) ? product.options : [];
+      const chosen = line?.option
+        ? options.find((o: Record<string, unknown>) => o?.label === line.option)
+        : null;
+
+      const price = Number(chosen?.price ?? product.price ?? 0);
+      const qty = Number(line?.qty ?? 1);
+      const worth = price * qty;
+      /* A line pointing at a deleted product contributes nothing rather than
+         NaN — one dead reference should not blank the whole column. */
+      return Number.isFinite(worth) ? worth : 0;
+    };
+
+    return {
+      carts: rows.map((row) => {
+        const account = byKey.get(row.customerKey);
+        const lines = linesOf(row);
+        const first = byProduct.get(String(lines[0]?.productId ?? ''));
+        return {
+          id: String(row._id),
+          customerKey: row.customerKey,
+          name: account?.name || null,
+          phone: account?.phone ?? row.customerKey,
+          /* What is in it, named — an operator reading a list of counts
+             cannot tell a forgotten basket from an unaffordable one. */
+          sample: first?.name ?? null,
+          items: lines.reduce(
+            (n: number, line: Record<string, unknown>) => n + Number(line?.qty ?? 1),
+            0,
+          ),
+          value: lines.reduce((sum: number, line: Record<string, unknown>) => sum + lineValue(line), 0),
+          updatedAt: row.updatedAt,
+          createdAt: row.createdAt,
+        };
+      }),
+      total,
     };
   });
 
@@ -376,7 +498,12 @@ export async function operationRoutes(app: FastifyInstance) {
     if (!actor) return;
 
     const query = z
-      .object({ view: z.string().optional(), q: z.string().optional(), ...paging })
+      .object({
+        view: z.string().optional(),
+        q: z.string().optional(),
+        open: z.string().optional(),
+        ...paging,
+      })
       .parse(request.query ?? {});
 
     if (query.view === 'stock') {
@@ -409,6 +536,10 @@ export async function operationRoutes(app: FastifyInstance) {
           return {
             ...withId(row),
             storeName: store?.name ?? '',
+            /* Drawn as a "shop closed" badge beside the product: an empty
+               shelf in a shut shop is not the same alarm as an empty shelf in
+               an open one. */
+            storeOpen: store?.isOpen ?? true,
             kitchenId: store?.kitchenId ?? null,
             kitchenName: store ? (kitchens.get(store.kitchenId)?.name ?? '') : '',
           };
@@ -437,6 +568,8 @@ export async function operationRoutes(app: FastifyInstance) {
 
     const where: Record<string, unknown> = {};
     if (query.q) where.name = new RegExp(query.q, 'i');
+    if (query.open === 'yes') where.isOpen = true;
+    if (query.open === 'no') where.isOpen = false;
 
     const [rows, total] = await Promise.all([
       Store.find(where).sort({ createdAt: -1 }).skip(query.skip).limit(query.take).lean(),
@@ -444,27 +577,88 @@ export async function operationRoutes(app: FastifyInstance) {
     ]);
 
     const ids = rows.map((row) => String(row._id));
-    const counts = await Product.aggregate<{ _id: string; products: number; live: number }>([
-      { $match: { storeId: { $in: ids } } },
-      {
-        $group: {
-          _id: '$storeId',
-          products: { $sum: 1 },
-          live: { $sum: { $cond: [{ $and: ['$active', { $gt: ['$stock', 0] }] }, 1, 0] } },
-        },
-      },
-    ]);
+    const settings = await getSettings();
+    const stockCutoff = new Date(Date.now() - settings.stockAlarmDays * 86_400_000);
+
+    const [
+      counts,
+      saves,
+      shelves,
+      storeOrders,
+      openStores,
+      activeProducts,
+      emptyProducts,
+      waitingPreorders,
+    ] = await Promise.all([
+        Product.aggregate<{ _id: string; products: number; live: number }>([
+          { $match: { storeId: { $in: ids } } },
+          {
+            $group: {
+              _id: '$storeId',
+              products: { $sum: 1 },
+              live: { $sum: { $cond: [{ $and: ['$active', { $gt: ['$stock', 0] }] }, 1, 0] } },
+            },
+          },
+        ]),
+        /* How many customers kept this shop. The list lives on the account, so
+           the ids are unwound and counted per store — twice-matched so a
+           customer with forty saved shops contributes one row per shop on this
+           page rather than forty. */
+        Account.aggregate<{ _id: string; n: number }>([
+          { $match: { savedStores: { $in: ids } } },
+          { $unwind: '$savedStores' },
+          { $match: { savedStores: { $in: ids } } },
+          { $group: { _id: '$savedStores', n: { $sum: 1 } } },
+        ]),
+        /* Shelves and orders per shop, grouped rather than counted per row:
+           twenty-five shops is fifty round trips otherwise. */
+        StoreCategory.aggregate<{ _id: string; n: number }>([
+          { $match: { storeId: { $in: ids } } },
+          { $group: { _id: '$storeId', n: { $sum: 1 } } },
+        ]),
+        Order.aggregate<{ _id: string; n: number }>([
+          { $match: { storeId: { $in: ids } } },
+          { $group: { _id: '$storeId', n: { $sum: 1 } } },
+        ]),
+        Store.countDocuments({ isOpen: true }),
+        Product.countDocuments({ active: true }),
+        Product.countDocuments({ active: true, stock: 0, outOfStockSince: { $lt: stockCutoff } }),
+        Order.countDocuments({ status: 'pending', preorder: true }),
+      ]);
+
     const byStore = new Map(counts.map((row) => [row._id, row]));
+    const bySaves = new Map(saves.map((row) => [row._id, row.n]));
+    const byShelves = new Map(shelves.map((row) => [row._id, row.n]));
+    const byOrders = new Map(storeOrders.map((row) => [row._id, row.n]));
     const kitchens = await kitchensByIds(rows.map((row) => row.kitchenId));
 
     return {
-      stores: rows.map((row) => ({
-        ...withId(row),
-        kitchenName: kitchens.get(row.kitchenId)?.name ?? '',
-        products: byStore.get(String(row._id))?.products ?? 0,
-        live: byStore.get(String(row._id))?.live ?? 0,
-      })),
+      stores: rows.map((row) => {
+        const kitchen = kitchens.get(row.kitchenId);
+        return {
+          ...withId(row),
+          kitchenName: kitchen?.name ?? '',
+          kitchenArea: kitchen?.area ?? '',
+          products: byStore.get(String(row._id))?.products ?? 0,
+          live: byStore.get(String(row._id))?.live ?? 0,
+          shelves: byShelves.get(String(row._id)) ?? 0,
+          orders: byOrders.get(String(row._id)) ?? 0,
+          saved: bySaves.get(String(row._id)) ?? 0,
+        };
+      }),
       total,
+      /* The five figures across the top of the board, from the store that
+         holds the rows under them. */
+      counts: {
+        stores: total,
+        open: openStores,
+        products: activeProducts,
+        empty: emptyProducts,
+        preorders: waitingPreorders,
+        /* The threshold behind the empty count, so the caption under it names
+           the same number the filter used. */
+        agedDays: settings.stockAlarmDays,
+      },
     };
   });
 

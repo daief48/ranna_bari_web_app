@@ -1,10 +1,9 @@
 import Link from 'next/link';
-import type { Prisma } from '@prisma/client';
 
-import { db } from '@/lib/db';
+import { BackendError, get } from '@/lib/backend';
+import { BackendDown } from '@/components/backend-down';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/lib/domain';
-import { getSettings } from '@/lib/settings';
 import { taka, timeAgo, daysSince } from '@/lib/format';
 import { paging, pageCount } from '@/lib/queries';
 import {
@@ -28,6 +27,55 @@ import { requirePage } from '@/lib/guard';
 export const metadata = { title: 'Stores & products · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
 
+type StoreRow = {
+  id: string;
+  name: string;
+  isOpen: boolean;
+  deliveryFee: number;
+  freeDeliveryOver: number | null;
+  kitchenId: string;
+  kitchenName: string;
+  kitchenArea: string;
+  products: number;
+  shelves: number;
+  orders: number;
+  /**
+   * How many customers kept this shop. correct_ui.md calls it the only clean
+   * popularity signal here: every other one is filtered by a delivery radius,
+   * so a shop looks unwanted for being far away. Saving is not.
+   */
+  saved: number;
+};
+
+type StockRow = {
+  id: string;
+  name: string;
+  price: number;
+  outOfStockSince: string | null;
+  storeName: string;
+  storeOpen: boolean;
+};
+
+type PreorderRow = {
+  id: string;
+  code: string;
+  title: string;
+  amount: number;
+  customerName: string;
+  kitchenId: string;
+  kitchenName: string;
+  createdAt: string;
+};
+
+type Counts = {
+  stores: number;
+  open: number;
+  products: number;
+  empty: number;
+  preorders: number;
+  agedDays: number;
+};
+
 export default async function StoresPage({
   searchParams,
 }: {
@@ -39,16 +87,29 @@ export default async function StoresPage({
   const { page, skip, take } = paging(params);
   const user = await currentUser();
   const canWrite = can(user?.role ?? '', 'store.write');
-  const settings = await getSettings();
-  const stockCutoff = new Date(Date.now() - settings.stockAlarmDays * 86_400_000);
 
-  const [storeCount, openCount, productCount, alarmCount, preorderCount] = await Promise.all([
-    db.store.count(),
-    db.store.count({ where: { isOpen: true } }),
-    db.product.count({ where: { active: true } }),
-    db.product.count({ where: { active: true, stock: 0, outOfStockSince: { lt: stockCutoff } } }),
-    db.order.count({ where: { status: 'pending', preorder: true } }),
-  ]);
+  /* The five figures across the top ride back with the shops, from the store
+     that holds the rows under them. */
+  let counts: Counts;
+  try {
+    counts = (await get<{ counts: Counts }>('/stores?take=1')).counts;
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 0) {
+      return (
+        <BackendDown
+          title="Stores & products"
+          subtitle="A shop per kitchen — jars, frozen things and sweets off the shelf"
+        />
+      );
+    }
+    throw error;
+  }
+
+  const storeCount = counts.stores;
+  const openCount = counts.open;
+  const productCount = counts.products;
+  const alarmCount = counts.empty;
+  const preorderCount = counts.preorders;
 
   return (
     <>
@@ -77,7 +138,7 @@ export default async function StoresPage({
           label="Stuck at zero stock"
           value={alarmCount}
           tone={alarmCount > 0 ? 'warn' : 'good'}
-          sub={`listed, unbuyable, for over ${settings.stockAlarmDays} days`}
+          sub={`listed, unbuyable, for over ${counts.agedDays} days`}
           href="/stores?view=stock"
         />
         <Stat
@@ -91,7 +152,7 @@ export default async function StoresPage({
 
       {view === 'stores' ? <StoresTable page={page} skip={skip} take={take} params={params} canWrite={canWrite} /> : null}
       {view === 'stock' ? (
-        <StockTable cutoff={stockCutoff} days={settings.stockAlarmDays} canWrite={canWrite} />
+        <StockTable canWrite={canWrite} />
       ) : null}
       {view === 'preorders' ? <PreorderTable /> : null}
     </>
@@ -113,24 +174,13 @@ async function StoresTable({
   params: Record<string, string | undefined>;
   canWrite: boolean;
 }) {
-  const where: Prisma.StoreWhereInput = {};
-  if (params.q) where.name = { contains: params.q };
-  if (params.open === 'yes') where.isOpen = true;
-  if (params.open === 'no') where.isOpen = false;
+  const query = new URLSearchParams({ skip: String(skip), take: String(take) });
+  if (params.q) query.set('q', params.q);
+  if (params.open) query.set('open', params.open);
 
-  const [rows, total] = await Promise.all([
-    db.store.findMany({
-      where,
-      skip,
-      take,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        kitchen: { select: { id: true, name: true, area: true } },
-        _count: { select: { products: true, categories: true, orders: true } },
-      },
-    }),
-    db.store.count({ where }),
-  ]);
+  const { stores: rows, total } = await get<{ stores: StoreRow[]; total: number }>(
+    `/stores?${query}`,
+  );
 
   return (
     <Card
@@ -152,20 +202,41 @@ async function StoresTable({
       }
     >
       <Table
-        head={['Shop', 'Kitchen', 'Area', 'Shelves', 'Products', 'Orders', 'Delivery', 'State', '']}
+        head={[
+          'Shop',
+          'Kitchen',
+          'Area',
+          'Shelves',
+          'Products',
+          'Orders',
+          'Saved',
+          'Delivery',
+          'State',
+          '',
+        ]}
       >
         {rows.map((store) => (
           <RowLink key={store.id} href={`/stores/${store.id}`}>
             <td className="max-w-[190px] truncate font-medium">{store.name}</td>
             <td className="max-w-[150px] truncate text-ink2">
-              <Link href={`/kitchens/${store.kitchen.id}`} className="hover:text-primary">
-                {store.kitchen.name}
+              <Link href={`/kitchens/${store.kitchenId}`} className="hover:text-primary">
+                {store.kitchenName}
               </Link>
             </td>
-            <td className="text-ink2">{store.kitchen.area}</td>
-            <td className="tnum">{store._count.categories}</td>
-            <td className="tnum">{store._count.products}</td>
-            <td className="tnum">{store._count.orders}</td>
+            <td className="text-ink2">{store.kitchenArea}</td>
+            <td className="tnum">{store.shelves}</td>
+            <td className="tnum">{store.products}</td>
+            <td className="tnum">{store.orders}</td>
+            {/* Kept by this many customers. Saved but rarely ordered from is a
+                conversion problem, not a demand one — and it is the only
+                popularity signal here a delivery radius cannot distort. */}
+            <td className="tnum">
+              {store.saved ? (
+                <Badge tone={store.orders === 0 ? 'warn' : 'neutral'}>{store.saved}</Badge>
+              ) : (
+                <span className="text-ink3">—</span>
+              )}
+            </td>
             <td>
               <Money amount={store.deliveryFee} />
               {store.freeDeliveryOver ? (
@@ -182,7 +253,7 @@ async function StoresTable({
             </td>
           </RowLink>
         ))}
-        {rows.length === 0 ? <EmptyRow span={9}>No shop matches that.</EmptyRow> : null}
+        {rows.length === 0 ? <EmptyRow span={10}>No shop matches that.</EmptyRow> : null}
       </Table>
 
       <Pager page={page} pages={pageCount(total)} total={total} />
@@ -190,21 +261,15 @@ async function StoresTable({
   );
 }
 
-async function StockTable({
-  cutoff,
-  days,
-  canWrite,
-}: {
-  cutoff: Date;
-  days: number;
-  canWrite: boolean;
-}) {
-  const rows = await db.product.findMany({
-    where: { active: true, stock: 0 },
-    orderBy: { outOfStockSince: 'asc' },
-    take: 60,
-    include: { store: { select: { name: true, isOpen: true, kitchenId: true } } },
-  });
+async function StockTable({ canWrite }: { canWrite: boolean }) {
+  /* The endpoint applies the same three clauses the dashboard's badge counts,
+     so the number there and the list here cannot disagree about what "out of
+     stock" means — and it owns the age threshold, which used to be read from
+     the panel's settings and could drift from the backend's. */
+  const { products: rows, agedDays: days } = await get<{
+    products: StockRow[];
+    agedDays: number;
+  }>('/stores?view=stock&take=60');
 
   return (
     <>
@@ -224,15 +289,16 @@ async function StockTable({
         <Table head={['Product', 'Shop', 'Price', 'Empty since', 'Age', 'Set stock', 'Delist']}>
           {rows.map((product) => {
             const age = product.outOfStockSince ? daysSince(product.outOfStockSince) : 0;
-            const overdue = product.outOfStockSince
-              ? product.outOfStockSince < cutoff
-              : false;
+            /* Every row the endpoint returns is already past the threshold —
+               that is what the view selects — so the badge marks how far past,
+               not whether. */
+            const overdue = age >= days;
             return (
               <tr key={product.id}>
                 <td className="max-w-[220px] truncate font-medium">{product.name}</td>
                 <td className="max-w-[160px] truncate text-ink2">
-                  {product.store.name}
-                  {!product.store.isOpen ? (
+                  {product.storeName}
+                  {!product.storeOpen ? (
                     <span className="ml-1.5">
                       <Badge>shop closed</Badge>
                     </span>
@@ -266,12 +332,9 @@ async function StockTable({
 }
 
 async function PreorderTable() {
-  const rows = await db.order.findMany({
-    where: { status: 'pending', preorder: true },
-    orderBy: { createdAt: 'asc' },
-    take: 60,
-    include: { kitchen: { select: { id: true, name: true } } },
-  });
+  const { orders: rows } = await get<{ orders: PreorderRow[] }>(
+    '/stores?view=preorders&take=60',
+  );
 
   return (
     <>
@@ -298,8 +361,8 @@ async function PreorderTable() {
                 </td>
                 <td className="max-w-[200px] truncate">{order.title}</td>
                 <td className="max-w-[150px] truncate text-ink2">
-                  <Link href={`/kitchens/${order.kitchen.id}`} className="hover:text-primary">
-                    {order.kitchen.name}
+                  <Link href={`/kitchens/${order.kitchenId}`} className="hover:text-primary">
+                    {order.kitchenName}
                   </Link>
                 </td>
                 <td className="max-w-[130px] truncate text-ink2">{order.customerName}</td>

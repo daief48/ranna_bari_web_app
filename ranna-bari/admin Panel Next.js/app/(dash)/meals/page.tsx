@@ -48,14 +48,24 @@ type MealRow = {
   confirmed: number;
   held: number;
   /**
-   * Interest left the meal document on the way to Mongo — it is a collection of
-   * its own now, and `GET /meals` does not fold it back in. Optional rather
-   * than dropped, so the column fills itself in the day the endpoint carries it.
+   * How many people marked this meal interesting. Interest lives in its own
+   * collection; `GET /meals` folds the count back in with one grouped read,
+   * the same way it does the confirmed orders above.
    */
-  interested?: string[];
+  interested: number;
 };
 
 type MealList = { meals: MealRow[]; total: number };
+
+/**
+ * Confirmed over interested.
+ *
+ * Guarded rather than clamped: a meal can be confirmed by somebody who never
+ * marked interest, so the ratio can exceed one, and showing 130% is more
+ * honest than pretending it is full marks.
+ */
+const converted = (meal: { confirmed: number; interested: number }) =>
+  meal.interested > 0 ? meal.confirmed / meal.interested : 0;
 
 /** How many rows one scan request pulls, and how many requests a scan will make. */
 const SCAN_SIZE = 100;
@@ -202,6 +212,15 @@ export default async function MealsPage({
         <Stat label="Meals matching" value={total} />
         <Stat label="Open for orders" value={published} tone="info" />
         <Stat label="Serving today" value={todayCount} />
+        {/* "High interest, low confirmation" — the meals people wanted and did
+            not order. Counted over the rows on screen, which is what the
+            operator is looking at. */}
+        <Stat
+          label="Wanted, not booked"
+          value={rows.filter((m) => m.interested >= 3 && converted(m) < 0.25).length}
+          sub="3+ interested, under a quarter confirmed"
+          tone={rows.some((m) => m.interested >= 3 && converted(m) < 0.25) ? 'warn' : 'neutral'}
+        />
         <Stat
           label="Open past their date"
           value={staleCount}
@@ -245,7 +264,18 @@ export default async function MealsPage({
         }
       >
         <Table
-          head={['Meal', 'Kitchen', 'Serve', 'Slot', 'Price', 'Sold', 'Interest', 'Status', 'Actions']}
+          head={[
+            'Meal',
+            'Kitchen',
+            'Serve',
+            'Slot',
+            'Price',
+            'Sold',
+            'Interest',
+            'Convert',
+            'Status',
+            'Actions',
+          ]}
         >
           {rows.map((meal) => {
             const sold = meal.confirmed;
@@ -289,9 +319,20 @@ export default async function MealsPage({
                     tone={sold >= meal.capacity ? 'good' : 'info'}
                   />
                 </td>
-                {/* A dash, not a zero: nobody has said this meal interests
-                    nobody — the count simply has no source yet. */}
-                <td className="tnum text-ink2">{meal.interested?.length ?? '—'}</td>
+                <td className="tnum text-ink2">{meal.interested || '—'}</td>
+                {/* Interest that became an order. Below a quarter is worth
+                    looking at, and only once enough people have said they were
+                    interested for the ratio to mean anything — two out of two
+                    is not a hundred per cent of anything. */}
+                <td className="tnum">
+                  {meal.interested >= 3 ? (
+                    <Badge tone={converted(meal) < 0.25 ? 'bad' : converted(meal) < 0.5 ? 'warn' : 'good'}>
+                      {Math.round(converted(meal) * 100)}%
+                    </Badge>
+                  ) : (
+                    <span className="text-ink3">—</span>
+                  )}
+                </td>
                 <td>
                   <StatusBadge status={meal.status} />
                 </td>

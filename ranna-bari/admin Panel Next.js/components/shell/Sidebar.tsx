@@ -37,6 +37,7 @@ export const NAV: {
     group: 'Demand',
     items: [
       { href: '/orders', label: 'Orders', cap: 'order.read' },
+      { href: '/carts', label: 'Abandoned baskets', cap: 'order.read' },
       { href: '/customers', label: 'Customers', cap: 'order.read' },
       { href: '/chat', label: 'Live chat', cap: 'order.read', badge: 'chat' },
       { href: '/requests', label: 'Requests & offers', cap: 'request.read' },
