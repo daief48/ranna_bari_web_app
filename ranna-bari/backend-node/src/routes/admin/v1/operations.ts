@@ -24,6 +24,7 @@ import {
   AuditLog,
   Dish,
   Kitchen,
+  LedgerEntry,
   Meal,
   Notification,
   Offer,
@@ -1082,7 +1083,7 @@ export async function operationRoutes(app: FastifyInstance) {
       .catch(() => null);
     if (!topup) return fail(reply, MISSING, 404);
 
-    const [others, totals] = await Promise.all([
+    const [others, totals, entry] = await Promise.all([
       TopUp.find({ customerKey: topup.customerKey, _id: { $ne: topup._id } })
         .sort({ at: -1 })
         .limit(8)
@@ -1091,12 +1092,22 @@ export async function operationRoutes(app: FastifyInstance) {
         { $match: { customerKey: topup.customerKey } },
         { $group: { _id: null, amount: { $sum: '$amount' }, count: { $sum: 1 } } },
       ]),
+      /* The posting this top-up made. Reconciliation is what the PSP says
+         against what we actually credited, so the credit is half the answer;
+         without it the panel had to read its own mirror and could show a row
+         this database never wrote. */
+      topup.ledgerEntryId
+        ? LedgerEntry.findById(topup.ledgerEntryId)
+            .lean()
+            .catch(() => null)
+        : null,
     ]);
 
     return {
       topup: withId(topup),
       others: others.map(withId),
       wallet: { amount: totals[0]?.amount ?? 0, count: totals[0]?.count ?? 0 },
+      entry: entry ? withId(entry) : null,
     };
   });
 

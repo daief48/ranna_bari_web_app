@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation';
 import type { Prisma } from '@prisma/client';
 import { get } from '@/lib/backend';
 
-import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { can, flowFor, nextStatus, type OrderKind } from '@/lib/domain';
 import { splitCommission } from '@/lib/logic/ledger';
@@ -70,16 +69,10 @@ async function loadOrder(id: string): Promise<OrderView | null> {
     } as unknown as OrderView;
   }
 
-  return db.order.findUnique({
-    where: { id },
-    include: {
-      kitchen: { select: { id: true, name: true, area: true } },
-      dispute: true,
-      ledger: { orderBy: { at: 'asc' } },
-      meal: { select: { id: true, title: true, serveDate: true, slot: true } },
-      store: { select: { id: true, name: true } },
-    },
-  });
+  /* No fallback to the panel's own database. When the backend cannot answer,
+     the honest result is nothing found — a stale mirror rendered as if it were
+     live is the failure that hides itself. */
+  return null;
 }
 
 export default async function OrderDetail({ params }: { params: Promise<{ id: string }> }) {

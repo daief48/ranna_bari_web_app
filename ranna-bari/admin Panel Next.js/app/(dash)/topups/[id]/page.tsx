@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { get } from '@/lib/backend';
 
-import { db } from '@/lib/db';
 import { taka, fmtDateTime, timeAgo } from '@/lib/format';
 import {
   Card,
@@ -43,6 +42,7 @@ async function loadTopUp(id: string) {
     topup: Row;
     others: Row[];
     wallet: { amount: number; count: number };
+    entry: { id: string; kind: string; amount: number; at: string } | null;
   }>(`/topups/${id}`).catch(() => null);
 
   if (remote) {
@@ -50,26 +50,14 @@ async function loadTopUp(id: string) {
       topup: remote.topup,
       others: remote.others,
       wallet: { _sum: { amount: remote.wallet.amount }, _count: remote.wallet.count },
+      entry: remote.entry ?? null,
     };
   }
 
-  const topup = await db.topUp.findUnique({ where: { id } });
-  if (!topup) return null;
-
-  const [others, wallet] = await Promise.all([
-    db.topUp.findMany({
-      where: { customerKey: topup.customerKey, id: { not: topup.id } },
-      orderBy: { at: 'desc' },
-      take: 8,
-    }),
-    db.topUp.aggregate({
-      where: { customerKey: topup.customerKey },
-      _sum: { amount: true },
-      _count: true,
-    }),
-  ]);
-
-  return { topup: topup as Row, others: others as Row[], wallet };
+  /* No fallback to the panel's own database. When the backend cannot answer,
+     the honest result is nothing found — a stale mirror rendered as if it were
+     live is the failure that hides itself. */
+  return null;
 }
 
 export default async function TopUpDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -79,14 +67,10 @@ export default async function TopUpDetail({ params }: { params: Promise<{ id: st
   const data = await loadTopUp(id);
   if (!data) notFound();
 
-  const { topup, others, wallet } = data;
-
-  /* The ledger row this credited, if the panel's mirror happens to hold it.
-     The endpoint does not return one, and a missing entry is shown as such
-     rather than guessed at. */
-  const entry = topup.ledgerEntryId
-    ? await db.ledgerEntry.findUnique({ where: { id: topup.ledgerEntryId } }).catch(() => null)
-    : null;
+  /* The ledger row this credited now comes from the endpoint, which joins it
+     from the same database that wrote it. A missing entry is still shown as
+     missing rather than guessed at. */
+  const { topup, others, wallet, entry } = data;
 
   /* What the PSP says minus what we credited. Non-zero is the whole reason
      this screen exists. */

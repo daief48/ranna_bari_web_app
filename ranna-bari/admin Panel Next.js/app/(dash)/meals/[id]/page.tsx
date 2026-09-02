@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { get } from '@/lib/backend';
 
-import { db } from '@/lib/db';
 import { taka, fmtDateTime, fmtDate, timeAgo } from '@/lib/format';
 import {
   Badge,
@@ -95,14 +94,10 @@ async function loadMeal(id: string): Promise<MealView | null> {
     };
   }
 
-  const meal = await db.meal.findUnique({
-    where: { id },
-    include: {
-      kitchen: { select: { id: true, name: true, area: true, isVerified: true } },
-      orders: { orderBy: { createdAt: 'desc' } },
-    },
-  });
-  return (meal as unknown as MealView) ?? null;
+  /* No fallback to the panel's own database. When the backend cannot answer,
+     the honest result is nothing found — a stale mirror rendered as if it were
+     live is the failure that hides itself. */
+  return null;
 }
 
 export default async function MealDetail({ params }: { params: Promise<{ id: string }> }) {

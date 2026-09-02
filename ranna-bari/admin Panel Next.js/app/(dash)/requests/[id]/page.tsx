@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation';
 import type { Prisma } from '@prisma/client';
 import { get } from '@/lib/backend';
 
-import { db } from '@/lib/db';
 import { taka, fmtDateTime, timeAgo } from '@/lib/format';
 import { parseJson, type PriceStamp } from '@/lib/mappers';
 import {
@@ -29,10 +28,14 @@ type RequestView = Prisma.RequestGetPayload<{
   };
 }>;
 
-async function loadRequest(id: string): Promise<RequestView | null> {
+/** What the "Became order" link needs, and nothing else. */
+type OrderRef = { id: string; code: string; status: string } | null;
+
+async function loadRequest(id: string): Promise<(RequestView & { order: OrderRef }) | null> {
   const remote = await get<{
     request: Record<string, unknown> & { id: string };
     offers: (Record<string, unknown> & { id: string; kitchenId: string; kitchenName: string })[];
+    order: OrderRef;
   }>(`/requests/${id}`).catch(() => null);
 
   if (remote) {
@@ -51,18 +54,16 @@ async function loadRequest(id: string): Promise<RequestView | null> {
           isVerified: false,
         },
       })),
-    } as unknown as RequestView;
+      /* The endpoint already joins the order this request became, so the page
+         no longer opens a second database to find out. */
+      order: remote.order ?? null,
+    } as unknown as RequestView & { order: OrderRef };
   }
 
-  return db.request.findUnique({
-    where: { id },
-    include: {
-      offers: {
-        orderBy: { createdAt: 'asc' },
-        include: { kitchen: { select: { id: true, name: true, area: true, isVerified: true } } },
-      },
-    },
-  });
+  /* No fallback to the panel's own database. When the backend cannot answer,
+     the honest result is nothing found — a stale mirror rendered as if it were
+     live is the failure that hides itself. */
+  return null;
 }
 
 export default async function RequestDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -78,9 +79,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const eligible = parseJson<string[]>(request.eligible, []);
   const priced = request.offers.filter((o) => o.price != null);
   const best = priced.length ? Math.min(...priced.map((o) => o.price!)) : null;
-  const order = request.orderId
-    ? await db.order.findUnique({ where: { id: request.orderId }, select: { id: true, code: true, status: true } })
-    : null;
+  const order = request.order;
 
   return (
     <>

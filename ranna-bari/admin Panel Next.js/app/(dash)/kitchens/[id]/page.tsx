@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { get } from '@/lib/backend';
-import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/lib/domain';
 import { balanceFor } from '@/lib/logic/ledger';
@@ -172,34 +171,10 @@ async function loadKitchen(id: string): Promise<KitchenView | null> {
     };
   }
 
-  const kitchen = await db.kitchen.findUnique({
-    where: { id },
-    include: {
-      account: true,
-      store: { include: { _count: { select: { products: true } } } },
-      dishes: { orderBy: { createdAt: 'asc' } },
-      _count: { select: { meals: true, orders: true, reviews: true, offers: true } },
-    },
-  });
-  if (!kitchen) return null;
-
-  const [orders, meals, gmv, cancelled, owed, released] = await Promise.all([
-    db.order.findMany({ where: { kitchenId: id }, orderBy: { createdAt: 'desc' }, take: 10 }),
-    db.meal.findMany({ where: { kitchenId: id }, orderBy: { serveDate: 'desc' }, take: 8 }),
-    db.order.aggregate({
-      where: { kitchenId: id, status: { notIn: ['cancelled', 'rejected'] } },
-      _sum: { amount: true },
-      _count: true,
-    }),
-    db.order.count({ where: { kitchenId: id, status: { in: ['cancelled', 'rejected'] } } }),
-    balanceFor('cook', id),
-    db.order.aggregate({
-      where: { kitchenId: id, payment: 'released' },
-      _sum: { cookAmount: true, platformAmount: true },
-    }),
-  ]);
-
-  return { kitchen, orders, meals, gmv, cancelled, owed, released };
+  /* No fallback to the panel's own database. When the backend cannot answer,
+     the honest result is nothing found — a stale mirror rendered as if it were
+     live is the failure that hides itself. */
+  return null;
 }
 
 export default async function KitchenDetail({ params }: { params: Promise<{ id: string }> }) {

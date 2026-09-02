@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { get } from '@/lib/backend';
 
-import { db } from '@/lib/db';
 import { taka, fmtDateTime, timeAgo } from '@/lib/format';
 import {
   Badge,
@@ -43,6 +42,10 @@ type Entry = {
   at: Date | string;
 };
 
+/** Both joined by the endpoint now; the page reads no second database. */
+type MealRef = { id: string; title: string; code: string; kitchenId: string; cookName: string };
+type PayoutRunRef = { id: string; code: string; status: string; total: number };
+
 type OrderRef = {
   id: string;
   code: string;
@@ -69,32 +72,22 @@ async function loadEntry(id: string) {
     entry: Entry;
     order: OrderRef | null;
     siblings: Entry[];
+    meal: MealRef | null;
+    payoutRun: PayoutRunRef | null;
   }>(`/ledger/${id}`).catch(() => null);
 
   if (remote) {
     return {
-      entry: { ...remote.entry, order: remote.order, payoutRun: null },
+      entry: { ...remote.entry, order: remote.order, payoutRun: remote.payoutRun },
       siblings: remote.siblings,
+      meal: remote.meal,
     };
   }
 
-  const local = await db.ledgerEntry.findUnique({
-    where: { id },
-    include: {
-      order: { select: { id: true, code: true, title: true, status: true, amount: true, kitchenId: true, cookName: true, customerName: true } },
-      payoutRun: { select: { id: true, code: true, status: true, total: true } },
-    },
-  });
-  if (!local) return null;
-
-  const siblings = local.orderId
-    ? await db.ledgerEntry.findMany({
-        where: { orderId: local.orderId },
-        orderBy: { at: 'asc' },
-      })
-    : [];
-
-  return { entry: local, siblings: siblings as unknown as Entry[] };
+  /* No fallback to the panel's own database. When the backend cannot answer,
+     the honest result is nothing found — a stale mirror rendered as if it were
+     live is the failure that hides itself. */
+  return null;
 }
 
 export default async function LedgerDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -104,18 +97,10 @@ export default async function LedgerDetail({ params }: { params: Promise<{ id: s
   const loaded = await loadEntry(id);
   if (!loaded) notFound();
 
-  const { entry, siblings } = loaded;
-
-  /* Only ever in the panel's own mirror — the endpoint does not join a meal,
-     and a wrong title here would be worse than none. */
-  const meal = entry.mealId
-    ? await db.meal
-        .findUnique({
-          where: { id: entry.mealId },
-          select: { id: true, title: true, code: true, kitchenId: true, cookName: true },
-        })
-        .catch(() => null)
-    : null;
+  /* The meal comes from the endpoint now, joined by the database that wrote
+     the entry. A missing one still renders as missing — a wrong title here
+     would be worse than none. */
+  const { entry, siblings, meal } = loaded;
 
   return (
     <>

@@ -44,6 +44,7 @@ import {
   Meal,
   Notification,
   Order,
+  PayoutRun,
   Product,
   Request,
   Review,
@@ -1242,7 +1243,7 @@ export async function adminRoutes(app: FastifyInstance) {
       .catch(() => null);
     if (!entry) return fail(reply as never, ERR.NO_ORDER, 404);
 
-    const [order, siblings] = await Promise.all([
+    const [order, siblings, meal, payoutRun] = await Promise.all([
       entry.orderId
         ? Order.findById(entry.orderId)
             .lean()
@@ -1251,12 +1252,28 @@ export async function adminRoutes(app: FastifyInstance) {
       entry.orderId
         ? LedgerEntry.find({ orderId: entry.orderId }).sort({ at: 1 }).lean()
         : [],
+      /* The meal a held plate belongs to, and the run that paid the entry out.
+         The panel drew both from its own mirror because this endpoint joined
+         neither, which put a title and a payout code on the screen that no
+         live record stood behind. */
+      entry.mealId
+        ? Meal.findById(entry.mealId)
+            .lean()
+            .catch(() => null)
+        : null,
+      entry.payoutRunId
+        ? PayoutRun.findById(entry.payoutRunId)
+            .lean()
+            .catch(() => null)
+        : null,
     ]);
 
     return {
       entry: { ...entry, id: String(entry._id) },
       order: order ? { ...order, id: String(order._id) } : null,
       siblings: siblings.map((row) => ({ ...row, id: String(row._id) })),
+      meal: meal ? { ...meal, id: String(meal._id) } : null,
+      payoutRun: payoutRun ? { ...payoutRun, id: String(payoutRun._id) } : null,
     };
   });
 
