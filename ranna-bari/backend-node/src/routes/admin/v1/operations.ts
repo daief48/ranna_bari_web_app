@@ -406,6 +406,82 @@ export async function operationRoutes(app: FastifyInstance) {
    * afford the top-up, which is a price signal and is invisible everywhere
    * else in the console.
    */
+  /**
+   * One shop, with its shelves and what is on them.
+   *
+   * The board links every row here and the ids on it are this database's, so
+   * without this the link resolved against the panel's own mirror and answered
+   * 404 for every shop on the list.
+   */
+  app.get('/stores/:id', async (request, reply) => {
+    const actor = await require(request, reply, 'order.read');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const store = await Store.findById(id)
+      .lean()
+      .catch(() => null);
+    if (!store) return fail(reply, ERR.NO_STORE, 404);
+
+    const [kitchen, categories, products, counts, orders, revenue] = await Promise.all([
+      Kitchen.findById(store.kitchenId)
+        .select({ name: 1, area: 1, isVerified: 1 })
+        .lean()
+        .catch(() => null),
+      StoreCategory.find({ storeId: id }).sort({ order: 1 }).lean(),
+      /* Forty, listed first and emptiest first — the shelf that needs looking
+         at is the one with nothing on it. */
+      Product.find({ storeId: id }).sort({ active: -1, stock: 1 }).limit(40).lean(),
+      Product.aggregate<{ _id: null; products: number; empty: number; preorder: number }>([
+        { $match: { storeId: id } },
+        {
+          $group: {
+            _id: null,
+            products: { $sum: 1 },
+            empty: { $sum: { $cond: [{ $and: ['$active', { $eq: ['$stock', 0] }] }, 1, 0] } },
+            preorder: { $sum: { $cond: ['$preorder', 1, 0] } },
+          },
+        },
+      ]),
+      Order.find({ storeId: id }).sort({ createdAt: -1 }).limit(10).lean(),
+      Order.aggregate<{ _id: null; amount: number; count: number }>([
+        { $match: { storeId: id } },
+        { $group: { _id: null, amount: { $sum: '$amount' }, count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    /* Products per shelf, folded from the page of products already read
+       rather than a count query per category. */
+    const perCategory = new Map<string, number>();
+    for (const row of products) {
+      const key = String(row.categoryId ?? '');
+      if (key) perCategory.set(key, (perCategory.get(key) ?? 0) + 1);
+    }
+
+    return {
+      store: withId(store),
+      kitchen: kitchen ? { ...kitchen, id: String(kitchen._id) } : null,
+      categories: categories.map((row) => ({
+        ...withId(row),
+        products: perCategory.get(String(row._id)) ?? 0,
+      })),
+      products: products.map((row) => ({
+        ...withId(row),
+        categoryName:
+          categories.find((c) => String(c._id) === String(row.categoryId))?.name ?? null,
+      })),
+      counts: {
+        products: counts[0]?.products ?? 0,
+        empty: counts[0]?.empty ?? 0,
+        preorder: counts[0]?.preorder ?? 0,
+        orders: revenue[0]?.count ?? 0,
+      },
+      orders: orders.map(withId),
+      revenue: revenue[0]?.amount ?? 0,
+    };
+  });
+
   app.get('/carts', async (request, reply) => {
     const actor = await require(request, reply, 'order.read');
     if (!actor) return;
@@ -1568,6 +1644,119 @@ export async function operationRoutes(app: FastifyInstance) {
   });
 
   /* ---------------- notifications ---------------- */
+
+  /**
+   * One review, and what it does to the kitchen it is attached to.
+   *
+   * Two averages rather than one: hiding a review changes the score a customer
+   * sees, and an operator deciding whether to hide it needs to know by how
+   * much before they do.
+   */
+  app.get('/reviews/:id', async (request, reply) => {
+    const actor = await require(request, reply, 'kitchen.read');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const review = await Review.findById(id)
+      .lean()
+      .catch(() => null);
+    if (!review) return fail(reply, MISSING, 404);
+
+    const score = (match: Record<string, unknown>) =>
+      Review.aggregate<{ _id: null; avg: number; count: number }>([
+        { $match: match },
+        { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
+      ]);
+
+    const [kitchen, visible, everything, byCustomer] = await Promise.all([
+      Kitchen.findById(review.kitchenId)
+        .select({ name: 1, area: 1, isVerified: 1 })
+        .lean()
+        .catch(() => null),
+      score({ kitchenId: review.kitchenId, hidden: false }),
+      score({ kitchenId: review.kitchenId }),
+      review.customerKey
+        ? Review.find({ customerKey: review.customerKey, _id: { $ne: review._id } })
+            .sort({ createdAt: -1 })
+            .limit(6)
+            .lean()
+        : [],
+    ]);
+
+    const others = await Kitchen.find({ _id: { $in: byCustomer.map((r) => r.kitchenId) } })
+      .select({ name: 1 })
+      .lean()
+      .catch(() => []);
+    const byKitchen = new Map(others.map((k) => [String(k._id), k.name]));
+
+    return {
+      review: withId(review),
+      kitchen: kitchen ? { ...kitchen, id: String(kitchen._id) } : null,
+      visible: { avg: visible[0]?.avg ?? null, count: visible[0]?.count ?? 0 },
+      all: { avg: everything[0]?.avg ?? null, count: everything[0]?.count ?? 0 },
+      byCustomer: byCustomer.map((row) => ({
+        ...withId(row),
+        kitchenName: byKitchen.get(row.kitchenId) ?? '',
+      })),
+    };
+  });
+
+  /**
+   * One notification, and whether it landed.
+   *
+   * Everything sent under the same dedupe key is counted together: the key is
+   * unique only while unread, so a repeat is a real second send rather than a
+   * duplicate row, and delivered-against-opened is the only honest measure of
+   * whether the message worked.
+   */
+  app.get('/notifications/:id', async (request, reply) => {
+    const actor = await require(request, reply, 'order.read');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const note = await Notification.findById(id)
+      .lean()
+      .catch(() => null);
+    if (!note) return fail(reply, MISSING, 404);
+
+    const [sent, opened, kitchen, order, meal, siblings] = await Promise.all([
+      Notification.countDocuments({ key: note.key }),
+      Notification.countDocuments({ key: note.key, read: true }),
+      note.kitchenId
+        ? Kitchen.findById(note.kitchenId)
+            .select({ name: 1 })
+            .lean()
+            .catch(() => null)
+        : null,
+      note.orderId
+        ? Order.findById(note.orderId)
+            .select({ code: 1 })
+            .lean()
+            .catch(() => null)
+        : null,
+      note.mealId
+        ? Meal.findById(note.mealId)
+            .select({ title: 1 })
+            .lean()
+            .catch(() => null)
+        : null,
+      Notification.find({ audience: note.audience, _id: { $ne: note._id } })
+        .sort({ at: -1 })
+        .limit(10)
+        .lean(),
+    ]);
+
+    return {
+      note: withId(note),
+      counts: { sent, opened },
+      kitchen: kitchen ? { id: String(kitchen._id), name: kitchen.name } : null,
+      order: order ? { id: String(order._id), code: order.code } : null,
+      meal: meal ? { id: String(meal._id), title: meal.title } : null,
+      siblings: siblings.map(withId),
+    };
+  });
 
   app.get('/notifications', async (request, reply) => {
     const actor = await require(request, reply, 'notification.broadcast');

@@ -35,10 +35,43 @@ import {
 
 const HEARTBEAT_MS = 30_000;
 
+/**
+ * Connect, and do not die of a transient name lookup.
+ *
+ * Atlas is reached through an SRV record, so starting up needs DNS as well as
+ * the database. A resolver that blinks — and the one on this network does,
+ * returning ESERVFAIL for SRV while a public resolver answers the same query
+ * fine — used to take the whole process down on the first attempt and leave it
+ * down, because a failure here exits.
+ *
+ * Backing off and trying again turns a thirty-second network hiccup into a
+ * thirty-second delay instead of an outage that needs somebody to notice and
+ * restart it. Still fatal once the attempts run out: a server that cannot
+ * reach the database is not a server, and pretending otherwise would answer
+ * every request with a confusing error rather than an obvious one.
+ */
+async function connectOrGiveUp(attempts = 5) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await connect();
+      if (attempt > 1) console.log(`[db] connected on attempt ${attempt}`);
+      return;
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      /* 2s, 4s, 8s, 16s — long enough for a resolver to settle, short enough
+         that a deploy is not visibly stuck. */
+      const wait = 2 ** attempt * 1000;
+      const why = error instanceof Error ? error.message : String(error);
+      console.warn(`[db] connect failed (${attempt}/${attempts}): ${why} — retrying in ${wait / 1000}s`);
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+  }
+}
+
 async function main() {
   const env = loadEnv();
 
-  await connect();
+  await connectOrGiveUp();
 
   if (!supportsTransactions()) {
     /* Loud, not fatal: a standalone mongod is a perfectly good local

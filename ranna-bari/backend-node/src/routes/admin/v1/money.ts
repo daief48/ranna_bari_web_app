@@ -553,6 +553,70 @@ export async function moneyRoutes(app: FastifyInstance) {
    * `contested` counts only orders still on `held`: money already settled is
    * not at stake however loudly the case is still being argued.
    */
+  /**
+   * One dispute, its order, and every posting made against that order.
+   *
+   * The whole movement rather than the dispute alone: a refund and the release
+   * it reverses are written together, and reading one without the other is how
+   * people conclude the numbers do not add up.
+   */
+  app.get('/disputes/:id', async (request, reply) => {
+    const actor = await require(request, reply as never, 'order.read');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const dispute = await Dispute.findById(id)
+      .lean()
+      .catch(() => null);
+    if (!dispute) return fail(reply as never, ERR.NO_ORDER, 404);
+
+    const [order, entries] = await Promise.all([
+      dispute.orderId
+        ? Order.findById(dispute.orderId)
+            .lean()
+            .catch(() => null)
+        : null,
+      dispute.orderId
+        ? LedgerEntry.find({ orderId: dispute.orderId }).sort({ at: 1 }).lean()
+        : [],
+    ]);
+
+    return {
+      dispute: { ...dispute, id: String(dispute._id) },
+      order: order ? { ...order, id: String(order._id) } : null,
+      entries: entries.map((row) => ({ ...row, id: String(row._id) })),
+    };
+  });
+
+  /**
+   * One payout run: who was in it, and what it posted.
+   *
+   * Largest first, because a run is checked by looking at the big lines.
+   */
+  app.get('/payouts/:id', async (request, reply) => {
+    const actor = await require(request, reply as never, 'ledger.read');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const run = await PayoutRun.findById(id)
+      .lean()
+      .catch(() => null);
+    if (!run) return fail(reply as never, ERR.NO_ORDER, 404);
+
+    const [items, entries] = await Promise.all([
+      PayoutItem.find({ payoutRunId: id }).sort({ amount: -1 }).lean(),
+      LedgerEntry.find({ payoutRunId: id }).sort({ at: 1 }).lean(),
+    ]);
+
+    return {
+      run: { ...run, id: String(run._id) },
+      items: items.map((row) => ({ ...row, id: String(row._id) })),
+      entries: entries.map((row) => ({ ...row, id: String(row._id) })),
+    };
+  });
+
   app.get('/disputes', async (request, reply) => {
     const actor = await require(request, reply as never, 'order.read');
     if (!actor) return;

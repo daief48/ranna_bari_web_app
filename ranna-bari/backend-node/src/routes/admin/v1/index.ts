@@ -1483,6 +1483,89 @@ export async function adminRoutes(app: FastifyInstance) {
     'dispute.split',
   ];
 
+  /**
+   * One trail row, with the two lists that give it context.
+   *
+   * What else this operator did, and what else was done to this target. An
+   * audit row on its own says what happened; those two say whether it was
+   * part of a pattern, which is the question anybody opening this is asking.
+   */
+  app.get('/audit/:id', async (request, reply) => {
+    const actor = await require(request, reply as never, 'order.read');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const row = await AuditLog.findById(id)
+      .lean()
+      .catch(() => null);
+    if (!row) return fail(reply as never, ERR.NO_ORDER, 404);
+
+    const [operator, byActor, sameTarget] = await Promise.all([
+      AdminUser.findOne({ email: row.actorEmail })
+        .select({ name: 1, email: 1, role: 1, active: 1 })
+        .lean()
+        .catch(() => null),
+      AuditLog.find({ actorEmail: row.actorEmail, _id: { $ne: row._id } })
+        .sort({ at: -1 })
+        .limit(8)
+        .lean(),
+      AuditLog.find({
+        targetType: row.targetType,
+        targetId: row.targetId,
+        _id: { $ne: row._id },
+      })
+        .sort({ at: -1 })
+        .limit(8)
+        .lean(),
+    ]);
+
+    return {
+      row: { ...row, id: String(row._id) },
+      operator: operator ? { ...operator, id: String(operator._id) } : null,
+      byActor: byActor.map((r) => ({ ...r, id: String(r._id) })),
+      sameTarget: sameTarget.map((r) => ({ ...r, id: String(r._id) })),
+    };
+  });
+
+  /**
+   * One operator, and what they have actually done.
+   *
+   * The counts are the point: an account that has been dormant for a year is
+   * a different decision from one that signs in and moves money weekly, and
+   * the list alone does not distinguish them.
+   */
+  app.get('/admins/:id', async (request, reply) => {
+    const actor = await require(request, reply as never, 'admin.manage');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const admin = await AdminUser.findById(id)
+      .select({ passwordHash: 0, totpSecret: 0 })
+      .lean()
+      .catch(() => null);
+    if (!admin) return fail(reply as never, ERR.NO_ORDER, 404);
+
+    const [recent, byAction, total] = await Promise.all([
+      AuditLog.find({ actorEmail: admin.email }).sort({ at: -1 }).limit(20).lean(),
+      AuditLog.aggregate<{ _id: string; n: number }>([
+        { $match: { actorEmail: admin.email } },
+        { $group: { _id: '$action', n: { $sum: 1 } } },
+        { $sort: { n: -1 } },
+        { $limit: 6 },
+      ]),
+      AuditLog.countDocuments({ actorEmail: admin.email }),
+    ]);
+
+    return {
+      admin: { ...admin, id: String(admin._id) },
+      recent: recent.map((r) => ({ ...r, id: String(r._id) })),
+      byAction: byAction.map((r) => ({ action: r._id, count: r.n })),
+      total,
+    };
+  });
+
   app.get('/audit', async (request, reply) => {
     const actor = await require(request, reply as never, 'order.read');
     if (!actor) return;
