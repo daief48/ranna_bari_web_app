@@ -82,80 +82,94 @@ const light = {
   statusBar: 'dark',
 };
 
-/* 海苔 Nori over 墨 Sumi — a green-black, never a neutral one */
+/*
+ * 墨 Sumi with 金 kin — charcoal and gold.
+ *
+ * Dark mode used to be a green-black with a vermilion on it, which is the
+ * night side of the light palette. This is a different room: a near-black
+ * ground with almost no colour in it at all, and one warm metal doing every
+ * piece of work the vermilion used to.
+ *
+ * The discipline is that the gold is the *only* saturated thing. A dark
+ * screen reads as expensive when it is almost entirely monochrome and one
+ * colour is allowed to matter; add a second and both stop meaning anything.
+ * So the greys underneath are barely tinted — the canvas carries a trace of
+ * blue so it reads as slate rather than as a dead grey, and that trace is the
+ * whole of it.
+ */
 const dark = {
   name: 'dark',
 
-  rgbPrimary: '239, 106, 61',
-  rgbInk: '236, 234, 225',
-  rgbSage: '143, 174, 114',
-  rgbSaffron: '232, 190, 90',
-  rgbRaised: '26, 33, 28',
+  rgbPrimary: '208, 168, 95',
+  rgbInk: '241, 236, 227',
+  rgbSage: '147, 166, 127',
+  rgbSaffron: '242, 200, 121',
+  rgbRaised: '22, 23, 27',
 
-  primary50: 'rgba(239, 106, 61, 0.14)',
-  primary100: 'rgba(239, 106, 61, 0.22)',
-  primary200: '#C7522C',
-  primary300: '#D95E33',
-  primary: '#EF6A3D',
-  primary600: '#FF875F',
-  primary700: '#7F1F0A',
+  /* 金茶 Kincha — a brass, not a yellow. Bright enough to lead on black,
+     muted enough that a screenful of it does not glare. */
+  primary50: 'rgba(208, 168, 95, 0.13)',
+  primary100: 'rgba(208, 168, 95, 0.21)',
+  primary200: '#A1803F',
+  primary300: '#BA9450',
+  primary: '#D0A85F',
+  primary600: '#E0BC7C',
+  primary700: '#6E5628',
 
-  sage: '#8FAE72',
-  sage50: 'rgba(143, 174, 114, 0.15)',
-  sage100: 'rgba(143, 174, 114, 0.24)',
+  /* Kept green, and kept quiet: it is the one hue allowed to disagree with
+     the gold, so it says "fine" and nothing more. */
+  sage: '#93A67F',
+  sage50: 'rgba(147, 166, 127, 0.14)',
+  sage100: 'rgba(147, 166, 127, 0.22)',
 
-  saffron: '#E8BE5A',
-  saffron50: 'rgba(232, 190, 90, 0.15)',
-  saffron100: 'rgba(232, 190, 90, 0.24)',
+  /* Attention is a *brighter* gold than the brass, not a different hue. On a
+     palette this monochrome a second warm colour would read as a third
+     brand colour; a lighter value of the same metal reads as emphasis. */
+  saffron: '#F2C879',
+  saffron50: 'rgba(242, 200, 121, 0.14)',
+  saffron100: 'rgba(242, 200, 121, 0.22)',
 
   /* 白練 Shironeri — washi white, warmed so it is not clinical */
-  ink: '#ECEAE1',
-  ink2: '#A5ACA2',
-  ink3: '#6C756E',
+  ink: '#F1ECE3',
+  ink2: '#ABA69C',
+  ink3: '#716D65',
 
-  canvas: '#101613',
-  raised: '#1A211C',
-  sunken: '#0B0F0D',
-  line: 'rgba(236, 234, 225, 0.11)',
-  line2: 'rgba(236, 234, 225, 0.06)',
+  canvas: '#0B0C0E',
+  raised: '#16171B',
+  sunken: '#08090A',
+  line: 'rgba(241, 236, 227, 0.10)',
+  line2: 'rgba(241, 236, 227, 0.055)',
 
   geo: '#2F7DF6',
 
   scrim: '20, 16, 14',
   onDark: '#FFF6F1',
 
-  /* Dark-mode vermilion is bright enough that white drops to 3.1:1 and fails
-     AA, so text on a primary fill flips to sumi (5.5:1). */
-  onPrimary: '#221A15',
+  /* Gold is a light colour — white on it is 1.6:1 and unreadable. Text on a
+     primary fill is near-black, which clears AAA at 8:1. */
+  onPrimary: '#1B1712',
 
   /*
-   * The navbar's glass — sumi, not nori.
+   * The navbar's glass.
    *
-   * The rest of the dark theme is a green-black on purpose, and it stays
-   * that way. The bar is the one surface where that reading breaks, because
-   * it is the one surface carrying the logo: a warm vermilion-and-saffron
-   * mark on a green-black ground shares no pigment with what it sits on, and
-   * the two just sit there refusing each other.
+   * It used to be warmed away from the rest of the palette, because the
+   * palette was green-black and the logo was warm, and the two refused each
+   * other. That reason is gone: the ground is neutral charcoal now and the
+   * mark is the same gold as everything else, so the glass is simply the
+   * canvas lifted a step rather than a different black.
    *
-   * So the green comes out of this one plate and it settles to a warm sumi —
-   * R over G over B, the same family as `onPrimary` and `scrim`, both of
-   * which are already the warm dark this palette reaches for when something
-   * warm has to sit on it. It stays near-black, so against the canvas behind
-   * it this reads as the glass being warmer, not as a second black.
-   *
-   * The mark's badge then goes further and takes an actual vermilion tint,
-   * mirroring what light mode always did. That is the part that makes the
-   * logo look placed rather than pasted.
+   * The mark's badge keeps its tint, now gold. That is the part that makes
+   * the logo look placed rather than pasted.
    */
-  glass: 'rgba(31, 26, 22, 0.86)',
-  glassLine: 'rgba(236, 234, 225, 0.13)',
-  glassFill: 'rgba(236, 234, 225, 0.06)',
-  glassEdge: 'rgba(236, 234, 225, 0.10)',
-  glassMark: 'rgba(239, 106, 61, 0.16)',
-  glassMarkEdge: 'rgba(239, 106, 61, 0.30)',
+  glass: 'rgba(20, 21, 24, 0.86)',
+  glassLine: 'rgba(241, 236, 227, 0.12)',
+  glassFill: 'rgba(241, 236, 227, 0.055)',
+  glassEdge: 'rgba(241, 236, 227, 0.10)',
+  glassMark: 'rgba(208, 168, 95, 0.15)',
+  glassMarkEdge: 'rgba(208, 168, 95, 0.32)',
 
-  surfaceSolid: '#1A211C',
-  surfaceHover: '#232B25',
+  surfaceSolid: '#16171B',
+  surfaceHover: '#1F2025',
 
   blurTint: 'dark',
   statusBar: 'light',
