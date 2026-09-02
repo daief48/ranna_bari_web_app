@@ -34,6 +34,7 @@ import {
   updateCategory,
 } from '../../../logic/stores.js';
 import { Account, Kitchen, Product, Store } from '../../../models/index.js';
+import { kitchenMayTrade } from '../../../logic/sync.js';
 
 /**
  * Cook stores over HTTP — the shop, its shelves, the basket and checkout.
@@ -102,7 +103,11 @@ type Cook = AppIdentity & { kitchenId: string };
  * who is asking
  * ------------------------------------------------------------------ */
 
-async function cookOf(request: FastifyRequest, reply: Refusable): Promise<Cook | null> {
+async function cookOf(
+  request: FastifyRequest,
+  reply: Refusable,
+  opts: { trading?: boolean } = {},
+): Promise<Cook | null> {
   const caller = await callerOf(request);
   if (!caller) {
     fail(reply, 'unauthenticated', 401);
@@ -115,6 +120,15 @@ async function cookOf(request: FastifyRequest, reply: Refusable): Promise<Cook |
     fail(reply, ERR.NOT_ELIGIBLE, 403);
     return null;
   }
+
+  /* Opening a shop and accepting a pre-order both take a customer's money.
+     Rejecting one gives it back, so that stays open to an unapproved
+     kitchen. */
+  if (opts.trading && !(await kitchenMayTrade(caller.kitchenId))) {
+    fail(reply, ERR.KITCHEN_UNAPPROVED, 403);
+    return null;
+  }
+
   return { ...caller, kitchenId: caller.kitchenId };
 }
 
@@ -688,7 +702,7 @@ export async function storeRoutes(app: FastifyInstance) {
    * row either.
    */
   app.post('/stores/mine', async (request, reply) => {
-    const cook = await cookOf(request, reply);
+    const cook = await cookOf(request, reply, { trading: true });
     if (!cook) return;
 
     const body = storePatchSchema.safeParse(request.body ?? {});
@@ -1027,7 +1041,7 @@ export async function storeRoutes(app: FastifyInstance) {
 
   /** Agreed: the money stays held, and the stock comes off now. */
   app.post('/preorders/:id/accept', async (request, reply) => {
-    const cook = await cookOf(request, reply);
+    const cook = await cookOf(request, reply, { trading: true });
     if (!cook) return;
 
     const { id } = request.params as { id: string };

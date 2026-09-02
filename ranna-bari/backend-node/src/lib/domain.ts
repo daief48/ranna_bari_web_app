@@ -54,6 +54,9 @@ export const ERR = {
      lie — the failing field travels in `detail`. */
   BAD_REQUEST: 'request-invalid',
 
+  /** A real kitchen, but one an operator has not approved yet. */
+  KITCHEN_UNAPPROVED: 'kitchen-unapproved',
+
   // admin-only, not in the app
   NO_KITCHEN: 'kitchen-missing',
   FORBIDDEN: 'admin-forbidden',
@@ -102,6 +105,8 @@ export const ERR_TEXT: Record<string, string> = {
   [ERR.ALREADY_SETTLED]: 'This is already settled.',
   [ERR.BAD_AMOUNT]: 'That amount is not valid.',
   [ERR.BAD_REQUEST]: 'Some of that was not valid.',
+  [ERR.KITCHEN_UNAPPROVED]:
+    'Your kitchen is waiting to be approved. You can finish setting it up, but you cannot list food or take orders until then.',
   [ERR.NO_KITCHEN]: 'That kitchen no longer exists.',
   [ERR.FORBIDDEN]: 'Your role cannot do that.',
   [ERR.NO_DISPUTE]: 'That dispute no longer exists.',

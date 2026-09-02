@@ -17,6 +17,7 @@ import {
   toggleInterest,
 } from '../../../logic/meals.js';
 import { Kitchen, Meal, MealInterest, Order } from '../../../models/index.js';
+import { kitchenMayTrade } from '../../../logic/sync.js';
 
 /**
  * Pre-booked meals, over HTTP.
@@ -118,7 +119,11 @@ type Cook = AppIdentity & { kitchenId: string };
  * suspended — `toIdentity` drops it there — so this one check covers both
  * without the routes learning what suspension is.
  */
-async function cookOf(request: FastifyRequest, reply: Replyish): Promise<Cook | null> {
+async function cookOf(
+  request: FastifyRequest,
+  reply: Replyish,
+  opts: { trading?: boolean } = {},
+): Promise<Cook | null> {
   const caller = await callerOf(request);
   if (!caller) {
     fail(reply, 'unauthenticated', 401);
@@ -131,6 +136,16 @@ async function cookOf(request: FastifyRequest, reply: Replyish): Promise<Cook | 
     fail(reply, ERR.FORBIDDEN, 403);
     return null;
   }
+
+  /* Publishing a meal is a promise to cook for whoever books a plate, so it
+     waits for approval. Closing and cancelling one do not — a kitchen must
+     always be able to stop, or the plates it already sold have nobody to
+     answer for them. */
+  if (opts.trading && !(await kitchenMayTrade(caller.kitchenId))) {
+    fail(reply, ERR.KITCHEN_UNAPPROVED, 403);
+    return null;
+  }
+
   return caller as Cook;
 }
 
@@ -332,7 +347,7 @@ export async function mealRoutes(app: FastifyInstance) {
 
   /** Publish one service for one day. */
   app.post('/meals', async (request, reply) => {
-    const cook = await cookOf(request, reply);
+    const cook = await cookOf(request, reply, { trading: true });
     if (!cook) return;
 
     const body = z

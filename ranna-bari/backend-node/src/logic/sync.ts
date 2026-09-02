@@ -55,6 +55,26 @@ export async function resolveKitchen(chefId: string, caller?: AppIdentity | null
  * appearing because somebody typed a name into their phone has proved only
  * that they hold a phone number; the KYC queue checks the rest.
  */
+/**
+ * May this kitchen take on new business?
+ *
+ * Approval is an operator's decision, and until they make it a kitchen can be
+ * set up but not sold from. Registration writes `kycStatus: 'pending'`, so a
+ * kitchen that has never been looked at answers false without anything
+ * special needing to be written for it.
+ *
+ * A missing kitchen answers false too. The caller has already proved it owns
+ * one, so not finding it means it was deleted mid-request, and the safe
+ * reading of that is "no".
+ */
+export async function kitchenMayTrade(kitchenId: string): Promise<boolean> {
+  const kitchen = await Kitchen.findById(kitchenId)
+    .select({ kycStatus: 1 })
+    .lean()
+    .catch(() => null);
+  return kitchen?.kycStatus === 'approved';
+}
+
 export async function registerKitchen(
   caller: AppIdentity,
   kitchen: {

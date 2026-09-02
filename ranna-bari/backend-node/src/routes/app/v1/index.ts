@@ -22,7 +22,13 @@ import {
   unreadTotal,
   type Viewer,
 } from '../../../logic/chat.js';
-import { orderFor, ordersFor, recordOrder, registerKitchen } from '../../../logic/sync.js';
+import {
+  kitchenMayTrade,
+  orderFor,
+  ordersFor,
+  recordOrder,
+  registerKitchen,
+} from '../../../logic/sync.js';
 import { publish, isOnline } from '../../../realtime/hub.js';
 import {
   Account,
@@ -142,7 +148,25 @@ async function saveAddresses(customerKey: string, list: SavedAddress[]) {
  * than two — and so "no kitchen" and "no token" cannot be told apart by a
  * caller probing for which accounts have kitchens.
  */
-async function cookOf(request: FastifyRequest, reply: Parameters<typeof fail>[0]) {
+/**
+ * The cook behind a request, and — where it matters — whether they may trade.
+ *
+ * `trading` is asked for by the routes that create or extend an obligation to
+ * a customer: listing a dish, making one available, publishing a meal, opening
+ * a shop, accepting a pre-order. Those wait for an operator's approval.
+ *
+ * The routes that wind trade *down* deliberately do not ask for it. A kitchen
+ * that is suspended or still pending must still be able to cancel a meal,
+ * reject a pre-order, remove a dish and move an order that is already out for
+ * delivery — otherwise a customer's money sits held with nobody able to return
+ * it, which is a worse failure than an unapproved kitchen taking one more
+ * order.
+ */
+async function cookOf(
+  request: FastifyRequest,
+  reply: Parameters<typeof fail>[0],
+  opts: { trading?: boolean } = {},
+) {
   const caller = await callerOf(request);
   if (!caller) {
     fail(reply, 'unauthenticated', 401);
@@ -152,6 +176,14 @@ async function cookOf(request: FastifyRequest, reply: Parameters<typeof fail>[0]
     fail(reply, ERR.NO_KITCHEN, 403);
     return null;
   }
+
+  /* Suspension needs no check here: `toIdentity` drops kitchenId for a
+     suspended kitchen, so those callers were refused above. */
+  if (opts.trading && !(await kitchenMayTrade(caller.kitchenId))) {
+    fail(reply, ERR.KITCHEN_UNAPPROVED, 403);
+    return null;
+  }
+
   return caller as typeof caller & { kitchenId: string };
 }
 
@@ -414,7 +446,7 @@ export async function appRoutes(app: FastifyInstance) {
    * to `kitchenId` so an id belonging to another kitchen matches nothing.
    */
   app.post('/kitchens/mine/dishes', async (request, reply) => {
-    const cook = await cookOf(request, reply);
+    const cook = await cookOf(request, reply, { trading: true });
     if (!cook) return;
 
     const body = z
@@ -454,7 +486,7 @@ export async function appRoutes(app: FastifyInstance) {
   });
 
   app.post('/dishes/:id/toggle', async (request, reply) => {
-    const cook = await cookOf(request, reply);
+    const cook = await cookOf(request, reply, { trading: true });
     if (!cook) return;
 
     const { id } = request.params as { id: string };

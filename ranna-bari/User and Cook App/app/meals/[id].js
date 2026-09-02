@@ -337,8 +337,10 @@ export default function MealScreen() {
               {/* Interest first: it is the reversible one, and a cook reads it
                   the night before to decide how much to shop for. */}
               <Button
-                variant={isInterested ? "primary" : "glass"}
-                label={isInterested ? t('Interested ✓') : t('I’m interested')}
+                variant={isInterested ? 'primary' : 'glass'}
+                /* No tick in the label: the icon beside it is already a check,
+                   and the two together read as "✓ INTERESTED ✓". */
+                label={isInterested ? t('Interested') : t('I’m interested')}
                 icon={isInterested ? 'check' : 'sparkles'}
                 iconPosition="left"
                 block
