@@ -753,7 +753,7 @@ export default function HomeScreen() {
       <Container style={{ paddingVertical: 56, gap: 16 }}>
         <Reveal delay={1}>
           <LinearGradient
-            colors={[colors.primary, colors.primary600]}
+            colors={[colors.heroMid, colors.heroTo]}
             start={{ x: 0.1, y: 0 }}
             end={{ x: 0.9, y: 1 }}
             style={[{ borderRadius: 28, paddingVertical: 24, paddingHorizontal: 20 }, shadow.md]}
@@ -761,7 +761,7 @@ export default function HomeScreen() {
             <Icon
               name="shield"
               size={36}
-              color={colors.onPrimary}
+              color={colors.onHero}
               style={{ opacity: 0.85, marginBottom: 20 }}
             />
             <Text
@@ -770,7 +770,7 @@ export default function HomeScreen() {
                 fontSize: 28,
                 lineHeight: 31,
                 letterSpacing: -0.6,
-                color: colors.onPrimary,
+                color: colors.onHero,
                 marginBottom: 16,
               }}
             >
@@ -782,7 +782,7 @@ export default function HomeScreen() {
                 fontSize: 14,
                 lineHeight: 22,
                 opacity: 0.9,
-                color: colors.onPrimary,
+                color: colors.onHero,
               }}
             >
               {t('We take your safety and health seriously. Every home cook on our platform goes through a rigorous vetting process so you can eat with complete peace of mind.')}
