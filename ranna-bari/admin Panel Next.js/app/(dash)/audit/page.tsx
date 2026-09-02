@@ -1,8 +1,6 @@
 import Link from 'next/link';
-import type { Prisma } from '@prisma/client';
 
 import { BackendError, get } from '@/lib/backend';
-import { db } from '@/lib/db';
 import { fmtDateTime, timeAgo } from '@/lib/format';
 import { parseJson } from '@/lib/mappers';
 import { paging, pageCount } from '@/lib/queries';
@@ -81,26 +79,28 @@ const diffOf = (value: unknown): Record<string, unknown> | null => {
  *
  * Null means the backend did not answer at all — a banner, not a throw.
  */
+type Facets = {
+  actors: string[];
+  types: string[];
+  moneyCount: number;
+  todayCount: number;
+};
+
 async function readRows(
-  local: boolean,
-  where: Prisma.AuditLogWhereInput,
-  actor: string | undefined,
+  params: Record<string, string | undefined>,
   skip: number,
   take: number,
-): Promise<{ rows: AuditRow[]; total: number } | null> {
-  if (local) {
-    const [rows, total] = await Promise.all([
-      db.auditLog.findMany({ where, skip, take, orderBy: { at: 'desc' } }),
-      db.auditLog.count({ where }),
-    ]);
-    return { rows, total };
-  }
-
+): Promise<{ rows: AuditRow[]; total: number; facets: Facets } | null> {
   const query = new URLSearchParams({ skip: String(skip), take: String(take) });
-  if (actor) query.set('actor', actor);
+  if (params.actor) query.set('actor', params.actor);
+  if (params.type) query.set('targetType', params.type);
+  if (params.q) query.set('q', params.q);
+  /* The money view asks for its whole set in one filter — the endpoint takes a
+     comma-separated list, and owns which actions count as money. */
+  if (params.view === 'money') query.set('action', MONEY_ACTIONS.join(','));
 
   try {
-    return await get<{ rows: AuditRow[]; total: number }>(`/audit?${query}`);
+    return await get<{ rows: AuditRow[]; total: number; facets: Facets }>(`/audit?${query}`);
   } catch (error) {
     if (error instanceof BackendError && error.status === 0) return null;
     throw error;
@@ -116,40 +116,11 @@ export default async function AuditPage({
   const params = await searchParams;
   const { page, skip, take } = paging(params);
 
-  const where: Prisma.AuditLogWhereInput = {};
-  if (params.q) {
-    where.OR = [
-      { summary: { contains: params.q } },
-      { targetId: { contains: params.q } },
-      { actorEmail: { contains: params.q } },
-    ];
-  }
-  if (params.actor) where.actorEmail = params.actor;
-  if (params.type) where.targetType = params.type;
-  if (params.view === 'money') where.action = { in: MONEY_ACTIONS };
-
-  const beyondEndpoint = Boolean(params.q || params.type || params.view === 'money');
-
-  /* The two facet lists and the two header counts have no endpoint at all —
-     `/audit` answers rows and a total and nothing else — so they are read
-     locally and go stale alongside the fallback above. Wanted: a facets block
-     on `/audit` carrying the distinct operators, the distinct target types,
-     the money-action count and the last-24-hours count. */
-  const [list, actors, types, moneyCount, todayCount] = await Promise.all([
-    readRows(beyondEndpoint, where, params.actor, skip, take),
-    db.auditLog.findMany({
-      distinct: ['actorEmail'],
-      select: { actorEmail: true },
-      orderBy: { actorEmail: 'asc' },
-    }),
-    db.auditLog.findMany({
-      distinct: ['targetType'],
-      select: { targetType: true },
-      orderBy: { targetType: 'asc' },
-    }),
-    db.auditLog.count({ where: { action: { in: MONEY_ACTIONS } } }),
-    db.auditLog.count({ where: { at: { gte: new Date(Date.now() - 86_400_000) } } }),
-  ]);
+  /* One read. The search, the target-type filter and the money view are all
+     expressible on the endpoint now, and the dropdowns and header counts ride
+     back with the rows, so every figure on this screen comes from the store
+     that holds the trail. */
+  const list = await readRows(params, skip, take);
 
   if (!list) {
     return (
@@ -167,7 +138,8 @@ export default async function AuditPage({
     );
   }
 
-  const { rows, total } = list;
+  const { rows, total, facets } = list;
+  const { actors, types, moneyCount, todayCount } = facets;
 
   return (
     <>
@@ -207,12 +179,12 @@ export default async function AuditPage({
             <FilterSelect
               name="actor"
               allLabel="Any operator"
-              options={actors.map((a) => ({ value: a.actorEmail, label: a.actorEmail }))}
+              options={actors.map((a) => ({ value: a, label: a }))}
             />
             <FilterSelect
               name="type"
               allLabel="Any target"
-              options={types.map((t) => ({ value: t.targetType, label: t.targetType }))}
+              options={types.map((t) => ({ value: t, label: t }))}
             />
           </div>
         }

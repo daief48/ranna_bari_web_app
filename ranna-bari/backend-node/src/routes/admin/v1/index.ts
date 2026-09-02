@@ -1469,6 +1469,20 @@ export async function adminRoutes(app: FastifyInstance) {
 
   /* ---------------- audit ---------------- */
 
+  /* The actions that moved money. The panel draws a count of these at the top
+     of the trail, and it is the one figure on that screen an auditor cares
+     about, so the list lives beside the query rather than in the client. */
+  const MONEY_ACTIONS = [
+    'escrow.release',
+    'escrow.refund',
+    'escrow.auto-release',
+    'payout.paid',
+    'ledger.adjustment',
+    'dispute.refund',
+    'dispute.release',
+    'dispute.split',
+  ];
+
   app.get('/audit', async (request, reply) => {
     const actor = await require(request, reply as never, 'order.read');
     if (!actor) return;
@@ -1476,7 +1490,12 @@ export async function adminRoutes(app: FastifyInstance) {
     const query = z
       .object({
         actor: z.string().optional(),
+        /* Comma-separated so the money view can ask for its nine actions in
+           one filter. A single action still works, which is what the row
+           links send. */
         action: z.string().optional(),
+        targetType: z.string().optional(),
+        q: z.string().optional(),
         skip: z.coerce.number().default(0),
         take: z.coerce.number().max(200).default(50),
       })
@@ -1484,13 +1503,43 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const where: Record<string, unknown> = {};
     if (query.actor) where.actorEmail = query.actor;
-    if (query.action) where.action = query.action;
+    if (query.targetType) where.targetType = query.targetType;
+    if (query.action) {
+      const actions = query.action.split(',').map((a) => a.trim()).filter(Boolean);
+      where.action = actions.length > 1 ? { $in: actions } : actions[0];
+    }
+    /* Escaped before it becomes a RegExp: an operator pasting an order code
+       with a "+" in it should search for that code, not throw a syntax error
+       out of the driver. */
+    if (query.q) {
+      const needle = new RegExp(query.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      where.$or = [{ summary: needle }, { targetId: needle }, { actorEmail: needle }];
+    }
 
-    const [rows, total] = await Promise.all([
+    const dayAgo = new Date(Date.now() - 86_400_000);
+
+    const [rows, total, actors, types, moneyCount, todayCount] = await Promise.all([
       AuditLog.find(where).sort({ at: -1 }).skip(query.skip).limit(query.take).lean(),
       AuditLog.countDocuments(where),
+      /* The two dropdowns and the two header counts, which had no endpoint at
+         all and so were read from a table with nothing in it. Deliberately
+         unfiltered: a filter list narrowed by the active filter cannot offer
+         the operator a way back out of it. */
+      AuditLog.distinct('actorEmail'),
+      AuditLog.distinct('targetType'),
+      AuditLog.countDocuments({ action: { $in: MONEY_ACTIONS } }),
+      AuditLog.countDocuments({ at: { $gte: dayAgo } }),
     ]);
 
-    return { rows: rows.map((r) => ({ ...r, id: String(r._id) })), total };
+    return {
+      rows: rows.map((r) => ({ ...r, id: String(r._id) })),
+      total,
+      facets: {
+        actors: (actors as string[]).filter(Boolean).sort((a, b) => a.localeCompare(b)),
+        types: (types as string[]).filter(Boolean).sort((a, b) => a.localeCompare(b)),
+        moneyCount,
+        todayCount,
+      },
+    };
   });
 }
