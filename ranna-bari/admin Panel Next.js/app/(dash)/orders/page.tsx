@@ -76,25 +76,33 @@ export default async function OrdersPage({
 
   let rows: Row[] = [];
   let total = 0;
+  /* Kept in the aggregate shape the header reads, and filled from the same
+     response as the rows so the two cannot describe different sets. */
+  let held = { _sum: { amount: 0 as number | null }, _count: 0 };
+  let disputedIds = new Set<string>();
 
-  if (params.q) {
-    /* `GET /orders` filters on kind, status, payment and kitchenId and takes
-       no free-text term, so a search is still answered from Prisma. */
-    [rows, total] = await Promise.all([
-      db.order.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
-      db.order.count({ where }),
-    ]);
-  } else {
+  {
     const query = new URLSearchParams({ skip: String(skip), take: String(take) });
     if (params.kind) query.set('kind', params.kind);
     if (params.status) query.set('status', params.status);
     if (params.payment) query.set('payment', params.payment);
     if (params.kitchen) query.set('kitchenId', params.kitchen);
+    /* The endpoint takes the search term now. It used to be answered from the
+       panel's own database, which meant a search returned rows whose ids the
+       detail page could not resolve. */
+    if (params.q) query.set('q', params.q);
 
     try {
-      const list = await get<{ orders: Row[]; total: number }>(`/orders?${query}`);
+      const list = await get<{
+        orders: Row[];
+        total: number;
+        held: { amount: number; count: number };
+        disputed: string[];
+      }>(`/orders?${query}`);
       rows = list.orders;
       total = list.total;
+      held = { _sum: { amount: list.held.amount }, _count: list.held.count };
+      disputedIds = new Set(list.disputed);
     } catch (error) {
       /* Only an unreachable backend degrades into a banner. A refusal the
          backend actually sent is a real bug and stays loud. */
@@ -118,14 +126,7 @@ export default async function OrdersPage({
     }
   }
 
-  /* Two more answers `GET /orders` cannot give: an aggregate over the whole
-     filtered set, and whether each order carries a dispute. Both stay on
-     Prisma until the endpoint returns them. */
-  const [held, disputed] = await Promise.all([
-    db.order.aggregate({ where: { ...where, payment: 'held' }, _sum: { amount: true }, _count: true }),
-    db.dispute.findMany({ where: { order: where }, select: { orderId: true } }),
-  ]);
-  const disputedIds = new Set(disputed.map((row) => row.orderId));
+
 
   /* An order carries its kitchen's name as `cookName`, which is the same
      string the kitchen lookup used to supply — and the backend has no read of

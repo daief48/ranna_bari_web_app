@@ -308,25 +308,17 @@ export async function createAdmin(
     if (!(ROLES as readonly string[]).includes(role)) return bad('Unknown role.');
     if (password.length < 8) return bad('Use at least eight characters.');
 
-    const duplicate = await db.adminUser.findUnique({ where: { email: clean } });
-    if (duplicate) return bad('That email already has an account.');
-
-    const created = await db.adminUser.create({
-      data: {
-        email: clean,
-        name: name.trim(),
-        role,
-        passwordHash: await hashPassword(password),
-      },
-    });
-
-    await audit(user, {
-      action: 'admin.create',
-      targetType: 'AdminUser',
-      targetId: created.id,
-      summary: `${clean} as ${role}`,
-      after: { email: clean, name: name.trim(), role },
-    });
+    /* The backend hashes the password and writes its own audit row. Hashing
+       here as well would put a second, differently-derived hash in a second
+       store for the same person — and sign-in checks the backend's. */
+    try {
+      await post('/admins', { email: clean, name: name.trim(), role, password });
+    } catch (error) {
+      if (error instanceof BackendError && error.status === 409) {
+        return bad('That email already has an account.');
+      }
+      throw error;
+    }
 
     revalidatePath('/admins');
     return good('Operator created.');
@@ -336,19 +328,21 @@ export async function createAdmin(
 export async function setAdminActive(adminId: string, active: boolean): Promise<ActionResult> {
   return guard(async () => {
     const user = await requireCapability('*');
-    const target = await db.adminUser.findUnique({ where: { id: adminId } });
-    if (!target) return bad('That operator no longer exists.');
-    if (target.id === user.sub) return bad('You cannot deactivate yourself.');
+    /* Checked here for the message, and again on the backend for the rule:
+       this one is a courtesy, that one is what actually holds. */
+    if (adminId === user.sub) return bad('You cannot deactivate yourself.');
 
-    await db.adminUser.update({ where: { id: adminId }, data: { active } });
-    await audit(user, {
-      action: active ? 'admin.activate' : 'admin.deactivate',
-      targetType: 'AdminUser',
-      targetId: adminId,
-      summary: target.email,
-      before: { active: target.active },
-      after: { active },
-    });
+    try {
+      await post(`/admins/${adminId}/active`, { active });
+    } catch (error) {
+      if (error instanceof BackendError && error.status === 404) {
+        return bad('That operator no longer exists.');
+      }
+      if (error instanceof BackendError && error.status === 403) {
+        return bad('That is the last active superadmin — somebody has to be able to fix this console.');
+      }
+      throw error;
+    }
 
     revalidatePath('/admins');
     return good(active ? 'Reactivated.' : 'Deactivated — they cannot sign in.');
@@ -360,19 +354,19 @@ export async function setAdminRole(adminId: string, role: string): Promise<Actio
     const user = await requireCapability('*');
     if (!(ROLES as readonly string[]).includes(role)) return bad('Unknown role.');
 
-    const target = await db.adminUser.findUnique({ where: { id: adminId } });
-    if (!target) return bad('That operator no longer exists.');
-    if (target.id === user.sub) return bad('You cannot change your own role.');
+    if (adminId === user.sub) return bad('You cannot change your own role.');
 
-    await db.adminUser.update({ where: { id: adminId }, data: { role } });
-    await audit(user, {
-      action: 'admin.role',
-      targetType: 'AdminUser',
-      targetId: adminId,
-      summary: `${target.email}: ${target.role} → ${role}`,
-      before: { role: target.role },
-      after: { role },
-    });
+    try {
+      await post(`/admins/${adminId}/role`, { role });
+    } catch (error) {
+      if (error instanceof BackendError && error.status === 404) {
+        return bad('That operator no longer exists.');
+      }
+      if (error instanceof BackendError && error.status === 403) {
+        return bad('That is the last active superadmin — the role cannot be given away.');
+      }
+      throw error;
+    }
 
     revalidatePath('/admins');
     return good(`Now ${role}.`);

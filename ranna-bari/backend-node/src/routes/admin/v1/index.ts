@@ -1199,6 +1199,7 @@ export async function adminRoutes(app: FastifyInstance) {
         status: z.string().optional(),
         payment: z.string().optional(),
         kitchenId: z.string().optional(),
+        q: z.string().optional(),
         skip: z.coerce.number().default(0),
         take: z.coerce.number().max(100).default(25),
       })
@@ -1209,12 +1210,46 @@ export async function adminRoutes(app: FastifyInstance) {
       if (query[key]) where[key] = query[key];
     }
 
-    const [rows, total] = await Promise.all([
+    /* An operator searches by the code off a customer's screen, or by a name
+       they were just given on the phone. The code is upper-case, the names are
+       not, so the term is matched case-insensitively across all four and
+       escaped first — a pasted code with a "+" in it should search, not throw
+       a syntax error out of the driver. */
+    if (query.q) {
+      const needle = new RegExp(query.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      where.$or = [
+        { code: needle },
+        { customerName: needle },
+        { title: needle },
+        { cookName: needle },
+      ];
+    }
+
+    const [rows, total, held] = await Promise.all([
       Order.find(where).sort({ createdAt: -1 }).skip(query.skip).limit(query.take).lean(),
       Order.countDocuments(where),
+      /* Held money across the whole filtered set, not just the page — the
+         figure is the reason the filter was applied. */
+      Order.aggregate<{ _id: null; amount: number; count: number }>([
+        { $match: { ...where, payment: 'held' } },
+        { $group: { _id: null, amount: { $sum: '$amount' }, count: { $sum: 1 } } },
+      ]),
     ]);
 
-    return { orders: rows.map((o) => ({ ...o, id: String(o._id) })), total };
+    /* Which of these orders have a case open against them. After the rows,
+       because it is keyed on them: the badge is drawn per row, and every
+       dispute in the system is not the question being asked. */
+    const disputed = await Dispute.find({ orderId: { $in: rows.map((o) => String(o._id)) } })
+      .select({ orderId: 1 })
+      .lean()
+      .catch(() => []);
+
+    return {
+      orders: rows.map((o) => ({ ...o, id: String(o._id) })),
+      total,
+      held: { amount: held[0]?.amount ?? 0, count: held[0]?.count ?? 0 },
+      disputed: [...new Set(disputed.map((d) => d.orderId))],
+    };
   });
 
   /* ---------------- money ---------------- */
@@ -1490,6 +1525,61 @@ export async function adminRoutes(app: FastifyInstance) {
    * audit row on its own says what happened; those two say whether it was
    * part of a pattern, which is the question anybody opening this is asking.
    */
+  /**
+   * Move an operator between roles.
+   *
+   * Separate from the create route because it is a different decision: minting
+   * an account is adding a person, and this is handing one the ability to move
+   * money. The audit row spells out the move rather than the new value alone —
+   * "ops to finance" is the fact a reviewer needs, and "finance" on its own
+   * does not carry it.
+   */
+  app.post('/admins/:id/role', async (request, reply) => {
+    const actor = await require(request, reply as never, 'admin.manage');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({ role: z.enum(['superadmin', 'ops', 'finance', 'support']) })
+      .safeParse(request.body ?? {});
+    if (!body.success) return fail(reply as never, ERR.NAME_REQUIRED);
+
+    const target = await AdminUser.findById(id).catch(() => null);
+    if (!target) return fail(reply as never, ERR.NO_PRODUCT, 404);
+
+    /* Not your own. Otherwise ops could promote itself to finance and the
+       separation between the two would be decorative. */
+    if (String(target._id) === actor.sub) return fail(reply as never, ERR.FORBIDDEN, 403);
+
+    /* Nor the last superadmin out of the role — the same reasoning that stops
+       one deactivating themselves, by the other route. */
+    if (target.role === 'superadmin' && body.data.role !== 'superadmin') {
+      const others = await AdminUser.countDocuments({
+        role: 'superadmin',
+        active: true,
+        _id: { $ne: target._id },
+      });
+      if (others === 0) return fail(reply as never, ERR.FORBIDDEN, 403);
+    }
+
+    const before = target.role;
+    if (before === body.data.role) return { id, role: before, changed: false };
+
+    target.role = body.data.role;
+    await target.save();
+
+    await audit(actor, {
+      action: 'admin.role',
+      targetType: 'admin',
+      targetId: id,
+      summary: target.email + ': ' + before + ' to ' + body.data.role,
+      before: { role: before },
+      after: { role: body.data.role },
+    });
+
+    return { id, role: body.data.role, changed: true };
+  });
+
   app.get('/audit/:id', async (request, reply) => {
     const actor = await require(request, reply as never, 'order.read');
     if (!actor) return;

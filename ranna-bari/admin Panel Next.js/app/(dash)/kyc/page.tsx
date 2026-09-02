@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
-import { db } from '@/lib/db';
+import { BackendError, get } from '@/lib/backend';
+import { BackendDown } from '@/components/backend-down';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/lib/domain';
 import { fmtDate, timeAgo, daysSince } from '@/lib/format';
@@ -11,31 +12,49 @@ import { requirePage } from '@/lib/guard';
 export const metadata = { title: 'KYC queue · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
 
+type Applicant = {
+  id: string;
+  name: string;
+  ownerName: string;
+  area: string | null;
+  avatar: string | null;
+  description: string | null;
+  specialty: string | null;
+  deliveryRadiusKm: number | null;
+  lat: number | null;
+  lng: number | null;
+  kycStatus: string;
+  kycDecidedAt: string | null;
+  kycDecidedBy: string | null;
+  createdAt: string;
+  /** Only on the waiting half — a decided row does not reopen the documents. */
+  account?: { name: string; phone: string | null; email: string | null; nid: string | null } | null;
+};
+
 export default async function KycPage() {
   await requirePage('kitchen.read');
   const user = await currentUser();
   const canDecide = can(user?.role ?? '', 'kyc.decide');
 
-  /* Still Prisma. `GET /kitchens` cannot express this queue: it has no
-     `kycStatus` filter, it sorts newest-first only, and it returns no linked
-     account — so the National ID, which is the one field an operator opens
-     this screen to read, is not in the response at all. Approximating it from
-     `status=unverified` would show a truncated, wrongly-ordered queue with
-     three of its six document rows blank. */
-  const [pending, decided] = await Promise.all([
-    db.kitchen.findMany({
-      where: { kycStatus: 'pending' },
-      include: { account: true },
-      // Oldest first: a queue that serves the newest application first is a
-      // queue somebody can be stuck at the back of forever.
-      orderBy: { createdAt: 'asc' },
-    }),
-    db.kitchen.findMany({
-      where: { kycStatus: { in: ['approved', 'rejected'] }, kycDecidedAt: { not: null } },
-      orderBy: { kycDecidedAt: 'desc' },
-      take: 12,
-    }),
-  ]);
+  /* Its own route rather than a query on `GET /kitchens`, which cannot
+     express this queue: no kycStatus filter, newest-first only, and no linked
+     account — so the National ID, the one field an operator opens this screen
+     to read, was not in that response at all.
+
+     Oldest first, because a queue that serves the newest application first is
+     one somebody can be stuck at the back of forever. */
+  let pending: Applicant[];
+  let decided: Applicant[];
+  try {
+    const data = await get<{ pending: Applicant[]; decided: Applicant[] }>('/kyc');
+    pending = data.pending;
+    decided = data.decided;
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 0) {
+      return <BackendDown title="KYC queue" subtitle="Cooks waiting on a decision" />;
+    }
+    throw error;
+  }
 
   return (
     <>
@@ -104,9 +123,18 @@ export default async function KycPage() {
                         value={kitchen.account?.nid ?? '—'}
                         mono
                       />
+                      {/* An application can arrive without a pin — the cook
+                          skipped the map, or the browser refused the location.
+                          Saying so is the point: an unplaced kitchen cannot be
+                          matched to a delivery radius, which is part of what
+                          this decision is about. */}
                       <Row
                         label="Pinned at"
-                        value={`${kitchen.lat.toFixed(4)}, ${kitchen.lng.toFixed(4)}`}
+                        value={
+                          kitchen.lat != null && kitchen.lng != null
+                            ? `${kitchen.lat.toFixed(4)}, ${kitchen.lng.toFixed(4)}`
+                            : 'not pinned'
+                        }
                         mono
                       />
                       <Row label="Applied" value={fmtDate(kitchen.createdAt)} />

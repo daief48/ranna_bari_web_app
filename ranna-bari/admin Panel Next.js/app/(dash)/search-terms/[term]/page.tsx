@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
-import { db } from '@/lib/db';
+import { BackendError, get } from '@/lib/backend';
+import { BackendDown } from '@/components/backend-down';
 import { taka, timeAgo } from '@/lib/format';
 import {
   Badge,
@@ -15,6 +16,27 @@ import {
 import { requirePage } from '@/lib/guard';
 
 export const dynamic = 'force-dynamic';
+
+type MealHit = {
+  id: string;
+  title: string;
+  serveDate: string;
+  price: number;
+  status: string;
+  kitchenId: string;
+  kitchenName: string;
+};
+type KitchenHit = { id: string; name: string; area: string | null; isVerified: boolean };
+type ProductHit = {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  active: boolean;
+  storeId: string;
+  storeName: string;
+};
+type DishHit = { id: string; name: string; price: number; kitchenId: string; kitchenName: string };
 
 /**
  * One search term.
@@ -38,33 +60,28 @@ export default async function SearchTermDetail({
   const { term: raw } = await params;
   const term = decodeURIComponent(raw);
 
-  const contains = { contains: term };
-
-  const [meals, kitchens, products, dishes] = await Promise.all([
-    db.meal.findMany({
-      where: { OR: [{ title: contains }, { description: contains }] },
-      orderBy: { createdAt: 'desc' },
-      take: 15,
-      include: { kitchen: { select: { id: true, name: true } } },
-    }),
-    db.kitchen.findMany({
-      where: { OR: [{ name: contains }, { area: contains }] },
-      orderBy: { name: 'asc' },
-      take: 15,
-      select: { id: true, name: true, area: true, isVerified: true },
-    }),
-    db.product.findMany({
-      where: { OR: [{ name: contains }, { description: contains }] },
-      orderBy: { name: 'asc' },
-      take: 15,
-      include: { store: { select: { id: true, name: true } } },
-    }),
-    db.dish.findMany({
-      where: { name: contains },
-      take: 15,
-      include: { kitchen: { select: { id: true, name: true } } },
-    }),
-  ]);
+  /* Searched against the catalogue the app searches, not the panel's mirror
+     of it. On a screen about terms that found nothing, answering from a
+     different catalogue could report four matching meals for a search the app
+     returns nothing for — exactly backwards. */
+  let meals: MealHit[];
+  let kitchens: KitchenHit[];
+  let products: ProductHit[];
+  let dishes: DishHit[];
+  try {
+    const data = await get<{
+      meals: MealHit[];
+      kitchens: KitchenHit[];
+      products: ProductHit[];
+      dishes: DishHit[];
+    }>(`/search-terms/${encodeURIComponent(term)}`);
+    ({ meals, kitchens, products, dishes } = data);
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 0) {
+      return <BackendDown title={term} subtitle="What the catalogue holds for this search" />;
+    }
+    throw error;
+  }
 
   const hits = meals.length + kitchens.length + products.length + dishes.length;
 
@@ -125,8 +142,8 @@ export default async function SearchTermDetail({
                       </Link>
                     </td>
                     <td className="text-ink2">
-                      <Link href={`/kitchens/${meal.kitchen.id}`} className="hover:text-primary">
-                        {meal.kitchen.name}
+                      <Link href={`/kitchens/${meal.kitchenId}`} className="hover:text-primary">
+                        {meal.kitchenName}
                       </Link>
                     </td>
                     <td className="tnum whitespace-nowrap text-ink2">{meal.serveDate}</td>
@@ -169,8 +186,8 @@ export default async function SearchTermDetail({
               <li key={dish.id} className="flex items-center justify-between gap-3 py-2">
                 <span className="text-[13px] text-ink">{dish.name}</span>
                 <span className="flex items-center gap-2.5 text-[12px] text-ink3">
-                  <Link href={`/kitchens/${dish.kitchen.id}`} className="hover:text-primary">
-                    {dish.kitchen.name}
+                  <Link href={`/kitchens/${dish.kitchenId}`} className="hover:text-primary">
+                    {dish.kitchenName}
                   </Link>
                   <span className="tnum text-ink2">{taka(dish.price)}</span>
                 </span>
@@ -187,8 +204,8 @@ export default async function SearchTermDetail({
               <li key={product.id} className="flex items-center justify-between gap-3 py-2">
                 <span className="min-w-0 truncate text-[13px] text-ink">{product.name}</span>
                 <span className="flex shrink-0 items-center gap-2.5 text-[12px] text-ink3">
-                  <Link href={`/stores/${product.store.id}`} className="hover:text-primary">
-                    {product.store.name || 'shop'}
+                  <Link href={`/stores/${product.storeId}`} className="hover:text-primary">
+                    {product.storeName || 'shop'}
                   </Link>
                   {product.stock === 0 ? <Badge tone="bad">Out</Badge> : null}
                   <span className="tnum text-ink2">{taka(product.price)}</span>

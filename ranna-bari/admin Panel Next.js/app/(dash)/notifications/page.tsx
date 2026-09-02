@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import type { Prisma } from '@prisma/client';
 
-import { db } from '@/lib/db';
+import { BackendError, get } from '@/lib/backend';
+import { BackendDown } from '@/components/backend-down';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/lib/domain';
 import { timeAgo, fmtDateTime } from '@/lib/format';
@@ -24,6 +25,28 @@ import { requirePage } from '@/lib/guard';
 export const metadata = { title: 'Notifications · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
 
+type NoteRow = {
+  id: string;
+  key: string;
+  audience: string;
+  kind: string;
+  title: string;
+  body: string;
+  customerKey: string | null;
+  kitchenId: string | null;
+  zone: string | null;
+  broadcastBy: string | null;
+  read: boolean;
+  at: string;
+};
+
+type Facets = {
+  kinds: string[];
+  unreadCustomer: number;
+  unreadCook: number;
+  zones: string[];
+};
+
 export default async function NotificationsPage({
   searchParams,
 }: {
@@ -39,14 +62,36 @@ export default async function NotificationsPage({
   if (params.audience) where.audience = params.audience;
   if (params.kind) where.kind = params.kind;
 
-  const [rows, total, kinds, unreadCustomer, unreadCook, zones] = await Promise.all([
-    db.notification.findMany({ where, skip, take, orderBy: { at: 'desc' } }),
-    db.notification.count({ where }),
-    db.notification.findMany({ distinct: ['kind'], select: { kind: true }, orderBy: { kind: 'asc' } }),
-    db.notification.count({ where: { audience: 'customer', read: false } }),
-    db.notification.count({ where: { audience: 'cook', read: false } }),
-    db.zone.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { name: true } }),
-  ]);
+  const query = new URLSearchParams({ skip: String(skip), take: String(take) });
+  if (params.audience) query.set('audience', params.audience);
+  if (params.kind) query.set('kind', params.kind);
+
+  let rows: NoteRow[];
+  let total: number;
+  let facets: Facets;
+  try {
+    const data = await get<{ notifications: NoteRow[]; total: number; facets: Facets }>(
+      `/notifications?${query}`,
+    );
+    rows = data.notifications;
+    total = data.total;
+    facets = data.facets;
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 0) {
+      return (
+        <BackendDown
+          title="Notifications"
+          subtitle="What the platform has told people, and a way to tell them something"
+        />
+      );
+    }
+    throw error;
+  }
+
+  const { unreadCustomer, unreadCook } = facets;
+  /* Kept in the row shapes the dropdowns already map over. */
+  const kinds = facets.kinds.map((kind) => ({ kind }));
+  const zones = facets.zones.map((name) => ({ name }));
 
   return (
     <>

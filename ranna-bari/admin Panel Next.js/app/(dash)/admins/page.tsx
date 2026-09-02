@@ -1,4 +1,5 @@
-import { db } from '@/lib/db';
+import { BackendError, get } from '@/lib/backend';
+import { BackendDown } from '@/components/backend-down';
 import { currentUser } from '@/lib/auth';
 import { can, CAPABILITIES, ROLE_LABEL, ROLES, type Role } from '@/lib/domain';
 import { fmtDateTime, timeAgo } from '@/lib/format';
@@ -16,25 +17,50 @@ import { requirePage } from '@/lib/guard';
 export const metadata = { title: 'Admin users · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
 
+type AdminRowData = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  active: boolean;
+  totpEnabled: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  /** How many trail rows this operator has written. */
+  actions: number;
+};
+
 /**
  * Who may operate the panel.
  *
- * Still reading Prisma, alone among the boards. `backend-node` keeps an
- * `AdminUser` collection and signs operators in against it, but publishes no
- * route that lists or amends one — and an endpoint deciding who may move money
- * is not something this panel gets to mint for itself. So operator accounts
- * live in the panel's own database until somebody adds that route deliberately,
- * which is also why `actions/platform.ts` still writes them there.
+ * Read from the backend, which is where sign-in already checks them. It kept
+ * the collection all along and published no route to list or amend one, so the
+ * board read the panel's own database instead — and once the detail page moved,
+ * every row here linked to a 404, because the two stores hold different
+ * operators under different ids.
+ *
+ * The writes moved with it. Splitting them would be worse either way round:
+ * operators nobody can edit, or new ones nobody can see.
  */
 export default async function AdminsPage() {
   await requirePage('kitchen.read');
   const user = await currentUser();
   const isSuper = can(user?.role ?? '', '*');
 
-  const admins = await db.adminUser.findMany({
-    orderBy: [{ active: 'desc' }, { createdAt: 'asc' }],
-    include: { _count: { select: { audits: true } } },
-  });
+  let admins: AdminRowData[];
+  try {
+    admins = (await get<{ admins: AdminRowData[] }>('/admins')).admins;
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 0) {
+      return (
+        <BackendDown
+          title="Admin users"
+          subtitle="Who can operate this panel, and what each of them may do"
+        />
+      );
+    }
+    throw error;
+  }
 
   return (
     <>
@@ -63,7 +89,7 @@ export default async function AdminsPage() {
               role={admin.role}
               active={admin.active}
               lastLogin={admin.lastLoginAt ? timeAgo(admin.lastLoginAt) : 'never'}
-              auditCount={admin._count.audits}
+              auditCount={admin.actions}
               isSelf={admin.id === user?.sub}
               canManage={isSuper}
             />

@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import type { Prisma } from '@prisma/client';
 
-import { db } from '@/lib/db';
+import { BackendError, get } from '@/lib/backend';
+import { BackendDown } from '@/components/backend-down';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/lib/domain';
 import { fmtDate, timeAgo } from '@/lib/format';
@@ -25,6 +26,23 @@ import { requirePage } from '@/lib/guard';
 export const metadata = { title: 'Reviews · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
 
+type ReviewRow = {
+  id: string;
+  kitchenId: string;
+  kitchenName: string;
+  kitchenRating: number;
+  kitchenReviewCount: number;
+  name: string;
+  avatar: string | null;
+  area: string | null;
+  rating: number;
+  text: string;
+  hidden: boolean;
+  hiddenBy: string | null;
+  hiddenNote: string | null;
+  createdAt: string;
+};
+
 export default async function ReviewsPage({
   searchParams,
 }: {
@@ -41,19 +59,39 @@ export default async function ReviewsPage({
   if (params.state === 'visible') where.hidden = false;
   if (params.rating) where.rating = Number(params.rating);
 
-  const [rows, total, hiddenCount, lowCount, avg] = await Promise.all([
-    db.review.findMany({
-      where,
-      skip,
-      take,
-      orderBy: [{ hidden: 'asc' }, { createdAt: 'desc' }],
-      include: { kitchen: { select: { id: true, name: true, rating: true, reviewCount: true } } },
-    }),
-    db.review.count({ where }),
-    db.review.count({ where: { hidden: true } }),
-    db.review.count({ where: { hidden: false, rating: { lte: 2 } } }),
-    db.review.aggregate({ where: { hidden: false }, _avg: { rating: true } }),
-  ]);
+  const query = new URLSearchParams({ skip: String(skip), take: String(take) });
+  if (params.kitchenId) query.set('kitchenId', params.kitchenId);
+  if (params.rating) query.set('rating', params.rating);
+  if (params.hidden) query.set('hidden', params.hidden);
+
+  let rows: ReviewRow[];
+  let total: number;
+  let counts: { hidden: number; low: number; average: number | null };
+  try {
+    const data = await get<{
+      reviews: ReviewRow[];
+      total: number;
+      counts: { hidden: number; low: number; average: number | null };
+    }>(`/reviews?${query}`);
+    rows = data.reviews;
+    total = data.total;
+    counts = data.counts;
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 0) {
+      return (
+        <BackendDown
+          title="Reviews"
+          subtitle="Moderation, and the ratings that follow from it"
+        />
+      );
+    }
+    throw error;
+  }
+
+  const hiddenCount = counts.hidden;
+  const lowCount = counts.low;
+  /* Kept in the aggregate shape the header already reads. */
+  const avg = { _avg: { rating: counts.average } };
 
   return (
     <>
@@ -123,11 +161,11 @@ export default async function ReviewsPage({
                 </div>
               </td>
               <td className="max-w-[150px] truncate text-ink2">
-                <Link href={`/kitchens/${review.kitchen.id}`} className="hover:text-primary">
-                  {review.kitchen.name}
+                <Link href={`/kitchens/${review.kitchenId}`} className="hover:text-primary">
+                  {review.kitchenName}
                 </Link>
                 <span className="tnum ml-1 text-[11px] text-ink3">
-                  ({review.kitchen.rating.toFixed(1)})
+                  ({review.kitchenRating.toFixed(1)})
                 </span>
               </td>
               <td>
@@ -155,7 +193,7 @@ export default async function ReviewsPage({
                   <ModerateReview
                     reviewId={review.id}
                     hidden={review.hidden}
-                    kitchenName={review.kitchen.name}
+                    kitchenName={review.kitchenName}
                   />
                 ) : (
                   <span className="text-[11.5px] text-ink3">—</span>

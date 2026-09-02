@@ -482,6 +482,38 @@ export async function operationRoutes(app: FastifyInstance) {
     };
   });
 
+  app.get('/kyc', async (request, reply) => {
+    const actor = await require(request, reply, 'kitchen.read');
+    if (!actor) return;
+
+    const [pending, decided] = await Promise.all([
+      Kitchen.find({ kycStatus: 'pending' }).sort({ createdAt: 1 }).lean(),
+      Kitchen.find({ kycStatus: { $in: ['approved', 'rejected'] }, kycDecidedAt: { $ne: null } })
+        .sort({ kycDecidedAt: -1 })
+        .limit(12)
+        .lean(),
+    ]);
+
+    /* The owner behind each waiting kitchen, in one read. Only for the pending
+       half — the decided list shows a name and a date, and does not reopen
+       anybody's documents. */
+    const accounts = await Account.find({
+      _id: { $in: pending.map((k) => k.accountId).filter(Boolean) },
+    })
+      .select({ name: 1, phone: 1, email: 1, nid: 1 })
+      .lean()
+      .catch(() => []);
+    const byId = new Map(accounts.map((a) => [String(a._id), a]));
+
+    return {
+      pending: pending.map((row) => ({
+        ...withId(row),
+        account: byId.get(String(row.accountId ?? '')) ?? null,
+      })),
+      decided: decided.map(withId),
+    };
+  });
+
   app.get('/carts', async (request, reply) => {
     const actor = await require(request, reply, 'order.read');
     if (!actor) return;
@@ -959,21 +991,47 @@ export async function operationRoutes(app: FastifyInstance) {
     if (query.rating) where.rating = query.rating;
     if (query.hidden) where.hidden = query.hidden === 'true';
 
-    const [rows, total] = await Promise.all([
-      Review.find(where).sort({ createdAt: -1 }).skip(query.skip).limit(query.take).lean(),
+    const [rows, total, hidden, low, visible] = await Promise.all([
+      /* Hidden first: this is a queue, and a decision somebody already made is
+         the one most worth being able to revisit. */
+      Review.find(where)
+        .sort({ hidden: 1, createdAt: -1 })
+        .skip(query.skip)
+        .limit(query.take)
+        .lean(),
       Review.countDocuments(where),
+      Review.countDocuments({ hidden: true }),
+      Review.countDocuments({ hidden: false, rating: { $lte: 2 } }),
+      Review.aggregate<{ _id: null; avg: number }>([
+        { $match: { hidden: false } },
+        { $group: { _id: null, avg: { $avg: '$rating' } } },
+      ]),
     ]);
 
-    const kitchens = await kitchensByIds(rows.map((row) => row.kitchenId));
+    /* The kitchen's own score alongside each review, because that is what
+       hiding one changes — a moderator should see the number they are about
+       to move before they move it. */
+    const ids = [...new Set(rows.map((row) => row.kitchenId).filter(Boolean))];
+    const kitchenRows = await Kitchen.find({ _id: { $in: ids } })
+      .select({ name: 1, rating: 1, reviewCount: 1 })
+      .lean()
+      .catch(() => []);
+    const kitchens = new Map(kitchenRows.map((k) => [String(k._id), k]));
 
     return {
-      reviews: rows.map((row) => ({
-        ...withId(row),
-        // A moderation queue without kitchen names is a list of orphan
-        // paragraphs — the kitchen is half of what makes a review judgeable.
-        kitchenName: kitchens.get(row.kitchenId)?.name ?? '',
-      })),
+      reviews: rows.map((row) => {
+        const kitchen = kitchens.get(row.kitchenId);
+        return {
+          ...withId(row),
+          // A moderation queue without kitchen names is a list of orphan
+          // paragraphs — the kitchen is half of what makes a review judgeable.
+          kitchenName: kitchen?.name ?? '',
+          kitchenRating: kitchen?.rating ?? 0,
+          kitchenReviewCount: kitchen?.reviewCount ?? 0,
+        };
+      }),
       total,
+      counts: { hidden, low, average: visible[0]?.avg ?? null },
     };
   });
 
@@ -1163,6 +1221,63 @@ export async function operationRoutes(app: FastifyInstance) {
    * `people` counts distinct customers, which is what stops one person
    * hammering a word from looking like a market.
    */
+  app.get('/search-terms/:term', async (request, reply) => {
+    const actor = await require(request, reply, 'kitchen.read');
+    if (!actor) return;
+
+    const { term } = request.params as { term: string };
+    const raw = decodeURIComponent(term).trim();
+    if (!raw) return { meals: [], kitchens: [], products: [], dishes: [] };
+
+    /* Escaped before it becomes a RegExp: a term is whatever a customer typed
+       into a search box, and people type brackets and plus signs. */
+    const needle = new RegExp(raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+
+    const [meals, kitchens, products, dishes] = await Promise.all([
+      Meal.find({ $or: [{ title: needle }, { description: needle }] })
+        .sort({ createdAt: -1 })
+        .limit(15)
+        .lean(),
+      Kitchen.find({ $or: [{ name: needle }, { area: needle }] })
+        .select({ name: 1, area: 1, isVerified: 1 })
+        .sort({ name: 1 })
+        .limit(15)
+        .lean(),
+      Product.find({ $or: [{ name: needle }, { description: needle }] })
+        .sort({ name: 1 })
+        .limit(15)
+        .lean(),
+      Dish.find({ name: needle }).limit(15).lean(),
+    ]);
+
+    /* The owners behind the rows, so every hit links somewhere. One read for
+       the kitchens and one for the stores rather than one per row. */
+    const kitchenIds = [...meals, ...dishes].map((row) => row.kitchenId);
+    const owners = await kitchensByIds(kitchenIds);
+
+    const stores = await Store.find({ _id: { $in: products.map((p) => p.storeId) } })
+      .select({ name: 1 })
+      .lean()
+      .catch(() => []);
+    const byStore = new Map(stores.map((s) => [String(s._id), s.name]));
+
+    return {
+      meals: meals.map((row) => ({
+        ...withId(row),
+        kitchenName: owners.get(row.kitchenId)?.name ?? row.cookName ?? '',
+      })),
+      kitchens: kitchens.map(withId),
+      products: products.map((row) => ({
+        ...withId(row),
+        storeName: byStore.get(row.storeId) ?? '',
+      })),
+      dishes: dishes.map((row) => ({
+        ...withId(row),
+        kitchenName: owners.get(row.kitchenId)?.name ?? '',
+      })),
+    };
+  });
+
   app.get('/search-terms', async (request, reply) => {
     const actor = await require(request, reply, 'kitchen.read');
     if (!actor) return;
@@ -1782,9 +1897,17 @@ export async function operationRoutes(app: FastifyInstance) {
       where.kitchenId = null;
     }
 
-    const [rows, total] = await Promise.all([
+    const [rows, total, kinds, unreadCustomer, unreadCook, zones] = await Promise.all([
       Notification.find(where).sort({ at: -1 }).skip(query.skip).limit(query.take).lean(),
       Notification.countDocuments(where),
+      /* The filter's own options, unnarrowed by the active filter: a dropdown
+         reduced to the kind you already picked cannot get you back out of it. */
+      Notification.distinct('kind'),
+      Notification.countDocuments({ audience: 'customer', read: false }),
+      Notification.countDocuments({ audience: 'cook', read: false }),
+      /* The areas a broadcast can be aimed at. Active only — offering a
+         retired zone would compose a message nobody is in. */
+      Zone.find({ active: true }).select({ name: 1 }).sort({ name: 1 }).lean(),
     ]);
 
     return {
@@ -1793,6 +1916,12 @@ export async function operationRoutes(app: FastifyInstance) {
         broadcast: !row.customerKey && !row.kitchenId,
       })),
       total,
+      facets: {
+        kinds: (kinds as string[]).filter(Boolean).sort((a, b) => a.localeCompare(b)),
+        unreadCustomer,
+        unreadCook,
+        zones: zones.map((z) => z.name).filter(Boolean),
+      },
     };
   });
 
