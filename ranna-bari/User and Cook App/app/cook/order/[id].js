@@ -319,9 +319,11 @@ export default function CookOrderScreen() {
                 shadow.sm,
               ]}
             >
+              {/* Same as the board: a line id is optional, so it cannot be
+                 the key. */}
               {order.items.map((it, i) => (
                 <View
-                  key={it.id}
+                  key={`${it.name}-${i}`}
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',

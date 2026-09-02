@@ -267,9 +267,14 @@ function OrderCard({ order, onOpen }) {
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={{ flexDirection: 'row' }}>
+            {/* An order line carries no id of its own — the shape is
+                { name, price, qty, image?, id? } and the id only survives when
+                the line came from a listed dish. Name and position together
+                are unique and stable for a list that never reorders, which is
+                the same key the request lists already use. */}
             {order.items.slice(0, 3).map((it, k) => (
               <Image
-                key={it.id}
+                key={`${it.name}-${k}`}
                 source={{ uri: it.image }}
                 contentFit="cover"
                 transition={150}
