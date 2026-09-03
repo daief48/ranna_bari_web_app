@@ -1,6 +1,5 @@
 import Link from 'next/link';
 
-import { db } from '@/lib/db';
 import { BackendError, get } from '@/lib/backend';
 import { taka, timeAgo } from '@/lib/format';
 import { ORDER_KINDS } from '@/lib/domain';

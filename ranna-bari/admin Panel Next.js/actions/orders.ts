@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { db } from '@/lib/db';
 import { BackendError, post } from '@/lib/backend';
 import { requireCapability } from '@/lib/auth';
 import { audit } from '@/lib/audit';
