@@ -56,7 +56,20 @@ import { post } from '../src/logic/ledger.js';
 import { DEFAULT_FLAGS, DEFAULT_SETTINGS } from '../src/logic/settings.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const APP_DATA = join(HERE, '..', '..', 'User and Cook App', 'src', 'data');
+/*
+ * The seed owns its source data now.
+ *
+ * These three files used to be read out of the app bundle, because the app
+ * shipped its kitchen directory as JSON and the seed wanted the same records.
+ * The app is 100% live-backend now — it has no bundled data at all — so
+ * reading from it broke the seed outright.
+ *
+ * They live here instead, recovered from the commit that removed them. Seed
+ * fixtures belong to the seed: the app must not carry a second copy of the
+ * catalogue, and the seed must not depend on a directory whose whole purpose
+ * was to stop existing.
+ */
+const FIXTURES = join(HERE, 'fixtures');
 
 type Chef = {
   id: number;
@@ -81,7 +94,7 @@ type DishRow = { id: string; name: string; description: string; price: number; i
 type ReviewDoc = { id: number; chefId: number; name: string; avatar: string; area: string; date: string; rating: number; text: string };
 
 const readJson = <T>(file: string): T =>
-  JSON.parse(readFileSync(join(APP_DATA, file), 'utf8')) as T;
+  JSON.parse(readFileSync(join(FIXTURES, file), 'utf8')) as T;
 
 /* ---- deterministic randomness ---- */
 

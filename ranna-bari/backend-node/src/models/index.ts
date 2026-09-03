@@ -660,9 +660,21 @@ const reviewSchema = new Schema(
   opts,
 );
 
-/* One review per order. Sparse so the seeded reviews, which have no order,
-   do not all collide on a single null. */
-reviewSchema.index({ orderId: 1 }, { unique: true, sparse: true });
+/*
+ * One review per order — among the reviews that *have* an order.
+ *
+ * This was sparse first, which was wrong: sparse skips documents where the
+ * field is absent, and the field defaults to null here, so every review
+ * without an order was still indexed and the second one collided. A seed
+ * writing sixteen of them found that immediately.
+ *
+ * Partial on the type instead. Only reviews carrying a real order id are
+ * indexed, which is exactly the set the rule is about.
+ */
+reviewSchema.index(
+  { orderId: 1 },
+  { unique: true, partialFilterExpression: { orderId: { $type: 'string' } } },
+);
 
 export const Review = model('Review', reviewSchema);
 
