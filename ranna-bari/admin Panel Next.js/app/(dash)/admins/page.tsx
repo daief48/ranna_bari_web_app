@@ -12,6 +12,8 @@ import {
   EmptyRow,
 } from '@/components/ui';
 import { AdminRow, NewAdmin } from './rows';
+import { SearchBox, FilterSelect } from '@/components/ui/client';
+import { matches, queryOf } from '@/lib/queries';
 import { requirePage } from '@/lib/guard';
 
 export const metadata = { title: 'Admin users · RannaBari Admin' };
@@ -42,10 +44,17 @@ type AdminRowData = {
  * The writes moved with it. Splitting them would be worse either way round:
  * operators nobody can edit, or new ones nobody can see.
  */
-export default async function AdminsPage() {
+export default async function AdminsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   await requirePage('kitchen.read');
+  const params = await searchParams;
   const user = await currentUser();
   const isSuper = can(user?.role ?? '', '*');
+
+  const q = queryOf(params);
 
   let admins: AdminRowData[];
   try {
@@ -61,6 +70,15 @@ export default async function AdminsPage() {
     }
     throw error;
   }
+
+  /* Narrowed here rather than by the endpoint: /admins returns every
+     operator on the platform, which is a list of a dozen. */
+  const shown = admins.filter(
+    (a) =>
+      matches(q, a.name, a.email, a.role) &&
+      (!params.role || a.role === params.role) &&
+      (!params.state || (params.state === 'active') === a.active),
+  );
 
   return (
     <>
@@ -78,9 +96,35 @@ export default async function AdminsPage() {
         decorative.
       </GapNote>
 
-      <Card pad={false} title="Operators">
+      <Card
+        pad={false}
+        title="Operators"
+        subtitle={
+          shown.length === admins.length
+            ? undefined
+            : `${shown.length} of ${admins.length}`
+        }
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <SearchBox placeholder="Name or email…" />
+            <FilterSelect
+              name="role"
+              allLabel="Any role"
+              options={ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] ?? r }))}
+            />
+            <FilterSelect
+              name="state"
+              allLabel="Any state"
+              options={[
+                { value: 'active', label: 'Active' },
+                { value: 'disabled', label: 'Disabled' },
+              ]}
+            />
+          </div>
+        }
+      >
         <Table head={['Operator', 'Role', 'State', 'Last signed in', 'Audit rows', 'Actions']}>
-          {admins.map((admin) => (
+          {shown.map((admin) => (
             <AdminRow
               key={admin.id}
               id={admin.id}
@@ -94,7 +138,11 @@ export default async function AdminsPage() {
               canManage={isSuper}
             />
           ))}
-          {admins.length === 0 ? <EmptyRow span={6}>No operators.</EmptyRow> : null}
+          {shown.length === 0 ? (
+            <EmptyRow span={6}>
+              {admins.length ? 'No operator matches that.' : 'No operators.'}
+            </EmptyRow>
+          ) : null}
         </Table>
       </Card>
 

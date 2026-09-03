@@ -10,6 +10,8 @@ import {
   Table,
 } from '@/components/ui';
 import { requirePage } from '@/lib/guard';
+import { SearchBox, FilterSelect } from '@/components/ui/client';
+import { matches, queryOf } from '@/lib/queries';
 
 import { CoverageMap, type Kitchen, type Point } from './CoverageMap';
 
@@ -37,8 +39,14 @@ type Coverage = {
  * The interesting thing on this page is the absence: a customer sitting
  * outside every circle, or an area people search from and never order in.
  */
-export default async function CoveragePage() {
+export default async function CoveragePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   await requirePage('kitchen.read');
+  const params = await searchParams;
+  const q = queryOf(params);
 
   let data: Coverage;
   try {
@@ -57,6 +65,14 @@ export default async function CoveragePage() {
 
   const { kitchens, customers, misses, summary } = data;
   const uncovered = misses.filter((m) => !m.hasKitchen);
+
+  /* The terms are searched as well as the area: an operator hunting for
+     "biryani" wants every area that asked for it, not an area called that. */
+  const shown = misses.filter(
+    (m) =>
+      matches(q, m.area, m.terms) &&
+      (!params.covered || (params.covered === 'yes') === m.hasKitchen),
+  );
 
   return (
     <>
@@ -91,10 +107,27 @@ export default async function CoveragePage() {
       <Card
         pad={false}
         title="Asked for, and not found"
-        subtitle="Where people searched and the catalogue had nothing — the supply gap, by area"
+        subtitle={
+          shown.length === misses.length
+            ? 'Where people searched and the catalogue had nothing — the supply gap, by area'
+            : `${shown.length} of ${misses.length} areas`
+        }
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <SearchBox placeholder="Area or search term…" />
+            <FilterSelect
+              name="covered"
+              allLabel="Anywhere"
+              options={[
+                { value: 'no', label: 'No kitchen there' },
+                { value: 'yes', label: 'Has a kitchen' },
+              ]}
+            />
+          </div>
+        }
       >
         <Table head={['Area', 'Empty searches', 'What they wanted', 'Has a kitchen']}>
-          {misses.map((miss) => (
+          {shown.map((miss) => (
             <tr key={miss.area || 'unknown'}>
               <td className="max-w-[240px] truncate font-medium">
                 {miss.area || <span className="text-ink3">Not given</span>}

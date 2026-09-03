@@ -23,6 +23,7 @@ import {
   LinkButton,
 } from '@/components/ui';
 import { KitchenControls } from './controls';
+import { KycDecision } from '../../kyc/decision';
 import { requirePage } from '@/lib/guard';
 
 export const dynamic = 'force-dynamic';
@@ -90,6 +91,11 @@ type KitchenView = {
     coverImage: string | null;
     photos: string[] | null;
     specialty: string;
+    /** The rest of what they cook — the multi-select, beside the primary. */
+    specialties: string[] | null;
+    rating: number;
+    reviewCount: number;
+    accountId: string | null;
     description: string;
     tags: unknown;
     ecoBadge: string;
@@ -144,10 +150,14 @@ async function loadKitchen(id: string): Promise<KitchenView | null> {
       kitchen: {
         ...k,
         id: remote.kitchen.id,
-        /* No linked account on this endpoint. Null rather than invented: the
-           panel shows "not linked", which is honest, instead of blank fields
-           that read as missing data. */
-        account: null as { name: string; phone: string | null; email: string | null; nid: string | null } | null,
+        /* The owner, joined by the endpoint. This was hardcoded null with
+           a comment saying the endpoint did not provide it — which was true,
+           and stopped being true the moment it did. A mapper that overrides a
+           real field with null is invisible: the type still fits, the page
+           still renders, and it quietly claims every cook is a seeded row. */
+        account: (remote.kitchen.account ?? null) as
+          | { name: string; phone: string | null; email: string | null; nid: string | null }
+          | null,
         store: remote.store
           ? { ...remote.store, _count: { products: remote.store.productCount } }
           : null,
@@ -198,7 +208,19 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
   const tags = Array.isArray(kitchen.tags)
     ? (kitchen.tags as string[])
     : parseJson<string[]>(String(kitchen.tags ?? ''), []);
+  /* The primary first and never twice: `specialty` is one of `specialties`
+     on a kitchen registered since the picker went multi-select, and one that
+     registered before it has only the primary. */
+  const specialties = [
+    kitchen.specialty,
+    ...(Array.isArray(kitchen.specialties) ? kitchen.specialties : []),
+  ].filter((s, i, all) => s && all.indexOf(s) === i);
+
   const canWrite = can(user?.role ?? '', 'kitchen.write');
+  /* Its own capability, and not `kitchen.write`: deciding whether somebody
+     may cook for strangers is a different permission from editing their
+     delivery radius, and the backend already separates them. */
+  const canDecideKyc = can(user?.role ?? '', 'kyc.decide');
 
   return (
     <>
@@ -283,18 +305,30 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
 
           <p className="mb-3 text-[12.5px] leading-relaxed text-ink2">{kitchen.description}</p>
 
-          <Field label="Verified">
-            {kitchen.isVerified ? <Badge tone="good">Yes</Badge> : <Badge tone="warn">No</Badge>}
+          <div className="label mb-1.5">Submitted by the cook</div>
+          <Field label="Owner">{kitchen.ownerName || '—'}</Field>
+          <Field label="Cooks best">
+            <span className="flex flex-wrap justify-end gap-1">
+              {specialties.length ? (
+                specialties.map((s) => <Badge key={s}>{s}</Badge>)
+              ) : (
+                <span className="text-ink3">none chosen</span>
+              )}
+            </span>
           </Field>
-          <Field label="Open now">
-            {kitchen.isOpen ? <Badge tone="info">Open</Badge> : <Badge>Closed</Badge>}
+          <Field label="Area">
+            <span className="text-right text-[12px] text-ink2">{kitchen.area || '—'}</span>
           </Field>
+          <Field label="Delivery radius">{kitchen.deliveryRadiusKm} km</Field>
           <Field label="Coordinates">
+            {/* The pin the cook dropped at signup. A kitchen without one
+                cannot be matched to a delivery radius at all, so 0,0 is
+                worth seeing rather than hiding behind a formatter. */}
             <span className="tnum text-[12px] text-ink2">
               {kitchen.lat.toFixed(4)}, {kitchen.lng.toFixed(4)}
             </span>
           </Field>
-          <Field label="Eco badge">{kitchen.ecoBadge}</Field>
+          <Field label="Eco badge">{kitchen.ecoBadge || '—'}</Field>
           <Field label="Tags">
             <span className="flex flex-wrap justify-end gap-1">
               {tags.length ? (
@@ -303,6 +337,30 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
                 <span className="text-ink3">none</span>
               )}
             </span>
+          </Field>
+
+          <div className="label mt-3 mb-1.5">Platform</div>
+          <Field label="Verified badge">
+            {kitchen.isVerified ? <Badge tone="good">Yes</Badge> : <Badge tone="warn">No</Badge>}
+          </Field>
+          <Field label="Open now">
+            {kitchen.isOpen ? <Badge tone="info">Open</Badge> : <Badge>Closed</Badge>}
+          </Field>
+          <Field label="Rating">
+            {kitchen.reviewCount ? (
+              <span className="tnum">
+                {kitchen.rating.toFixed(1)} · {kitchen.reviewCount}{' '}
+                {kitchen.reviewCount === 1 ? 'review' : 'reviews'}
+              </span>
+            ) : (
+              <span className="text-ink3">not rated yet</span>
+            )}
+          </Field>
+          <Field label="Registered">{fmtDate(kitchen.createdAt)}</Field>
+          {/* How you tell a kitchen that was set up and abandoned from one
+              somebody is actually running. */}
+          <Field label="Last edited">
+            {kitchen.updatedAt ? timeAgo(kitchen.updatedAt) : '—'}
           </Field>
         </Card>
 
@@ -328,9 +386,34 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
               {kitchen.kycNote ? <Field label="Note">{kitchen.kycNote}</Field> : null}
             </>
           ) : (
-            <p className="text-[13px] text-ink3">
-              No account is linked to this kitchen — it came from the seeded directory
-              rather than from a signup.
+            <>
+              <Field label="KYC status">
+                <StatusBadge status={kitchen.kycStatus} />
+              </Field>
+              <p className="mt-2 text-[12.5px] leading-relaxed text-ink3">
+                No account is linked to this kitchen — it came from the seeded
+                directory rather than from a signup, so there are no documents to
+                check.
+              </p>
+            </>
+          )}
+
+          {/* Outside the account branch on purpose.
+
+              It used to sit inside it, which meant a kitchen whose owner
+              failed to load could not be approved at all — the decision is
+              about the kitchen, and it must not depend on a join. */}
+          {canDecideKyc ? (
+            <div className="mt-3 border-t border-line2 pt-3">
+              <KycDecision
+                kitchenId={kitchen.id}
+                name={kitchen.name}
+                status={kitchen.kycStatus}
+              />
+            </div>
+          ) : (
+            <p className="mt-3 border-t border-line2 pt-3 text-[11.5px] leading-relaxed text-ink3">
+              Approving a kitchen needs the <code>kyc.decide</code> capability.
             </p>
           )}
         </Card>

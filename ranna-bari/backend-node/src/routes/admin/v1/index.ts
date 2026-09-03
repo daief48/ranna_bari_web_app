@@ -1107,8 +1107,29 @@ export async function adminRoutes(app: FastifyInstance) {
       ? await Product.countDocuments({ storeId: String(store._id) })
       : 0;
 
+    /*
+     * The owner, for the KYC panel.
+     *
+     * `nid` is selected here and nowhere a customer can reach — the same
+     * four fields the KYC queue joins, under the same rule: KYC only, never
+     * on a customer-facing endpoint.
+     *
+     * A kitchen with no `accountId` is genuinely one of the seeded
+     * directory rows, and null is the honest answer for those.
+     */
+    const account = kitchen.accountId
+      ? await Account.findById(kitchen.accountId)
+          .select({ name: 1, phone: 1, email: 1, nid: 1 })
+          .lean()
+          .catch(() => null)
+      : null;
+
     return {
-      kitchen: { ...kitchen, id: String(kitchen._id) },
+      kitchen: {
+        ...kitchen,
+        id: String(kitchen._id),
+        account: account ? { ...account, id: String(account._id) } : null,
+      },
       store: store ? { ...store, id: String(store._id), productCount } : null,
       dishes: dishes.map((d) => ({ ...d, id: String(d._id) })),
       orders: orders.map((o) => ({ ...o, id: String(o._id) })),

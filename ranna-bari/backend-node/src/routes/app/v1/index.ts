@@ -440,7 +440,14 @@ export async function appRoutes(app: FastifyInstance) {
         ownerName: kitchen.ownerName,
         avatar: kitchen.avatar,
         coverImage: kitchen.coverImage,
+        /* The cook's own gallery. Returned here and not on the public chefs
+           list: this is one kitchen, read by the person who owns it, and it
+           is the only screen that can edit the set. */
+        photos: kitchen.photos ?? [],
         specialty: kitchen.specialty,
+        /* The rest of the multi-select, beside the primary. Without it the
+           picker reopens showing one tick out of the five they chose. */
+        specialties: kitchen.specialties ?? [],
         description: kitchen.description,
         rating: kitchen.rating,
         reviewCount: kitchen.reviewCount,

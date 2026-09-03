@@ -20,6 +20,8 @@ import { BackendDown, down } from '@/components/backend-down';
 import { RunActions } from './actions';
 import { createPayoutRun } from '@/actions/money';
 import { requirePage } from '@/lib/guard';
+import { SearchBox, FilterSelect } from '@/components/ui/client';
+import { matches, queryOf } from '@/lib/queries';
 
 export const metadata = { title: 'Payouts · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
@@ -52,8 +54,14 @@ type PayoutsView = {
   }[];
 };
 
-export default async function PayoutsPage() {
+export default async function PayoutsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   await requirePage('ledger.read');
+  const params = await searchParams;
+  const q = queryOf(params);
   const user = await currentUser();
   const canPay = can(user?.role ?? '', 'payout.write');
 
@@ -68,6 +76,14 @@ export default async function PayoutsPage() {
   }
 
   const { owed, due, carried, paidEver, minimum, runs } = data;
+
+  /* `carried` means under the minimum and rolled to the next run, which is
+     the one distinction that decides whether a row needs attention today. */
+  const shownOwed = owed.filter(
+    (r) =>
+      matches(q, r.kitchenName, r.area) &&
+      (!params.carried || (params.carried === 'yes') === r.carried),
+  );
 
   return (
     <>
@@ -120,11 +136,30 @@ export default async function PayoutsPage() {
       <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Card
           title="Owed to cooks right now"
-          subtitle="Folded live from the ledger, not stored anywhere"
+          subtitle={
+            shownOwed.length > 20
+              ? `Showing 20 of ${shownOwed.length} — search to reach the rest`
+              : shownOwed.length === owed.length
+                ? 'Folded live from the ledger, not stored anywhere'
+                : `${shownOwed.length} of ${owed.length} cooks`
+          }
           pad={false}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <SearchBox placeholder="Kitchen or area…" />
+              <FilterSelect
+                name="carried"
+                allLabel="All"
+                options={[
+                  { value: 'no', label: 'Payable now' },
+                  { value: 'yes', label: 'Under the minimum' },
+                ]}
+              />
+            </div>
+          }
         >
           <Table head={['Kitchen', 'Area', 'Owed', '']}>
-            {owed.slice(0, 20).map((row) => (
+            {shownOwed.slice(0, 20).map((row) => (
               <RowLink key={row.kitchenId} href={`/kitchens/${row.kitchenId}`}>
                 <td className="max-w-[200px] truncate">
                   <Link

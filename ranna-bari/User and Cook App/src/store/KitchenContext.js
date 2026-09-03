@@ -124,7 +124,10 @@ export function kitchenFromAccount(account) {
        used to be the stock cover unconditionally, so a kitchen picture
        picked during registration was thrown away before it reached the
        server. */
-    coverImage: account?.coverImage || FALLBACK_COVER,
+    /* The first photograph they chose, exactly as the registration screen
+       said it would be — "the first one is your cover". The stock picture is
+       the fallback for a kitchen that has none, not the default. */
+    coverImage: account?.coverImage || account?.photos?.[0] || FALLBACK_COVER,
     /* The rest of the gallery. Registration is where these are chosen and
        this is the only path they travel, so dropping them here loses them. */
     photos: account?.photos ?? [],
@@ -285,7 +288,26 @@ export function KitchenProvider({ children }) {
       if (existing) return existing;
 
       const { dishes, nextDishSeq, createdAt, id, ...draft } = kitchenFromAccount(account);
-      const out = await save(draft);
+      let out = await save(draft);
+
+      /*
+       * A gallery that will not fit is still a kitchen worth creating.
+       *
+       * The body limit refuses the whole request, so a cook whose five
+       * photographs came to more than the server accepts used to end up with
+       * no kitchen at all and no explanation. Retrying without the pictures
+       * gets them trading; the photographs can be added from the panel,
+       * which is a far better outcome than a dead sign-up.
+       */
+      if (!out.ok && (draft.photos ?? []).length) {
+        out = await save({ ...draft, photos: [], coverImage: undefined });
+        if (out.ok) {
+          console.warn(
+            'RannaBari: the kitchen photos were too large to upload and were not saved.',
+          );
+        }
+      }
+
       if (!out.ok) return null;
 
       /* The starter menu is what stops a new kitchen from being one that

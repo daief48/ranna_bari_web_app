@@ -15,6 +15,8 @@ import {
   Table,
 } from '@/components/ui';
 import { requirePage } from '@/lib/guard';
+import { SearchBox, FilterSelect } from '@/components/ui/client';
+import { matches, queryOf } from '@/lib/queries';
 
 export const metadata = { title: 'Pre-orders · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
@@ -52,8 +54,14 @@ function waited(hours: number) {
  * Oldest first, because the age is the problem. Anything past a couple of days
  * is money the platform is holding for a question nobody is answering.
  */
-export default async function PreordersPage() {
+export default async function PreordersPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   await requirePage('order.read');
+  const params = await searchParams;
+  const q = queryOf(params);
 
   let rows: Preorder[] = [];
   let held = 0;
@@ -73,6 +81,15 @@ export default async function PreordersPage() {
     }
     throw error;
   }
+
+  /* The wait is the whole reason this queue exists — somebody's money is
+     held while a shop has not answered — so it is the filter beside search. */
+  const minWait = Number(params.waiting ?? 0) || 0;
+  const shown = rows.filter(
+    (r) =>
+      matches(q, r.title, r.cookName, r.customerName, r.code, r.customerKey) &&
+      r.waitingHours >= minWait,
+  );
 
   const stale = rows.filter((r) => r.waitingHours >= 48);
   const oldest = rows[0]?.waitingHours ?? 0;
@@ -99,10 +116,29 @@ export default async function PreordersPage() {
       <Card
         pad={false}
         title="Unanswered"
-        subtitle="Accepting takes the stock; declining returns the money in full"
+        subtitle={
+          shown.length === rows.length
+            ? 'Accepting takes the stock; declining returns the money in full'
+            : `${shown.length} of ${rows.length} waiting`
+        }
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <SearchBox placeholder="Item, shop or customer…" />
+            <FilterSelect
+              name="waiting"
+              allLabel="Any wait"
+              label="Waiting"
+              options={[
+                { value: '24', label: 'over a day' },
+                { value: '72', label: 'over 3 days' },
+                { value: '168', label: 'over a week' },
+              ]}
+            />
+          </div>
+        }
       >
         <Table head={['Waiting', 'Item', 'Shop', 'Customer', 'Held', 'Asked']}>
-          {rows.map((row) => (
+          {shown.map((row) => (
             <tr key={row.id}>
               <td>
                 <Badge tone={row.waitingHours >= 48 ? 'bad' : row.waitingHours >= 24 ? 'warn' : 'neutral'}>

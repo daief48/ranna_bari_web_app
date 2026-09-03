@@ -310,6 +310,60 @@ function KitchenForm({ kitchen }) {
             </View>
           </Reveal>
 
+          {/* ---- Kitchen photos ----
+              The gallery a customer scrolls, and the one an operator
+              approves the kitchen on. Registration collects these and, until
+              now, nothing could touch them again. */}
+          <Reveal delay={2}>
+            <View style={{ marginTop: 28 }}>
+              <SectionHeader
+                lead={t('KITCHEN')}
+                accent={t('PHOTOS')}
+                subtitle={t('The photos you gave when you registered.')}
+              />
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                  marginTop: 14,
+                }}
+              >
+                {(kitchen.photos ?? []).map((uri) => (
+                  <Image
+                    key={uri}
+                    source={{ uri }}
+                    contentFit="cover"
+                    transition={150}
+                    style={{
+                      width: 96,
+                      height: 96,
+                      borderRadius: radius.lg,
+                      backgroundColor: colors.sunken,
+                      borderWidth: 1,
+                      borderColor: colors.line,
+                    }}
+                  />
+                ))}
+
+              </View>
+
+              {(kitchen.photos ?? []).length === 0 ? (
+                <Text
+                  style={{
+                    marginTop: 10,
+                    fontFamily: font.ui,
+                    fontSize: type.xs,
+                    color: colors.textMuted,
+                  }}
+                >
+                  {t('No photos on this kitchen. Contact support to change them.')}
+                </Text>
+              ) : null}
+            </View>
+          </Reveal>
+
           {/* ---- Details ----
               A link to its own page rather than a panel that folded open
               here. Everything behind it is set once and then rarely touched,

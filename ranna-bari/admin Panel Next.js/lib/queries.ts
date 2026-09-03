@@ -279,3 +279,39 @@ export function paging(searchParams: Record<string, string | undefined>) {
 }
 
 export const pageCount = (total: number) => Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+/* ------------------------------------------------------------------ *
+ * filtering a list the page already holds
+ * ------------------------------------------------------------------ */
+
+/**
+ * Match a row against a typed query, over the fields worth searching.
+ *
+ * For the handful of pages whose endpoint returns a whole bounded list rather
+ * than a filtered page — operators, abandoned baskets, coverage gaps, payouts
+ * owed, pre-orders. Those tables were the only ones on the console with no
+ * way to narrow them at all, and adding a `q` parameter to five backend
+ * routes to filter at most a few hundred rows the page is already holding
+ * would be the wrong trade.
+ *
+ * Case- and space-insensitive, and matches on *any* field rather than all:
+ * somebody typing into a search box is naming one thing they remember, not
+ * building a conjunction.
+ *
+ * Null and undefined are skipped rather than stringified — `String(null)`
+ * makes every row with a missing name match the query "null".
+ */
+export function matches(query: string, ...fields: unknown[]): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+
+  return fields.some((field) => {
+    if (field == null) return false;
+    if (Array.isArray(field)) return field.some((f) => matches(q, f));
+    return String(field).toLowerCase().includes(q);
+  });
+}
+
+/** The `q` param, trimmed. Empty string when absent, which `matches` passes. */
+export const queryOf = (searchParams: Record<string, string | undefined>) =>
+  (searchParams.q ?? '').trim();

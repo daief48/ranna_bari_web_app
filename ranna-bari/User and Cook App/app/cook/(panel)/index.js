@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
@@ -145,6 +146,114 @@ export default function CookDashboard() {
               : t('{name} is closed. Nothing can be ordered.', { name: kitchen.name })
           }
         />
+
+        {/* ---- The shopfront ----
+            What a customer sees, on the screen the cook starts on. Tapping
+            anything here goes to the page that edits it rather than editing
+            in place: two editors for one gallery is how they disagree. */}
+        <Reveal delay={1}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('Your kitchen photos')}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              router.push('/cook/kitchen');
+            }}
+            style={({ pressed }) => [
+              {
+                marginTop: 4,
+                marginBottom: 18,
+                borderRadius: 24,
+                overflow: 'hidden',
+                backgroundColor: colors.surfaceSolid,
+                borderWidth: 1,
+                borderColor: pressed ? colors.primary200 : colors.line,
+              },
+            ]}
+          >
+            <View style={{ height: 92 }}>
+              <Image
+                source={{ uri: kitchen.coverImage }}
+                contentFit="cover"
+                transition={200}
+                style={{ width: '100%', height: '100%', backgroundColor: colors.sunken }}
+              />
+              <LinearGradient
+                colors={['transparent', `rgba(${colors.scrim}, 0.5)`]}
+                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13 }}>
+              <Image
+                source={{ uri: kitchen.avatar }}
+                contentFit="cover"
+                transition={200}
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 15,
+                  marginTop: -34,
+                  borderWidth: 2.5,
+                  borderColor: colors.surfaceSolid,
+                  backgroundColor: colors.sunken,
+                }}
+              />
+
+              {/* The gallery itself, as far as it fits. Four is what a 412pt
+                  phone holds beside the avatar without the row wrapping. */}
+              <View style={{ flex: 1, flexDirection: 'row', gap: 6, minWidth: 0 }}>
+                {(kitchen.photos ?? []).slice(0, 4).map((uri) => (
+                  <Image
+                    key={uri}
+                    source={{ uri }}
+                    contentFit="cover"
+                    transition={150}
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 11,
+                      backgroundColor: colors.sunken,
+                      borderWidth: 1,
+                      borderColor: colors.line,
+                    }}
+                  />
+                ))}
+
+                {/* Said plainly. A cook whose photographs never saved sees an
+                    empty strip and no reason, which is exactly the state this
+                    platform was in for every kitchen on it. */}
+                {(kitchen.photos ?? []).length === 0 ? (
+                  <Text
+                    style={{
+                      fontFamily: font.ui,
+                      fontSize: type.xs,
+                      color: colors.textMuted,
+                      alignSelf: 'center',
+                    }}
+                  >
+                    {t('No kitchen photos yet')}
+                  </Text>
+                ) : null}
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                {(kitchen.photos ?? []).length > 4 ? (
+                  <Text
+                    style={{
+                      fontFamily: font.uiSemi,
+                      fontSize: type.xs,
+                      color: colors.textMuted,
+                    }}
+                  >
+                    +{n((kitchen.photos ?? []).length - 4)}
+                  </Text>
+                ) : null}
+                <Icon name="chevronRight" size={15} color={colors.textMuted} />
+              </View>
+            </View>
+          </Pressable>
+        </Reveal>
 
         {/* ---- The shutter ----
             Everything else on this screen is a readout. This is the one

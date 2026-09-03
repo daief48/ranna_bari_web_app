@@ -23,6 +23,21 @@ export async function buildApp(): Promise<FastifyInstance> {
   const env = loadEnv();
 
   const app = Fastify({
+    /*
+     * Big enough for a kitchen gallery.
+     *
+     * Photographs are stored as data URIs inside the document — there is no
+     * bucket on this platform, and `logic/icons.ts` settled that question
+     * the same way. Five downscaled phone photographs are about a megabyte,
+     * which is exactly Fastify's default, so registration was posting a body
+     * the framework refused before any handler saw it. The cook was told
+     * nothing and kept whichever subset a later, smaller request managed.
+     *
+     * Not unlimited: Mongo will refuse a document over 16MB, and accepting a
+     * body that cannot possibly be stored only moves the failure somewhere
+     * harder to explain.
+     */
+    bodyLimit: 24 * 1024 * 1024,
     logger:
       env.NODE_ENV === 'test'
         ? false

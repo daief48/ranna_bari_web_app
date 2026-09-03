@@ -14,6 +14,8 @@ import {
   Table,
 } from '@/components/ui';
 import { requirePage } from '@/lib/guard';
+import { SearchBox, FilterSelect } from '@/components/ui/client';
+import { matches, queryOf } from '@/lib/queries';
 
 export const metadata = { title: 'Abandoned baskets · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
@@ -49,8 +51,14 @@ const daysSince = (at: string | null) =>
  * Sorted by the most recently touched, because a basket abandoned an hour ago
  * is a conversation worth having and one abandoned in March is archaeology.
  */
-export default async function CartsPage() {
+export default async function CartsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   await requirePage('order.read');
+  const params = await searchParams;
+  const q = queryOf(params);
 
   let rows: Cart[] = [];
   let total = 0;
@@ -70,6 +78,15 @@ export default async function CartsPage() {
     }
     throw error;
   }
+
+  /* A basket is chased by ringing somebody, so the search covers the name
+     and the number as well as what they left in it. `worth` is a floor and
+     not a band: the question is always "which are big enough to be worth a
+     call", never "which are between five hundred and a thousand". */
+  const floor = Number(params.worth ?? 0) || 0;
+  const shown = rows.filter(
+    (r) => matches(q, r.name, r.phone, r.customerKey, r.sample) && r.value >= floor,
+  );
 
   const value = rows.reduce((sum, row) => sum + row.value, 0);
   const stale = rows.filter((row) => daysSince(row.updatedAt) >= 7);
@@ -106,10 +123,29 @@ export default async function CartsPage() {
       <Card
         pad={false}
         title="Left behind"
-        subtitle="Most recently touched first — the freshest are the ones worth a call"
+        subtitle={
+          shown.length === rows.length
+            ? 'Most recently touched first — the freshest are the ones worth a call'
+            : `${shown.length} of ${rows.length} baskets`
+        }
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <SearchBox placeholder="Name, phone or dish…" />
+            <FilterSelect
+              name="worth"
+              allLabel="Any value"
+              label="Worth"
+              options={[
+                { value: '500', label: '৳500+' },
+                { value: '1000', label: '৳1,000+' },
+                { value: '2000', label: '৳2,000+' },
+              ]}
+            />
+          </div>
+        }
       >
         <Table head={['Last touched', 'Customer', 'In the basket', 'Items', 'Worth', 'Started']}>
-          {rows.map((row) => {
+          {shown.map((row) => {
             const age = daysSince(row.updatedAt);
             return (
               <tr key={row.id}>
