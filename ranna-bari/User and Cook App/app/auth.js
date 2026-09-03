@@ -1894,61 +1894,72 @@ function SpecialtyPicker({ value, onChange }) {
                 borderBottomColor: colors.line2,
               }}
             >
-              {chosen.map((s, i) => (
-                <Pressable
-                  key={s}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    i === 0
-                      ? `${t(s)} — ${t('shown on your card')}`
-                      : `${t('Make {name} your main specialty', { name: t(s) })}`
-                  }
-                  onPress={() => makeMain(s)}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 6,
-                    paddingVertical: 5,
-                    paddingLeft: 10,
-                    paddingRight: 4,
-                    borderRadius: radius.pill,
-                    backgroundColor: i === 0 ? colors.primary : colors.primary50,
-                    borderWidth: 1,
-                    borderColor: i === 0 ? colors.primary : colors.primary100,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: font.uiSemi,
-                      fontSize: 12.5,
-                      color: i === 0 ? colors.onPrimary : colors.primary,
-                    }}
-                  >
-                    {t(s)}
-                  </Text>
+              {chosen.map((s, i) => {
+                const main = i === 0;
+                const ink = main ? colors.onPrimary : colors.primary;
 
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t('Remove {name}', { name: t(s) })}
-                    onPress={() => toggle(s)}
-                    hitSlop={8}
+                /* Two siblings in a View, never one button inside another:
+                   nesting them renders as a nested <button> on web, and on a
+                   phone it makes "which half did I hit" a question a thumb
+                   has to answer. */
+                return (
+                  <View
+                    key={s}
                     style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 9,
+                      flexDirection: 'row',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      borderRadius: radius.pill,
+                      backgroundColor: main ? colors.primary : colors.primary50,
+                      borderWidth: 1,
+                      borderColor: main ? colors.primary : colors.primary100,
+                      overflow: 'hidden',
                     }}
                   >
-                    <Icon
-                      name="x"
-                      size={11}
-                      strokeWidth={2.5}
-                      color={i === 0 ? colors.onPrimary : colors.primary}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        main
+                          ? `${t(s)} — ${t('shown on your card')}`
+                          : t('Make {name} your main specialty', { name: t(s) })
+                      }
+                      onPress={() => makeMain(s)}
+                      style={({ pressed }) => ({
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <Text style={{ fontFamily: font.uiSemi, fontSize: 12.5, color: ink }}>
+                        {t(s)}
+                      </Text>
+                    </Pressable>
+
+                    {/* A hairline, so the two targets are visible rather than
+                        guessed at. */}
+                    <View
+                      style={{
+                        width: 1,
+                        alignSelf: 'stretch',
+                        backgroundColor: main ? 'rgba(255,255,255,0.35)' : colors.primary100,
+                      }}
                     />
-                  </Pressable>
-                </Pressable>
-              ))}
+
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('Remove {name}', { name: t(s) })}
+                      onPress={() => toggle(s)}
+                      hitSlop={6}
+                      style={({ pressed }) => ({
+                        paddingVertical: 6,
+                        paddingHorizontal: 8,
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <Icon name="x" size={11} strokeWidth={2.5} color={ink} />
+                    </Pressable>
+                  </View>
+                );
+              })}
             </View>
           ) : null}
 
