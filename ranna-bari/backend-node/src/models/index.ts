@@ -43,15 +43,6 @@ const accountSchema = new Schema(
      * `addresses` is selected — one place to read, one place to choose.
      */
     area: { type: String, default: null },
-    /**
-     * Whether this account agreed to hear about new meals by text.
-     *
-     * Off by default and never inferred from anything else. A notification in
-     * the app is something a customer opened the app to see; a text message
-     * arrives whether they wanted it or not, costs per send, and gets a sender
-     * number blocked if enough people never asked for it.
-     */
-    smsOptIn: { type: Boolean, default: false },
     lat: { type: Number, default: null },
     lng: { type: Number, default: null },
     addressDetail: { type: String, default: null },
