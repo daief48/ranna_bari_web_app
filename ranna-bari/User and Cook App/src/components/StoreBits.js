@@ -567,6 +567,33 @@ export function StoreCard({ store, km, products, onPress, onSave, saved = false 
               </>
             ) : null}
           </View>
+
+          {/* Free delivery, on the card rather than only inside the shop.
+             Five of sixteen shops offer it and a customer could not find out
+             without opening one — which is the wrong way round for the only
+             thing on this platform that makes an order cheaper. */}
+          {store.freeDeliveryOver ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                alignSelf: 'flex-start',
+                gap: 5,
+                marginTop: 5,
+                paddingVertical: 3,
+                paddingHorizontal: 8,
+                borderRadius: radius.pill,
+                backgroundColor: colors.sage50,
+              }}
+            >
+              <Icon name="delivery" size={11} color={colors.sage} />
+              <Text
+                style={{ fontFamily: font.uiSemi, fontSize: 10.5, color: colors.sage }}
+              >
+                {t('Free delivery over ৳{n}', { n: n(store.freeDeliveryOver) })}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
     </Pressable>

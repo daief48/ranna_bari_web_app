@@ -47,7 +47,12 @@ export default function NewRequest() {
   const incoming = typeof params.cook === 'string' ? params.cook : null;
 
   const [target, setTarget] = useState(incoming ?? 'all');
-  const [title, setTitle] = useState('');
+  /* Prefilled when this was reached from a search that found nothing: the
+     customer already typed what they wanted once, and asking again is how a
+     good prompt turns into an abandoned form. */
+  const [title, setTitle] = useState(
+    typeof params.title === 'string' ? params.title : '',
+  );
   /* The lines added so far. The box above holds whatever is being typed. */
   const [items, setItems] = useState([]);
   const [details, setDetails] = useState('');

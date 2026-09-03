@@ -1377,6 +1377,56 @@ export default function BrowseScreen() {
                 </View>
               </>
             ) : null}
+
+            {/* Nothing on the platform matches, and no filter would bring it
+               back. The search log is full of these — kacchi, মাংস, Khichuri
+               & Beef Bhuna — and until now every one of them ended here, at a
+               dead end, when a whole request system was sitting one screen
+               away waiting for exactly this. */}
+            {!relaxations.length && query.trim() ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('Ask a cook to make {q}', { q: query.trim() })}
+                onPress={() =>
+                  router.push({ pathname: '/requests/new', params: { title: query.trim() } })
+                }
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 11,
+                  marginTop: 16,
+                  padding: 14,
+                  borderRadius: radius.md,
+                  backgroundColor: pressed ? colors.primary100 : colors.primary50,
+                  borderWidth: 1,
+                  borderColor: colors.primary100,
+                })}
+              >
+                <Icon name="sparkles" size={18} color={colors.primary} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text
+                    style={{ fontFamily: font.uiBold, fontSize: 14, color: colors.text }}
+                  >
+                    {t('Ask a cook to make it')}
+                  </Text>
+                  <Text
+                    numberOfLines={2}
+                    style={{
+                      marginTop: 2,
+                      fontFamily: font.ui,
+                      fontSize: type.xs,
+                      color: colors.textMuted,
+                    }}
+                  >
+                    {t(
+                      'Nobody lists “{q}” yet. Post it and cooks near you can offer a price.',
+                      { q: query.trim() },
+                    )}
+                  </Text>
+                </View>
+                <Icon name="arrowRight" size={16} color={colors.primary} />
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
       </Container>

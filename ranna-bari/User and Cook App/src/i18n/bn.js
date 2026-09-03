@@ -164,6 +164,10 @@ export const bn = {
   'Use my location': 'আমার অবস্থান নিন',
   /* The location picker: area chips, zoom, and the empty-pin prompt. */
   'Jump to {area}': '{area} এ যান',
+  'Free delivery over ৳{n}': '৳{n} এর উপরে ফ্রি ডেলিভারি',
+  'Ask a cook to make it': 'কোনো রাঁধুনিকে বানাতে বলুন',
+  'Ask a cook to make {q}': '{q} বানাতে বলুন',
+  'Nobody lists “{q}” yet. Post it and cooks near you can offer a price.': '“{q}” এখনো কেউ রাখে না। পোস্ট করুন, কাছের রাঁধুনিরা দাম বলবে।',
   'Zoom in': 'কাছে আনুন',
   'Zoom out': 'দূরে নিন',
   'Drag the map to place your pin': 'পিন বসাতে ম্যাপ সরান',
