@@ -18,7 +18,6 @@ import { font, radius } from '../theme/tokens';
 import { useLang } from '../i18n/LanguageContext';
 
 const LOGO_LIGHT = require('../../assets/logo.png');
-const LOGO_DARK = require('../../assets/logo-dark.png');
 
 /*
  * The screen is measured during render, not when this file is imported.
@@ -354,14 +353,23 @@ export default function ModernLoader({
             style={[
               styles.potCard,
               {
-                backgroundColor: isDark ? '#1E2620' : '#FFFFFF',
+                /* White in both themes. The mark is a line drawing with a
+                   white interior, so a dark card left the figure with nothing
+                   behind its strokes and it read as a dark square with
+                   something orange in it. A logo is a fixed artefact rather
+                   than a surface — it should look the same to everybody
+                   instead of adapting to the room. */
+                backgroundColor: '#FFFFFF',
                 borderColor: isDark ? 'rgba(217, 119, 6, 0.45)' : 'rgba(199, 56, 26, 0.2)',
                 transform: [{ translateY: potBounce }],
               },
             ]}
           >
             <Image
-              source={isDark ? LOGO_DARK : LOGO_LIGHT}
+              /* The card is white in both themes now, so the light-ground
+                 artwork is right in both. The dark variant is drawn in a
+                 brighter orange for contrast against black and washes out. */
+              source={LOGO_LIGHT}
               style={{
                 width: 66,
                 height: 66,

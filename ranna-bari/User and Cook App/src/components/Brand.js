@@ -8,7 +8,6 @@ import { font } from '../theme/tokens';
 import { useLang } from '../i18n/LanguageContext';
 
 const LOGO_LIGHT = require('../../assets/logo.png');
-const LOGO_DARK = require('../../assets/logo-dark.png');
 
 /**
  * Modern, high-end brand lockup.
@@ -44,10 +43,10 @@ export default function Brand({ size, markSize = 36, markOnly = false }) {
             overflow: 'hidden',
             alignItems: 'center',
             justifyContent: 'center',
-            /* A vermilion wash in both themes now. Light always had one;
-               dark used a neutral white, which over a green-black bar read
-               grey-green and left the warm mark with nothing around it that
-               belonged to it. */
+            /* A near-white plate in dark, a faint vermilion wash in light.
+               The mark is a line drawing with a white interior, so it needs a
+               light ground to read at all — see the palette for why this is
+               the one place a light plate belongs in the dark theme. */
             backgroundColor: colors.glassMark,
             borderWidth: 1,
             borderColor: colors.glassMarkEdge,
@@ -56,7 +55,11 @@ export default function Brand({ size, markSize = 36, markOnly = false }) {
         ]}
       >
         <Image
-          source={isDark ? LOGO_DARK : LOGO_LIGHT}
+          /* The badge is a light plate in both themes now, so the light-ground
+             artwork is the right one in both. The dark variant is drawn in a
+             brighter orange for contrast against black and reads washed out
+             on white. */
+          source={LOGO_LIGHT}
           style={{
             width: markSize,
             height: markSize,

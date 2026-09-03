@@ -184,8 +184,22 @@ const dark = {
   glassLine: 'rgba(236, 234, 225, 0.13)',
   glassFill: 'rgba(236, 234, 225, 0.06)',
   glassEdge: 'rgba(236, 234, 225, 0.10)',
-  glassMark: 'rgba(239, 106, 61, 0.16)',
-  glassMarkEdge: 'rgba(239, 106, 61, 0.30)',
+  /*
+   * The mark sits on white in dark mode.
+   *
+   * A vermilion wash at 16% over a near-black bar is, in practice, black —
+   * and the logo is a line drawing whose whole subject is drawn in thin
+   * strokes with a white interior. On a dark badge those strokes had nothing
+   * behind them and the figure disappeared; what read at a glance was a dark
+   * square with something orange in it.
+   *
+   * White gives the drawing the ground it was drawn for. It is also the one
+   * place in the dark theme where a light plate is right: a logo is a fixed
+   * artefact, not a surface, and it should look the same to everybody rather
+   * than adapt to the room.
+   */
+  glassMark: '#FFFFFF',
+  glassMarkEdge: 'rgba(255, 255, 255, 0.42)',
 
   surfaceSolid: '#1A211C',
   surfaceHover: '#232B25',
