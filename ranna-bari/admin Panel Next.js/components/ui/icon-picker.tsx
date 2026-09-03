@@ -2,6 +2,60 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+/** How big an uploaded icon is allowed to be, in pixels. */
+const ICON_MAX = 128;
+
+/**
+ * An image file, as a value this platform can store.
+ *
+ * There is no upload endpoint anywhere in this codebase — every image field
+ * holds a URL — so rather than invent storage, buckets and credentials for
+ * pictures drawn at 18px, the file becomes the value: downscaled onto a
+ * canvas and exported as a PNG data URI.
+ *
+ * The downscale is the point, not a nicety. It bounds what anybody can put in
+ * the database regardless of what they picked: a 4MB camera JPEG and a 2KB
+ * PNG both come out a few kilobytes.
+ *
+ * Contained, never cropped — an icon centre-cropped to a square has usually
+ * lost the thing that made it recognisable. PNG because transparency is what
+ * makes an icon sit on any background.
+ */
+export async function fileToIconValue(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('That is not an image.');
+  }
+
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('That image could not be read.'));
+      el.src = url;
+    });
+
+    /* An SVG with no intrinsic size draws as 0×0 and yields a blank canvas,
+       which would be filed as a perfectly valid invisible icon. */
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    if (!w || !h) throw new Error('That image has no size the browser can read.');
+
+    const scale = Math.min(ICON_MAX / w, ICON_MAX / h, 1);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * scale));
+    canvas.height = Math.max(1, Math.round(h * scale));
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('This browser cannot resize images.');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    return canvas.toDataURL('image/png');
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export type LibraryIcon = {
   id: string;
   value: string;
@@ -21,7 +75,9 @@ export type LibraryIcon = {
 export function IconGlyph({ value, size = 18 }: { value: string; size?: number }) {
   if (!value) return <span className="text-ink3">—</span>;
 
-  if (/^https?:\/\//i.test(value)) {
+  /* A data URI counts too — an uploaded icon is stored as one, and without
+     this it would render as several kilobytes of base64 printed as text. */
+  if (/^(?:https?:\/\/|data:image\/)/i.test(value)) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
@@ -163,6 +219,30 @@ export function IconPicker({
                 placeholder="🥣  or  https://…/icon.png"
                 className="min-w-0 flex-1 rounded-[8px] border border-line bg-sunken px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-primary-200"
               />
+              <label
+                title="Upload an image"
+                className="shrink-0 cursor-pointer rounded-[8px] border border-line px-2.5 py-1.5 text-[12px] font-semibold text-ink2 hover:border-primary-200 hover:text-primary"
+              >
+                Upload
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file) return;
+                    try {
+                      onChange(await fileToIconValue(file));
+                      setOpen(false);
+                    } catch {
+                      /* The field keeps whatever it had; the library page is
+                         where uploading is the main job and says why. */
+                    }
+                  }}
+                />
+              </label>
+
               <button
                 type="button"
                 disabled={!custom.trim()}

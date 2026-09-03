@@ -55,9 +55,17 @@ const shape = (row: Row): IconRow => ({
   retired: row.retired,
 });
 
-/** A URL is an image; anything else is a character. */
+/**
+ * A URL or a data URI is an image; anything else is a character.
+ *
+ * The data case is the uploaded one. Nothing in this platform has anywhere to
+ * put an uploaded file — every image field holds a URL and there is no bucket
+ * — so the panel downscales a chosen file onto a canvas and stores the PNG
+ * inline. For something drawn at 18px that is a few kilobytes, which is a
+ * better trade than inventing storage for it.
+ */
 const kindOf = (value: string): 'emoji' | 'image' =>
-  /^https?:\/\//i.test(value.trim()) ? 'image' : 'emoji';
+  /^(?:https?:\/\/|data:image\/)/i.test(value.trim()) ? 'image' : 'emoji';
 
 /**
  * The starting library.

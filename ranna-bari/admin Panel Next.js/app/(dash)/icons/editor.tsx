@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 
 import { addIcon, renameIcon, retireIcon } from '@/actions/platform';
 import { ActionButton } from '@/components/ui/client';
-import { IconGlyph, type LibraryIcon } from '@/components/ui/icon-picker';
+import { IconGlyph, fileToIconValue, type LibraryIcon } from '@/components/ui/icon-picker';
 
 const INPUT =
   'rounded-[9px] border border-line bg-raised px-2.5 py-1.5 text-[13px] text-ink ' +
@@ -27,6 +27,7 @@ export function IconLibrary({
 }) {
   const [value, setValue] = useState('');
   const [label, setLabel] = useState('');
+  const [note, setNote] = useState('');
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -55,11 +56,36 @@ export function IconLibrary({
             className={`${INPUT} min-w-0 flex-1`}
             aria-label="Search words"
           />
+          {/* A file, for when the platform wants its own artwork rather than
+              whatever a reader's phone draws for 🔥. */}
+          <label className="cursor-pointer rounded-[9px] border border-line px-2.5 py-1.5 text-[12.5px] font-semibold text-ink2 hover:border-primary-200 hover:text-primary">
+            Upload
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                /* Cleared straight away so choosing the same file twice still
+                   fires a change event. */
+                e.target.value = '';
+                if (!file) return;
+                try {
+                  setNote('');
+                  setValue(await fileToIconValue(file));
+                } catch (error) {
+                  setNote(error instanceof Error ? error.message : 'That file could not be read.');
+                }
+              }}
+            />
+          </label>
+
           <ActionButton
             action={async () => {
               const out = await addIcon(value, label);
               setValue('');
               setLabel('');
+              setNote('');
               return out;
             }}
             variant="ghost"
@@ -67,6 +93,18 @@ export function IconLibrary({
           >
             Add
           </ActionButton>
+
+          {/* What is about to be added, at the size it will actually be
+              drawn. A 128px source that turns out to be illegible at 18 is
+              worth seeing before it joins the library. */}
+          {value ? (
+            <span className="flex items-center gap-2 text-[11.5px] text-ink3">
+              <IconGlyph value={value} size={18} />
+              {value.startsWith('data:') ? 'uploaded image' : null}
+            </span>
+          ) : null}
+
+          {note ? <span className="w-full text-[11.5px] text-primary">{note}</span> : null}
         </div>
       ) : null}
 
