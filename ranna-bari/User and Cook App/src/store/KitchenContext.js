@@ -83,6 +83,9 @@ export function kitchenFromAccount(account) {
        picked during registration was thrown away before it reached the
        server. */
     coverImage: account?.coverImage || FALLBACK_COVER,
+    /* The rest of the gallery. Registration is where these are chosen and
+       this is the only path they travel, so dropping them here loses them. */
+    photos: account?.photos ?? [],
     specialty,
     description:
       'A home kitchen on RannaBari. Cooked to order, packed the moment it is ready.',

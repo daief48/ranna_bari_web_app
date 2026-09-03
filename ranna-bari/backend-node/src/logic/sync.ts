@@ -82,6 +82,7 @@ export async function registerKitchen(
     ownerName?: string;
     avatar?: string;
     coverImage?: string;
+    photos?: string[];
     specialty?: string;
     description?: string;
     tags?: string[];
@@ -118,6 +119,9 @@ export async function registerKitchen(
     ownerName: kitchen.ownerName?.trim() || existing?.ownerName || caller.name || name,
     avatar: kitchen.avatar ?? existing?.avatar ?? '',
     coverImage: kitchen.coverImage ?? existing?.coverImage ?? '',
+    /* Replaced wholesale, not merged: the cook's screen sends the gallery it
+       is showing, so a removal has to be able to remove. */
+    photos: kitchen.photos ?? existing?.photos ?? [],
     specialty: kitchen.specialty ?? existing?.specialty ?? 'Traditional Heritage',
     description: kitchen.description ?? existing?.description ?? '',
     tags: kitchen.tags ?? existing?.tags ?? [],

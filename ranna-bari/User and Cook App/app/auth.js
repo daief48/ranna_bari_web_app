@@ -124,9 +124,10 @@ export default function AuthScreen() {
   const [kitchen, setKitchen] = useState('');
   const [specialty, setSpecialty] = useState(SPECIALTIES[0]);
   const [nid, setNid] = useState(param('nid', ''));
-  /* The room the food is cooked in. Optional here, and the one thing on this
-     form an operator can actually look at when deciding. */
-  const [kitchenPhoto, setKitchenPhoto] = useState('');
+  /* The room the food is cooked in — as many views of it as the cook wants.
+     Optional here, and the one thing on this form an operator can actually
+     look at when deciding. */
+  const [kitchenPhotos, setKitchenPhotos] = useState([]);
   const [terms, setTerms] = useState(false);
 
   /*
@@ -173,12 +174,24 @@ export default function AuthScreen() {
               [kitchen, 'kitchen name'],
               [specialty, 'specialty'],
               [nid, 'National ID'],
+              /* A kitchen with no picture cannot be approved: it is the only
+                 evidence on this form about where the food is cooked. Joined
+                 so the empty list reads as a missing field to the check
+                 below, which tests strings. */
+              [kitchenPhotos.join(''), 'kitchen photo'],
             ]
           : []),
       ];
 
       if (required.some(([v]) => !String(v).trim())) {
-        setDetailsNote(t('Fill in the highlighted fields to continue.'));
+        /* The photo is not a text input and nothing about it highlights, so
+           "fill in the highlighted fields" would send a cook hunting through
+           the form for a box that is already filled. */
+        setDetailsNote(
+          role === 'cook' && !kitchenPhotos.length
+            ? t('Add at least one photo of your kitchen to continue.')
+            : t('Fill in the highlighted fields to continue.'),
+        );
         return;
       }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
@@ -249,10 +262,11 @@ export default function AuthScreen() {
         email: email.trim(),
         kitchen: kitchen.trim(),
         specialty,
-        /* The kitchen banner, if they picked one. Empty string rather than
-           undefined so registerKitchen falls back to the stored value instead
-           of writing a blank over an existing picture. */
-        coverImage: kitchenPhoto || undefined,
+        /* The first picture is the banner and the whole set is the gallery.
+           Undefined rather than empty so registerKitchen falls back to what is
+           stored instead of writing a blank over an existing picture. */
+        coverImage: kitchenPhotos[0] || undefined,
+        photos: kitchenPhotos.length ? kitchenPhotos : undefined,
         area: place.address,
         lat: place.lat,
         lng: place.lng,
@@ -662,8 +676,8 @@ export default function AuthScreen() {
                   setSpecialty,
                   nid,
                   setNid,
-                  kitchenPhoto,
-                  setKitchenPhoto,
+                  kitchenPhotos,
+                  setKitchenPhotos,
                   terms,
                   setTerms,
                   detail,
@@ -1101,8 +1115,8 @@ function SignUpView({
                 />
 
                 <KitchenPhotoField
-                  value={fields.kitchenPhoto}
-                  onChange={fields.setKitchenPhoto}
+                  value={fields.kitchenPhotos}
+                  onChange={fields.setKitchenPhotos}
                 />
               </>
             ) : null}
@@ -1578,14 +1592,20 @@ function PasswordStrength({ level }) {
  * to that shape at pick time rather than letting the card do it later — a cook
  * choosing the picture should see what customers will see.
  *
- * Refusing photo access is not an error state. It leaves the field empty and
- * says so, because this step is optional and a permission dialog is not a
- * reason to lose a registration.
+ * At least one is required — it is the only evidence on this form about where
+ * the food is actually cooked, and an operator cannot approve a kitchen
+ * without seeing it.
+ *
+ * Refusing photo access still is not an error state: the field says what it
+ * needs and the cook can grant access and come back. A permission dialog is
+ * not a reason to throw away everything else they typed.
  */
 function KitchenPhotoField({ value, onChange }) {
   const { colors } = useTheme();
-  const { t } = useLang();
+  const { t, n } = useLang();
   const [note, setNote] = useState('');
+
+  const photos = Array.isArray(value) ? value : [];
 
   const pick = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -1593,63 +1613,148 @@ function KitchenPhotoField({ value, onChange }) {
       setNote(t('RannaBari needs photo access to add a kitchen picture.'));
       return;
     }
+    /* Multiple in one go, and no cropping: a gallery is a set of views of a
+       room, and forcing each through a 3:1 crop would make every one of them
+       a banner. The first is used as the banner and the card crops it there,
+       where the shape is actually needed. */
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      /* The same 3:1 banner the kitchen card uses. */
-      aspect: [3, 1],
+      allowsMultipleSelection: true,
       quality: 0.8,
     });
-    if (!res.canceled && res.assets?.[0]?.uri) {
-      setNote('');
-      onChange(res.assets[0].uri);
-    }
+    if (res.canceled) return;
+
+    const picked = (res.assets ?? []).map((a) => a.uri).filter(Boolean);
+    if (!picked.length) return;
+
+    setNote('');
+    /* Appended, and de-duplicated: opening the picker twice and tapping the
+       same photograph should not put it in the list twice. */
+    onChange([...photos, ...picked.filter((uri) => !photos.includes(uri))]);
   };
+
+  const removeAt = (index) => onChange(photos.filter((_, i) => i !== index));
 
   return (
     <View style={{ marginTop: 14 }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('Add a photo of your kitchen')}
-        onPress={pick}
-        style={({ pressed }) => ({
-          height: 104,
-          borderRadius: radius.sm,
-          borderWidth: 1,
-          borderStyle: value ? 'solid' : 'dashed',
-          borderColor: value ? colors.line : colors.primary200,
-          backgroundColor: colors.sunken,
-          overflow: 'hidden',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-          opacity: pressed ? 0.85 : 1,
-        })}
-      >
-        {value ? (
-          <Image source={{ uri: value }} contentFit="cover" style={{ width: '100%', height: '100%' }} />
-        ) : (
-          <>
-            <Icon name="chefHat" size={22} color={colors.primary} />
-            <Text
-              style={{
-                fontFamily: font.uiSemi,
-                fontSize: type.xs,
-                color: colors.textMuted,
-              }}
-            >
-              {t('Add a photo of your kitchen (optional)')}
-            </Text>
-          </>
-        )}
-      </Pressable>
-
-      {value ? (
-        <Pressable onPress={pick} hitSlop={8} style={{ alignSelf: 'flex-start', marginTop: 8 }}>
-          <Text style={{ fontFamily: font.uiSemi, fontSize: type.xs, color: colors.primary }}>
-            {t('Choose a different photo')}
+      {photos.length === 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('Add photos of your kitchen')}
+          onPress={pick}
+          style={({ pressed }) => ({
+            height: 104,
+            borderRadius: radius.sm,
+            borderWidth: 1,
+            borderStyle: 'dashed',
+            borderColor: colors.primary200,
+            backgroundColor: colors.sunken,
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            opacity: pressed ? 0.85 : 1,
+          })}
+        >
+          <Icon name="chefHat" size={22} color={colors.primary} />
+          <Text style={{ fontFamily: font.uiSemi, fontSize: type.xs, color: colors.textMuted }}>
+            {t('Add photos of your kitchen')}
           </Text>
         </Pressable>
+      ) : (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {photos.map((uri, i) => (
+            <View key={uri} style={{ width: 92, height: 92 }}>
+              <Image
+                source={{ uri }}
+                contentFit="cover"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: radius.xs,
+                  borderWidth: 1,
+                  borderColor: colors.line,
+                }}
+              />
+              {/* The first is the banner, and saying so is the difference
+                  between an ordered list and an arbitrary one. */}
+              {i === 0 ? (
+                <View
+                  style={{
+                    position: 'absolute',
+                    left: 4,
+                    bottom: 4,
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    borderRadius: radius.pill,
+                    backgroundColor: colors.primary,
+                  }}
+                >
+                  <Text
+                    style={{ fontFamily: font.uiBold, fontSize: 9, color: colors.onPrimary }}
+                  >
+                    {t('COVER')}
+                  </Text>
+                </View>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('Remove this photo')}
+                onPress={() => removeAt(i)}
+                hitSlop={8}
+                style={{
+                  position: 'absolute',
+                  top: -6,
+                  right: -6,
+                  width: 22,
+                  height: 22,
+                  borderRadius: 11,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: colors.surfaceSolid,
+                  borderWidth: 1,
+                  borderColor: colors.line,
+                }}
+              >
+                <Icon name="x" size={12} color={colors.textMuted} />
+              </Pressable>
+            </View>
+          ))}
+
+          {/* No ceiling on purpose — a cook with twelve views of their kitchen
+              should be able to show twelve. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('Add more photos')}
+            onPress={pick}
+            style={({ pressed }) => ({
+              width: 92,
+              height: 92,
+              borderRadius: radius.xs,
+              borderWidth: 1,
+              borderStyle: 'dashed',
+              borderColor: colors.primary200,
+              backgroundColor: colors.sunken,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: pressed ? 0.85 : 1,
+            })}
+          >
+            <Icon name="plus" size={20} color={colors.primary} />
+          </Pressable>
+        </View>
+      )}
+
+      {photos.length ? (
+        <Text
+          style={{
+            marginTop: 8,
+            fontFamily: font.ui,
+            fontSize: type.xs,
+            color: colors.textLight,
+          }}
+        >
+          {t('{n} added · the first one is your cover', { n: n(photos.length) })}
+        </Text>
       ) : null}
 
       {note ? (

@@ -166,7 +166,20 @@ const kitchenSchema = new Schema(
     name: { type: String, required: true },
     ownerName: { type: String, default: '' },
     avatar: { type: String, default: '' },
+    /**
+     * The banner. Kept as its own field rather than reading photos[0],
+     * because every card, list and share preview already draws it and a cook
+     * reordering their gallery should not silently change what customers see.
+     */
     coverImage: { type: String, default: '' },
+    /**
+     * The rest of the kitchen, as many as the cook wants to show.
+     *
+     * One picture was a KYC document — evidence for an operator. A gallery is
+     * a different thing: it is what a customer scrolls before deciding to
+     * order, so it is unbounded by intent.
+     */
+    photos: { type: [String], default: [] },
     specialty: { type: String, default: '' },
     description: { type: String, default: '' },
 
