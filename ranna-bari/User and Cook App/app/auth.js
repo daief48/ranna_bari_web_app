@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -123,6 +124,9 @@ export default function AuthScreen() {
   const [kitchen, setKitchen] = useState('');
   const [specialty, setSpecialty] = useState(SPECIALTIES[0]);
   const [nid, setNid] = useState(param('nid', ''));
+  /* The room the food is cooked in. Optional here, and the one thing on this
+     form an operator can actually look at when deciding. */
+  const [kitchenPhoto, setKitchenPhoto] = useState('');
   const [terms, setTerms] = useState(false);
 
   /*
@@ -245,6 +249,10 @@ export default function AuthScreen() {
         email: email.trim(),
         kitchen: kitchen.trim(),
         specialty,
+        /* The kitchen banner, if they picked one. Empty string rather than
+           undefined so registerKitchen falls back to the stored value instead
+           of writing a blank over an existing picture. */
+        coverImage: kitchenPhoto || undefined,
         area: place.address,
         lat: place.lat,
         lng: place.lng,
@@ -654,6 +662,8 @@ export default function AuthScreen() {
                   setSpecialty,
                   nid,
                   setNid,
+                  kitchenPhoto,
+                  setKitchenPhoto,
                   terms,
                   setTerms,
                   detail,
@@ -1088,6 +1098,11 @@ function SignUpView({
                 <FieldHint
                   icon="shieldCheck"
                   text="Encrypted at rest and used once, for the verification badge. It is never shown to customers."
+                />
+
+                <KitchenPhotoField
+                  value={fields.kitchenPhoto}
+                  onChange={fields.setKitchenPhoto}
                 />
               </>
             ) : null}
@@ -1556,6 +1571,103 @@ function PasswordStrength({ level }) {
  * A select is never empty, so the float label would sit on top of the value;
  * the CSS pins it up permanently. Same here: the label always rides high.
  */
+/**
+ * One photograph of the kitchen.
+ *
+ * Shown as the wide banner it will become on the kitchen's card, and cropped
+ * to that shape at pick time rather than letting the card do it later — a cook
+ * choosing the picture should see what customers will see.
+ *
+ * Refusing photo access is not an error state. It leaves the field empty and
+ * says so, because this step is optional and a permission dialog is not a
+ * reason to lose a registration.
+ */
+function KitchenPhotoField({ value, onChange }) {
+  const { colors } = useTheme();
+  const { t } = useLang();
+  const [note, setNote] = useState('');
+
+  const pick = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      setNote(t('RannaBari needs photo access to add a kitchen picture.'));
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      /* The same 3:1 banner the kitchen card uses. */
+      aspect: [3, 1],
+      quality: 0.8,
+    });
+    if (!res.canceled && res.assets?.[0]?.uri) {
+      setNote('');
+      onChange(res.assets[0].uri);
+    }
+  };
+
+  return (
+    <View style={{ marginTop: 14 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('Add a photo of your kitchen')}
+        onPress={pick}
+        style={({ pressed }) => ({
+          height: 104,
+          borderRadius: radius.sm,
+          borderWidth: 1,
+          borderStyle: value ? 'solid' : 'dashed',
+          borderColor: value ? colors.line : colors.primary200,
+          backgroundColor: colors.sunken,
+          overflow: 'hidden',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
+          opacity: pressed ? 0.85 : 1,
+        })}
+      >
+        {value ? (
+          <Image source={{ uri: value }} contentFit="cover" style={{ width: '100%', height: '100%' }} />
+        ) : (
+          <>
+            <Icon name="chefHat" size={22} color={colors.primary} />
+            <Text
+              style={{
+                fontFamily: font.uiSemi,
+                fontSize: type.xs,
+                color: colors.textMuted,
+              }}
+            >
+              {t('Add a photo of your kitchen (optional)')}
+            </Text>
+          </>
+        )}
+      </Pressable>
+
+      {value ? (
+        <Pressable onPress={pick} hitSlop={8} style={{ alignSelf: 'flex-start', marginTop: 8 }}>
+          <Text style={{ fontFamily: font.uiSemi, fontSize: type.xs, color: colors.primary }}>
+            {t('Choose a different photo')}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {note ? (
+        <Text
+          style={{
+            marginTop: 8,
+            fontFamily: font.ui,
+            fontSize: type.xs,
+            color: colors.textMuted,
+          }}
+        >
+          {note}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 function SpecialtyPicker({ value, onChange }) {
   const { colors } = useTheme();
   const { t } = useLang();

@@ -78,7 +78,11 @@ export function kitchenFromAccount(account) {
     name: account?.kitchen?.trim() || account?.name?.trim() || 'My Kitchen',
     ownerName: account?.name?.trim() || '',
     avatar: account?.avatar || FALLBACK_AVATAR,
-    coverImage: FALLBACK_COVER,
+    /* The photograph the cook chose at sign-up, when they chose one. This
+       used to be the stock cover unconditionally, so a kitchen picture
+       picked during registration was thrown away before it reached the
+       server. */
+    coverImage: account?.coverImage || FALLBACK_COVER,
     specialty,
     description:
       'A home kitchen on RannaBari. Cooked to order, packed the moment it is ready.',
