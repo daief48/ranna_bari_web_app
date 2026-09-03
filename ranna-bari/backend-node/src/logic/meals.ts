@@ -1,6 +1,6 @@
 import type { ClientSession } from 'mongoose';
 
-import { Meal, MealInterest, Order, Product } from '../models/index.js';
+import { Account, Meal, MealInterest, Order, Product } from '../models/index.js';
 import { tx } from '../config/db.js';
 import {
   ERR,
@@ -14,6 +14,8 @@ import {
 } from '../lib/domain.js';
 import { deadlineFor, makeCode, taka, todayKey } from '../lib/format.js';
 import { balanceFor, post, refundEscrow, releaseEscrow } from './ledger.js';
+import { loadEnv } from '../config/env.js';
+import { sendSmsToMany } from '../lib/sms.js';
 import { notify } from './wallet.js';
 
 /**
@@ -270,6 +272,13 @@ export async function publishMeal(
         zone: draft.area || null,
         mealId,
       });
+
+      /* Queued, not sent, while a transaction is open. A gateway that takes
+         ten seconds must not hold the write, and a text that fails must not
+         roll back a meal the cook has already seen publish. */
+      textNearby(draft.area, draft.title, draft.price).catch((error: unknown) => {
+        console.warn('[sms] meal fan-out failed:', error);
+      });
     }
 
     return ok({ mealId, code, deadline });
@@ -284,6 +293,42 @@ export async function publishMeal(
  * think about: two devices closing at once must not both report success.
  * The moment lands in `updatedAt`; the app's `closedAt` has no column here.
  */
+/**
+ * Text the neighbours who asked to hear about new meals.
+ *
+ * Narrower than the in-app notification on purpose: consent, area, and a
+ * ceiling. A notification waits to be opened; a text interrupts, costs per
+ * send, and cannot be withdrawn.
+ *
+ * Silent when no provider is configured — `sendSms` logs and reports
+ * undelivered — so this is safe to run in development and on a deployment
+ * that has not bought a gateway yet.
+ */
+async function textNearby(area: string | undefined, title: string, price: number): Promise<void> {
+  if (!area) return;
+
+  const limit = loadEnv().SMS_MEAL_FANOUT_MAX;
+  if (limit <= 0) return;
+
+  const neighbours = await Account.find({
+    area,
+    smsOptIn: true,
+    phone: { $ne: null },
+    role: { $ne: 'cook' },
+  })
+    .select({ phone: 1 })
+    .limit(limit)
+    .lean()
+    .catch(() => []);
+
+  const numbers = neighbours.map((a) => a.phone).filter((p): p is string => !!p);
+  if (!numbers.length) return;
+
+  const text = `RannaBari: ${title} is available near you today — ৳${price}. Open the app to book a plate.`;
+  const out = await sendSmsToMany(numbers, text);
+  console.log(`[sms] meal in ${area}: ${out.sent} sent, ${out.failed} failed`);
+}
+
 export async function closeMeal(args: {
   mealId: string;
   /** The kitchen acting, when a cook drives this. Omitted for an operator. */

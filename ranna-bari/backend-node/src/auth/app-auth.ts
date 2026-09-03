@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 
 import { Account, AppSession, Kitchen, OtpChallenge } from '../models/index.js';
 import { loadEnv, smsIsLive } from '../config/env.js';
+import { sendSms } from '../lib/sms.js';
 
 const scrypt = promisify(_scrypt) as (
   password: string,
@@ -132,11 +133,17 @@ export async function requestOtp(
   });
 
   if (smsIsLive()) {
-    // A real provider goes here. Failing to send must fail the request rather
-    // than leaving somebody waiting for a code that was never sent.
-    throw new Error(
-      `SMS provider "${loadEnv().SMS_PROVIDER}" is not implemented yet.`,
-    );
+    /* Failing to send fails the request. Anything else leaves somebody
+       staring at a code entry box waiting for a message that is not coming,
+       and the code is already spent in the database either way. */
+    const out = await sendSms(phone, `${code} is your RannaBari code. It expires in ${OTP_TTL_MINUTES} minutes.`);
+    if (!out.ok) {
+      return { ok: false, error: 'We could not send the code. Please try again.' };
+    }
+    /* No devCode in the response once a provider is live — that field is the
+       development convenience, and returning it in production would hand the
+       code to anyone who can call the endpoint. */
+    return { ok: true, expiresAt };
   }
 
   console.log(`[otp] ${phone} → ${code} (dev mode; no SMS provider configured)`);

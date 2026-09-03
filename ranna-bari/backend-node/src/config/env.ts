@@ -48,7 +48,19 @@ const schema = z.object({
 
   /* Defaults to off so a missing variable fails closed: no provider means the
      dev branch, and the dev branch is the one that hands the code back. */
+  /*
+   * The SMS gateway, described rather than chosen. See lib/sms.ts — 'none'
+   * logs and reports undelivered, 'http' calls SMS_URL with SMS_BODY as a
+   * {to}/{text} template.
+   */
   SMS_PROVIDER: z.string().default('none'),
+  SMS_URL: z.string().default(''),
+  SMS_METHOD: z.string().default('POST'),
+  SMS_BODY: z.string().default(''),
+  SMS_AUTH: z.string().default(''),
+  SMS_CONTENT_TYPE: z.string().default('application/json'),
+  /** How many neighbours one published meal may text. Cost has a ceiling. */
+  SMS_MEAL_FANOUT_MAX: z.coerce.number().default(200),
 
   ADMIN_ORIGIN: z.string().default('http://localhost:3100'),
 });
