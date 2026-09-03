@@ -1,5 +1,6 @@
 import { Account, Kitchen, Order, type OrderDoc } from '../models/index.js';
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
+import { quotePromotion, redeem } from './promotions.js';
 import { balanceFor, post } from './ledger.js';
 import { tx } from '../config/db.js';
 import type { AppIdentity } from '../auth/app-auth.js';
@@ -174,6 +175,8 @@ export type OrderDraft = {
   image?: string;
   items?: { id?: string; name: string; price: number; qty: number; image?: string }[];
   subtotal?: number;
+  /** A promotion code the customer typed. Validated here, not trusted. */
+  promoCode?: string;
   deliveryFee?: number;
   platformFee?: number;
   total?: number;
@@ -281,21 +284,69 @@ export async function recordOrder(
   });
 
   if (payFromWallet) {
-    /* `fromRef` is the customer's key and not decoration: `balanceFor` folds
-       a debit only when it can see whose it was, so a hold posted without one
-       leaves the wallet reading as though nothing had been spent. */
-    await tx(async (session) =>
-      post(session, {
-        kind: 'hold',
-        amount: total,
-        from: 'customer',
-        to: 'held',
-        fromRef: caller.customerKey,
-        orderId: String(order._id),
-        note: `Held for ${order.title}`,
-        idemKey: `hold:${String(order._id)}`,
-      }),
-    );
+    const orderId = String(order._id);
+
+    /* Re-quoted against the order that was actually written, never trusting a
+       discount the device calculated. The same code checked on the checkout
+       screen a minute ago may since have expired, hit its limit, or been
+       switched off. */
+    const quote = draft.promoCode
+      ? await quotePromotion({
+          code: draft.promoCode,
+          customerKey: caller.customerKey,
+          amount: total,
+        })
+      : null;
+
+    const discount = quote?.ok ? quote.result.discount : 0;
+    const paid = total - discount;
+
+    await tx(async (session) => {
+      /* `fromRef` is the customer's key and not decoration: `balanceFor` folds
+         a debit only when it can see whose it was, so a hold posted without one
+         leaves the wallet reading as though nothing had been spent. */
+      if (paid > 0) {
+        await post(session, {
+          kind: 'hold',
+          amount: paid,
+          from: 'customer',
+          to: 'held',
+          fromRef: caller.customerKey,
+          orderId,
+          note: `Held for ${order.title}`,
+          idemKey: `hold:${orderId}`,
+        });
+      }
+
+      /* The platform's half. Escrow ends up holding the full gross, so the
+         release splits what the cook was promised and the discount lands
+         where it belongs — on the platform's own account. */
+      if (discount > 0 && quote?.ok) {
+        await post(session, {
+          kind: 'promo',
+          amount: discount,
+          from: 'platform',
+          to: 'held',
+          orderId,
+          note: `${quote.result.code} on ${order.title}`,
+          idemKey: `promo:${orderId}`,
+        });
+
+        await redeem(session, {
+          quote: quote.result,
+          customerKey: caller.customerKey,
+          orderId,
+        });
+
+        await Order.updateOne(
+          { _id: orderId },
+          { discount, promoCode: quote.result.code, paid },
+          { session },
+        );
+      } else {
+        await Order.updateOne({ _id: orderId }, { paid }, { session });
+      }
+    });
   }
 
   return ok({ orderId: String(order._id), code, created: true });

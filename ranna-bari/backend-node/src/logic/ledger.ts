@@ -296,12 +296,31 @@ export async function refundEscrow(
   const amount = Math.round(opts.amount ?? order.amount);
   if (amount <= 0 || amount > order.amount) return fail(ERR.BAD_AMOUNT);
 
+  /*
+   * A discounted order was funded by two parties, so it is unwound to two.
+   *
+   * Returning the whole hold to the customer would hand them the platform's
+   * discount as cash — they would be refunded more than they ever paid. The
+   * customer gets back what they paid; the platform takes back what it put in.
+   *
+   * Split in proportion so a partial refund behaves: half an order refunds
+   * half of each side. `paid` is null on everything ordered before promotions
+   * existed, which reads correctly as "the customer paid all of it".
+   */
+  const discount = Math.round(order.discount ?? 0);
+  const paidByCustomer = Math.round(order.paid ?? order.amount);
+  const share = order.amount > 0 ? amount / order.amount : 1;
+  const toPlatform = discount > 0 ? Math.round(discount * share) : 0;
+  /* The customer gets the remainder rather than its own rounded share, so the
+     two halves always add back to exactly what left escrow. */
+  const toCustomer = amount - toPlatform;
+
   const idemKey = `refund:${orderId}${opts.idemSuffix ? `:${opts.idemSuffix}` : ''}`;
   if (await alreadyPosted(session, idemKey)) return fail(ERR.ALREADY_SETTLED);
 
   const refunded = await post(session, {
     kind: 'refund',
-    amount,
+    amount: toCustomer,
     from: 'held',
     to: 'customer',
     toRef: order.customerKey,
@@ -311,6 +330,20 @@ export async function refundEscrow(
     idemKey,
   });
   if (!refunded.posted) return fail(ERR.ALREADY_SETTLED);
+
+  /* The platform takes back what it contributed. Posted after the customer
+     half and under its own key, so a retry cannot return it twice. */
+  if (toPlatform > 0) {
+    await post(session, {
+      kind: 'promo-return',
+      amount: toPlatform,
+      from: 'held',
+      to: 'platform',
+      orderId,
+      note: `${order.promoCode ?? 'Discount'} returned on refund`,
+      idemKey: `promo-return:${orderId}${opts.idemSuffix ? `:${opts.idemSuffix}` : ''}`,
+    });
+  }
 
   await Order.updateOne({ _id: orderId }, { payment: 'refunded' }, { session });
 
@@ -434,16 +467,30 @@ export async function reconcile() {
     commissions: sum('commission'),
     payouts: sum('payout'),
     adjustments: sum('adjustment'),
+    /* What the platform put into escrow to fund discounts, and what came
+       back when those orders were cancelled. */
+    promos: sum('promo'),
+    promoReturns: sum('promo-return'),
   };
 
   const expected: Balances = {
     // Customers hold what they topped up, less what is held, plus refunds.
     customer: totals.topups - totals.holds + totals.refunds,
-    // Escrow holds what went in less everything that has come out of it.
-    held: totals.holds - totals.releases - totals.refunds - totals.commissions,
+    /* Escrow holds what went in less everything that has come out of it.
+       A promotion is money the *platform* put in beside the customer, so it
+       counts as going in — and comes back out on a cancellation. */
+    held:
+      totals.holds +
+      totals.promos -
+      totals.releases -
+      totals.refunds -
+      totals.commissions -
+      totals.promoReturns,
     // Cooks are owed what was released, less what has been paid out.
     cook: totals.releases - totals.payouts,
-    platform: totals.commissions,
+    /* Commission earned, less what discounts cost. A campaign that gave away
+       more than it earned shows here as exactly that. */
+    platform: totals.commissions - totals.promos + totals.promoReturns,
   };
 
   const drift = Object.fromEntries(

@@ -54,6 +54,20 @@ export const ERR = {
      lie — the failing field travels in `detail`. */
   BAD_REQUEST: 'request-invalid',
 
+  /*
+   * Promotions. Each refusal is its own code because each one has a different
+   * repair: a customer told "invalid" when they are ৳200 short of the minimum
+   * types it again and gives up; one told the minimum adds something.
+   */
+  PROMO_UNKNOWN: 'promo-unknown',
+  PROMO_EXPIRED: 'promo-expired',
+  PROMO_NOT_STARTED: 'promo-not-started',
+  PROMO_MIN_ORDER: 'promo-min-order',
+  PROMO_FIRST_ONLY: 'promo-first-only',
+  PROMO_USED: 'promo-used',
+  PROMO_EXHAUSTED: 'promo-exhausted',
+  PROMO_NO_VALUE: 'promo-no-value',
+
   /** A real kitchen, but one an operator has not approved yet. */
   KITCHEN_UNAPPROVED: 'kitchen-unapproved',
 
@@ -105,6 +119,14 @@ export const ERR_TEXT: Record<string, string> = {
   [ERR.ALREADY_SETTLED]: 'This is already settled.',
   [ERR.BAD_AMOUNT]: 'That amount is not valid.',
   [ERR.BAD_REQUEST]: 'Some of that was not valid.',
+  [ERR.PROMO_UNKNOWN]: 'That code does not exist.',
+  [ERR.PROMO_EXPIRED]: 'That code has expired.',
+  [ERR.PROMO_NOT_STARTED]: 'That code is not live yet.',
+  [ERR.PROMO_MIN_ORDER]: 'Your basket is not large enough for that code yet.',
+  [ERR.PROMO_FIRST_ONLY]: 'That code is for a first order only.',
+  [ERR.PROMO_USED]: 'You have already used that code.',
+  [ERR.PROMO_EXHAUSTED]: 'That code has been fully claimed.',
+  [ERR.PROMO_NO_VALUE]: 'That code takes nothing off this basket.',
   [ERR.KITCHEN_UNAPPROVED]:
     'Your kitchen is waiting to be approved. You can finish setting it up, but you cannot list food or take orders until then.',
   [ERR.NO_KITCHEN]: 'That kitchen no longer exists.',
@@ -328,6 +350,11 @@ export const LEDGER_KINDS = [
   'commission',
   'payout',
   'adjustment',
+  /* A promotion the platform funded into escrow, and the same money coming
+     back out when the order is cancelled. Separate kinds because reconcile
+     has to be able to tell them apart from a customer payment. */
+  'promo',
+  'promo-return',
 ] as const;
 export type LedgerKind = (typeof LEDGER_KINDS)[number];
 

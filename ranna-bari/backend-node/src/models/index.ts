@@ -467,6 +467,55 @@ const iconSchema = new Schema(
 
 export const Icon = model('Icon', iconSchema);
 
+/*
+ * A promotion, and the record of it being used.
+ *
+ * `code` is unique and never edited — it is printed on posters and typed
+ * from memory, so a campaign whose code changes underneath it is a support
+ * queue. A wrong code is deactivated and a right one made.
+ */
+const promotionSchema = new Schema(
+  {
+    code: { type: String, required: true, unique: true },
+    /** 'percent' takes a share off; 'flat' takes a fixed number of taka. */
+    kind: { type: String, default: 'percent' },
+    value: { type: Number, required: true },
+    /** The basket has to reach this before the code applies. 0 = no minimum. */
+    minOrder: { type: Number, default: 0 },
+    /** Ceiling on a percentage discount. 0 = uncapped. */
+    maxDiscount: { type: Number, default: 0 },
+    firstOrderOnly: { type: Boolean, default: false },
+    /** Total redemptions allowed across everybody. 0 = unlimited. */
+    usageLimit: { type: Number, default: 0 },
+    /** Redemptions allowed per customer. 0 = unlimited. */
+    perCustomer: { type: Number, default: 1 },
+    startsAt: { type: Date, default: null },
+    endsAt: { type: Date, default: null },
+    active: { type: Boolean, default: true, index: true },
+  },
+  opts,
+);
+
+export const Promotion = model('Promotion', promotionSchema);
+
+const redemptionSchema = new Schema(
+  {
+    promotionId: { type: String, required: true, index: true },
+    /** Copied, not joined: what the customer typed, as they typed it. */
+    code: { type: String, required: true },
+    customerKey: { type: String, required: true, index: true },
+    orderId: { type: String, required: true },
+    amount: { type: Number, required: true },
+  },
+  opts,
+);
+
+/* One redemption per order. This is what makes a retried checkout safe: the
+   second attempt collides rather than counting twice against a limit. */
+redemptionSchema.index({ promotionId: 1, orderId: 1 }, { unique: true });
+
+export const Redemption = model('Redemption', redemptionSchema);
+
 /* ------------------------------------------------------------------ *
  * requests and bidding
  * ------------------------------------------------------------------ */
@@ -598,7 +647,21 @@ const orderSchema = new Schema(
     deliveryFee: { type: Number, default: 0 },
     platformFee: { type: Number, default: 0 },
     price: { type: Number, default: 0 },
+    /**
+     * The gross. What the cook's share is computed from and what
+     * `releaseEscrow` splits — a promotion never reduces it, because a
+     * marketing decision must not cut what a cook was promised.
+     */
     amount: { type: Number, default: 0 },
+    /** What came off, and the code that did it. Zero on most orders. */
+    discount: { type: Number, default: 0 },
+    promoCode: { type: String, default: null },
+    /**
+     * What the customer actually handed over: amount − discount. Null on
+     * everything ordered before promotions existed, which reads as "the same
+     * as amount" and is why the refund path falls back to it.
+     */
+    paid: { type: Number, default: null },
 
     preorder: { type: Boolean, default: false },
 
