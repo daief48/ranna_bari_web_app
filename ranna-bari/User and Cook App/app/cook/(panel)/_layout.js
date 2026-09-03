@@ -11,6 +11,8 @@ import { useOrders } from '../../../src/store/OrdersContext';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import { useRouter } from 'expo-router';
+import { KitchenPending } from '../../../src/components/CookBits';
 import { font, radius } from '../../../src/theme/tokens';
 
 /*
@@ -212,7 +214,40 @@ function CookBar({ state, descriptors, navigation }) {
   );
 }
 
+/**
+ * The cook dashboard, behind an approval.
+ *
+ * This used to open and explain itself in a banner, with the actions needing
+ * approval locked one at a time. Wrong shape: a dashboard whose every
+ * meaningful control is disabled is a waiting room wearing a dashboard, and it
+ * invites a cook to keep pressing things to find out which of them work.
+ *
+ * The gate is here rather than on each screen because this layout is the one
+ * door into the panel — every tab renders through it, so a rule stated once
+ * here cannot be forgotten on the next screen somebody adds.
+ *
+ * The backend refuses these actions regardless. This is the half that tells a
+ * cook why, which the backend cannot do from inside a 403.
+ */
 export default function CookPanelLayout() {
+  const { kitchen, hydrated } = useKitchen();
+  const router = useRouter();
+
+  /* Nothing until the kitchen is read. Rendering the gate first would flash
+     "waiting for approval" at an approved cook on every cold start, which is
+     alarming in a way that is entirely untrue. */
+  if (!hydrated) return null;
+
+  if (kitchen && kitchen.kycStatus !== 'approved') {
+    return (
+      <KitchenPending
+        kitchen={kitchen}
+        onOpenDetails={() => router.push('/cook/kitchen-details')}
+        onBack={() => router.replace('/')}
+      />
+    );
+  }
+
   return (
     <Tabs
       screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true }}

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import Icon from './Icon';
+import Button from './Button';
 import { useTheme } from '../theme/ThemeProvider';
 import { ORDER_STEPS, stepIndex } from '../store/OrdersContext';
 import { useLang } from '../i18n/LanguageContext';
@@ -535,6 +536,163 @@ export function KycBanner({ status, note, onContact, style }) {
             <Icon name="arrowRight" size={14} color={tone.fg} strokeWidth={2.2} />
           </Pressable>
         ) : null}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * The whole cook dashboard, held until an operator approves the kitchen.
+ *
+ * The panel used to open and explain itself in a banner, with the actions that
+ * needed approval locked one by one. That was the wrong shape. A dashboard
+ * whose every meaningful control is disabled is not a dashboard — it is a
+ * waiting room wearing one, and it invites a cook to keep pressing things to
+ * find out which of them work.
+ *
+ * So the panel does not open at all. This says why, says what happens next,
+ * and keeps open the one door that is still useful: the kitchen details, where
+ * a cook can add the photograph and description an operator needs in order to
+ * say yes.
+ *
+ * Rejected is a different screen from pending, not a redder version of it.
+ * Pending is "wait"; rejected is "here is what was wrong, and you can fix it",
+ * so it leads with the reason an operator wrote.
+ */
+export function KitchenPending({ kitchen, onOpenDetails, onBack }) {
+  const { colors, shadow } = useTheme();
+  const { t } = useLang();
+
+  const rejected = kitchen?.kycStatus === 'rejected';
+  const note = String(kitchen?.kycNote ?? '').trim();
+
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <View
+        style={[
+          {
+            width: '100%',
+            maxWidth: 420,
+            padding: 26,
+            borderRadius: radius.lg,
+            backgroundColor: colors.surfaceSolid,
+            borderWidth: 1,
+            borderColor: colors.line,
+            alignItems: 'center',
+            gap: 14,
+          },
+          shadow.md,
+        ]}
+      >
+        <View
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 22,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: rejected ? colors.primary50 : colors.sage50,
+            borderWidth: 1,
+            borderColor: rejected ? colors.primary100 : colors.sage100,
+          }}
+        >
+          <Icon
+            name={rejected ? 'alertCircle' : 'clock'}
+            size={28}
+            color={rejected ? colors.primary : colors.sage}
+            strokeWidth={1.8}
+          />
+        </View>
+
+        <Text
+          style={{
+            fontFamily: font.displayExtra,
+            fontSize: 22,
+            lineHeight: 27,
+            letterSpacing: -0.3,
+            textAlign: 'center',
+            color: colors.text,
+          }}
+        >
+          {rejected
+            ? t('Your kitchen was not approved')
+            : t('Waiting for RannaBari to check your kitchen')}
+        </Text>
+
+        {/* The operator's own words come first on a rejection: everything else
+            on this screen is generic, and that sentence is the only part that
+            says what to do about it. */}
+        {rejected && note ? (
+          <View
+            style={{
+              alignSelf: 'stretch',
+              padding: 13,
+              borderRadius: radius.sm,
+              backgroundColor: colors.primary50,
+              borderWidth: 1,
+              borderColor: colors.primary100,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: font.ui,
+                fontSize: 14,
+                lineHeight: 21,
+                color: colors.text,
+              }}
+            >
+              {note}
+            </Text>
+          </View>
+        ) : null}
+
+        <Text
+          style={{
+            fontFamily: font.ui,
+            fontSize: 14.5,
+            lineHeight: 22,
+            textAlign: 'center',
+            color: colors.textMuted,
+          }}
+        >
+          {rejected
+            ? t(
+                'Fix what is mentioned above and your kitchen goes back in the queue. Nobody can order from it until then.',
+              )
+            : t(
+                'Somebody reads every kitchen before it goes live — it is what makes a RannaBari cook worth trusting. You cannot list food or take orders until that is done.',
+              )}
+        </Text>
+
+        {/* The one thing still worth doing while waiting, and on a rejection
+            the thing that fixes it. */}
+        <Button
+          label={t('Your kitchen details')}
+          icon="chefHat"
+          block
+          onPress={onOpenDetails}
+          style={{ marginTop: 4 }}
+        />
+
+        <Pressable accessibilityRole="button" onPress={onBack} hitSlop={8}>
+          <Text
+            style={{
+              fontFamily: font.uiSemi,
+              fontSize: 13.5,
+              color: colors.textMuted,
+            }}
+          >
+            {t('Back to RannaBari')}
+          </Text>
+        </Pressable>
       </View>
     </View>
   );

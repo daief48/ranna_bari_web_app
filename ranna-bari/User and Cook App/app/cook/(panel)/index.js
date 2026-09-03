@@ -24,7 +24,6 @@ import {
   useOrders,
 } from '../../../src/store/OrdersContext';
 import { tomorrowKey, useCommerce } from '../../../src/store/CommerceContext';
-import { KycBanner } from '../../../src/components/CookBits';
 import { useChat } from '../../../src/store/ChatContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
@@ -69,10 +68,6 @@ export default function CookDashboard() {
      this panel, so a customer writing about an order reached nobody. */
   const { pendingCount } = useChat();
 
-  /* Approval is the platform's decision and it gates everything that takes on
-     a customer: listing a dish, publishing a meal, opening a shop, accepting
-     a pre-order. The backend enforces it; this is where the cook finds out. */
-  const approved = kitchen?.kycStatus === 'approved';
 
   /* The shop's one urgent number, on the screen a cook opens first. */
   const shopStore = kitchen ? meals.storeForKitchen(kitchen.id) : null;
@@ -141,21 +136,14 @@ export default function CookDashboard() {
         <SectionHeader
           lead={t('YOUR')}
           accent={t('KITCHEN')}
+          /* Only two states here now: the panel does not open at all unless
+             the kitchen is approved, so "waiting" is a screen rather than a
+             subtitle. */
           subtitle={
-            !approved
-              ? t('{name} is waiting for approval.', { name: kitchen.name })
-              : open
-                ? t('{name} is taking orders.', { name: kitchen.name })
-                : t('{name} is closed. Nothing can be ordered.', { name: kitchen.name })
+            open
+              ? t('{name} is taking orders.', { name: kitchen.name })
+              : t('{name} is closed. Nothing can be ordered.', { name: kitchen.name })
           }
-        />
-
-        {/* The first thing a waiting cook should see, rather than the last.
-            It lived on the kitchen-details screen, which nobody opens daily. */}
-        <KycBanner
-          status={kitchen?.kycStatus}
-          note={kitchen?.kycNote}
-          style={{ marginBottom: 16 }}
         />
 
         {/* ---- The shutter ----
@@ -517,7 +505,6 @@ export default function CookDashboard() {
                     })
                   : t('Publish tonight and let people book a plate')
               }
-              locked={!approved}
               onPress={() => router.push('/cook/meals')}
             />
             <ActionRow
@@ -551,7 +538,6 @@ export default function CookDashboard() {
                       ? t('Products, stock and shop orders')
                       : t('Open a shop for the things you make to keep')
               }
-              locked={!approved}
               onPress={() => router.push('/cook/store')}
             />
             <ActionRow
@@ -583,12 +569,7 @@ export default function CookDashboard() {
             <ActionRow
               icon="plus"
               title={t('Add a dish')}
-              sub={
-                approved
-                  ? t('List something new on your menu')
-                  : t('Available once your kitchen is approved')
-              }
-              locked={!approved}
+              sub={t('List something new on your menu')}
               onPress={() => router.push('/cook/dish/new')}
             />
             <ActionRow

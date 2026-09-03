@@ -755,6 +755,11 @@ export function buildPickerHtml({ theme, colors, center = DEFAULT_CENTER }) {
       tiles.setUrl(tileUrl(STYLES[msg.theme] || STYLES.light));
     } else if (msg.type === 'flyTo') {
       map.flyTo([msg.lat, msg.lng], msg.zoom || 16, { duration: 0.9 });
+    } else if (msg.type === 'zoom') {
+      /* Buttons rather than only pinch. Placing a pin on the right side of a
+         lane is a one-step-at-a-time job, and a two-finger gesture on a map
+         inside a scrolling form is the fiddliest way to do it. */
+      map.setZoom(map.getZoom() + (msg.by || 0), { animate: true });
     } else if (msg.type === 'invalidate') {
       map.invalidateSize();
     }
