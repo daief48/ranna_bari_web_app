@@ -18,6 +18,7 @@ import {
 } from '../../../logic/meals.js';
 import { Kitchen, Meal, MealInterest, Order } from '../../../models/index.js';
 import { kitchenMayTrade } from '../../../logic/sync.js';
+import { leaveReview } from '../../../logic/reviews.js';
 
 /**
  * Pre-booked meals, over HTTP.
@@ -546,6 +547,34 @@ export async function mealRoutes(app: FastifyInstance) {
     const out = await confirmReceived({
       orderId: params.data.id,
       customerKey: caller.customerKey,
+    });
+    if (!out.ok) return refuse(reply, out);
+    return out.result;
+  });
+
+  /**
+   * Rate the kitchen an order came from.
+   *
+   * Scoped to the order rather than posted at a kitchen: the order is what
+   * proves the customer ate the food, and it is what makes "once" meaningful.
+   */
+  app.post('/orders/:id/review', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    const params = idParam.safeParse(request.params);
+    if (!params.success) return fail(reply, ERR.NO_ORDER, 404);
+
+    const body = z
+      .object({ rating: z.coerce.number().min(1).max(5), text: z.string().optional() })
+      .safeParse(request.body ?? {});
+    if (!body.success) return fail(reply, ERR.BAD_AMOUNT);
+
+    const out = await leaveReview({
+      orderId: params.data.id,
+      customerKey: caller.customerKey,
+      rating: body.data.rating,
+      text: body.data.text,
     });
     if (!out.ok) return refuse(reply, out);
     return out.result;

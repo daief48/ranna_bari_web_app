@@ -950,6 +950,15 @@ export function CommerceProvider({ children }) {
           // "৳{n} has been released to the cook" — the order's amount.
           shape: (r) => r.amount ?? 0,
         }),
+      /* Rate the kitchen an order came from. Scoped to the order because that
+         is what proves the customer ate the food, and what makes "once"
+         mean anything. */
+      rateOrder: (orderId, rating, text) =>
+        write(`/orders/${orderId}/review`, {
+          body: { rating, text },
+          after: reloadOrders,
+          shape: (r) => r,
+        }),
       cancelOrder: (orderId, by, reason) =>
         write(`/orders/${orderId}/cancel`, {
           body: { by, reason },

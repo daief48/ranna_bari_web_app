@@ -633,6 +633,14 @@ export const Dispute = model('Dispute', disputeSchema);
 const reviewSchema = new Schema(
   {
     kitchenId: { type: String, required: true, index: true },
+    /**
+     * The order this review is about, and the right to write it.
+     *
+     * A review with no order behind it is one anybody could have posted, so
+     * the app path always sets this. Null on everything that arrived with the
+     * seed, which is why the index below is sparse.
+     */
+    orderId: { type: String, default: null },
     customerKey: { type: String, default: '' },
     name: { type: String, required: true },
     avatar: { type: String, default: '' },
@@ -651,6 +659,10 @@ const reviewSchema = new Schema(
   },
   opts,
 );
+
+/* One review per order. Sparse so the seeded reviews, which have no order,
+   do not all collide on a single null. */
+reviewSchema.index({ orderId: 1 }, { unique: true, sparse: true });
 
 export const Review = model('Review', reviewSchema);
 
