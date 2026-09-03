@@ -22,6 +22,7 @@ import {
   unreadTotal,
   type Viewer,
 } from '../../../logic/chat.js';
+import { specialtiesOf } from '../../../logic/specialties.js';
 import {
   kitchenMayTrade,
   orderFor,
@@ -373,6 +374,22 @@ export async function appRoutes(app: FastifyInstance) {
   });
 
   /** Register the caller's own kitchen — the one that lived only on a device. */
+  /**
+   * The specialties a kitchen may claim.
+   *
+   * Read by the sign-up form and the kitchen editor. Open to any caller: it is
+   * the same list the picker shows and there is nothing in it that is not
+   * already on a public kitchen card.
+   *
+   * Retired ones are left out. A cook choosing today should not be offered
+   * something the platform has stopped using — the kitchens already carrying
+   * it keep it, which is the whole reason retiring exists rather than
+   * deleting.
+   */
+  app.get('/specialties', async (_request, _reply) => {
+    return { specialties: await specialtiesOf() };
+  });
+
   app.post('/kitchens/mine', async (request, reply) => {
     const caller = await callerOf(request);
     if (!caller) return fail(reply, 'unauthenticated', 401);

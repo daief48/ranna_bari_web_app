@@ -84,6 +84,7 @@ export async function registerKitchen(
     coverImage?: string;
     photos?: string[];
     specialty?: string;
+    specialties?: string[];
     description?: string;
     tags?: string[];
     area?: string;
@@ -123,6 +124,9 @@ export async function registerKitchen(
        is showing, so a removal has to be able to remove. */
     photos: kitchen.photos ?? existing?.photos ?? [],
     specialty: kitchen.specialty ?? existing?.specialty ?? 'Traditional Heritage',
+    /* Replaced wholesale rather than merged — the picker sends the set it is
+       showing, so unticking one has to be able to remove it. */
+    specialties: kitchen.specialties ?? existing?.specialties ?? [],
     description: kitchen.description ?? existing?.description ?? '',
     tags: kitchen.tags ?? existing?.tags ?? [],
     area: kitchen.area ?? existing?.area ?? '',

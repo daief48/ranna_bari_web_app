@@ -14,6 +14,13 @@ import { pendingPreorders, setStock, toggleProduct, toggleStoreOpen } from '../.
 import { standing, turnOf, type PriceMove } from '../../../logic/requests.js';
 import { notify } from '../../../logic/wallet.js';
 import {
+  addSpecialty,
+  moveSpecialty,
+  retireSpecialty,
+  specialtiesOf,
+  updateSpecialty,
+} from '../../../logic/specialties.js';
+import {
   addCategory,
   moveCategory,
   retireCategory,
@@ -1494,6 +1501,124 @@ export async function operationRoutes(app: FastifyInstance) {
       wallet: { amount: totals[0]?.amount ?? 0, count: totals[0]?.count ?? 0 },
       entry: entry ? withId(entry) : null,
     };
+  });
+
+  /* ---------------- specialties ---------------- */
+
+  /**
+   * What a kitchen may say it cooks best.
+   *
+   * Each row carries how many kitchens currently claim it, because that is the
+   * question an operator has before retiring one: "Coastal Seafood" with
+   * eleven kitchens behind it is a different decision from one with none.
+   */
+  app.get('/specialties', async (request, reply) => {
+    const actor = await require(request, reply, 'config.read');
+    if (!actor) return;
+
+    const rows = await specialtiesOf({ includeRetired: true });
+
+    /* One grouped pass rather than a count per row. */
+    /* Counted across both fields: a kitchen that picked three specialties is
+       standing on all three, and an operator deciding whether to retire one
+       needs to know that, not just how many chose it first. */
+    const counts = await Kitchen.aggregate<{ _id: string; n: number }>([
+      {
+        $project: {
+          all: {
+            $setUnion: [
+              { $cond: [{ $ifNull: ['$specialty', false] }, ['$specialty'], []] },
+              { $ifNull: ['$specialties', []] },
+            ],
+          },
+        },
+      },
+      { $unwind: '$all' },
+      { $group: { _id: '$all', n: { $sum: 1 } } },
+    ]);
+    const byKey = new Map(counts.map((c) => [c._id, c.n]));
+
+    return { specialties: rows.map((row) => ({ ...row, kitchens: byKey.get(row.key) ?? 0 })) };
+  });
+
+  app.post('/specialties', async (request, reply) => {
+    const actor = await require(request, reply, 'config.write');
+    if (!actor) return;
+
+    const body = z
+      .object({ label: z.string().min(1), emoji: z.string().optional() })
+      .safeParse(request.body);
+    if (!body.success) return refuse(reply, ERR.NAME_REQUIRED);
+
+    const out = await addSpecialty(body.data);
+    if (!out.ok) return refuse(reply, out.error);
+
+    await audit(actor, {
+      action: 'specialty.create',
+      targetType: 'Specialty',
+      targetId: out.result.id,
+      summary: out.result.label,
+    });
+
+    return { specialty: out.result };
+  });
+
+  app.post('/specialties/:id', async (request, reply) => {
+    const actor = await require(request, reply, 'config.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({ label: z.string().optional(), emoji: z.string().optional() })
+      .safeParse(request.body);
+    if (!body.success) return refuse(reply, ERR.NAME_REQUIRED);
+
+    const out = await updateSpecialty({ id, ...body.data });
+    if (!out.ok) return refuse(reply, out.error);
+
+    await audit(actor, {
+      action: 'specialty.update',
+      targetType: 'Specialty',
+      targetId: id,
+      summary: out.result.label,
+    });
+
+    return { specialty: out.result };
+  });
+
+  app.post('/specialties/:id/retire', async (request, reply) => {
+    const actor = await require(request, reply, 'config.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z.object({ retired: z.boolean() }).safeParse(request.body);
+    if (!body.success) return refuse(reply, ERR.NAME_REQUIRED);
+
+    const out = await retireSpecialty({ id, retired: body.data.retired });
+    if (!out.ok) return refuse(reply, out.error);
+
+    await audit(actor, {
+      action: body.data.retired ? 'specialty.retire' : 'specialty.restore',
+      targetType: 'Specialty',
+      targetId: id,
+      summary: out.result.label,
+    });
+
+    return { specialty: out.result };
+  });
+
+  app.post('/specialties/:id/move', async (request, reply) => {
+    const actor = await require(request, reply, 'config.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z.object({ direction: z.enum(['up', 'down']) }).safeParse(request.body);
+    if (!body.success) return refuse(reply, ERR.NAME_REQUIRED);
+
+    const out = await moveSpecialty({ id, direction: body.data.direction });
+    if (!out.ok) return refuse(reply, out.error);
+
+    return { specialty: out.result };
   });
 
   app.get('/taxonomy', async (request, reply) => {

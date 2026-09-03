@@ -28,7 +28,7 @@ import { useSession } from '../src/store/SessionContext';
 import { useAlert } from '../src/components/Alert';
 import { useLang } from '../src/i18n/LanguageContext';
 import { normaliseArea } from '../src/lib/areas';
-import { useKitchen } from '../src/store/KitchenContext';
+import { useKitchen, useSpecialties } from '../src/store/KitchenContext';
 
 /* The aside imagery and copy follow the chosen path, so the screen keeps
    talking about the thing the visitor picked. */
@@ -53,14 +53,9 @@ const ASIDE = {
   },
 };
 
-const SPECIALTIES = [
-  'Traditional Heritage',
-  'Coastal Seafood',
-  'Street & Snacks',
-  'Biryani & Rice',
-  'Vegetarian & Bhorta',
-  'Desserts & Pitha',
-];
+/* The list is the backend's now, and this screen reads it live. The second
+   copy that used to live here is gone: two hardcoded lists is how they end
+   up disagreeing. */
 
 const PW_WORDS = ['Strength', 'Weak', 'Fair', 'Good', 'Strong'];
 
@@ -122,7 +117,9 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [kitchen, setKitchen] = useState('');
-  const [specialty, setSpecialty] = useState(SPECIALTIES[0]);
+  /* Several, in the order chosen. The first is the primary — it is what the
+     kitchen card shows and what Kitchen.specialty stores. */
+  const [specialties, setSpecialties] = useState([]);
   const [nid, setNid] = useState(param('nid', ''));
   /* The room the food is cooked in — as many views of it as the cook wants.
      Optional here, and the one thing on this form an operator can actually
@@ -172,7 +169,7 @@ export default function AuthScreen() {
         ...(role === 'cook'
           ? [
               [kitchen, 'kitchen name'],
-              [specialty, 'specialty'],
+              [specialties.join(''), 'specialty'],
               [nid, 'National ID'],
               /* A kitchen with no picture cannot be approved: it is the only
                  evidence on this form about where the food is cooked. Joined
@@ -261,7 +258,10 @@ export default function AuthScreen() {
         phone: identity.phone ?? phone.trim(),
         email: email.trim(),
         kitchen: kitchen.trim(),
-        specialty,
+        /* The primary, for everything that reads a single specialty, and the
+           whole set beside it. */
+        specialty: specialties[0] ?? '',
+        specialties,
         /* The first picture is the banner and the whole set is the gallery.
            Undefined rather than empty so registerKitchen falls back to what is
            stored instead of writing a blank over an existing picture. */
@@ -672,8 +672,8 @@ export default function AuthScreen() {
                   setPw,
                   kitchen,
                   setKitchen,
-                  specialty,
-                  setSpecialty,
+                  specialties,
+                  setSpecialties,
                   nid,
                   setNid,
                   kitchenPhotos,
@@ -1095,8 +1095,8 @@ function SignUpView({
                 />
 
                 <SpecialtyPicker
-                  value={fields.specialty}
-                  onChange={fields.setSpecialty}
+                  value={fields.specialties}
+                  onChange={fields.setSpecialties}
                 />
 
                 <FloatLabelInput
@@ -1773,16 +1773,37 @@ function KitchenPhotoField({ value, onChange }) {
   );
 }
 
+/**
+ * What a kitchen cooks best — as many as apply.
+ *
+ * A single choice made a kitchen that does Sylheti home cooking *and* pitha
+ * pick one and leave the other unsaid. The first selected is the primary,
+ * because the card shows one and the stored `specialty` field is one; the
+ * rest ride along in `specialties`.
+ *
+ * The list comes from the backend, where an operator edits it. The constant
+ * in KitchenContext is only what shows before the first response lands.
+ */
 function SpecialtyPicker({ value, onChange }) {
   const { colors } = useTheme();
   const { t } = useLang();
   const [open, setOpen] = useState(false);
+  const options = useSpecialties();
+
+  const chosen = Array.isArray(value) ? value : [];
+
+  const toggle = (name) =>
+    onChange(
+      chosen.includes(name) ? chosen.filter((s) => s !== name) : [...chosen, name],
+    );
 
   return (
     <View style={{ marginBottom: 16 }}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${t('What you cook best, currently')} ${value ? t(value) : '—'}`}
+        accessibilityLabel={`${t('What you cook best, currently')} ${
+          chosen.length ? chosen.map((s) => t(s)).join(', ') : '—'
+        }`}
         onPress={() => setOpen((v) => !v)}
         style={{
           borderWidth: 1,
@@ -1811,13 +1832,16 @@ function SpecialtyPicker({ value, onChange }) {
           {t('What you cook best')}
         </Text>
         <Text
+          numberOfLines={1}
           style={{
             fontFamily: font.ui,
             fontSize: 16,
-            color: value ? colors.text : colors.textLight,
+            color: chosen.length ? colors.text : colors.textLight,
           }}
         >
-          {value ? t(value) : t('Choose a specialty')}
+          {chosen.length
+            ? chosen.map((s) => t(s)).join(', ')
+            : t('Choose what you cook best')}
         </Text>
         <Icon
           name="chevronDown"
@@ -1838,33 +1862,68 @@ function SpecialtyPicker({ value, onChange }) {
             borderColor: colors.line,
           }}
         >
-          {SPECIALTIES.map((s) => (
-            <Pressable
-              key={s}
-              accessibilityRole="button"
-              onPress={() => {
-                onChange(s);
-                setOpen(false);
-              }}
-              style={({ pressed }) => ({
-                paddingVertical: 12,
-                paddingHorizontal: 10,
-                borderRadius: radius.xs,
-                backgroundColor:
-                  pressed || value === s ? colors.primary50 : 'transparent',
-              })}
-            >
-              <Text
-                style={{
-                  fontFamily: value === s ? font.uiSemi : font.ui,
-                  fontSize: 15,
-                  color: value === s ? colors.primary : colors.text,
-                }}
+          {options.map((s) => {
+            const on = chosen.includes(s);
+            /* The sheet stays open: picking several is the point, and closing
+               after each tap would make the second one a second journey. */
+            return (
+              <Pressable
+                key={s}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: on }}
+                onPress={() => toggle(s)}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  paddingVertical: 12,
+                  paddingHorizontal: 10,
+                  borderRadius: radius.xs,
+                  backgroundColor: pressed || on ? colors.primary50 : 'transparent',
+                })}
               >
-                {s}
-              </Text>
-            </Pressable>
-          ))}
+                <View
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 6,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: on ? colors.primary : 'transparent',
+                    borderWidth: on ? 0 : 1.5,
+                    borderColor: colors.line,
+                  }}
+                >
+                  {on ? <Icon name="check" size={13} color={colors.onPrimary} strokeWidth={3} /> : null}
+                </View>
+
+                <Text
+                  style={{
+                    flex: 1,
+                    fontFamily: on ? font.uiSemi : font.ui,
+                    fontSize: 15,
+                    color: on ? colors.primary : colors.text,
+                  }}
+                >
+                  {t(s)}
+                </Text>
+
+                {/* Which one the card will show. */}
+                {chosen[0] === s ? (
+                  <Text
+                    style={{
+                      fontFamily: font.uiBold,
+                      fontSize: 9.5,
+                      letterSpacing: 0.6,
+                      color: colors.primary,
+                    }}
+                  >
+                    {t('MAIN')}
+                  </Text>
+                ) : null}
+              </Pressable>
+            );
+          })}
         </View>
       ) : null}
     </View>

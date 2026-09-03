@@ -424,3 +424,69 @@ export async function toggleStoreOpen(storeId: string): Promise<ActionResult> {
     }),
   );
 }
+
+/* ------------------------------------------------------------------ *
+ * specialties — what a kitchen says it cooks best
+ * ------------------------------------------------------------------ */
+
+/**
+ * Add one, or rename one.
+ *
+ * `key` is never sent on an update. A kitchen stores its specialty as that
+ * string on its own row, so renaming the key would leave every kitchen that
+ * chose it claiming something the platform no longer lists. The label is what
+ * people read and is free to change; the key is the join and is not.
+ */
+export async function saveSpecialty(
+  id: string | null,
+  label: string,
+  emoji: string,
+): Promise<ActionResult> {
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
+      const clean = label.trim();
+      if (!clean) return bad(ERR.NAME_REQUIRED);
+
+      if (id) await post(`/specialties/${id}`, { label: clean, emoji: emoji.trim() });
+      else await post('/specialties', { label: clean, emoji: emoji.trim() });
+
+      revalidatePath('/specialties');
+      return good(id ? 'Saved.' : 'Added.');
+    }),
+  );
+}
+
+/**
+ * Stop offering it, or offer it again.
+ *
+ * Never a delete, for the same reason categories are never deleted: the
+ * kitchens already carrying this string keep meaning what they said, and a
+ * retired specialty simply stops being offered to anybody new.
+ */
+export async function retireSpecialty(id: string, retired: boolean): Promise<ActionResult> {
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
+
+      await post(`/specialties/${id}/retire`, { retired });
+
+      revalidatePath('/specialties');
+      return good(retired ? 'No longer offered.' : 'Back in the list.');
+    }),
+  );
+}
+
+/** Up or down one place. The order is the order cooks are shown. */
+export async function moveSpecialty(id: string, direction: 'up' | 'down'): Promise<ActionResult> {
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
+
+      await post(`/specialties/${id}/move`, { direction });
+
+      revalidatePath('/specialties');
+      return good();
+    }),
+  );
+}

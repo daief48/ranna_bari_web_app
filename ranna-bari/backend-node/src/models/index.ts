@@ -31,7 +31,17 @@ const accountSchema = new Schema(
     phone: { type: String, default: null, index: true },
     email: { type: String, default: null },
     kitchenName: { type: String, default: null },
+    /**
+     * The primary. Every card, list and search result shows one, and this is
+     * the field they read — kept as a plain string so none of them change.
+     */
     specialty: { type: String, default: null },
+    /**
+     * The rest. A kitchen doing Sylheti home cooking *and* pitha had to pick
+     * one and leave the other unsaid; this is where the other goes. The first
+     * entry is the primary above.
+     */
+    specialties: { type: [String], default: [] },
     /** National ID. KYC only — never returned on a customer-facing endpoint. */
     nid: { type: String, default: null },
     /*
@@ -181,6 +191,12 @@ const kitchenSchema = new Schema(
      */
     photos: { type: [String], default: [] },
     specialty: { type: String, default: '' },
+    /**
+     * The rest of what this kitchen cooks best. `specialty` above stays the
+     * primary because every card and search result reads one string; this is
+     * the full set a cook ticked, with the primary as its first entry.
+     */
+    specialties: { type: [String], default: [] },
     description: { type: String, default: '' },
 
     rating: { type: Number, default: 0 },
@@ -399,6 +415,30 @@ const taxonomySchema = new Schema(
 );
 
 export const TaxonomyCategory = model('TaxonomyCategory', taxonomySchema);
+
+/*
+ * What a kitchen cooks best.
+ *
+ * Same shape and same rules as the taxonomy above, and separate from it on
+ * purpose: those are the words a *dish* is filed under, these describe a
+ * whole kitchen. Folding them together would mean every taxonomy query
+ * growing a discriminator to avoid offering "Biryani & Rice" as a dish tag.
+ *
+ *  is unique and never edited — a kitchen stores this string on its own
+ * row, so renaming one would orphan every kitchen that chose it.
+ */
+const specialtySchema = new Schema(
+  {
+    key: { type: String, required: true, unique: true },
+    label: { type: String, required: true },
+    emoji: { type: String, default: '' },
+    order: { type: Number, default: 0, index: true },
+    retired: { type: Boolean, default: false },
+  },
+  opts,
+);
+
+export const Specialty = model('Specialty', specialtySchema);
 
 /* ------------------------------------------------------------------ *
  * requests and bidding

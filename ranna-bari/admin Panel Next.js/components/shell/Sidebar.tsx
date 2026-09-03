@@ -27,6 +27,7 @@ export const NAV: {
       { href: '/kitchens', label: 'Kitchens & cooks', cap: 'kitchen.read' },
       { href: '/kyc', label: 'KYC queue', cap: 'kitchen.read', badge: 'kyc' },
       { href: '/menu', label: 'Menus & dishes', cap: 'kitchen.read' },
+      { href: '/specialties', label: 'Specialties', cap: 'config.read' },
       { href: '/meals', label: 'Meals', cap: 'order.read' },
       { href: '/stores', label: 'Stores & products', cap: 'order.read' },
       { href: '/coverage', label: 'Coverage map', cap: 'kitchen.read' },
@@ -99,6 +100,12 @@ const ICON: Record<string, string> = {
   '/admins':
     'M12.2 8.4a3.1 3.1 0 1 1-6.2 0 3.1 3.1 0 0 1 6.2 0M3.2 19c.6-3 2.9-4.7 5.9-4.7s5.3 1.7 5.9 4.7M16 5.6a2.9 2.9 0 0 1 0 5.6M17.4 14.6c1.9.7 3.1 2.2 3.4 4.4',
   '/audit': 'M4 12a8 8 0 1 0 2.4-5.7M4 4.5v4h4M12 8v4.6l3.2 1.9',
+
+  /* A rosette. This is the one list on the platform that is a claim about
+     craft rather than an inventory of anything, and nothing else here is
+     round-with-ribbons. */
+  '/specialties':
+    'M12 3.2a5 5 0 1 0 0 10 5 5 0 0 0 0-10M8.6 12.4 7 20.8l5-2.4 5 2.4-1.6-8.4',
 
   /* A folded paper map. Nothing else in this list is rectangular-and-creased,
      so it is findable at a glance even at the rail's 16px. */

@@ -46,6 +46,15 @@ const DEFAULT_RADIUS_KM = 3;
  * offers rather than records about anybody — the same job `KNOWN_AREAS` does
  * for neighbourhoods.
  */
+/**
+ * The list, when the server has not answered yet.
+ *
+ * The real one lives in the backend and is edited from the console — the six
+ * here are only what a picker shows on a cold start before `/specialties`
+ * comes back. They are deliberately the original six rather than the full
+ * two dozen: a fallback that pretends to be complete is worse than one that
+ * is visibly a stopgap.
+ */
 export const SPECIALTIES = [
   'Traditional Heritage',
   'Coastal Seafood',
@@ -54,6 +63,36 @@ export const SPECIALTIES = [
   'Vegetarian & Bhorta',
   'Desserts & Pitha',
 ];
+
+/**
+ * The live list, falling back to the constant above.
+ *
+ * Kept as a hook rather than a module-level fetch so a screen that mounts
+ * before the server answers still renders a picker instead of an empty box.
+ */
+export function useSpecialties() {
+  const [list, setList] = useState(SPECIALTIES);
+
+  useEffect(() => {
+    if (!hasServer) return;
+    let cancelled = false;
+
+    call('/specialties')
+      .then((out) => {
+        const names = (out?.result?.specialties ?? []).map((s) => s.label).filter(Boolean);
+        if (!cancelled && names.length) setList(names);
+      })
+      .catch(() => {
+        /* The constant above is already on screen. */
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return list;
+}
 
 /** Tags a kitchen advertises on its card, derived from what it actually lists. */
 const tagsFromDishes = (dishes) =>
@@ -69,7 +108,10 @@ const FALLBACK_COVER =
  * flow collected is reused; the rest gets a sensible opening value.
  */
 export function kitchenFromAccount(account) {
-  const specialty = account?.specialty || SPECIALTIES[0];
+  /* A cook may tick several. The first is the primary, which is the single
+     string every card and search result reads. */
+  const chosen = Array.isArray(account?.specialties) ? account.specialties.filter(Boolean) : [];
+  const specialty = chosen[0] || account?.specialty || SPECIALTIES[0];
   /* Nothing on the menu until the cook puts something there. */
   const dishes = [];
 
@@ -87,6 +129,7 @@ export function kitchenFromAccount(account) {
        this is the only path they travel, so dropping them here loses them. */
     photos: account?.photos ?? [],
     specialty,
+    specialties: chosen.length ? chosen : [specialty],
     description:
       'A home kitchen on RannaBari. Cooked to order, packed the moment it is ready.',
     /* A kitchen with no reviews should not claim a score. The card reads
