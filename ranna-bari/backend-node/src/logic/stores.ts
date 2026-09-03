@@ -1259,6 +1259,18 @@ export async function acceptPreorder({
       orderId,
     });
 
+    /* The kitchen's own record. A cook works this queue in a batch and
+       will not remember an hour later which ones they took. */
+    await notify(session, {
+      audience: 'cook',
+      kind: 'preorder-accepted',
+      key: `cook:preorder-accepted:${orderId}`,
+      title: 'You accepted a pre-order',
+      body: `${order.title} for ${order.customerName || 'a customer'}. The stock is now committed.`,
+      kitchenId: order.kitchenId,
+      orderId,
+    });
+
     return ok(null);
   });
 }
@@ -1313,6 +1325,21 @@ export async function rejectPreorder({
         refunded.result.refunded,
       )} is back in your wallet.`,
       customerKey: order.customerKey,
+      orderId,
+    });
+
+    /* And the kitchen, so a declined pre-order leaves a trace on their side
+       too — a customer asking why they were turned down should not be the
+       first the cook hears of it. */
+    await notify(session, {
+      audience: 'cook',
+      kind: 'preorder-rejected',
+      key: `cook:preorder-rejected:${orderId}`,
+      title: 'You declined a pre-order',
+      body: `${order.title} for ${order.customerName || 'a customer'}. ${taka(
+        refunded.result.refunded,
+      )} went back to them in full.`,
+      kitchenId: order.kitchenId,
       orderId,
     });
 

@@ -272,6 +272,19 @@ export async function publishMeal(
       });
     }
 
+    /* The cook's own record of it. Not the customer's sentence — they know
+       what they cooked; what they want later is confirmation it went out and
+       when it stops taking bookings. */
+    await notify(session, {
+      audience: 'cook',
+      kind: 'meal-live',
+      key: `cook:meal-live:${mealId}`,
+      title: 'Your meal is live',
+      body: `${title} is taking bookings until ${deadline.toISOString().slice(11, 16)} on ${serveDate}.`,
+      kitchenId: draft.kitchenId,
+      mealId,
+    });
+
     return ok({ mealId, code, deadline });
   });
 }
@@ -315,6 +328,19 @@ export async function closeMeal(args: {
    * Outside the update on purpose. A notification that fails must not undo a
    * close the cook already saw succeed.
    */
+  await notify(null, {
+    audience: 'cook',
+    kind: 'meal-closed',
+    key: `cook:meal-closed:${args.mealId}`,
+    title: 'Meal closed',
+    body: `${meal.title} is no longer taking bookings.`,
+    kitchenId: meal.kitchenId,
+    mealId: args.mealId,
+  }).catch(() => {
+    /* Same reasoning as the customer copies below: telling nobody must not
+       undo a close the cook already saw succeed. */
+  });
+
   const [interested, ordered] = await Promise.all([
     MealInterest.find({ mealId: args.mealId }).select({ customerKey: 1 }).lean(),
     Order.find({ mealId: args.mealId, status: { $nin: ['cancelled', 'rejected'] } })
@@ -432,6 +458,25 @@ export async function cancelMeal(args: {
       failed.push(orderId);
     }
   }
+
+  /* One summary rather than one per plate. Forty rows saying "you cancelled
+     a plate" is a flood, not a record — and the number refunded is the thing
+     a cook will want to check later. Outside the per-order transactions
+     because it describes all of them. */
+  await notify(null, {
+    audience: 'cook',
+    kind: 'meal-cancelled',
+    key: `cook:meal-cancelled:${args.mealId}`,
+    title: 'Meal cancelled',
+    body: orders
+      ? `${orders} order${orders === 1 ? '' : 's'} refunded, ৳${refunded} returned to customers.`
+      : 'No orders had been placed against it.',
+    kitchenId: meal.kitchenId,
+    mealId: args.mealId,
+  }).catch(() => {
+    /* The refunds already happened. A notification that will not file is not
+       a reason to report the cancellation as failed. */
+  });
 
   return ok({ refunded, orders, failed });
 }
@@ -860,6 +905,25 @@ export async function cancelOrder(args: {
       orderId,
     });
 
+    /* And the side that did the cancelling. They knew a second ago; they will
+       not a week later, and an order that vanished from the list with no row
+       explaining it is the thing support calls are made of. An operator
+       cancelling tells both parties and needs no copy itself. */
+    if (by !== 'admin') {
+      const actor = by === 'cook' ? 'cook' : 'customer';
+      await notify(session, {
+        audience: actor,
+        kind: 'order-cancelled',
+        key: `${actor}:order-cancelled:${orderId}`,
+        title: 'You cancelled this order',
+        body: `${order.title} was cancelled. ৳${order.amount} was refunded to the customer.`,
+        customerKey: actor === 'customer' ? order.customerKey : null,
+        kitchenId: actor === 'cook' ? order.kitchenId : null,
+        mealId: order.mealId,
+        orderId,
+      });
+    }
+
     return ok({ refunded: back.result.refunded });
   });
 }
@@ -890,7 +954,7 @@ export async function remindReceipts(
     status: 'delivered',
     payment: 'held',
   })
-    .select({ _id: 1, customerKey: 1, mealId: 1 })
+    .select({ _id: 1, customerKey: 1, mealId: 1, kitchenId: 1, title: 1 })
     .sort({ deliveredAt: 1 })
     .limit(args.take ?? 500)
     .lean();
@@ -909,6 +973,24 @@ export async function remindReceipts(
       orderId,
     });
     if (wrote.filed) filed += 1;
+
+    /* The cook has the larger stake in this one: it is the reason their
+       money is still held. Without it, a delivered order that stalls looks to
+       them like the platform sitting on their payment rather than a customer
+       who has not pressed the button.
+
+       Keyed by the day, like the customer copy, so a reminder that runs
+       every morning files once per day rather than once per run. */
+    await notify(null, {
+      audience: 'cook',
+      kind: 'confirm-receipt',
+      key: `cook:confirm-receipt:${orderId}:${today}`,
+      title: 'Waiting on a customer to confirm',
+      body: `${order.title || 'An order'} is delivered. Payment is released once they confirm it arrived.`,
+      kitchenId: order.kitchenId,
+      mealId: order.mealId,
+      orderId,
+    });
   }
 
   return ok({ filed, considered: waiting.length });
