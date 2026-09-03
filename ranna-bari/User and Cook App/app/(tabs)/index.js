@@ -113,6 +113,15 @@ export default function HomeScreen() {
    * order from each is the one offered, because that is the basket they last
    * actually wanted.
    */
+  /**
+   * Somebody who has ordered has already been sold to.
+   *
+   * Keyed on having ordered at all rather than on being signed in: an account
+   * with no orders behind it is still deciding, and the sections that explain
+   * the platform are exactly what it is deciding on.
+   */
+  const returning = (orders?.length ?? 0) > 0;
+
   const again = useMemo(() => {
     const seen = new Set();
     const out = [];
@@ -751,7 +760,10 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
-      {/* ============ HOW IT WORKS ============ */}
+      {/* ============ HOW IT WORKS ============
+          First visit only. Somebody who has ordered knows how it works; they
+          proved it by ordering. */}
+      {returning ? null : (
       <Container style={{ paddingTop: 20, paddingBottom: 56 }}>
         <SectionHeader
           center
@@ -804,6 +816,7 @@ export default function HomeScreen() {
           ))}
         </View>
       </Container>
+      )}
 
       {/* ============ FEATURED CHEFS ============ */}
       <Container style={{ paddingBottom: 56 }}>
@@ -884,7 +897,10 @@ export default function HomeScreen() {
         <TestimonialSlider reviews={reviews} chefName={chefName} />
       </View>
 
-      {/* ============ THE RANNABARI STANDARD ============ */}
+      {/* ============ THE RANNABARI STANDARD ============
+          The trust pitch, and the same reasoning: it is an argument for
+          ordering, read by somebody who already has. */}
+      {returning ? null : (
       <Container style={{ paddingVertical: 56, gap: 16 }}>
         <Reveal delay={1}>
           <LinearGradient
@@ -950,6 +966,7 @@ export default function HomeScreen() {
           </Reveal>
         ))}
       </Container>
+      )}
 
       {/* ============ FOOTER ============ */}
       <View
