@@ -11,6 +11,7 @@ import * as Location from 'expo-location';
 
 import Icon from './Icon';
 import MapCanvas from './MapCanvas';
+import { KNOWN_AREAS } from '../lib/areas';
 import { useTheme } from '../theme/ThemeProvider';
 import { useLang } from '../i18n/LanguageContext';
 import { font, radius, tracking, type } from '../theme/tokens';
@@ -124,6 +125,22 @@ export default function LocationPicker({ onChange, height = 250, center }) {
     setResults(found); // null signals "search unavailable"
   }, []);
 
+  /**
+   * Jump to a named area.
+   *
+   * Runs the same geocoder the search box does rather than carrying a table of
+   * coordinates: one source of truth for where "Mirpur" is, and a chip that
+   * cannot drift from what typing the same word gives you.
+   */
+  const jumpTo = useCallback(
+    (area) => {
+      setQuery(area);
+      clearTimeout(searchTimer.current);
+      runSearch(area);
+    },
+    [runSearch],
+  );
+
   const onQueryChange = (text) => {
     setQuery(text);
     clearTimeout(searchTimer.current);
@@ -230,6 +247,43 @@ export default function LocationPicker({ onChange, height = 250, center }) {
           </Pressable>
         </View>
 
+        {/* The commonest answer, one tap away. Horizontal because a wrapped
+            grid of thirty-seven areas would push the map off the screen, and
+            the map is the thing being used. */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ gap: 6, paddingHorizontal: 12, paddingBottom: 10 }}
+        >
+          {KNOWN_AREAS.map((area) => (
+            <Pressable
+              key={area}
+              accessibilityRole="button"
+              accessibilityLabel={t('Jump to {area}', { area })}
+              onPress={() => jumpTo(area)}
+              style={({ pressed }) => ({
+                paddingVertical: 6,
+                paddingHorizontal: 11,
+                borderRadius: radius.pill,
+                backgroundColor: pressed ? colors.primary50 : colors.sunken,
+                borderWidth: 1,
+                borderColor: pressed ? colors.primary100 : colors.line,
+              })}
+            >
+              <Text
+                style={{
+                  fontFamily: font.uiSemi,
+                  fontSize: 12.5,
+                  color: colors.textMuted,
+                }}
+              >
+                {t(area)}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
         {/* ---- Map ---- */}
         <View style={{ height, backgroundColor: colors.sunken }}>
           <MapCanvas
@@ -239,6 +293,47 @@ export default function LocationPicker({ onChange, height = 250, center }) {
             scrollEnabled={false}
             style={{ flex: 1, backgroundColor: colors.sunken }}
           />
+
+          {/* Opposite corner from "Use my location", so neither covers the
+              other and the pin's own space stays clear. */}
+          <View
+            style={[
+              {
+                position: 'absolute',
+                right: 12,
+                top: 12,
+                borderRadius: radius.sm,
+                overflow: 'hidden',
+                backgroundColor: colors.surfaceSolid,
+                borderWidth: 1,
+                borderColor: colors.line,
+              },
+              shadow.sm,
+            ]}
+          >
+            {[
+              { by: 1, icon: 'plus', label: t('Zoom in') },
+              { by: -1, icon: 'minus', label: t('Zoom out') },
+            ].map((step, i) => (
+              <Pressable
+                key={step.by}
+                accessibilityRole="button"
+                accessibilityLabel={step.label}
+                onPress={() => send({ type: 'zoom', by: step.by })}
+                style={({ pressed }) => ({
+                  width: 36,
+                  height: 34,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: pressed ? colors.primary50 : 'transparent',
+                  borderTopWidth: i === 0 ? 0 : 1,
+                  borderTopColor: colors.line2,
+                })}
+              >
+                <Icon name={step.icon} size={16} color={colors.text} strokeWidth={2.2} />
+              </Pressable>
+            ))}
+          </View>
 
           {/* bottom: 24, not 12 -- Leaflet's attribution strip owns the
               bottom ~17px of the frame. */}
@@ -314,19 +409,23 @@ export default function LocationPicker({ onChange, height = 250, center }) {
                 color: colors.text,
               }}
             >
-              {address || 'Move the map to drop your pin'}
+              {address || t('Drag the map to place your pin')}
             </Text>
+            {/* Kept, because a pin in the wrong place is worth being able to
+                read out to somebody — but smaller and quieter than the address
+                above it. It was the second thing the eye landed on, and it is
+                developer output on a customer's screen. */}
             <Text
               style={{
+                marginTop: 1,
                 fontFamily: font.ui,
-                fontSize: type.xs,
+                fontSize: 10.5,
                 color: colors.textLight,
                 fontVariant: ['tabular-nums'],
+                opacity: 0.75,
               }}
             >
-              {centre
-                ? `${centre.lat.toFixed(5)}, ${centre.lng.toFixed(5)}`
-                : '—'}
+              {centre ? `${centre.lat.toFixed(5)}, ${centre.lng.toFixed(5)}` : '—'}
             </Text>
           </View>
 

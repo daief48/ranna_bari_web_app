@@ -162,6 +162,11 @@ export const bn = {
   'Location permission was blocked. Allow it in your device settings, then try again.':
     'অবস্থানের অনুমতি বন্ধ আছে। ফোনের সেটিংসে অনুমতি দিয়ে আবার চেষ্টা করুন।',
   'Use my location': 'আমার অবস্থান নিন',
+  /* The location picker: area chips, zoom, and the empty-pin prompt. */
+  'Jump to {area}': '{area} এ যান',
+  'Zoom in': 'কাছে আনুন',
+  'Zoom out': 'দূরে নিন',
+  'Drag the map to place your pin': 'পিন বসাতে ম্যাপ সরান',
   'See who is cooking near you': 'কাছাকাছি কে রাঁধছে দেখুন',
   'Kitchen map': 'রান্নাঘরের ম্যাপ',
 
