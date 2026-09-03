@@ -4,6 +4,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  TextInput,
   Text,
   View,
 } from 'react-native';
@@ -1776,26 +1777,47 @@ function KitchenPhotoField({ value, onChange }) {
 /**
  * What a kitchen cooks best — as many as apply.
  *
- * A single choice made a kitchen that does Sylheti home cooking *and* pitha
- * pick one and leave the other unsaid. The first selected is the primary,
- * because the card shows one and the stored `specialty` field is one; the
- * rest ride along in `specialties`.
+ * The first selected is the primary: the card shows one specialty and the
+ * stored `specialty` field is one string, so something has to be first. It is
+ * shown as MAIN and can be changed by tapping its chip, rather than being an
+ * accident of tap order that could only be undone by starting over.
  *
- * The list comes from the backend, where an operator edits it. The constant
- * in KitchenContext is only what shows before the first response lands.
+ * The list comes from the backend, where an operator edits it. The constant in
+ * KitchenContext is only what shows before the first response lands.
  */
 function SpecialtyPicker({ value, onChange }) {
   const { colors } = useTheme();
   const { t } = useLang();
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const options = useSpecialties();
 
   const chosen = Array.isArray(value) ? value : [];
 
   const toggle = (name) =>
-    onChange(
-      chosen.includes(name) ? chosen.filter((s) => s !== name) : [...chosen, name],
-    );
+    onChange(chosen.includes(name) ? chosen.filter((s) => s !== name) : [...chosen, name]);
+
+  /* Promote to primary by moving it to the front — the order *is* the
+     ranking, so there is no second field to keep in step. */
+  const makeMain = (name) => onChange([name, ...chosen.filter((s) => s !== name)]);
+
+  /* Matched on the translated label as well as the stored one, so searching
+     in Bengali finds the row a Bengali reader is looking at. */
+  const needle = query.trim().toLowerCase();
+  const shown = needle
+    ? options.filter(
+        (s) =>
+          s.toLowerCase().includes(needle) || String(t(s)).toLowerCase().includes(needle),
+      )
+    : options;
+
+  /* Two names fit across a phone; past that the count is more use than a
+     truncated list of the first one and a half. */
+  const summary = chosen.length
+    ? chosen.length <= 2
+      ? chosen.map((s) => t(s)).join(', ')
+      : t('{first} and {n} more', { first: t(chosen[0]), n: chosen.length - 1 })
+    : t('Choose what you cook best');
 
   return (
     <View style={{ marginBottom: 16 }}>
@@ -1839,9 +1861,7 @@ function SpecialtyPicker({ value, onChange }) {
             color: chosen.length ? colors.text : colors.textLight,
           }}
         >
-          {chosen.length
-            ? chosen.map((s) => t(s)).join(', ')
-            : t('Choose what you cook best')}
+          {summary}
         </Text>
         <Icon
           name="chevronDown"
@@ -1855,75 +1875,213 @@ function SpecialtyPicker({ value, onChange }) {
         <View
           style={{
             marginTop: 6,
-            padding: 6,
             borderRadius: radius.sm,
             backgroundColor: colors.surfaceSolid,
             borderWidth: 1,
             borderColor: colors.line,
+            overflow: 'hidden',
           }}
         >
-          {options.map((s) => {
-            const on = chosen.includes(s);
-            /* The sheet stays open: picking several is the point, and closing
-               after each tap would make the second one a second journey. */
-            return (
-              <Pressable
-                key={s}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: on }}
-                onPress={() => toggle(s)}
-                style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 10,
-                  paddingVertical: 12,
-                  paddingHorizontal: 10,
-                  borderRadius: radius.xs,
-                  backgroundColor: pressed || on ? colors.primary50 : 'transparent',
-                })}
-              >
-                <View
+          {/* What you have picked, all of it, without scrolling for it. */}
+          {chosen.length ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 6,
+                padding: 10,
+                borderBottomWidth: 1,
+                borderBottomColor: colors.line2,
+              }}
+            >
+              {chosen.map((s, i) => (
+                <Pressable
+                  key={s}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    i === 0
+                      ? `${t(s)} — ${t('shown on your card')}`
+                      : `${t('Make {name} your main specialty', { name: t(s) })}`
+                  }
+                  onPress={() => makeMain(s)}
                   style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: 6,
+                    flexDirection: 'row',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: on ? colors.primary : 'transparent',
-                    borderWidth: on ? 0 : 1.5,
-                    borderColor: colors.line,
+                    gap: 6,
+                    paddingVertical: 5,
+                    paddingLeft: 10,
+                    paddingRight: 4,
+                    borderRadius: radius.pill,
+                    backgroundColor: i === 0 ? colors.primary : colors.primary50,
+                    borderWidth: 1,
+                    borderColor: i === 0 ? colors.primary : colors.primary100,
                   }}
                 >
-                  {on ? <Icon name="check" size={13} color={colors.onPrimary} strokeWidth={3} /> : null}
-                </View>
-
-                <Text
-                  style={{
-                    flex: 1,
-                    fontFamily: on ? font.uiSemi : font.ui,
-                    fontSize: 15,
-                    color: on ? colors.primary : colors.text,
-                  }}
-                >
-                  {t(s)}
-                </Text>
-
-                {/* Which one the card will show. */}
-                {chosen[0] === s ? (
                   <Text
                     style={{
-                      fontFamily: font.uiBold,
-                      fontSize: 9.5,
-                      letterSpacing: 0.6,
-                      color: colors.primary,
+                      fontFamily: font.uiSemi,
+                      fontSize: 12.5,
+                      color: i === 0 ? colors.onPrimary : colors.primary,
                     }}
                   >
-                    {t('MAIN')}
+                    {t(s)}
                   </Text>
-                ) : null}
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('Remove {name}', { name: t(s) })}
+                    onPress={() => toggle(s)}
+                    hitSlop={8}
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 9,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Icon
+                      name="x"
+                      size={11}
+                      strokeWidth={2.5}
+                      color={i === 0 ? colors.onPrimary : colors.primary}
+                    />
+                  </Pressable>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
+          {/* Twenty-four rows is too many to scroll past on a phone. */}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.line2,
+            }}
+          >
+            <Icon name="search" size={15} color={colors.textLight} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder={t('Search specialties')}
+              placeholderTextColor={colors.textLight}
+              autoCorrect={false}
+              style={{
+                flex: 1,
+                paddingVertical: 4,
+                fontFamily: font.ui,
+                fontSize: 14.5,
+                color: colors.text,
+              }}
+            />
+            {query ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('Clear search')}
+                onPress={() => setQuery('')}
+                hitSlop={8}
+              >
+                <Icon name="x" size={14} color={colors.textLight} />
               </Pressable>
-            );
-          })}
+            ) : null}
+          </View>
+
+          <ScrollView
+            style={{ maxHeight: 260 }}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+          >
+            {shown.length === 0 ? (
+              <View style={{ padding: 18, alignItems: 'center', gap: 4 }}>
+                <Text
+                  style={{ fontFamily: font.uiSemi, fontSize: 14, color: colors.text }}
+                >
+                  {t('Nothing matches “{q}”', { q: query.trim() })}
+                </Text>
+                <Text
+                  style={{ fontFamily: font.ui, fontSize: 12.5, color: colors.textMuted }}
+                >
+                  {t('Ask RannaBari to add it and it will appear here.')}
+                </Text>
+              </View>
+            ) : (
+              shown.map((s) => {
+                const on = chosen.includes(s);
+                /* The sheet stays open: picking several is the point, and
+                   closing after each tap would make the second a second
+                   journey. */
+                return (
+                  <Pressable
+                    key={s}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on }}
+                    onPress={() => toggle(s)}
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 11,
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      backgroundColor: pressed ? colors.primary50 : 'transparent',
+                    })}
+                  >
+                    <View
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 6,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: on ? colors.primary : 'transparent',
+                        borderWidth: on ? 0 : 1.5,
+                        borderColor: colors.line,
+                      }}
+                    >
+                      {on ? (
+                        <Icon name="check" size={13} color={colors.onPrimary} strokeWidth={3} />
+                      ) : null}
+                    </View>
+
+                    <Text
+                      style={{
+                        flex: 1,
+                        fontFamily: on ? font.uiSemi : font.ui,
+                        fontSize: 15,
+                        color: on ? colors.primary : colors.text,
+                      }}
+                    >
+                      {t(s)}
+                    </Text>
+                  </Pressable>
+                );
+              })
+            )}
+          </ScrollView>
+
+          {/* Says what the chips above mean, once there is more than one and
+              the ranking starts to matter. */}
+          {chosen.length > 1 ? (
+            <View
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 9,
+                borderTopWidth: 1,
+                borderTopColor: colors.line2,
+                backgroundColor: colors.sunken,
+              }}
+            >
+              <Text
+                style={{ fontFamily: font.ui, fontSize: 11.5, color: colors.textMuted }}
+              >
+                {t('Tap a chip to make it the one shown on your kitchen card.')}
+              </Text>
+            </View>
+          ) : null}
         </View>
       ) : null}
     </View>

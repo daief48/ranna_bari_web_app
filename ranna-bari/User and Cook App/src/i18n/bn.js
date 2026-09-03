@@ -445,6 +445,17 @@ export const bn = {
   'What you cook best': 'যা সবচেয়ে ভালো রাঁধেন',
   'What you cook best, currently': 'যা সবচেয়ে ভালো রাঁধেন, এখন',
   'Choose a specialty': 'বিশেষত্ব বাছুন',
+  /* The specialty picker, rebuilt for a list of twenty-four. */
+  'Choose what you cook best': 'যা ভালো রাঁধেন বাছুন',
+  'Search specialties': 'বিশেষত্ব খুঁজুন',
+  'Clear search': 'খোঁজা মুছুন',
+  '{first} and {n} more': '{first} এবং আরও {n}টি',
+  'Nothing matches “{q}”': '“{q}” এর সাথে কিছু মিলছে না',
+  'Ask RannaBari to add it and it will appear here.': 'রান্নাবাড়িকে যোগ করতে বলুন, এখানে চলে আসবে।',
+  'Tap a chip to make it the one shown on your kitchen card.': 'কোনটি আপনার রান্নাঘরের কার্ডে দেখাবে, সেটি বাছতে ট্যাপ করুন।',
+  'shown on your card': 'আপনার কার্ডে দেখাচ্ছে',
+  'Make {name} your main specialty': '{name} কে আপনার প্রধান বিশেষত্ব করুন',
+  'Remove {name}': '{name} সরান',
   'Sign in first': 'আগে সাইন ইন করুন',
   'Your profile details live with your account.':
     'আপনার প্রোফাইলের তথ্য অ্যাকাউন্টের সাথেই থাকে।',
