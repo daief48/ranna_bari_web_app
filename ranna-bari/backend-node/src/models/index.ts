@@ -440,6 +440,33 @@ const specialtySchema = new Schema(
 
 export const Specialty = model('Specialty', specialtySchema);
 
+/*
+ * The shared library of little pictures.
+ *
+ * Three things carry one — dish categories, kitchen specialties and a cook's
+ * shelves — and each used to ask for it with a text box. Nobody could see
+ * what the platform already used, so near-identical emoji accumulated. This
+ * is the set a picker offers.
+ *
+ *  is unique and never edited: the things that point at a picture
+ * store the character itself, so editing it here would rename nothing and
+ * only make the library disagree with the screen.
+ */
+const iconSchema = new Schema(
+  {
+    value: { type: String, required: true, unique: true },
+    /** Words the picker searches — "fire", not "flame emoji". */
+    label: { type: String, default: '' },
+    /** 'emoji' renders as text; 'image' renders as a URL. */
+    kind: { type: String, default: 'emoji' },
+    order: { type: Number, default: 0, index: true },
+    retired: { type: Boolean, default: false },
+  },
+  opts,
+);
+
+export const Icon = model('Icon', iconSchema);
+
 /* ------------------------------------------------------------------ *
  * requests and bidding
  * ------------------------------------------------------------------ */

@@ -5,6 +5,8 @@ import { can } from '@/lib/domain';
 import { Card, GapNote, Grid, PageHeader, Stat } from '@/components/ui';
 import { requirePage } from '@/lib/guard';
 
+import { type LibraryIcon } from '@/components/ui/icon-picker';
+
 import { SpecialtyEditor, type Specialty } from './editor';
 
 export const metadata = { title: 'Specialties · RannaBari Admin' };
@@ -28,8 +30,16 @@ export default async function SpecialtiesPage() {
   const canWrite = can(user?.role ?? '', 'config.write');
 
   let specialties: Specialty[];
+  let icons: LibraryIcon[] = [];
   try {
-    specialties = (await get<{ specialties: Specialty[] }>('/specialties')).specialties;
+    /* Together: a picker with an empty library is a text box with extra
+       steps, so the page waits for both or shows neither. */
+    const [list, library] = await Promise.all([
+      get<{ specialties: Specialty[] }>('/specialties'),
+      get<{ icons: LibraryIcon[] }>('/icons'),
+    ]);
+    specialties = list.specialties;
+    icons = library.icons;
   } catch (error) {
     if (error instanceof BackendError && error.status === 0) {
       return (
@@ -84,7 +94,7 @@ export default async function SpecialtiesPage() {
         title="The list"
         subtitle="In the order a cook is shown them"
       >
-        <SpecialtyEditor specialties={specialties} disabled={!canWrite} />
+        <SpecialtyEditor specialties={specialties} icons={icons} disabled={!canWrite} />
       </Card>
     </>
   );

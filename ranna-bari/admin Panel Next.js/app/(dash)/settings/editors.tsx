@@ -11,6 +11,7 @@ import {
   moveCategory,
 } from '@/actions/platform';
 import { ActionButton } from '@/components/ui/client';
+import { IconGlyph, IconPicker, type LibraryIcon } from '@/components/ui/icon-picker';
 import { Badge, BTN } from '@/components/ui';
 import { taka } from '@/lib/format';
 import type { PlatformSettings } from '@/lib/settings';
@@ -192,9 +193,11 @@ type Category = { id: string; key: string; label: string; emoji: string; retired
 
 export function TaxonomyEditor({
   categories,
+  icons,
   disabled,
 }: {
   categories: Category[];
+  icons: LibraryIcon[];
   disabled: boolean;
 }) {
   /* A category the seeded taxonomy is missing, so adding it is a real edit
@@ -206,13 +209,7 @@ export function TaxonomyEditor({
     <div>
       {!disabled ? (
         <div className="flex flex-wrap gap-2 border-b border-line p-3">
-          <input
-            value={emoji}
-            onChange={(e) => setEmoji(e.target.value)}
-            placeholder="🍛"
-            className={`${INPUT} w-14 text-center`}
-            aria-label="Emoji"
-          />
+          <IconPicker value={emoji} onChange={setEmoji} icons={icons} />
           <input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
@@ -235,8 +232,8 @@ export function TaxonomyEditor({
             key={category.id}
             className={`flex items-center gap-2 px-4 py-2 ${category.retired ? 'opacity-50' : ''}`}
           >
-            <span className="w-6 shrink-0 text-center text-[15px]" aria-hidden>
-              {category.emoji}
+            <span className="flex w-6 shrink-0 justify-center">
+              <IconGlyph value={category.emoji} size={16} />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px]">{category.label}</span>

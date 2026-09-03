@@ -1,0 +1,188 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+export type LibraryIcon = {
+  id: string;
+  value: string;
+  label: string;
+  kind: 'emoji' | 'image';
+  retired: boolean;
+  uses?: number;
+};
+
+/**
+ * One picture, rendered however its kind says to.
+ *
+ * Every field stores an opaque string, so this is the single place that knows
+ * a URL means an <img> and anything else means text. Without it each caller
+ * would decide again, and one of them would eventually print a URL as a label.
+ */
+export function IconGlyph({ value, size = 18 }: { value: string; size?: number }) {
+  if (!value) return <span className="text-ink3">—</span>;
+
+  if (/^https?:\/\//i.test(value)) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={value}
+        alt=""
+        width={size}
+        height={size}
+        className="inline-block object-contain align-middle"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
+  return (
+    <span aria-hidden style={{ fontSize: size }}>
+      {value}
+    </span>
+  );
+}
+
+/**
+ * Pick a picture from the shared library, or bring your own.
+ *
+ * Every emoji field in this console used to be a bare text box. That works for
+ * whoever set the list up and for nobody after: you cannot see what the
+ * platform already uses, so a new category gets 🍛 while the one above it has
+ * 🍚 and the set drifts into near-identical pictures nobody chose.
+ *
+ * Offering the library first is the whole point. The custom box is still there
+ * — a genuinely new picture has to enter somehow — but it is below the grid
+ * rather than instead of it, so the default action is "use one of ours".
+ */
+export function IconPicker({
+  value,
+  onChange,
+  icons,
+  label = 'Icon',
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  icons: LibraryIcon[];
+  label?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [custom, setCustom] = useState('');
+  const box = useRef<HTMLDivElement>(null);
+
+  /* Click-away and Escape, because a popover that can only be closed by
+     choosing something traps anybody who opened it by accident. */
+  useEffect(() => {
+    if (!open) return;
+
+    const onDown = (e: MouseEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const shown = useMemo(() => {
+    const live = icons.filter((i) => !i.retired);
+    const needle = query.trim().toLowerCase();
+    if (!needle) return live;
+    return live.filter(
+      (i) => i.label.includes(needle) || i.value.includes(needle),
+    );
+  }, [icons, query]);
+
+  return (
+    <div className="relative" ref={box}>
+      <button
+        type="button"
+        aria-label={`${label}: ${value || 'none chosen'}`}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-[34px] w-14 items-center justify-center rounded-[9px] border border-line bg-raised hover:border-primary-200"
+      >
+        <IconGlyph value={value} />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 top-[38px] z-30 w-[300px] rounded-[12px] border border-line bg-raised p-2.5 shadow-lg">
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search — fire, rice, sweet…"
+            className="mb-2 w-full rounded-[8px] border border-line bg-sunken px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-primary-200"
+          />
+
+          {shown.length ? (
+            <div className="grid max-h-[180px] grid-cols-8 gap-1 overflow-y-auto">
+              {shown.map((icon) => (
+                <button
+                  key={icon.id}
+                  type="button"
+                  title={icon.label || icon.value}
+                  aria-label={icon.label || icon.value}
+                  onClick={() => {
+                    onChange(icon.value);
+                    setOpen(false);
+                    setQuery('');
+                  }}
+                  className={`flex h-8 items-center justify-center rounded-[7px] border ${
+                    value === icon.value
+                      ? 'border-primary bg-primary-50'
+                      : 'border-transparent hover:bg-sunken'
+                  }`}
+                >
+                  <IconGlyph value={icon.value} size={17} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="px-1 py-3 text-center text-[12px] text-ink3">
+              Nothing matches “{query.trim()}”. Add it below.
+            </p>
+          )}
+
+          {/* A genuinely new picture has to enter somewhere. Below the grid,
+              not instead of it, so reaching for the library is the default. */}
+          <div className="mt-2 border-t border-line2 pt-2">
+            <label className="mb-1 block text-[10.5px] uppercase tracking-wide text-ink3">
+              Or paste an emoji or image URL
+            </label>
+            <div className="flex gap-1.5">
+              <input
+                value={custom}
+                onChange={(e) => setCustom(e.target.value)}
+                placeholder="🥣  or  https://…/icon.png"
+                className="min-w-0 flex-1 rounded-[8px] border border-line bg-sunken px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-primary-200"
+              />
+              <button
+                type="button"
+                disabled={!custom.trim()}
+                onClick={() => {
+                  onChange(custom.trim());
+                  setCustom('');
+                  setOpen(false);
+                }}
+                className="shrink-0 rounded-[8px] border border-line px-2.5 py-1.5 text-[12px] font-semibold text-ink2 hover:border-primary-200 hover:text-primary disabled:opacity-40"
+              >
+                Use
+              </button>
+            </div>
+            <p className="mt-1 text-[10.5px] text-ink3">
+              Used here straight away. Add it to the library on{' '}
+              <span className="text-ink2">Emoji &amp; icons</span> to offer it everywhere.
+            </p>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

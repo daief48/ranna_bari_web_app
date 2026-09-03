@@ -490,3 +490,62 @@ export async function moveSpecialty(id: string, direction: 'up' | 'down'): Promi
     }),
   );
 }
+
+/* ------------------------------------------------------------------ *
+ * emoji and icons — the shared picture library
+ * ------------------------------------------------------------------ */
+
+/**
+ * Add a picture to the library.
+ *
+ * The value is an emoji character or an image URL; the backend decides which
+ * from the string itself, so a caller never has to declare it.
+ */
+export async function addIcon(value: string, label: string): Promise<ActionResult> {
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
+      const clean = value.trim();
+      if (!clean) return bad(ERR.NAME_REQUIRED);
+
+      await post('/icons', { value: clean, label: label.trim() });
+
+      revalidatePath('/icons');
+      return good('Added to the library.');
+    }),
+  );
+}
+
+/**
+ * Rename one.
+ *
+ * The label only — the value is what every category and specialty stores, so
+ * editing it here would rename nothing and merely make the library disagree
+ * with what is on screen. A wrong picture is retired and a right one added.
+ */
+export async function renameIcon(id: string, label: string): Promise<ActionResult> {
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
+
+      await post(`/icons/${id}`, { label: label.trim() });
+
+      revalidatePath('/icons');
+      return good('Renamed.');
+    }),
+  );
+}
+
+/** Stop offering it, or offer it again. Never a delete, for the reason above. */
+export async function retireIcon(id: string, retired: boolean): Promise<ActionResult> {
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
+
+      await post(`/icons/${id}/retire`, { retired });
+
+      revalidatePath('/icons');
+      return good(retired ? 'No longer offered.' : 'Back in the library.');
+    }),
+  );
+}

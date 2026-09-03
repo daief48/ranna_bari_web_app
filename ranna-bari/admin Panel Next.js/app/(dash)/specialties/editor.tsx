@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { moveSpecialty, retireSpecialty, saveSpecialty } from '@/actions/platform';
 import { ActionButton } from '@/components/ui/client';
+import { IconGlyph, IconPicker, type LibraryIcon } from '@/components/ui/icon-picker';
 
 export type Specialty = {
   id: string;
@@ -30,9 +31,11 @@ const INPUT =
  */
 export function SpecialtyEditor({
   specialties,
+  icons,
   disabled,
 }: {
   specialties: Specialty[];
+  icons: LibraryIcon[];
   disabled: boolean;
 }) {
   const [label, setLabel] = useState('');
@@ -44,13 +47,7 @@ export function SpecialtyEditor({
     <div>
       {!disabled ? (
         <div className="flex flex-wrap gap-2 border-b border-line p-3">
-          <input
-            value={emoji}
-            onChange={(e) => setEmoji(e.target.value)}
-            placeholder="🍛"
-            className={`${INPUT} w-14 text-center`}
-            aria-label="Emoji"
-          />
+          <IconPicker value={emoji} onChange={setEmoji} icons={icons} />
           <input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
@@ -80,11 +77,10 @@ export function SpecialtyEditor({
             >
               {isEditing ? (
                 <>
-                  <input
+                  <IconPicker
                     value={draft.emoji}
-                    onChange={(e) => setDraft({ ...draft, emoji: e.target.value })}
-                    className={`${INPUT} w-14 text-center`}
-                    aria-label="Emoji"
+                    onChange={(next) => setDraft({ ...draft, emoji: next })}
+                    icons={icons}
                   />
                   <input
                     value={draft.label}
@@ -113,8 +109,8 @@ export function SpecialtyEditor({
                 </>
               ) : (
                 <>
-                  <span className="w-6 shrink-0 text-center text-[15px]" aria-hidden>
-                    {specialty.emoji}
+                  <span className="flex w-6 shrink-0 justify-center">
+                    <IconGlyph value={specialty.emoji} size={16} />
                   </span>
 
                   <span className="min-w-0 flex-1">

@@ -22,6 +22,7 @@ import {
   unreadTotal,
   type Viewer,
 } from '../../../logic/chat.js';
+import { iconsOf } from '../../../logic/icons.js';
 import { specialtiesOf } from '../../../logic/specialties.js';
 import {
   kitchenMayTrade,
@@ -386,6 +387,16 @@ export async function appRoutes(app: FastifyInstance) {
    * it keep it, which is the whole reason retiring exists rather than
    * deleting.
    */
+  /**
+   * The picture library, for a cook naming their own shelves.
+   *
+   * Open like `/specialties` and for the same reason: it is a list of emoji,
+   * and every one of them is already drawn on a public category card.
+   */
+  app.get('/icons', async (_request, _reply) => {
+    return { icons: await iconsOf() };
+  });
+
   app.get('/specialties', async (_request, _reply) => {
     return { specialties: await specialtiesOf() };
   });

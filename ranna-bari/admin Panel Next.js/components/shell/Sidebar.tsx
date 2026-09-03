@@ -60,6 +60,7 @@ export const NAV: {
     group: 'Platform',
     items: [
       { href: '/settings', label: 'Configuration', cap: 'config.read' },
+      { href: '/icons', label: 'Emoji & icons', cap: 'config.read' },
       { href: '/notifications', label: 'Notifications', cap: 'order.read' },
       { href: '/admins', label: 'Admin users', cap: 'kitchen.read' },
       { href: '/audit', label: 'Audit log', cap: 'order.read' },
@@ -104,6 +105,12 @@ const ICON: Record<string, string> = {
   /* A rosette. This is the one list on the platform that is a claim about
      craft rather than an inventory of anything, and nothing else here is
      round-with-ribbons. */
+  /* A smiling face. Every other glyph here is an object or a document; this
+     one is about the little pictures themselves, so it is the only place a
+     face belongs. */
+  '/icons':
+    'M12 3.2a8.8 8.8 0 1 0 0 17.6 8.8 8.8 0 0 0 0-17.6M8.6 14.4a4.2 4.2 0 0 0 6.8 0M9.2 9.6h.01M14.8 9.6h.01',
+
   '/specialties':
     'M12 3.2a5 5 0 1 0 0 10 5 5 0 0 0 0-10M8.6 12.4 7 20.8l5-2.4 5 2.4-1.6-8.4',
 

@@ -14,6 +14,13 @@ import { pendingPreorders, setStock, toggleProduct, toggleStoreOpen } from '../.
 import { standing, turnOf, type PriceMove } from '../../../logic/requests.js';
 import { notify } from '../../../logic/wallet.js';
 import {
+  addIcon,
+  iconUsage,
+  iconsOf,
+  retireIcon,
+  updateIcon,
+} from '../../../logic/icons.js';
+import {
   addSpecialty,
   moveSpecialty,
   retireSpecialty,
@@ -1501,6 +1508,80 @@ export async function operationRoutes(app: FastifyInstance) {
       wallet: { amount: totals[0]?.amount ?? 0, count: totals[0]?.count ?? 0 },
       entry: entry ? withId(entry) : null,
     };
+  });
+
+  /* ---------------- emoji and icons ---------------- */
+
+  /**
+   * The shared library every picture-field picks from.
+   *
+   * Each row carries how many categories and specialties currently draw it,
+   * which is the question worth answering before retiring one.
+   */
+  app.get('/icons', async (request, reply) => {
+    const actor = await require(request, reply, 'config.read');
+    if (!actor) return;
+
+    const [rows, uses] = await Promise.all([iconsOf({ includeRetired: true }), iconUsage()]);
+
+    return { icons: rows.map((row) => ({ ...row, uses: uses.get(row.value) ?? 0 })) };
+  });
+
+  app.post('/icons', async (request, reply) => {
+    const actor = await require(request, reply, 'config.write');
+    if (!actor) return;
+
+    const body = z
+      .object({ value: z.string().min(1), label: z.string().optional() })
+      .safeParse(request.body);
+    if (!body.success) return refuse(reply, ERR.NAME_REQUIRED);
+
+    const out = await addIcon(body.data);
+    if (!out.ok) return refuse(reply, out.error);
+
+    await audit(actor, {
+      action: 'icon.create',
+      targetType: 'Icon',
+      targetId: out.result.id,
+      summary: out.result.value + ' ' + out.result.label,
+    });
+
+    return { icon: out.result };
+  });
+
+  app.post('/icons/:id', async (request, reply) => {
+    const actor = await require(request, reply, 'config.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z.object({ label: z.string() }).safeParse(request.body);
+    if (!body.success) return refuse(reply, ERR.NAME_REQUIRED);
+
+    const out = await updateIcon({ id, label: body.data.label });
+    if (!out.ok) return refuse(reply, out.error);
+
+    return { icon: out.result };
+  });
+
+  app.post('/icons/:id/retire', async (request, reply) => {
+    const actor = await require(request, reply, 'config.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z.object({ retired: z.boolean() }).safeParse(request.body);
+    if (!body.success) return refuse(reply, ERR.NAME_REQUIRED);
+
+    const out = await retireIcon({ id, retired: body.data.retired });
+    if (!out.ok) return refuse(reply, out.error);
+
+    await audit(actor, {
+      action: body.data.retired ? 'icon.retire' : 'icon.restore',
+      targetType: 'Icon',
+      targetId: id,
+      summary: out.result.value,
+    });
+
+    return { icon: out.result };
   });
 
   /* ---------------- specialties ---------------- */

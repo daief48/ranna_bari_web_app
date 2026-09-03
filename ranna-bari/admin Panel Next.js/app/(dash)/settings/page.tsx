@@ -3,6 +3,8 @@ import { can } from '@/lib/domain';
 import { BACKEND_URL, BackendError, get } from '@/lib/backend';
 import { getFlags, type PlatformSettings } from '@/lib/settings';
 import { Card, GapNote, PageHeader, Badge } from '@/components/ui';
+import { type LibraryIcon } from '@/components/ui/icon-picker';
+
 import { SettingField, FlagRow, ZoneEditor, TaxonomyEditor } from './editors';
 import { requirePage } from '@/lib/guard';
 
@@ -51,18 +53,23 @@ export default async function SettingsPage() {
      moves. Read and write stay on the same side of the wire until there is an
      endpoint for the write. */
   let flags: Awaited<ReturnType<typeof getFlags>>;
+  let icons: LibraryIcon[] = [];
 
   try {
-    const [remote, zoneList, categories, flagRows] = await Promise.all([
+    const [remote, zoneList, categories, flagRows, library] = await Promise.all([
       get<Config>('/settings'),
       get<{ zones: Zone[] }>('/zones'),
       get<{ taxonomy: Category[] }>('/taxonomy'),
       getFlags(),
+      /* The picture library, so the category editor can offer it rather than
+         asking somebody to remember which emoji the platform already uses. */
+      get<{ icons: LibraryIcon[] }>('/icons'),
     ]);
     config = remote;
     zones = zoneList.zones;
     taxonomy = categories.taxonomy;
     flags = flagRows;
+    icons = library.icons;
   } catch (error) {
     if (error instanceof BackendError && error.status === 0) {
       return (
@@ -212,6 +219,7 @@ export default async function SettingsPage() {
               emoji: c.emoji,
               retired: c.retired,
             }))}
+            icons={icons}
             disabled={!canWrite}
           />
         </Card>
