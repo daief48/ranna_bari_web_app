@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 
 import { addIcon, renameIcon, retireIcon } from '@/actions/platform';
 import { ActionButton } from '@/components/ui/client';
-import { IconGlyph, fileToIconValue, type LibraryIcon } from '@/components/ui/icon-picker';
+import { IconGlyph, IconPicker, fileToIconValue, type LibraryIcon } from '@/components/ui/icon-picker';
 
 const INPUT =
   'rounded-[9px] border border-line bg-raised px-2.5 py-1.5 text-[13px] text-ink ' +
@@ -42,11 +42,15 @@ export function IconLibrary({
     <div>
       {!disabled ? (
         <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
+          {/* The same picker every other field uses, so all 1,914 emoji are
+             reachable from here without typing one. Its All-emoji tab is how
+             something new enters the library. */}
+          <IconPicker value={value} onChange={setValue} icons={icons} label="New icon" />
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="🍛 or https://…/icon.png"
-            className={`${INPUT} w-[190px]`}
+            placeholder="or paste 🍛 / https://…/icon.png"
+            className={`${INPUT} w-[170px]`}
             aria-label="Emoji or image URL"
           />
           <input

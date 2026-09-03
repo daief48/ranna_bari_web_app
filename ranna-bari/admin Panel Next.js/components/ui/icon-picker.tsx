@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { EMOJI, EMOJI_DEFAULT_GROUP, EMOJI_GROUPS } from '@/lib/emoji-catalogue';
+
 /** How big an uploaded icon is allowed to be, in pixels. */
 const ICON_MAX = 128;
 
@@ -122,6 +124,8 @@ export function IconPicker({
   label?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<'library' | 'all'>('library');
+  const [group, setGroup] = useState(EMOJI_DEFAULT_GROUP);
   const [query, setQuery] = useState('');
   const [custom, setCustom] = useState('');
   const box = useRef<HTMLDivElement>(null);
@@ -146,14 +150,21 @@ export function IconPicker({
     };
   }, [open]);
 
+  const needle = query.trim().toLowerCase();
+
   const shown = useMemo(() => {
     const live = icons.filter((i) => !i.retired);
-    const needle = query.trim().toLowerCase();
     if (!needle) return live;
-    return live.filter(
-      (i) => i.label.includes(needle) || i.value.includes(needle),
-    );
-  }, [icons, query]);
+    return live.filter((i) => i.label.includes(needle) || i.value.includes(needle));
+  }, [icons, needle]);
+
+  /* One group at a time unless somebody is searching. Putting all 1,914 in
+     the DOM to draw a grid nobody scrolls to the end of is how a popover
+     becomes slow to open. */
+  const catalogue = useMemo(() => {
+    if (needle) return EMOJI.filter(([, name]) => name.includes(needle)).slice(0, 300);
+    return EMOJI.filter(([, , g]) => g === group);
+  }, [needle, group]);
 
   return (
     <div className="relative" ref={box}>
@@ -169,40 +180,112 @@ export function IconPicker({
 
       {open ? (
         <div className="absolute left-0 top-[38px] z-30 w-[300px] rounded-[12px] border border-line bg-raised p-2.5 shadow-lg">
+          {/* The library first, because reaching for what the platform
+              already uses is the behaviour this whole thing exists to
+              encourage. All of Unicode is a deliberate second step. */}
+          <div className="mb-2 flex gap-1 rounded-[8px] bg-sunken p-0.5">
+            {(['library', 'all'] as const).map((which) => (
+              <button
+                key={which}
+                type="button"
+                onClick={() => setTab(which)}
+                className={`flex-1 rounded-[6px] px-2 py-1 text-[12px] font-semibold ${
+                  tab === which ? 'bg-raised text-ink shadow-sm' : 'text-ink3 hover:text-ink2'
+                }`}
+              >
+                {which === 'library' ? `Library (${icons.filter((i) => !i.retired).length})` : 'All emoji'}
+              </button>
+            ))}
+          </div>
+
           <input
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search — fire, rice, sweet…"
+            placeholder={tab === 'library' ? 'Search — fire, rice, sweet…' : 'Search all emoji…'}
             className="mb-2 w-full rounded-[8px] border border-line bg-sunken px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-primary-200"
           />
 
-          {shown.length ? (
-            <div className="grid max-h-[180px] grid-cols-8 gap-1 overflow-y-auto">
-              {shown.map((icon) => (
+          {tab === 'all' && !needle ? (
+            <div className="mb-2 flex flex-wrap gap-1">
+              {EMOJI_GROUPS.map((name, i) => (
                 <button
-                  key={icon.id}
+                  key={name}
                   type="button"
-                  title={icon.label || icon.value}
-                  aria-label={icon.label || icon.value}
+                  onClick={() => setGroup(i)}
+                  className={`rounded-[6px] px-1.5 py-0.5 text-[10.5px] ${
+                    group === i ? 'bg-primary-50 text-primary' : 'text-ink3 hover:text-ink2'
+                  }`}
+                >
+                  {name.replace(' & ', ' ')}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {tab === 'library' ? (
+            shown.length ? (
+              <div className="grid max-h-[180px] grid-cols-8 gap-1 overflow-y-auto">
+                {shown.map((icon) => (
+                  <button
+                    key={icon.id}
+                    type="button"
+                    title={icon.label || icon.value}
+                    aria-label={icon.label || icon.value}
+                    onClick={() => {
+                      onChange(icon.value);
+                      setOpen(false);
+                      setQuery('');
+                    }}
+                    className={`flex h-8 items-center justify-center rounded-[7px] border ${
+                      value === icon.value
+                        ? 'border-primary bg-primary-50'
+                        : 'border-transparent hover:bg-sunken'
+                    }`}
+                  >
+                    <IconGlyph value={icon.value} size={17} />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="px-1 py-3 text-center text-[12px] text-ink3">
+                Nothing in the library matches “{query.trim()}”. Try{' '}
+                <button
+                  type="button"
+                  onClick={() => setTab('all')}
+                  className="font-semibold text-primary hover:underline"
+                >
+                  all emoji
+                </button>
+                .
+              </p>
+            )
+          ) : catalogue.length ? (
+            <div className="grid max-h-[180px] grid-cols-8 gap-1 overflow-y-auto">
+              {catalogue.map(([emoji, name]) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  title={name}
+                  aria-label={name}
                   onClick={() => {
-                    onChange(icon.value);
+                    onChange(emoji);
                     setOpen(false);
                     setQuery('');
                   }}
-                  className={`flex h-8 items-center justify-center rounded-[7px] border ${
-                    value === icon.value
+                  className={`flex h-8 items-center justify-center rounded-[7px] border text-[17px] ${
+                    value === emoji
                       ? 'border-primary bg-primary-50'
                       : 'border-transparent hover:bg-sunken'
                   }`}
                 >
-                  <IconGlyph value={icon.value} size={17} />
+                  {emoji}
                 </button>
               ))}
             </div>
           ) : (
             <p className="px-1 py-3 text-center text-[12px] text-ink3">
-              Nothing matches “{query.trim()}”. Add it below.
+              No emoji matches “{query.trim()}”.
             </p>
           )}
 
