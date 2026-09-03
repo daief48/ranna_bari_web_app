@@ -241,7 +241,18 @@ export function StatTile({ icon, value, label, variant = 'sage', style }) {
 }
 
 /** The navigation row used for the panel's quick actions. */
-export function ActionRow({ icon, title, sub, tone = 'sage', onPress, style }) {
+/**
+ * A row that opens something — or explains why it will not.
+ *
+ * `locked` is for the actions an unapproved kitchen cannot take. The backend
+ * already refuses them; without this the button looked identical to a working
+ * one and the only feedback was an error after the tap. A held control that
+ * says it is held is kinder than one that pretends and then fails.
+ *
+ * Still rendered, not hidden. A cook should be able to see what approval will
+ * give them.
+ */
+export function ActionRow({ icon, title, sub, tone = 'sage', onPress, locked = false, style }) {
   const { colors, shadow } = useTheme();
 
   const tint = {
@@ -253,8 +264,9 @@ export function ActionRow({ icon, title, sub, tone = 'sage', onPress, style }) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ disabled: locked }}
       accessibilityLabel={sub ? `${title}. ${sub}` : title}
-      onPress={onPress}
+      onPress={locked ? undefined : onPress}
       style={({ pressed }) => [
         {
           flexDirection: 'row',
@@ -264,8 +276,11 @@ export function ActionRow({ icon, title, sub, tone = 'sage', onPress, style }) {
           borderRadius: radius.lg,
           backgroundColor: colors.surfaceSolid,
           borderWidth: 1,
-          borderColor: pressed ? tint.edge : colors.line,
-          transform: [{ scale: pressed ? 0.99 : 1 }],
+          borderColor: pressed && !locked ? tint.edge : colors.line,
+          transform: [{ scale: pressed && !locked ? 0.99 : 1 }],
+          /* Legible, not invisible: the row is still readable so a cook can
+             see what approval unlocks. */
+          opacity: locked ? 0.55 : 1,
         },
         shadow.sm,
         style,
@@ -283,7 +298,7 @@ export function ActionRow({ icon, title, sub, tone = 'sage', onPress, style }) {
           borderColor: colors.line2,
         }}
       >
-        <Icon name={icon} size={22} color={tint.fg} />
+        <Icon name={locked ? 'lock' : icon} size={22} color={locked ? colors.textLight : tint.fg} />
       </View>
 
       <View style={{ flex: 1, minWidth: 0 }}>
