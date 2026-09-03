@@ -28,6 +28,8 @@ type KitchenRow = {
   name: string;
   ownerName: string;
   avatar: string;
+  /** The shopfront picture — what a customer sees on the card. */
+  coverImage: string;
   area: string;
   isVerified: boolean;
   isOpen: boolean;
@@ -139,7 +141,14 @@ export default async function KitchensPage({
                   href={`/kitchens/${kitchen.id}`}
                   className="flex items-center gap-2.5 hover:text-primary"
                 >
-                  <Avatar src={kitchen.avatar} name={kitchen.name} />
+                  {/* The cover, falling back to the avatar. A list of
+                      kitchens whose only picture is a 28px circle is a list
+                      an operator has to click through to recognise. */}
+                  <Avatar
+                    src={kitchen.coverImage || kitchen.avatar}
+                    name={kitchen.name}
+                    size={34}
+                  />
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{kitchen.name}</span>
                     <span className="block truncate text-[11.5px] text-ink3">

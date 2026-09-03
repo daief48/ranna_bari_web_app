@@ -9,6 +9,7 @@ import { taka, fmtDate, fmtDateTime, timeAgo } from '@/lib/format';
 import { parseJson } from '@/lib/mappers';
 import {
   Avatar,
+  KitchenPhotos,
   Badge,
   Card,
   Field,
@@ -85,6 +86,9 @@ type KitchenView = {
     name: string;
     ownerName: string;
     avatar: string;
+    /** The shopfront banner, and the gallery submitted at registration. */
+    coverImage: string | null;
+    photos: string[] | null;
     specialty: string;
     description: string;
     tags: unknown;
@@ -252,6 +256,20 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
           sub={`${cancelled} cancelled or rejected`}
         />
       </Grid>
+
+      {/* Above the three columns, not inside one: this is the kitchen
+          itself, and it is the first thing worth looking at on the page. */}
+      <Card
+        className="mt-3"
+        title="Photographs"
+        subtitle="Submitted by the cook — the cover is what customers see on the card"
+      >
+        <KitchenPhotos
+          cover={kitchen.coverImage}
+          photos={kitchen.photos}
+          empty="No photographs on this kitchen."
+        />
+      </Card>
 
       <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
         <Card title="Profile">

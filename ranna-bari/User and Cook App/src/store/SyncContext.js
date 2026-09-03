@@ -54,7 +54,20 @@ export function SyncProvider({ children }) {
           ownerName: kitchen.ownerName,
           avatar: kitchen.avatar,
           coverImage: kitchen.coverImage,
+          /*
+           * The gallery, which this payload used to leave behind.
+           *
+           * Registration makes these photographs mandatory and the cook
+           * kept seeing them afterwards, so nothing looked wrong — they
+           * were in the account on the device. They just never left it.
+           * Every kitchen in the database has photos: [], and the KYC queue
+           * has been approving kitchens nobody could see.
+           */
+          photos: kitchen.photos,
           specialty: kitchen.specialty,
+          /* Dropped for the same reason, since the picker went multi-select:
+             the primary above is one of these, and the rest were lost. */
+          specialties: kitchen.specialties,
           description: kitchen.description,
           tags: kitchen.tags,
           area: kitchen.area,

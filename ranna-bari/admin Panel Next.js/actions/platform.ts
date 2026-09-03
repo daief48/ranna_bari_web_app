@@ -437,6 +437,69 @@ export async function toggleStoreOpen(storeId: string): Promise<ActionResult> {
  * chose it claiming something the platform no longer lists. The label is what
  * people read and is free to change; the key is the join and is not.
  */
+/**
+ * Launch a campaign, or adjust one that is running.
+ *
+ * The code itself is only sent on create. `savePromotion` on the server
+ * ignores it on an update, and this mirrors that rather than pretending to
+ * offer a rename the backend would silently drop.
+ */
+export async function savePromotion(
+  id: string | null,
+  fields: {
+    code?: string;
+    kind?: 'percent' | 'flat';
+    value?: number;
+    minOrder?: number;
+    maxDiscount?: number;
+    firstOrderOnly?: boolean;
+    usageLimit?: number;
+    perCustomer?: number;
+    startsAt?: string | null;
+    endsAt?: string | null;
+    active?: boolean;
+  },
+): Promise<ActionResult> {
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
+
+      if (!id) {
+        const code = (fields.code ?? '').trim();
+        if (!code) return bad(ERR.NAME_REQUIRED);
+        await post('/promotions', { ...fields, code });
+      } else {
+        /* `code` is dropped on purpose: it is not editable. */
+        const { code: _code, ...rest } = fields;
+        void _code;
+        await post(`/promotions/${id}`, rest);
+      }
+
+      revalidatePath('/promotions');
+      return good(id ? 'Saved.' : 'Campaign created.');
+    }),
+  );
+}
+
+/**
+ * Stop a campaign, or start it again.
+ *
+ * Separate from the editor's save so it is one click from the list: the
+ * moment an operator wants this is usually the moment they have noticed a
+ * code costing more than it was meant to, and that is not the time to make
+ * them open a form.
+ */
+export async function stopPromotion(id: string, active: boolean): Promise<ActionResult> {
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
+      await post(`/promotions/${id}`, { active });
+      revalidatePath('/promotions');
+      return good(active ? 'Live again.' : 'Stopped.');
+    }),
+  );
+}
+
 export async function saveSpecialty(
   id: string | null,
   label: string,

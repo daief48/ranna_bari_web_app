@@ -60,6 +60,44 @@ export function normalisePhone(input: string): string | null {
   return `+880${national}`;
 }
 
+/**
+ * Why a number was refused, in a sentence somebody can act on.
+ *
+ * Every one of these is a mistake a person actually makes typing their own
+ * number, and each has a different fix: add the missing digit, drop the extra
+ * one, check the operator prefix. A single "invalid number" covers all three
+ * and helps with none of them — the reader is certain the number is theirs,
+ * so a message that only disagrees reads as a broken app.
+ */
+export function phoneProblem(input: string): string {
+  const digits = String(input ?? '').replace(/\D/g, '');
+
+  if (!digits) return 'Enter your mobile number.';
+
+  /* Counted against the form they typed rather than a canonical one: telling
+     somebody who wrote 011 that they need 11 digits when they have 11 is the
+     same unhelpful answer in a longer sentence. */
+  const local = digits.startsWith('880')
+    ? digits.slice(3)
+    : digits.startsWith('0')
+      ? digits.slice(1)
+      : digits;
+
+  if (local.length < 10) {
+    const short = 10 - local.length;
+    return `That is ${short} digit${short === 1 ? '' : 's'} short — a Bangladeshi mobile has 11, like 01712 345678.`;
+  }
+  if (local.length > 10) {
+    const over = local.length - 10;
+    return `That is ${over} digit${over === 1 ? '' : 's'} too many — a Bangladeshi mobile has 11, like 01712 345678.`;
+  }
+  if (!/^1[3-9]/.test(local)) {
+    return 'A Bangladeshi mobile starts 013 to 019. Check the digits after the 0.';
+  }
+
+  return 'That is not a Bangladeshi mobile number.';
+}
+
 /** "+8801712345678" → "+8801712•••678", for anything an operator can see. */
 export const maskPhone = (phone: string) =>
   phone.length < 8 ? phone : `${phone.slice(0, 8)}•••${phone.slice(-3)}`;
@@ -99,7 +137,7 @@ export async function requestOtp(
   ip?: string | null,
 ): Promise<OtpResult> {
   const phone = normalisePhone(rawPhone);
-  if (!phone) return { ok: false, error: 'That is not a Bangladeshi mobile number.' };
+  if (!phone) return { ok: false, error: phoneProblem(rawPhone) };
 
   const recent = await OtpChallenge.countDocuments({
     phone,
@@ -177,7 +215,7 @@ export async function verifyOtp(
   device?: { name?: string; platform?: string },
 ): Promise<VerifyResult> {
   const phone = normalisePhone(rawPhone);
-  if (!phone) return { ok: false, error: 'That is not a Bangladeshi mobile number.' };
+  if (!phone) return { ok: false, error: phoneProblem(rawPhone) };
 
   const challenge = await OtpChallenge.findOne({
     phone,

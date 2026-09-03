@@ -27,6 +27,7 @@ import {
   specialtiesOf,
   updateSpecialty,
 } from '../../../logic/specialties.js';
+import { promotionsOf, savePromotion } from '../../../logic/promotions.js';
 import {
   addCategory,
   moveCategory,
@@ -1700,6 +1701,94 @@ export async function operationRoutes(app: FastifyInstance) {
     if (!out.ok) return refuse(reply, out.error);
 
     return { specialty: out.result };
+  });
+
+  /* ---------------- promotions ---------------- */
+
+  /**
+   * Campaigns, with their real usage beside them.
+   *
+   * `used` is counted from redemptions rather than kept as a field on the
+   * promotion, so it cannot drift from what actually happened. It is also the
+   * only number that answers the question an operator opens this page with:
+   * is this code working, and is it about to run out?
+   */
+  app.get('/promotions', async (request, reply) => {
+    const actor = await require(request, reply, 'config.read');
+    if (!actor) return;
+
+    return { promotions: await promotionsOf() };
+  });
+
+  app.post('/promotions', async (request, reply) => {
+    const actor = await require(request, reply, 'config.write');
+    if (!actor) return;
+
+    const body = z
+      .object({
+        code: z.string().min(1),
+        kind: z.enum(['percent', 'flat']),
+        value: z.number(),
+        minOrder: z.number().optional(),
+        maxDiscount: z.number().optional(),
+        firstOrderOnly: z.boolean().optional(),
+        usageLimit: z.number().optional(),
+        perCustomer: z.number().optional(),
+        startsAt: z.string().nullable().optional(),
+        endsAt: z.string().nullable().optional(),
+      })
+      .safeParse(request.body);
+    if (!body.success) return refuse(reply, ERR.NAME_REQUIRED);
+
+    const out = await savePromotion(body.data);
+    if (!out.ok) return refuse(reply, out.error);
+
+    /* Audited in full. A promotion is the platform agreeing to pay part of
+       somebody's dinner, and "who launched 50% off, and when" is a question
+       that gets asked after the money has already gone out. */
+    await audit(actor, {
+      action: 'promotion.create',
+      targetType: 'Promotion',
+      targetId: out.result.id,
+      summary: `${out.result.code} · ${
+        out.result.kind === 'flat' ? out.result.value + ' off' : out.result.value + '%'
+      }`,
+    });
+
+    return { promotion: out.result };
+  });
+
+  app.post('/promotions/:id', async (request, reply) => {
+    const actor = await require(request, reply, 'config.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        value: z.number().optional(),
+        minOrder: z.number().optional(),
+        maxDiscount: z.number().optional(),
+        firstOrderOnly: z.boolean().optional(),
+        usageLimit: z.number().optional(),
+        perCustomer: z.number().optional(),
+        startsAt: z.string().nullable().optional(),
+        endsAt: z.string().nullable().optional(),
+        active: z.boolean().optional(),
+      })
+      .safeParse(request.body);
+    if (!body.success) return refuse(reply, ERR.NAME_REQUIRED);
+
+    const out = await savePromotion({ id, ...body.data });
+    if (!out.ok) return refuse(reply, out.error);
+
+    await audit(actor, {
+      action: body.data.active === false ? 'promotion.stop' : 'promotion.update',
+      targetType: 'Promotion',
+      targetId: id,
+      summary: out.result.code,
+    });
+
+    return { promotion: out.result };
   });
 
   app.get('/taxonomy', async (request, reply) => {

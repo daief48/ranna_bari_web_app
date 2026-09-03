@@ -5,7 +5,16 @@ import { BackendDown } from '@/components/backend-down';
 import { currentUser } from '@/lib/auth';
 import { can } from '@/lib/domain';
 import { fmtDate, timeAgo, daysSince } from '@/lib/format';
-import { Avatar, Card, Empty, GapNote, PageHeader, StatusBadge, Badge } from '@/components/ui';
+import {
+  Avatar,
+  Card,
+  Empty,
+  GapNote,
+  KitchenPhotos,
+  PageHeader,
+  StatusBadge,
+  Badge,
+} from '@/components/ui';
 import { KycDecision } from './decision';
 import { requirePage } from '@/lib/guard';
 
@@ -18,6 +27,9 @@ type Applicant = {
   ownerName: string;
   area: string | null;
   avatar: string | null;
+  /** The shopfront picture, and the gallery behind it. Both are decided on. */
+  coverImage: string | null;
+  photos: string[] | null;
   description: string | null;
   specialty: string | null;
   deliveryRadiusKm: number | null;
@@ -110,6 +122,16 @@ export default async function KycPage() {
                     <p className="mt-3 text-[12px] leading-relaxed text-ink2">
                       {kitchen.description}
                     </p>
+
+                    {/* The room itself. This is the evidence the decision is
+                        actually about, and it used to be the one thing on the
+                        page that was fetched and never drawn. */}
+                    <div className="label mt-3 mb-1.5">The kitchen</div>
+                    <KitchenPhotos
+                      cover={kitchen.coverImage}
+                      photos={kitchen.photos}
+                      empty="No usable photographs — nothing to inspect before approving."
+                    />
                   </div>
 
                   <div className="border-line p-4 lg:border-r">

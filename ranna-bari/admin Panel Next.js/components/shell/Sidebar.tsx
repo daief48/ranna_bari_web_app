@@ -54,6 +54,7 @@ export const NAV: {
       { href: '/topups', label: 'Top-up reconciliation', cap: 'ledger.read' },
       { href: '/refunds', label: 'Refunds', cap: 'ledger.read' },
       { href: '/disputes', label: 'Disputes', cap: 'order.read', badge: 'disputes' },
+      { href: '/promotions', label: 'Promotions', cap: 'config.read' },
     ],
   },
   {
@@ -110,6 +111,12 @@ const ICON: Record<string, string> = {
      face belongs. */
   '/icons':
     'M12 3.2a8.8 8.8 0 1 0 0 17.6 8.8 8.8 0 0 0 0-17.6M8.6 14.4a4.2 4.2 0 0 0 6.8 0M9.2 9.6h.01M14.8 9.6h.01',
+
+  /* A price tag with its punched hole — the one shape on this rail that
+     means a price rather than a thing. Deliberately not a percentage sign:
+     half the codes here take a flat number of taka off instead. */
+  '/promotions':
+    'M12.6 3.5H20a.5.5 0 0 1 .5.5v7.4a1.5 1.5 0 0 1-.44 1.06l-7.5 7.5a1.5 1.5 0 0 1-2.12 0l-6.4-6.4a1.5 1.5 0 0 1 0-2.12l7.5-7.5A1.5 1.5 0 0 1 12.6 3.5M16.8 7.2h.01',
 
   '/specialties':
     'M12 3.2a5 5 0 1 0 0 10 5 5 0 0 0 0-10M8.6 12.4 7 20.8l5-2.4 5 2.4-1.6-8.4',

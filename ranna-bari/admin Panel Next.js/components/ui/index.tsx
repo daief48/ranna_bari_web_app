@@ -755,6 +755,94 @@ export function Money({
   );
 }
 
+/**
+ * Can this browser load that URL at all?
+ *
+ * `blob:` and `file:` are not addresses, they are handles. A blob URL names
+ * an object living in the tab that created it — the cook's phone browser on
+ * :8081 — and is meaningless in this tab, on this origin, forever. A `file:`
+ * URI from a native picker names a path on the cook's handset.
+ *
+ * The app writes both when a picture is chosen but never uploaded, and an
+ * <img> pointed at either fails silently and leaves a broken-image glyph.
+ * Treating them as absent is honest: there is no picture here that this
+ * browser will ever see, so the initials are the true answer.
+ */
+export const loadable = (src?: string | null): string | null => {
+  const s = (src ?? '').trim();
+  if (!s) return null;
+  return /^(?:https?:\/\/|data:image\/|\/)/i.test(s) ? s : null;
+};
+
+/**
+ * The pictures a cook submitted, at a size an operator can judge.
+ *
+ * Registration makes these mandatory, and the reason is this screen: the
+ * decision being made is whether food may be cooked for strangers in that
+ * room. Thumbnails at avatar size cannot answer that, so they are shown
+ * large enough to read and each one links out to itself full-size.
+ *
+ * The cover leads because it is the picture customers will actually see on
+ * the card, and it is the one an operator is implicitly approving for the
+ * shopfront.
+ */
+export function KitchenPhotos({
+  cover,
+  photos,
+  empty = 'No photographs submitted.',
+}: {
+  cover?: string | null;
+  photos?: string[] | null;
+  empty?: string;
+}) {
+  /* Deduplicated: the cover is very often photos[0] as well, and showing the
+     same room twice reads as two rooms. */
+  const seen = new Set<string>();
+  const all: { url: string; isCover: boolean }[] = [];
+
+  for (const [raw, isCover] of [
+    [cover, true] as const,
+    ...(photos ?? []).map((p) => [p, false] as const),
+  ]) {
+    const url = loadable(raw);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    all.push({ url, isCover });
+  }
+
+  /* Said out loud rather than left blank. A cook who submitted pictures that
+     never arrived and a cook who submitted none look identical on an empty
+     row, and only one of those is the operator's problem. */
+  if (!all.length) return <p className="text-[12px] text-ink3">{empty}</p>;
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {all.map((p) => (
+        <a
+          key={p.url}
+          href={p.url}
+          target="_blank"
+          rel="noreferrer"
+          className="group relative block overflow-hidden rounded-[10px] border border-line hover:border-primary-200"
+          title={p.isCover ? 'Cover photograph' : 'Kitchen photograph'}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={p.url}
+            alt=""
+            className="size-[88px] object-cover transition-transform group-hover:scale-105"
+          />
+          {p.isCover ? (
+            <span className="absolute inset-x-0 bottom-0 bg-black/55 py-0.5 text-center text-[9.5px] font-semibold uppercase tracking-[0.07em] text-white">
+              Cover
+            </span>
+          ) : null}
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export function Avatar({ src, name, size = 28 }: { src?: string | null; name: string; size?: number }) {
   const initials = name
     .split(' ')
@@ -764,7 +852,9 @@ export function Avatar({ src, name, size = 28 }: { src?: string | null; name: st
     .join('')
     .toUpperCase();
 
-  if (!src) {
+  const url = loadable(src);
+
+  if (!url) {
     return (
       <span
         className="inline-flex shrink-0 items-center justify-center rounded-full bg-primary-50 font-semibold text-primary"
@@ -779,7 +869,7 @@ export function Avatar({ src, name, size = 28 }: { src?: string | null; name: st
     // and next/image's optimiser is not worth the round-trip for a 28px avatar.
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={src}
+      src={url}
       alt=""
       width={size}
       height={size}

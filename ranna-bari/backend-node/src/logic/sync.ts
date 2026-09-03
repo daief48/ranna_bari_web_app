@@ -237,10 +237,38 @@ export async function recordOrder(
    */
   const payFromWallet = kind === 'wallet';
 
+  /*
+   * Re-quoted here, and never trusted from the device.
+   *
+   * Above the balance check on purpose: the customer is charged `paid`, so
+   * checking their wallet against the gross would refuse somebody who can
+   * comfortably afford the discounted price.
+   *
+   * A refused code is not a refused order — an expired code simply takes
+   * nothing off. The alternative is failing a checkout over a discount the
+   * customer would happily have gone without.
+   *
+   * Wallet only. Cash on delivery never touches escrow (the rider takes the
+   * money), so there is no posting for the platform to fund the discount
+   * against and nothing that would stop the cook being paid in full. The app
+   * offers the field on wallet payments alone for the same reason.
+   */
+  const quote =
+    payFromWallet && draft.promoCode
+      ? await quotePromotion({
+          code: draft.promoCode,
+          customerKey: caller.customerKey,
+          amount: total,
+        })
+      : null;
+
+  const discount = quote?.ok ? quote.result.discount : 0;
+  const paid = total - discount;
+
   if (payFromWallet) {
     const balance = await balanceFor('customer', caller.customerKey);
-    if (balance < total) {
-      return fail(ERR.LOW_BALANCE, { short: total - balance, balance });
+    if (balance < paid) {
+      return fail(ERR.LOW_BALANCE, { short: paid - balance, balance });
     }
   }
 
@@ -285,21 +313,6 @@ export async function recordOrder(
 
   if (payFromWallet) {
     const orderId = String(order._id);
-
-    /* Re-quoted against the order that was actually written, never trusting a
-       discount the device calculated. The same code checked on the checkout
-       screen a minute ago may since have expired, hit its limit, or been
-       switched off. */
-    const quote = draft.promoCode
-      ? await quotePromotion({
-          code: draft.promoCode,
-          customerKey: caller.customerKey,
-          amount: total,
-        })
-      : null;
-
-    const discount = quote?.ok ? quote.result.discount : 0;
-    const paid = total - discount;
 
     await tx(async (session) => {
       /* `fromRef` is the customer's key and not decoration: `balanceFor` folds

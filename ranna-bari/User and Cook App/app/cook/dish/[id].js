@@ -11,6 +11,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+
+import { toStorableImage } from '../../../src/lib/pickedImage';
 import * as Haptics from 'expo-haptics';
 
 import CookScreen from '../../../src/components/CookScreen';
@@ -116,9 +118,17 @@ function DishForm({ isNew, existing }) {
       allowsEditing: true,
       // Square, because every surface that shows a dish shows it square.
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.6,
+      base64: true,
     });
-    if (!res.canceled && res.assets?.[0]?.uri) setImage(res.assets[0].uri);
+    if (res.canceled || !res.assets?.[0]) return;
+
+    const stored = await toStorableImage(res.assets[0], 'dish');
+    if (!stored) {
+      setNote(t('That photo could not be read. Please try another.'));
+      return;
+    }
+    setImage(stored);
   };
 
   const toggleTag = (t) =>

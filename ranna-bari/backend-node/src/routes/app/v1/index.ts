@@ -24,6 +24,7 @@ import {
 } from '../../../logic/chat.js';
 import { iconsOf } from '../../../logic/icons.js';
 import { specialtiesOf } from '../../../logic/specialties.js';
+import { quotePromotion } from '../../../logic/promotions.js';
 import {
   kitchenMayTrade,
   orderFor,
@@ -823,6 +824,29 @@ export async function appRoutes(app: FastifyInstance) {
       );
     }
     return { results };
+  });
+
+  /**
+   * What a code is worth on this basket.
+   *
+   * The failure reply carries the reason, not just a flag, because every one
+   * of them tells the customer something they can act on: how much more to
+   * add, that the code was for a first order, that it has already been used.
+   * "Invalid code" is the one answer that helps nobody.
+   */
+  app.post('/promotions/quote', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    const body = request.body as { code?: string; amount?: number };
+    const out = await quotePromotion({
+      code: String(body?.code ?? ''),
+      customerKey: caller.customerKey,
+      amount: Number(body?.amount ?? 0),
+    });
+
+    if (!out.ok) return fail(reply, out.error);
+    return { quote: out.result };
   });
 
   /* ---------------- offers ---------------- */

@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+
+import { toStorableImages } from '../src/lib/pickedImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1621,12 +1623,25 @@ function KitchenPhotoField({ value, onChange }) {
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
-      quality: 0.8,
+      /* Lower than it looks, and deliberately. These are stored inside the
+         kitchen document, so the number here is not "how good should this
+         look" but "how much of a 16MB ceiling does each photograph spend".
+         0.6 of a downscaled frame is indistinguishable on a phone. */
+      quality: 0.6,
+      /* Native returns the re-encoded bytes only when this is asked for. */
+      base64: true,
     });
     if (res.canceled) return;
 
-    const picked = (res.assets ?? []).map((a) => a.uri).filter(Boolean);
-    if (!picked.length) return;
+    setNote(t('Preparing your photos…'));
+
+    /* Converted before they are stored, never after. The picker's `uri` is a
+       blob handle that dies with this tab — see `toStorableImages`. */
+    const picked = await toStorableImages(res.assets, 'gallery');
+    if (!picked.length) {
+      setNote(t('Those photos could not be read. Please try different ones.'));
+      return;
+    }
 
     setNote('');
     /* Appended, and de-duplicated: opening the picker twice and tapping the

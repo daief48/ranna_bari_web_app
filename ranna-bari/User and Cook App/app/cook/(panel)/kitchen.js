@@ -11,6 +11,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+
+import { toStorableImage } from '../../../src/lib/pickedImage';
 import * as Haptics from 'expo-haptics';
 
 import CookScreen from '../../../src/components/CookScreen';
@@ -87,7 +89,8 @@ function KitchenForm({ kitchen }) {
       // A cover is a banner and an avatar is a square; cropping to the shape
       // it will be shown in beats letting the card do it later.
       aspect: field === 'coverImage' ? [3, 1] : [1, 1],
-      quality: 0.8,
+      quality: 0.6,
+      base64: true,
     });
     if (!res.canceled && res.assets?.[0]?.uri) {
       /* Written straight through: a photograph is saved the moment it is
@@ -97,7 +100,19 @@ function KitchenForm({ kitchen }) {
          the server for months and nothing here noticed, so the picture simply
          did not change and the screen said nothing about why. */
       setNote('');
-      const out = await updateKitchen({ [field]: res.assets[0].uri });
+
+      /* An avatar is a 40px circle and a cover is a banner, so they are not
+         stored at the same size — see IMAGE_ROLES. */
+      const stored = await toStorableImage(
+        res.assets[0],
+        field === 'coverImage' ? 'cover' : 'avatar',
+      );
+      if (!stored) {
+        setNote(t('That photo could not be read. Please try another.'));
+        return;
+      }
+
+      const out = await updateKitchen({ [field]: stored });
       if (out && !out.ok) {
         setNote(t('That photo could not be saved. Try again.'));
       }
