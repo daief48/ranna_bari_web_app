@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -15,6 +15,8 @@ import SectionHeader from '../../src/components/SectionHeader';
 import TestimonialSlider, { Stars } from '../../src/components/TestimonialSlider';
 import Brand from '../../src/components/Brand';
 import { BentoBox, IconTile } from '../../src/components/Surfaces';
+import { useCart } from '../../src/store/CartContext';
+import { useOrders } from '../../src/store/OrdersContext';
 import {
   Body,
   Display,
@@ -100,6 +102,30 @@ const AVATARS = [
 export default function HomeScreen() {
   const chefs = useChefs();
   const { account } = useAuth();
+  const { orders } = useOrders();
+  const { reorder } = useCart();
+
+  /**
+   * The last three kitchens worth repeating.
+   *
+   * By kitchen rather than by order: three rows for the same biryani ordered
+   * three Fridays running is not three choices, it is one. The most recent
+   * order from each is the one offered, because that is the basket they last
+   * actually wanted.
+   */
+  const again = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const order of orders ?? []) {
+      if (!order?.items?.length) continue;
+      const key = order.chefId ?? order.chefName;
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(order);
+      if (out.length === 3) break;
+    }
+    return out;
+  }, [orders]);
   const { mealsNearby, remaining: mealRemaining, storesNearby } = useCommerce();
   const { colors, shadow, isDark } = useTheme();
   const r = useResponsive();
@@ -486,6 +512,115 @@ export default function HomeScreen() {
           </BentoBox>
         </Reveal>
       </Container>
+
+      {/* ============ ORDER AGAIN ============
+          Nothing at all for somebody who has not ordered, so a first visit
+          sees the page it always did. */}
+      {again.length ? (
+        <Container style={{ marginTop: 28 }}>
+          <Reveal delay={1}>
+            <SectionHeader
+              lead={t('ORDER')}
+              accent={t('AGAIN')}
+              subtitle={t('Straight back into your basket.')}
+              action={t('All orders')}
+              onAction={() => router.push('/orders')}
+            />
+          </Reveal>
+
+          <Reveal delay={2}>
+            <View style={{ gap: 10, marginTop: 14 }}>
+              {again.map((order) => (
+                <Pressable
+                  key={order.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('Order {title} again', { title: order.title })}
+                  onPress={() => {
+                    const added = reorder(order);
+                    if (added) router.push('/cart');
+                  }}
+                  style={({ pressed }) => [
+                    {
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 13,
+                      padding: 12,
+                      borderRadius: radius.lg,
+                      backgroundColor: colors.surfaceSolid,
+                      borderWidth: 1,
+                      borderColor: pressed ? colors.primary200 : colors.line,
+                    },
+                    shadow.xs,
+                  ]}
+                >
+                  <Image
+                    source={{ uri: order.image }}
+                    contentFit="cover"
+                    transition={150}
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: 16,
+                      backgroundColor: colors.sunken,
+                    }}
+                  />
+
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        fontFamily: font.displayBold,
+                        fontSize: 15.5,
+                        letterSpacing: -0.15,
+                        color: colors.text,
+                      }}
+                    >
+                      {order.title}
+                    </Text>
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        marginTop: 2,
+                        fontFamily: font.ui,
+                        fontSize: type.xs,
+                        color: colors.textMuted,
+                      }}
+                    >
+                      {order.chefName}
+                      {order.items.length > 1
+                        ? ' · ' + t('{n} items', { n: n(order.items.length) })
+                        : ''}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                      paddingVertical: 7,
+                      paddingHorizontal: 12,
+                      borderRadius: radius.pill,
+                      backgroundColor: colors.primary50,
+                    }}
+                  >
+                    <Icon name="plus" size={13} color={colors.primary} strokeWidth={2.4} />
+                    <Text
+                      style={{
+                        fontFamily: font.uiSemi,
+                        fontSize: 12.5,
+                        color: colors.primary,
+                      }}
+                    >
+                      {t('Again')}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </Reveal>
+        </Container>
+      ) : null}
 
       {/* ============ MOOD CAROUSEL ============
           Edge-to-edge scroller: it bleeds past the container to the screen

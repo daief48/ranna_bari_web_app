@@ -64,6 +64,50 @@ export function CartProvider({ children }) {
     });
   }, []);
 
+  /**
+   * Put a past order back in the basket.
+   *
+   * Refills the cart rather than re-placing the order, and that is the whole
+   * design. A dish delisted since, a price that moved, a kitchen now closed —
+   * checkout already knows about all of it, and re-placing directly would
+   * need every one of those checks written a second time. This way the
+   * customer lands on a basket they can look at before they pay.
+   *
+   * Added to whatever is already there rather than replacing it: somebody
+   * halfway through a basket who taps "order again" wants both, and silently
+   * dropping what they had chosen would be the worse surprise.
+   */
+  const reorder = useCallback((order) => {
+    const lines = Array.isArray(order?.items) ? order.items : [];
+    if (!lines.length) return 0;
+
+    setItems((prev) => {
+      const next = [...prev];
+      for (const line of lines) {
+        if (!line?.id) continue;
+        const at = next.findIndex((i) => i.id === line.id);
+        const qty = Number(line.qty) || 1;
+        if (at >= 0) next[at] = { ...next[at], qty: next[at].qty + qty };
+        else
+          next.push({
+            id: line.id,
+            name: line.name,
+            description: line.description ?? '',
+            price: line.price,
+            image: line.image,
+            /* From the order, not from a lookup: the kitchen that cooked it
+               is the one being reordered from. */
+            chefId: line.chefId ?? order.chefId ?? null,
+            chefName: line.chefName ?? order.chefName ?? '',
+            qty,
+          });
+      }
+      return next;
+    });
+
+    return lines.length;
+  }, []);
+
   const remove = useCallback((id) => {
     setItems((prev) => prev.filter((i) => i.id !== id));
   }, []);
@@ -89,12 +133,13 @@ export function CartProvider({ children }) {
       platformFee: items.length ? PLATFORM_FEE : 0,
       total: items.length ? subtotal + DELIVERY_FEE + PLATFORM_FEE : 0,
       add,
+      reorder,
       remove,
       updateQty,
       clear,
       hydrated,
     };
-  }, [items, add, remove, updateQty, clear, hydrated]);
+  }, [items, add, reorder, remove, updateQty, clear, hydrated]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
