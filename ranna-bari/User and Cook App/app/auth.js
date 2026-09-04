@@ -11,7 +11,7 @@ import {
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 
-import { toStorableImages } from '../src/lib/pickedImage';
+import { fitGallery, toStorableImages } from '../src/lib/pickedImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -87,7 +87,7 @@ export default function AuthScreen() {
      a zone and an NID, then hands over. Reading them here is what keeps that
      from being a form the user fills in twice. */
   const params = useLocalSearchParams();
-  const { t } = useLang();
+  const { t, n } = useLang();
   const fromCookFunnel = params.role === 'cook';
   const param = (key, fallback) =>
     typeof params[key] === 'string' && params[key] ? params[key] : fallback;
@@ -129,6 +129,9 @@ export default function AuthScreen() {
      look at when deciding. */
   const [kitchenPhotos, setKitchenPhotos] = useState([]);
   const [terms, setTerms] = useState(false);
+  /* Marks the one field on this step that cannot be "highlighted" by being
+     empty, because it is a box rather than a box of text. */
+  const [termsInvalid, setTermsInvalid] = useState(false);
 
   /*
    * No pin until somebody drops one.
@@ -202,8 +205,21 @@ export default function AuthScreen() {
         setDetailsNote(t('Use at least 8 characters for your password.'));
         return;
       }
+      /*
+       * The terms, said where the cook is actually looking.
+       *
+       * This set the note at the top of the form and stopped, which on the
+       * cook's version of this step is eight fields and a photo grid above
+       * the fold: they tapped Continue, nothing appeared to happen, and the
+       * form read as broken. Every other failure here highlights a field the
+       * message can point at; a checkbox has nothing to highlight, so it gets
+       * an alert — which is drawn over the screen rather than at the top of
+       * it — and a red box of its own.
+       */
       if (!terms) {
+        setTermsInvalid(true);
         setDetailsNote(t('Please accept the Terms and Privacy Policy.'));
+        alert.error(t('Please accept the Terms and Privacy Policy to continue.'));
         return;
       }
       setDetailsNote('');
@@ -359,7 +375,27 @@ export default function AuthScreen() {
        * well as there is safe — the second caller finds the kitchen and stops.
        */
       if (role === 'cook') {
-        await ensureKitchen(profile).catch(() => {});
+        const made = await ensureKitchen(profile).catch(() => null);
+
+        /*
+         * And check that the gallery actually landed.
+         *
+         * `ensureKitchen` retries without the photographs when the body is
+         * refused, which is the right call — a kitchen with no pictures still
+         * trades — but it did it behind a `console.warn`, so the cook was
+         * told nothing. They picked five, the server kept whatever a smaller
+         * retry managed, and every screen afterwards agreed with the server.
+         * Asking what was stored is the only honest way to know.
+         */
+        const stored = (made?.photos ?? []).length;
+        if (kitchenPhotos.length && stored < kitchenPhotos.length) {
+          alert.error(
+            t('{stored} of your {picked} kitchen photos were saved. Contact support to add the rest.', {
+              stored: n(stored),
+              picked: n(kitchenPhotos.length),
+            }),
+          );
+        }
       }
 
       setStep(4);
@@ -1623,12 +1659,13 @@ function KitchenPhotoField({ value, onChange }) {
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
-      /* Lower than it looks, and deliberately. These are stored inside the
-         kitchen document, so the number here is not "how good should this
-         look" but "how much of a 16MB ceiling does each photograph spend".
-         0.6 of a downscaled frame is indistinguishable on a phone. */
+      /* These two are the fallback, not the mechanism. `toStorableImages`
+         downscales and re-encodes every frame itself, at the size the
+         gallery is actually drawn at — the picker only applies `quality`,
+         which is why relying on it left full-resolution photographs in the
+         kitchen document. They stay so a device whose manipulator refuses a
+         picture still has bytes to offer rather than losing it. */
       quality: 0.6,
-      /* Native returns the re-encoded bytes only when this is asked for. */
       base64: true,
     });
     if (res.canceled) return;
@@ -1637,16 +1674,39 @@ function KitchenPhotoField({ value, onChange }) {
 
     /* Converted before they are stored, never after. The picker's `uri` is a
        blob handle that dies with this tab — see `toStorableImages`. */
-    const picked = await toStorableImages(res.assets, 'gallery');
-    if (!picked.length) {
+    const { images, failed } = await toStorableImages(res.assets, 'gallery');
+    if (!images.length) {
       setNote(t('Those photos could not be read. Please try different ones.'));
       return;
     }
 
-    setNote('');
     /* Appended, and de-duplicated: opening the picker twice and tapping the
        same photograph should not put it in the list twice. */
-    onChange([...photos, ...picked.filter((uri) => !photos.includes(uri))]);
+    const merged = [...photos, ...images.filter((uri) => !photos.includes(uri))];
+
+    /* The whole gallery is posted in one request, so the budget is over the
+       whole gallery — not over this batch. */
+    const { images: next, dropped } = fitGallery(merged);
+    onChange(next);
+
+    /*
+     * And if anything was lost, say so.
+     *
+     * This is the entire bug the gallery had: photographs that could not be
+     * converted were dropped and the count never mentioned again, so a cook
+     * who picked five and got two had no way to know it had happened, let
+     * alone why. A number that does not match what they chose has to be
+     * spoken out loud.
+     */
+    const lost = failed + dropped;
+    setNote(
+      lost
+        ? t('{lost} could not be added, so your gallery has {kept}. Try smaller photos.', {
+            lost: n(lost),
+            kept: n(next.length),
+          })
+        : '',
+    );
   };
 
   const removeAt = (index) => onChange(photos.filter((_, i) => i !== index));
