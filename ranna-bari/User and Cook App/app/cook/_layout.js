@@ -28,6 +28,10 @@ export default function CookLayout() {
       }}
     >
       <Stack.Screen name="(panel)" options={{ animation: 'fade' }} />
+      {/* A page of its own rather than a block on the kitchen screen: a cook
+          reading a bad review is doing one thing, and it is not editing their
+          cover photograph. */}
+      <Stack.Screen name="reviews" />
       <Stack.Screen name="order/[id]" />
       <Stack.Screen name="dish/[id]" />
       <Stack.Screen name="meal/new" />

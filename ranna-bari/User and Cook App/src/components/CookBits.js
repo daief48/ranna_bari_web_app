@@ -697,3 +697,130 @@ export function KitchenPending({ kitchen, onOpenDetails, onBack }) {
     </View>
   );
 }
+
+/**
+ * The panel, held shut because an operator suspended the kitchen.
+ *
+ * This is a different state from waiting for approval and it needed its own
+ * screen, because until now it had none at all. `toIdentity` drops
+ * `kitchenId` for a suspended kitchen, so every write a cook attempted came
+ * back `no-kitchen` — but `GET /kitchens/mine` reads by account and answered
+ * normally, so the panel opened, looked completely ordinary, and then refused
+ * everything the cook touched. The reason an operator had to write when they
+ * suspended it went nowhere.
+ *
+ * Unlike a rejection, there is nothing here a cook can edit their way out of.
+ * A rejection points at the kitchen details; this points at a person.
+ */
+export function KitchenSuspended({ kitchen, onContact, onBack }) {
+  const { colors, shadow } = useTheme();
+  const { t } = useLang();
+
+  const reason = String(kitchen?.suspendedReason ?? '').trim();
+
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <View
+        style={[
+          {
+            width: '100%',
+            maxWidth: 420,
+            padding: 26,
+            borderRadius: radius.lg,
+            backgroundColor: colors.surfaceSolid,
+            borderWidth: 1,
+            borderColor: colors.line,
+            alignItems: 'center',
+            gap: 14,
+          },
+          shadow.md,
+        ]}
+      >
+        <View
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 22,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: colors.primary50,
+            borderWidth: 1,
+            borderColor: colors.primary100,
+          }}
+        >
+          <Icon name="lock" size={28} color={colors.primary} strokeWidth={1.8} />
+        </View>
+
+        <Text
+          style={{
+            fontFamily: font.displayExtra,
+            fontSize: 22,
+            lineHeight: 27,
+            letterSpacing: -0.3,
+            textAlign: 'center',
+            color: colors.text,
+          }}
+        >
+          {t('Your kitchen is suspended')}
+        </Text>
+
+        {/* The operator's own words, when they left any. Everything else on
+            this screen is generic; this is the only part that says why. */}
+        {reason ? (
+          <View
+            style={{
+              alignSelf: 'stretch',
+              padding: 13,
+              borderRadius: radius.sm,
+              backgroundColor: colors.primary50,
+              borderWidth: 1,
+              borderColor: colors.primary100,
+            }}
+          >
+            <Text style={{ fontFamily: font.ui, fontSize: 14, lineHeight: 21, color: colors.text }}>
+              {reason}
+            </Text>
+          </View>
+        ) : null}
+
+        <Text
+          style={{
+            fontFamily: font.ui,
+            fontSize: 14.5,
+            lineHeight: 22,
+            textAlign: 'center',
+            color: colors.textMuted,
+          }}
+        >
+          {t(
+            'Nobody can order from your kitchen while this lasts, and you cannot list food or take orders. Money already held against your finished orders is safe and still yours.',
+          )}
+        </Text>
+
+        {/* A suspension is not a form to correct, so the door is a person
+            rather than the kitchen editor a rejection points at. */}
+        <Button
+          label={t('Message support')}
+          icon="chat"
+          block
+          onPress={onContact}
+          style={{ marginTop: 4 }}
+        />
+
+        <Pressable accessibilityRole="button" onPress={onBack} hitSlop={8}>
+          <Text style={{ fontFamily: font.uiSemi, fontSize: 13.5, color: colors.textMuted }}>
+            {t('Back to RannaBari')}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}

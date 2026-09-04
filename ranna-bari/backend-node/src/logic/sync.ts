@@ -1,4 +1,4 @@
-import { Account, Kitchen, Order, type OrderDoc } from '../models/index.js';
+import { Account, Dispute, Kitchen, Order, type OrderDoc } from '../models/index.js';
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
 import { quotePromotion, redeem } from './promotions.js';
 import { balanceFor, post } from './ledger.js';
@@ -377,7 +377,10 @@ export async function recordOrder(
  * `lines` and `history` are bounded — a basket and a six-step rail — which is
  * why they are embedded in the document and can be sent with it.
  */
-export function shapeOrder(row: OrderDoc & { _id: unknown }) {
+export function shapeOrder(
+  row: OrderDoc & { _id: unknown },
+  extra: { disputed?: boolean } = {},
+) {
   return {
     id: String(row._id),
     code: row.code,
@@ -415,9 +418,36 @@ export function shapeOrder(row: OrderDoc & { _id: unknown }) {
     rejectReason: row.rejectReason ?? null,
     cancelReason: row.cancelReason ?? null,
 
+    /**
+     * Whether a case is open against this order.
+     *
+     * The money answer to a dispute is already visible — `payment` stays
+     * `held` while one is running — but "held" is also what every ordinary
+     * order says between delivery and confirmation, so the two are
+     * indistinguishable from the app. A cook watching an order that should
+     * have released days ago had nothing to read but the same word.
+     *
+     * The reason and the resolution stay off the wire. Those are an
+     * operator's working notes about a customer's complaint, and neither side
+     * of the order should read them from the other's screen.
+     */
+    disputed: extra.disputed ?? false,
+
     history: row.history ?? [],
     createdAt: row.createdAt,
   };
+}
+
+/** Which of these orders have an unresolved case, as one query rather than N. */
+async function disputedAmong(ids: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  const rows = await Dispute.find(
+    { orderId: { $in: ids }, status: { $ne: 'resolved' } },
+    { orderId: 1 },
+  )
+    .lean()
+    .catch(() => []);
+  return new Set(rows.map((row) => String(row.orderId)));
 }
 
 /** Every order this caller is on — as the customer, or as the kitchen. */
@@ -431,7 +461,13 @@ export async function ordersFor(caller: AppIdentity, take = 50) {
     .limit(take)
     .lean();
 
-  return rows.map((row) => shapeOrder(row as unknown as OrderDoc & { _id: unknown }));
+  const disputed = await disputedAmong(rows.map((row) => String(row._id)));
+
+  return rows.map((row) =>
+    shapeOrder(row as unknown as OrderDoc & { _id: unknown }, {
+      disputed: disputed.has(String(row._id)),
+    }),
+  );
 }
 
 /**
@@ -452,5 +488,10 @@ export async function orderFor(caller: AppIdentity, id: string) {
     .lean()
     .catch(() => null);
 
-  return row ? shapeOrder(row as unknown as OrderDoc & { _id: unknown }) : null;
+  if (!row) return null;
+
+  const disputed = await disputedAmong([String(row._id)]);
+  return shapeOrder(row as unknown as OrderDoc & { _id: unknown }, {
+    disputed: disputed.has(String(row._id)),
+  });
 }

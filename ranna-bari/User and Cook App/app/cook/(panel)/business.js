@@ -68,6 +68,26 @@ export default function BusinessScreen() {
 
           <Reveal delay={3}>
             <ActionRow
+              icon="star"
+              tone="saffron"
+              title={t('Reviews')}
+              /* The score was already on three screens. What it is made of
+                 was on none, so this row says the number a cook cannot
+                 otherwise act on: how many people wrote something. */
+              sub={
+                kitchen?.reviewCount
+                  ? t('{score} from {n} customers', {
+                      score: n(kitchen.rating),
+                      n: n(kitchen.reviewCount),
+                    })
+                  : t('Nobody has rated your kitchen yet')
+              }
+              onPress={() => router.push('/cook/reviews')}
+            />
+          </Reveal>
+
+          <Reveal delay={4}>
+            <ActionRow
               icon="sliders"
               tone="saffron"
               title={t('Kitchen details')}

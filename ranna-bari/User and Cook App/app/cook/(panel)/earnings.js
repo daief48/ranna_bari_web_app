@@ -21,6 +21,7 @@ import {
   useOrders,
 } from '../../../src/store/OrdersContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
+import { useCookPayouts } from '../../../src/data/cook';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 const DAY = 86_400_000;
@@ -42,6 +43,9 @@ export default function CookEarnings() {
   const { ordersForKitchen } = useOrders();
   const meals = useCommerce();
   const { t, n: num, lang } = useLang();
+  /* Runs an operator actually marked paid. Empty until there has been one,
+     which is the honest state for a kitchen in its first week. */
+  const { payouts } = useCookPayouts();
 
   /* The cook's half of the meal ledger: money that has actually landed, and
      money still held against orders nobody has confirmed receiving. */
@@ -312,9 +316,72 @@ export default function CookEarnings() {
           </View>
         </Reveal>
 
+        {/* ---- Money that actually left ----
+            This section is new, and the one below it used to carry its name.
+            "Recent payouts" was a list of delivered orders — the cook's
+            *balance*, itemised, wearing the word payout. Nothing in the app
+            knew about a run: an operator marks one paid in the console, the
+            taka goes to a bKash account, and the only trace on this side was
+            a notification that scrolls away. A cook checking whether Sunday's
+            money arrived had to ask somebody. */}
+        {payouts.length ? (
+          <View style={{ marginTop: 28 }}>
+            <RowHeading icon="banknote" title={t('Paid to you')} />
+            <View style={{ gap: 10 }}>
+              {payouts.map((payout, i) => (
+                <Reveal key={payout.id} delay={(i % 5) + 1}>
+                  <View
+                    style={[
+                      {
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 14,
+                        padding: 14,
+                        borderRadius: radius.lg,
+                        backgroundColor: colors.surfaceSolid,
+                        borderWidth: 1,
+                        borderColor: colors.line,
+                      },
+                      shadow.sm,
+                    ]}
+                  >
+                    <IconTile
+                      name="check"
+                      variant="sage"
+                      style={{ width: 42, height: 42, borderRadius: 14 }}
+                    />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text
+                        numberOfLines={1}
+                        style={{ fontFamily: font.uiSemi, fontSize: 15, color: colors.text }}
+                      >
+                        {t('Sent via {method}', { method: payout.method })}
+                      </Text>
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          fontFamily: font.ui,
+                          fontSize: type.xs,
+                          color: colors.textMuted,
+                        }}
+                      >
+                        {formatOrderDate(payout.paidAt, lang)} · {payout.code}
+                      </Text>
+                    </View>
+                    <Price size={17}>৳{num(payout.amount)}</Price>
+                  </View>
+                </Reveal>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         {/* ---- Where it came from ---- */}
         <View style={{ marginTop: 28 }}>
-          <RowHeading icon="banknote" title={t('Recent payouts')} />
+          {/* Named for what it is. These are delivered orders — what the
+              platform owes, order by order — and calling them payouts was the
+              reason a cook could not tell owed from paid. */}
+          <RowHeading icon="receipt" title={t('What you have earned')} />
 
           {!recent.length ? (
             <BentoBox style={{ padding: 28, alignItems: 'center', gap: 14 }}>

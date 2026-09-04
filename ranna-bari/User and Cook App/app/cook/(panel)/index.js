@@ -28,6 +28,24 @@ import { tomorrowKey, useCommerce } from '../../../src/store/CommerceContext';
 import { useChat } from '../../../src/store/ChatContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
+/**
+ * How long an order may sit at one step before it is worth saying so.
+ *
+ * Not an SLA — the platform makes no promise about it. It is the point at
+ * which a cook who has genuinely forgotten an order and a cook who is simply
+ * busy stop looking the same on this screen, and the only cost of being wrong
+ * is a nudge somebody ignores.
+ */
+const LATE_WAITING_MS = 10 * 60 * 1000;
+const LATE_IN_PASS_MS = 45 * 60 * 1000;
+
+/** When this order last did anything, which is what "late" is measured from. */
+const lastMovedAt = (order) => {
+  const history = Array.isArray(order?.history) ? order.history : [];
+  const last = history.length ? history[history.length - 1]?.at : null;
+  return new Date(last ?? order?.createdAt ?? Date.now()).getTime();
+};
+
 const isToday = (iso) => {
   const d = new Date(iso);
   const now = new Date();
@@ -78,6 +96,14 @@ export default function CookDashboard() {
      stocking it, and none of it is reachable. */
   const shopClosed = !!shopStore && !shopStore.isOpen;
   const waitingPreorders = kitchen ? meals.pendingPreorders(kitchen.id).length : 0;
+  /*
+   * Products a customer can see and cannot buy.
+   *
+   * Silent in a way a closed shop is not: the shop is open, the shelf looks
+   * stocked from here, and the only screen that counted these was the shop
+   * hub two taps away. A jar at zero earns nothing and nothing said so.
+   */
+  const outOfStock = shopStore ? (meals.storeOverview(shopStore)?.outOfStock ?? 0) : 0;
 
   /* Requests this kitchen could bid on and has not answered yet. */
   const openRequests = kitchen
@@ -99,6 +125,22 @@ export default function CookDashboard() {
       today: today.length,
       earned,
       waiting: mine.filter((o) => o.status === 'placed').length,
+      /*
+       * The cook's share of what the platform is holding.
+       *
+       * "Earned today" was the only money on this screen, and it is the one a
+       * cook asks about least — they know what they cooked. The question that
+       * actually gets asked is where the rest of it is, and the answer is
+       * here: earned, not yet released, because the customer has not
+       * confirmed the food arrived. It was on the earnings tab and nowhere a
+       * cook would think to look for it.
+       */
+      held: mine
+        .filter((o) => o.payment === 'held')
+        .reduce((s, o) => s + cookPayout(o), 0),
+      /* Orders whose money is frozen by a case rather than by the ordinary
+         wait. Both read `held`, which is why one of them needed saying. */
+      disputed: mine.filter((o) => o.disputed).length,
     };
   }, [mine]);
 
@@ -383,6 +425,60 @@ export default function CookDashboard() {
               variant="saffron"
             />
           </View>
+
+          {/* ---- Money that is earned but not yours yet ----
+              A strip rather than a third tile: the number on its own is
+              alarming — a cook reads "৳2,340" beside "earned today" and
+              wonders which one is real — and the sentence under it is the
+              part that answers that. A tile has no room for a sentence. */}
+          {stats.held > 0 ? (
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={t('Held for you, {n} taka', { n: n(stats.held) })}
+              onPress={() => router.push('/cook/earnings')}
+              style={({ pressed }) => [
+                {
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 13,
+                  padding: 14,
+                  marginTop: 12,
+                  borderRadius: radius.lg,
+                  backgroundColor: colors.surfaceSolid,
+                  borderWidth: 1,
+                  borderColor: pressed ? colors.saffron100 : colors.line,
+                },
+                shadow.sm,
+              ]}
+            >
+              <IconTile
+                name="clock"
+                variant="saffron"
+                style={{ width: 42, height: 42, borderRadius: 14 }}
+              />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Price size={19}>৳{n(stats.held)}</Price>
+                <Text
+                  style={{
+                    fontFamily: font.ui,
+                    fontSize: type.xs,
+                    lineHeight: 17,
+                    color: colors.textMuted,
+                  }}
+                >
+                  {/* A case is the one reason held money is not simply
+                      waiting, and both states print the same word without
+                      this. */}
+                  {stats.disputed
+                    ? t('Held for you · {n} under review, so it stays put for now', {
+                        n: n(stats.disputed),
+                      })
+                    : t('Held for you · released when customers confirm delivery')}
+                </Text>
+              </View>
+              <Icon name="chevronRight" size={17} color={colors.textLight} strokeWidth={2} />
+            </Pressable>
+          ) : null}
         </Reveal>
 
         {/* ---- Waiting on you ----
@@ -443,6 +539,11 @@ export default function CookDashboard() {
                         >
                           {timeAgo(order.createdAt, t, n)}
                         </Text>
+                        <LateChip
+                          since={lastMovedAt(order)}
+                          after={LATE_WAITING_MS}
+                          label={t('Waiting')}
+                        />
                         <View style={{ flex: 1 }} />
                         <Price size={16}>৳{n(cookPayout(order))}</Price>
                       </View>
@@ -535,16 +636,26 @@ export default function CookDashboard() {
                       style={{ width: 42, height: 42, borderRadius: 14 }}
                     />
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text
-                        numberOfLines={1}
-                        style={{
-                          fontFamily: font.uiSemi,
-                          fontSize: 15,
-                          color: colors.text,
-                        }}
+                      <View
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}
                       >
-                        {order.contact?.name ?? order.id}
-                      </Text>
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            flexShrink: 1,
+                            fontFamily: font.uiSemi,
+                            fontSize: 15,
+                            color: colors.text,
+                          }}
+                        >
+                          {order.contact?.name ?? order.id}
+                        </Text>
+                        <LateChip
+                          since={lastMovedAt(order)}
+                          after={LATE_IN_PASS_MS}
+                          label={t('Stalled')}
+                        />
+                      </View>
                       <Text
                         numberOfLines={1}
                         style={{
@@ -638,14 +749,20 @@ export default function CookDashboard() {
               icon="box"
               tone={waitingPreorders || shopClosed ? 'primary' : 'sage'}
               title={t('Your shop')}
+              /* Ordered by what it costs to ignore: a pre-order is somebody
+                 waiting on an answer with money already held, a closed shop
+                 sells nothing at all, and an empty shelf sells one thing less
+                 than it looks like it does. */
               sub={
                 waitingPreorders
                   ? t('{n} pre-orders waiting for your answer', { n: n(waitingPreorders) })
                   : shopClosed
                     ? t('Closed — nothing in it can be bought. Tap to open.')
-                    : storeOpen
-                      ? t('Products, stock and shop orders')
-                      : t('Open a shop for the things you make to keep')
+                    : outOfStock
+                      ? t('{n} out of stock — nobody can buy them', { n: n(outOfStock) })
+                      : storeOpen
+                        ? t('Products, stock and shop orders')
+                        : t('Open a shop for the things you make to keep')
               }
               onPress={() => router.push('/cook/store')}
             />
@@ -691,5 +808,52 @@ export default function CookDashboard() {
         </Reveal>
       </Container>
     </CookScreen>
+  );
+}
+
+/**
+ * Said only when there is something to say.
+ *
+ * An order that has sat at one step too long is the one thing on this screen
+ * that gets worse on its own, and nothing anywhere in the app measured it —
+ * every row printed how old the order was and left the reader to decide
+ * whether that was bad. "12 minutes ago" means nothing without knowing what
+ * normal is; this is the app saying so.
+ *
+ * Renders nothing below the threshold rather than a green "on time" chip. A
+ * kitchen with six orders running well should show six calm rows, not six
+ * badges telling it there is nothing wrong.
+ */
+function LateChip({ since, after, label }) {
+  const { colors } = useTheme();
+
+  if (!since || Date.now() - since < after) return null;
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingVertical: 2.5,
+        paddingHorizontal: 7,
+        borderRadius: radius.pill,
+        backgroundColor: colors.primary50,
+      }}
+    >
+      <Icon name="clock" size={10} color={colors.primary} strokeWidth={2.4} />
+      <Text
+        maxFontSizeMultiplier={1.2}
+        style={{
+          fontFamily: font.uiBold,
+          fontSize: 9.5,
+          letterSpacing: 0.6,
+          textTransform: 'uppercase',
+          color: colors.primary,
+        }}
+      >
+        {label}
+      </Text>
+    </View>
   );
 }

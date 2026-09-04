@@ -12,7 +12,7 @@ import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { useRouter } from 'expo-router';
-import { KitchenPending } from '../../../src/components/CookBits';
+import { KitchenPending, KitchenSuspended } from '../../../src/components/CookBits';
 import { font, radius } from '../../../src/theme/tokens';
 
 /*
@@ -237,6 +237,26 @@ export default function CookPanelLayout() {
      "waiting for approval" at an approved cook on every cold start, which is
      alarming in a way that is entirely untrue. */
   if (!hydrated) return null;
+
+  /*
+   * Suspension is checked before approval, because it outranks it.
+   *
+   * A suspended kitchen is usually an approved one, so the KYC branch below
+   * would let it straight through — which is exactly what happened: the panel
+   * opened as normal and then refused every write with `no-kitchen`, because
+   * `toIdentity` drops `kitchenId` for a suspended kitchen. A cook whose
+   * kitchen had been stopped saw a working dashboard and a string of failures
+   * with no reason attached to any of them.
+   */
+  if (kitchen?.suspended) {
+    return (
+      <KitchenSuspended
+        kitchen={kitchen}
+        onContact={() => router.push('/chat')}
+        onBack={() => router.replace('/')}
+      />
+    );
+  }
 
   if (kitchen && kitchen.kycStatus !== 'approved') {
     return (

@@ -40,6 +40,9 @@ import {
   Kitchen,
   Notification,
   Offer,
+  PayoutItem,
+  PayoutRun,
+  Review,
   TaxonomyCategory,
   Zone,
 } from '../../../models/index.js';
@@ -507,6 +510,17 @@ export async function appRoutes(app: FastifyInstance) {
         tags: kitchen.tags ?? [],
         ecoBadge: kitchen.ecoBadge,
         isVerified: kitchen.isVerified,
+        /*
+         * Suspension, which the cook's own screens could not see.
+         *
+         * `toIdentity` drops `kitchenId` for a suspended kitchen, so every
+         * write a cook attempts comes back `no-kitchen` — but this endpoint
+         * reads by `accountId` and answered normally, so the panel opened as
+         * if nothing were wrong and then refused everything. The reason an
+         * operator had to write when they suspended it went nowhere.
+         */
+        suspended: !!kitchen.suspended,
+        suspendedReason: kitchen.suspendedReason ?? null,
         kycStatus: kitchen.kycStatus,
         /* The reason, and when. A cook told only "rejected" has been given a
            verdict and no way to act on it; the note is what an operator
@@ -520,6 +534,88 @@ export async function appRoutes(app: FastifyInstance) {
         isOpen: kitchen.isOpen,
       },
       dishes: dishes.map(shapeDish),
+    };
+  });
+
+  /**
+   * What customers actually wrote.
+   *
+   * A cook could read their score and not one word behind it. `rating` and
+   * `reviewCount` were on the wire and the reviews themselves were not, so a
+   * kitchen that dropped from 4.8 to 4.1 could see that it had happened and
+   * had no way to find out why — which is the only part they can act on.
+   *
+   * Hidden reviews are left out. A moderator hiding one removes it from the
+   * score for a reason, and showing the cook a review no customer can see
+   * would invite them to answer something that is no longer there.
+   *
+   * `customerKey` never leaves: the name and the area are what the public
+   * card already shows, and the key is an identifier for a person.
+   */
+  app.get('/kitchens/mine/reviews', async (request, reply) => {
+    const cook = await cookOf(request, reply);
+    if (!cook) return null;
+
+    const query = z
+      .object({ take: z.coerce.number().int().positive().max(100).optional() })
+      .parse(request.query ?? {});
+
+    const reviews = await Review.find({ kitchenId: cook.kitchenId, hidden: false })
+      .sort({ createdAt: -1 })
+      .limit(query.take ?? 50)
+      .lean();
+
+    return {
+      reviews: reviews.map((review) => ({
+        id: String(review._id),
+        orderId: review.orderId ?? null,
+        name: review.name,
+        avatar: review.avatar,
+        area: review.area,
+        rating: review.rating,
+        text: review.text,
+        createdAt: review.createdAt,
+      })),
+    };
+  });
+
+  /**
+   * Money that has actually been paid out, as opposed to money owed.
+   *
+   * The earnings screen builds "recent payouts" by adding up delivered orders
+   * on the device, which is the cook's *balance* wearing the word payout. It
+   * cannot know about a run: an operator marks one paid in the console, the
+   * taka leaves for a bKash account, and nothing in the app ever mentions it.
+   * A cook checking whether Sunday's money arrived had to ask.
+   *
+   * Only runs that were actually paid. A draft is an operator's working
+   * document and saying "৳4,200 is on its way" because one exists would be a
+   * promise the platform has not made yet.
+   */
+  app.get('/kitchens/mine/payouts', async (request, reply) => {
+    const cook = await cookOf(request, reply);
+    if (!cook) return null;
+
+    const items = await PayoutItem.find({ kitchenId: cook.kitchenId }).lean();
+    if (!items.length) return { payouts: [] };
+
+    const runs = await PayoutRun.find({
+      _id: { $in: items.map((item) => item.payoutRunId) },
+      status: 'paid',
+    })
+      .sort({ paidAt: -1 })
+      .lean();
+
+    const amountByRun = new Map(items.map((item) => [String(item.payoutRunId), item.amount]));
+
+    return {
+      payouts: runs.map((run) => ({
+        id: String(run._id),
+        code: run.code,
+        method: run.method,
+        amount: amountByRun.get(String(run._id)) ?? 0,
+        paidAt: run.paidAt,
+      })),
     };
   });
 
