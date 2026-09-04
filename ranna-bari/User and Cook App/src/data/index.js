@@ -95,12 +95,65 @@ export function useMenus() {
   return useServerMenus();
 }
 
+/**
+ * One kitchen, in full.
+ *
+ * Two sources, deliberately. The directory response paints the page the
+ * instant it opens — it is already in memory — but it carries no gallery: the
+ * photographs are `data:` URIs stored in the document, and a list that
+ * included them would be every kitchen's pictures downloaded to draw one
+ * card each. So `/kitchens/:id` is asked for as well, and the gallery appears
+ * a moment later on the one screen that shows it.
+ *
+ * It also makes the page work from a cold link. Opening `/chef/<id>` directly
+ * used to depend on the kitchen happening to be in the directory response;
+ * now the detail alone is enough.
+ */
 export function useChef(id) {
   const allChefs = useServerChefs();
+  const [detail, setDetail] = useState(null);
+
+  useEffect(() => {
+    if (!hasServer || !id) return undefined;
+    let alive = true;
+    /* Cleared first: navigating from one kitchen to another must not show the
+       previous cook's rooms under this cook's name while the request runs. */
+    setDetail(null);
+
+    api(`/kitchens/${id}`)
+      .then((out) => {
+        if (alive && out?.chef) setDetail(out.chef);
+      })
+      .catch(() => {});
+
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
   return useMemo(() => {
     if (!id) return null;
-    return allChefs.find((c) => String(c.id) === String(id)) ?? null;
-  }, [allChefs, id]);
+
+    const listed = allChefs.find((c) => String(c.id) === String(id)) ?? null;
+    const fetched =
+      detail && String(detail.id) === String(id)
+        ? { ...detail, area: normaliseArea(detail.area || 'Dhaka') }
+        : null;
+
+    if (!listed && !fetched) return null;
+
+    /* The listed entry wins where both have an answer — it is what every
+       other screen is drawing, and two screens disagreeing about a rating is
+       worse than one of them being a few seconds stale. The gallery is the
+       field only one of them has, so it is named rather than left to the
+       spread: a cook viewing their own page has it on the local entry, and
+       everybody else has it only from the fetch. */
+    return {
+      ...fetched,
+      ...listed,
+      photos: listed?.photos ?? fetched?.photos ?? [],
+    };
+  }, [allChefs, id, detail]);
 }
 
 export function useMenu(chefId) {

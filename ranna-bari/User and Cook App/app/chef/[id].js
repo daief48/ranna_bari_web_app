@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -62,6 +62,11 @@ export default function ChefScreen() {
   ];
 
   const closed = !isOpenNow(chef);
+
+  /* The gallery arrives from `/kitchens/:id` a moment after the page paints,
+     so this is empty on the first render of every kitchen and the section
+     below is absent rather than a row of grey boxes. */
+  const photos = Array.isArray(chef.photos) ? chef.photos.filter(Boolean) : [];
 
   return (
     <Screen footer={<CartBar />}>
@@ -248,6 +253,58 @@ export default function ChefScreen() {
           </View>
         </Reveal>
       </Container>
+
+      {/* ---- THE KITCHEN ----
+              The room the food is cooked in, which is the one thing a
+              customer cannot infer from a menu. The cook submits these at
+              registration and an operator approves the kitchen on them; until
+              now the only people who ever saw them were the operator and the
+              cook, on their own panel.
+
+              Horizontal rather than a wrapped grid: these are worth looking
+              at rather than counting, and a phone can show one properly or
+              five as thumbnails. */}
+      {photos.length ? (
+        <Container style={{ paddingTop: 48 }}>
+          <Reveal delay={2}>
+            <SectionHeader
+              lead={t('THE')}
+              accent={t('KITCHEN')}
+              subtitle={t('Photos {name} shared of where your food is cooked.', {
+                name: chef.name,
+              })}
+            />
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              /* Bleeding past the container and padding it back keeps the
+                 first photograph on the page's left margin while the row can
+                 still scroll off the right edge. */
+              style={{ marginHorizontal: -r.gutter }}
+              contentContainerStyle={{ gap: 10, paddingHorizontal: r.gutter }}
+            >
+              {photos.map((uri, i) => (
+                <Image
+                  key={`${i}-${uri.slice(-24)}`}
+                  source={{ uri }}
+                  contentFit="cover"
+                  transition={200}
+                  accessibilityLabel={t('A photo of this kitchen')}
+                  style={{
+                    width: 208,
+                    height: 148,
+                    borderRadius: radius.md,
+                    backgroundColor: colors.sunken,
+                    borderWidth: 1,
+                    borderColor: colors.line,
+                  }}
+                />
+              ))}
+            </ScrollView>
+          </Reveal>
+        </Container>
+      ) : null}
 
       {/* ---- MENU ---- */}
       <Container style={{ paddingTop: 56 }}>
