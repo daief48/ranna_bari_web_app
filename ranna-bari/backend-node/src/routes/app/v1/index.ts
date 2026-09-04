@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { Types } from 'mongoose';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 
@@ -373,6 +374,58 @@ export async function appRoutes(app: FastifyInstance) {
 
     reply.header('cache-control', 'public, max-age=30, stale-while-revalidate=120');
     return body;
+  });
+
+  /**
+   * One kitchen, with the gallery the list deliberately leaves out.
+   *
+   * The photographs are `data:` URIs living in the document — there is no
+   * bucket on this platform — so a hundred kilobytes each is the *cheap*
+   * case. Putting them on `/kitchens` would multiply that by every kitchen in
+   * the area on a screen that draws one thumbnail apiece, and the response
+   * would outgrow what this runs on long before the directory got interesting.
+   *
+   * So the list stays a list, and the page that actually shows a kitchen asks
+   * for that kitchen. `/kitchens/mine` is a static segment and wins the route
+   * match against `:id` regardless of declaration order, which is the one
+   * thing worth checking before adding a parameter here.
+   */
+  app.get('/kitchens/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    /* An id that is not an ObjectId is a 404, not a 500. `findById` throws a
+       CastError on anything else, and a mistyped URL is not a server fault. */
+    if (!Types.ObjectId.isValid(id)) return fail(reply, 'not-found', 404);
+
+    const kitchen = await Kitchen.findOne({ _id: id, suspended: false }).lean();
+    if (!kitchen) return fail(reply, 'not-found', 404);
+
+    reply.header('cache-control', 'public, max-age=30, stale-while-revalidate=120');
+    return {
+      chef: {
+        id: String(kitchen._id),
+        name: kitchen.name,
+        avatar: kitchen.avatar,
+        coverImage: kitchen.coverImage,
+        /* The reason this endpoint exists. Everything else here is what
+           `/kitchens` already returns, so one call can replace a list entry
+           rather than having to be merged field by field. */
+        photos: kitchen.photos ?? [],
+        specialty: kitchen.specialty,
+        specialties: kitchen.specialties ?? [],
+        description: kitchen.description,
+        rating: kitchen.rating,
+        reviewCount: kitchen.reviewCount,
+        tags: kitchen.tags ?? [],
+        ecoBadge: kitchen.ecoBadge,
+        isVerified: kitchen.isVerified,
+        area: kitchen.area,
+        lat: kitchen.lat,
+        lng: kitchen.lng,
+        deliveryRadiusKm: kitchen.deliveryRadiusKm,
+        isOpen: kitchen.isOpen,
+      },
+    };
   });
 
   /** Register the caller's own kitchen — the one that lived only on a device. */

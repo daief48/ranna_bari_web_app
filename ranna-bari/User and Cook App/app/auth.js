@@ -1646,6 +1646,17 @@ function PasswordStrength({ level }) {
  * needs and the cook can grant access and come back. A permission dialog is
  * not a reason to throw away everything else they typed.
  */
+/**
+ * How many pictures a kitchen is registered with.
+ *
+ * Five is what the operator needs to approve a room and about as many as a
+ * customer scrolls before deciding. It is also a size rule wearing a friendly
+ * face: the gallery travels to the server in one request, and a ceiling the
+ * cook can see is a better way to hold that line than a request that fails
+ * once they are past it.
+ */
+const MAX_KITCHEN_PHOTOS = 5;
+
 function KitchenPhotoField({ value, onChange }) {
   const { colors } = useTheme();
   const { t, n } = useLang();
@@ -1654,6 +1665,14 @@ function KitchenPhotoField({ value, onChange }) {
   const photos = Array.isArray(value) ? value : [];
 
   const pick = async () => {
+    const room = MAX_KITCHEN_PHOTOS - photos.length;
+    if (room <= 0) {
+      setNote(t('A kitchen shows up to {max} photos. Remove one to add another.', {
+        max: n(MAX_KITCHEN_PHOTOS),
+      }));
+      return;
+    }
+
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       setNote(t('RannaBari needs photo access to add a kitchen picture.'));
@@ -1689,11 +1708,14 @@ function KitchenPhotoField({ value, onChange }) {
 
     /* Appended, and de-duplicated: opening the picker twice and tapping the
        same photograph should not put it in the list twice. */
-    const merged = [...photos, ...images.filter((uri) => !photos.includes(uri))];
+    const fresh = images.filter((uri) => !photos.includes(uri));
+    /* Counted before the slice, so the ones over the ceiling can be spoken
+       about rather than just vanishing off the end. */
+    const overflow = Math.max(0, fresh.length - room);
 
     /* The whole gallery is posted in one request, so the budget is over the
        whole gallery — not over this batch. */
-    const { images: next, dropped } = fitGallery(merged);
+    const { images: next, dropped } = fitGallery([...photos, ...fresh.slice(0, room)]);
     onChange(next);
 
     /*
@@ -1707,12 +1729,20 @@ function KitchenPhotoField({ value, onChange }) {
      */
     const lost = failed + dropped;
     setNote(
-      lost
-        ? t('{lost} could not be added, so your gallery has {kept}. Try smaller photos.', {
-            lost: n(lost),
-            kept: n(next.length),
+      /* The ceiling first when both apply: it is the deliberate rule, and a
+         cook who picked eight needs to hear about the limit before they hear
+         about a photograph that would not encode. */
+      overflow
+        ? t('A kitchen shows up to {max} photos, so {over} were not added.', {
+            max: n(MAX_KITCHEN_PHOTOS),
+            over: n(overflow),
           })
-        : '',
+        : lost
+          ? t('{lost} could not be added, so your gallery has {kept}. Try smaller photos.', {
+              lost: n(lost),
+              kept: n(next.length),
+            })
+          : '',
     );
   };
 
@@ -1803,8 +1833,10 @@ function KitchenPhotoField({ value, onChange }) {
             </View>
           ))}
 
-          {/* No ceiling on purpose — a cook with twelve views of their kitchen
-              should be able to show twelve. */}
+          {/* Gone at the ceiling rather than disabled: a tile that is still
+              there and does nothing reads as a broken button, and the count
+              below already says why it left. */}
+          {photos.length < MAX_KITCHEN_PHOTOS ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('Add more photos')}
@@ -1824,6 +1856,7 @@ function KitchenPhotoField({ value, onChange }) {
           >
             <Icon name="plus" size={20} color={colors.primary} />
           </Pressable>
+          ) : null}
         </View>
       )}
 
@@ -1836,7 +1869,10 @@ function KitchenPhotoField({ value, onChange }) {
             color: colors.textLight,
           }}
         >
-          {t('{n} added · the first one is your cover', { n: n(photos.length) })}
+          {t('{n} of {max} · the first one is your cover', {
+            n: n(photos.length),
+            max: n(MAX_KITCHEN_PHOTOS),
+          })}
         </Text>
       ) : null}
 

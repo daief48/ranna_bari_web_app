@@ -782,9 +782,17 @@ export const loadable = (src?: string | null): string | null => {
  * room. Thumbnails at avatar size cannot answer that, so they are shown
  * large enough to read and each one links out to itself full-size.
  *
- * The cover leads because it is the picture customers will actually see on
- * the card, and it is the one an operator is implicitly approving for the
- * shopfront.
+ * What is shown is the submitted gallery and nothing else.
+ *
+ * The cover used to lead this row as a tile of its own, deduplicated against
+ * `photos` by string equality — which held only while the cover *was*
+ * `photos[0]`, the string registration copies into it. The moment a cook
+ * changes their cover from the panel it becomes a separate re-encoding of the
+ * same room: a different string, so the dedupe misses, and the operator sees
+ * three tiles of two rooms and no way to tell which one the cook never
+ * submitted. It is now a badge on the gallery photograph it matches, and a
+ * cover chosen outside registration badges nothing, because it is not part of
+ * what was submitted here.
  */
 export function KitchenPhotos({
   cover,
@@ -795,19 +803,18 @@ export function KitchenPhotos({
   photos?: string[] | null;
   empty?: string;
 }) {
-  /* Deduplicated: the cover is very often photos[0] as well, and showing the
-     same room twice reads as two rooms. */
+  const coverUrl = loadable(cover);
+
+  /* Still deduplicated: a gallery that holds the same string twice is one
+     room shown twice, whatever put it there. */
   const seen = new Set<string>();
   const all: { url: string; isCover: boolean }[] = [];
 
-  for (const [raw, isCover] of [
-    [cover, true] as const,
-    ...(photos ?? []).map((p) => [p, false] as const),
-  ]) {
+  for (const raw of photos ?? []) {
     const url = loadable(raw);
     if (!url || seen.has(url)) continue;
     seen.add(url);
-    all.push({ url, isCover });
+    all.push({ url, isCover: url === coverUrl });
   }
 
   /* Said out loud rather than left blank. A cook who submitted pictures that

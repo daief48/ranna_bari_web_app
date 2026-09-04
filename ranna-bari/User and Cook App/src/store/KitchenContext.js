@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -187,6 +188,10 @@ export function KitchenProvider({ children }) {
   /* Whether the server has actually answered, as opposed to not been asked. */
   const [loaded, setLoaded] = useState(false);
 
+  /* Which account the painted cache belongs to, so it can be taken back down
+     if that turns out not to be the account that is signed in. */
+  const [cachedFor, setCachedFor] = useState(null);
+
   /* Paint the cached kitchen first: a cook opening the panel on a bad
      connection should see their menu, not an empty one that reads as "your
      dishes are gone". */
@@ -195,7 +200,23 @@ export function KitchenProvider({ children }) {
     AsyncStorage.getItem(KEY)
       .then((raw) => {
         if (!alive || !raw) return;
-        setKitchen(JSON.parse(raw));
+        const saved = JSON.parse(raw);
+        /*
+         * Only a cache that says whose it is.
+         *
+         * This was stored as a bare kitchen, which is unusable the moment a
+         * second cook signs in on the same handset: there is no way to ask
+         * whether it is theirs, so it was painted for whoever came next.
+         * Entries written before this are exactly that shape and are dropped
+         * rather than guessed at — one cold read of the menu costs a spinner,
+         * and adopting them cost a cook their kitchen's name.
+         */
+        if (!saved?.accountId || !saved?.kitchen) {
+          AsyncStorage.removeItem(KEY).catch(() => {});
+          return;
+        }
+        setCachedFor(saved.accountId);
+        setKitchen(saved.kitchen);
       })
       .catch(() => {})
       .finally(() => alive && setHydrated(true));
@@ -204,11 +225,27 @@ export function KitchenProvider({ children }) {
     };
   }, []);
 
+  /* And down it comes if it belongs to somebody else. `loaded` goes with it:
+     what the server said about the previous account is not an answer about
+     this one. */
+  useEffect(() => {
+    const accountId = identity?.accountId ?? null;
+    if (!hydrated || !cachedFor || !accountId || cachedFor === accountId) return;
+    setKitchen(null);
+    setLoaded(false);
+    setCachedFor(null);
+  }, [hydrated, cachedFor, identity?.accountId]);
+
   useEffect(() => {
     if (!hydrated) return;
-    if (kitchen) AsyncStorage.setItem(KEY, JSON.stringify(kitchen)).catch(() => {});
-    else AsyncStorage.removeItem(KEY).catch(() => {});
-  }, [kitchen, hydrated]);
+    const accountId = identity?.accountId ?? null;
+    /* No owner, no cache. A kitchen written without one is the bug above. */
+    if (kitchen && accountId) {
+      AsyncStorage.setItem(KEY, JSON.stringify({ accountId, kitchen })).catch(() => {});
+    } else {
+      AsyncStorage.removeItem(KEY).catch(() => {});
+    }
+  }, [kitchen, hydrated, identity?.accountId]);
 
   /**
    * Read the kitchen and its whole menu back.
@@ -228,6 +265,7 @@ export function KitchenProvider({ children }) {
 
     if (!out.result.kitchen) {
       setKitchen(null);
+      setCachedFor(null);
       return null;
     }
 
@@ -239,8 +277,13 @@ export function KitchenProvider({ children }) {
       tags: tagsFromDishes(out.result.dishes ?? []),
     };
     setKitchen(next);
+    /* Recorded here as well as on hydrate, so the "is this mine?" check works
+       within a single run of the app too — sign out and back in as somebody
+       else and the kitchen on screen is still the first cook's until this
+       says whose it is. */
+    setCachedFor(identity?.accountId ?? null);
     return next;
-  }, [token]);
+  }, [token, identity?.accountId]);
 
   /* The account's own kitchen changes when it is registered, and when a cook
      signs in on a second device. Both are `identity.kitchenId` moving. */
@@ -280,10 +323,26 @@ export function KitchenProvider({ children }) {
    *
    * So: ask, and only register if the answer was genuinely nothing.
    */
-  const ensureKitchen = useCallback(
-    async (account) => {
-      if (kitchen) return kitchen;
+  /* Two callers, one registration. The signup screen calls this directly and
+     `KitchenSync` in the root layout calls it as well; sharing one promise is
+     what stops them racing into two `create`s that collide on the account's
+     unique index and report a failure neither of them had. */
+  const ensuring = useRef(null);
 
+  const register = useCallback(
+    async (account) => {
+      /*
+       * The server is asked every time, including when this device already
+       * has a kitchen in hand.
+       *
+       * It used to return the state copy first, which is fast and was wrong:
+       * that copy can be a *previous* cook's kitchen, cached on this handset
+       * and never dropped at sign-out. A new cook registering on that device
+       * short-circuited here, their own kitchen was never created from what
+       * they had typed, and the one they ended up with belonged to somebody
+       * else. Two round trips at signup is a small price for the answer being
+       * about the account that is actually signing up.
+       */
       const existing = await reload();
       if (existing) return existing;
 
@@ -328,7 +387,20 @@ export function KitchenProvider({ children }) {
       }
       return reload();
     },
-    [kitchen, reload, save, token],
+    [reload, save, token],
+  );
+
+  const ensureKitchen = useCallback(
+    async (account) => {
+      if (ensuring.current) return ensuring.current;
+      ensuring.current = register(account);
+      try {
+        return await ensuring.current;
+      } finally {
+        ensuring.current = null;
+      }
+    },
+    [register],
   );
 
   const updateKitchen = useCallback((patch) => save(patch), [save]);
