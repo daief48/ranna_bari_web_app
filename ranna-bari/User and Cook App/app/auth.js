@@ -719,6 +719,8 @@ export default function AuthScreen() {
                   setKitchenPhotos,
                   terms,
                   setTerms,
+                  termsInvalid,
+                  setTermsInvalid,
                   detail,
                   setDetail,
                   addressLabel,
@@ -1162,7 +1164,12 @@ function SignUpView({
 
             <Checkbox
               checked={fields.terms}
-              onToggle={() => fields.setTerms((v) => !v)}
+              /* Ticking it is the fix, so ticking it clears the complaint. */
+              onToggle={() => {
+                fields.setTerms((v) => !v);
+                fields.setTermsInvalid(false);
+              }}
+              invalid={fields.termsInvalid && !fields.terms}
               label={t('I agree to the Terms and the Privacy Policy.')}
               linkWords={['Terms', 'Privacy Policy.']}
             />
@@ -2459,7 +2466,7 @@ function Actions({ next, backLabel, onBack }) {
  * Left bare, each text run and each link becomes its own flex item and wraps
  * on its own: "I agree to the / Terms / and the / Privacy Policy".
  */
-function Checkbox({ checked, onToggle, label, linkWords = [] }) {
+function Checkbox({ checked, onToggle, label, linkWords = [], invalid = false }) {
   const { colors } = useTheme();
 
   const parts = useMemo(() => {
@@ -2478,6 +2485,9 @@ function Checkbox({ checked, onToggle, label, linkWords = [] }) {
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
       accessibilityLabel={label}
+      /* Said to a screen reader too: the red border is the whole message for
+         everybody else, and it is not a message a screen reader can see. */
+      accessibilityHint={invalid ? 'Required to continue' : undefined}
       onPress={onToggle}
       style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}
     >
@@ -2489,9 +2499,12 @@ function Checkbox({ checked, onToggle, label, linkWords = [] }) {
           borderRadius: 7,
           alignItems: 'center',
           justifyContent: 'center',
-          borderWidth: 1.5,
-          borderColor: checked ? 'transparent' : colors.line,
-          backgroundColor: checked ? colors.primary : colors.sunken,
+          /* Thicker as well as red. On the dark canvas a hairline colour
+             change is easy to miss, and this is the only thing on screen
+             saying which control stopped the form. */
+          borderWidth: invalid ? 2 : 1.5,
+          borderColor: checked ? 'transparent' : invalid ? colors.primary : colors.line,
+          backgroundColor: checked ? colors.primary : invalid ? colors.primary50 : colors.sunken,
         }}
       >
         {checked ? (
