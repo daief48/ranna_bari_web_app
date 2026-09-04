@@ -92,16 +92,40 @@ export default function CookReviewsScreen() {
                   {n(score)}
                 </Text>
                 <Stars value={score} size={12} />
+                {/*
+                  * The public count, and — when they differ — what the bars
+                  * beside it are actually counting.
+                  *
+                  * The score and the count are the kitchen's all-time figures,
+                  * the ones every card shows. The breakdown can only be built
+                  * from the page of reviews this screen fetched, so a kitchen
+                  * past that page would print a headline of two hundred over
+                  * bars adding up to fifty and look broken. Saying which is
+                  * which costs one line.
+                  */}
                 <Text
                   style={{
                     marginTop: 3,
                     fontFamily: font.ui,
                     fontSize: type.xs,
+                    textAlign: 'center',
                     color: colors.textMuted,
                   }}
                 >
                   {t('{n} reviews', { n: n(kitchen?.reviewCount ?? total) })}
                 </Text>
+                {(kitchen?.reviewCount ?? total) !== total ? (
+                  <Text
+                    style={{
+                      fontFamily: font.ui,
+                      fontSize: type.micro,
+                      textAlign: 'center',
+                      color: colors.textLight,
+                    }}
+                  >
+                    {t('latest {n} shown', { n: n(total) })}
+                  </Text>
+                ) : null}
               </View>
 
               {/* Five bars, five first. A cook scanning this is looking for
