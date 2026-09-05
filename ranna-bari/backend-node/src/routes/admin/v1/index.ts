@@ -215,8 +215,24 @@ export async function adminRoutes(app: FastifyInstance) {
           { $match: { createdAt: { $gte: since }, status: live } },
           { $group: { _id: '$kind', amount: { $sum: '$amount' }, count: { $sum: 1 } } },
         ]),
+        /*
+         * Cash the platform expects to earn on but has not booked yet.
+         *
+         * `commission` above sums real ledger entries, and a cash order now
+         * posts one when it is released — so imputing 15% of *every* cash
+         * order on top of that counted the released ones twice. Only the ones
+         * still short of a release have a commission that exists solely as
+         * arithmetic, which is exactly what this figure is for.
+         */
         Order.aggregate<{ _id: null; amount: number }>([
-          { $match: { createdAt: { $gte: since }, status: live, kind: 'cod' } },
+          {
+            $match: {
+              createdAt: { $gte: since },
+              status: live,
+              kind: 'cod',
+              payment: { $nin: ['released', 'refunded'] },
+            },
+          },
           { $group: { _id: null, amount: { $sum: '$amount' } } },
         ]),
         /* Grouped in Mongo rather than fetched and folded here: a busy month

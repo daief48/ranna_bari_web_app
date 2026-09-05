@@ -539,11 +539,11 @@ export default function OrderScreen() {
                       color: colors.textMuted,
                     }}
                   >
-                    {/* Two different promises, and saying the wrong one is
-                        worse than saying nothing: cash has already changed
-                        hands at the door, a wallet order has not. */}
+                    {/* Where the money already is differs, what happens next
+                        no longer does: on both rails confirming is what lets
+                        RannaBari settle the kitchen's share. */}
                     {isCod
-                      ? t('You paid the rider at the door. Confirming just closes this order.')
+                      ? t('You paid the rider at the door. Confirming closes this order and lets RannaBari settle {kitchen}.', { kitchen: order.chefName || t('the kitchen') })
                       : t('Confirming closes this order. RannaBari then releases the payment to {kitchen}.', { kitchen: order.chefName || t('the kitchen') })}
                   </Text>
                 </View>

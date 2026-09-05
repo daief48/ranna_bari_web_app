@@ -810,13 +810,43 @@ export async function confirmReceived(args: {
       { session },
     );
 
+    /*
+     * Cash collected at the door, entering the books.
+     *
+     * A cash order posted nothing at all before this, which left two things
+     * wrong at once: the cook's share of a cash sale was never payable
+     * through the panel, and the platform's cut existed only as a figure the
+     * dashboard multiplied out (`codCommission`) against no entry anybody
+     * could audit. `commissionCod` has been in settings the whole time.
+     *
+     * `external` rather than `customer` is the source, because no platform
+     * balance was debited — the money came in from outside, the way a top-up
+     * does. Posted here rather than at `delivered` so that the customer
+     * saying the food arrived is what makes it payable, exactly as it is on
+     * the wallet rail. From this point the order is an ordinary held order
+     * and `releaseEscrow` splits it with no idea it was ever cash.
+     */
+    if (cash && order.amount > 0) {
+      await post(session, {
+        kind: 'hold',
+        amount: order.amount,
+        from: 'external',
+        to: 'held',
+        orderId,
+        note: `Cash collected at the door for ${order.title}`,
+        idemKey: `hold:${orderId}`,
+      });
+
+      await Order.updateOne({ _id: orderId }, { $set: { payment: 'held' } }, { session });
+    }
+
     await notify(session, {
       audience: 'cook',
       kind: 'order-confirmed',
       key: `cook:order-confirmed:${orderId}`,
       title: 'Customer confirmed delivery',
       body: cash
-        ? `${order.title} is complete. The rider collected ${taka(order.amount)} in cash at the door.`
+        ? `${order.title} is complete. The rider collected ${taka(order.amount)} in cash at the door, and your share will be released to you by RannaBari.`
         : `${order.title} is complete. ${taka(order.amount)} is held and will be released to you by RannaBari.`,
       kitchenId: order.kitchenId,
       mealId: order.mealId,

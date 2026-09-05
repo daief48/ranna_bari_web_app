@@ -458,7 +458,14 @@ export function CommerceProvider({ children }) {
     if (!hydrated || !isVerified) return undefined;
 
     return onLiveEvent((event) => {
-      if (event.type === 'order') reloadOrdersRef.current?.();
+      /* `socket-open` is not an order event — it is the socket admitting it
+         has just started listening, and therefore that it missed whatever
+         happened before. Re-reading once on connect is what makes the rail
+         correct rather than merely live: a phone that boots while the cook
+         is working through the queue has no other way to learn about it. */
+      if (event.type === 'order' || event.type === 'socket-open') {
+        reloadOrdersRef.current?.();
+      }
     });
   }, [hydrated, isVerified]);
 

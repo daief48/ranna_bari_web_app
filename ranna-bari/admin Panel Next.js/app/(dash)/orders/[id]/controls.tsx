@@ -64,32 +64,39 @@ export function OrderControls({
    *
    * "Nothing is held against this order" is true of four quite different
    * situations and an operator staring at a dead Release button cannot tell
-   * which one they are in. Cash on delivery is the one that confuses: there
-   * is no escrow to release *by design* — the customer pays the rider at the
-   * door and the cook already has the money — so the button is not broken and
-   * never will be enabled on this order.
+   * which one they are in. Cash used to be a fifth and a permanent one — it
+   * posted nothing to the ledger, so the button could never light up. It can
+   * now: the cash the rider collects enters escrow when the customer confirms
+   * the food arrived, and from that moment a cash order releases like any
+   * other. So the cash sentence is about *waiting*, not about never.
    */
   const moneyNote = held
     ? status === 'completed'
-      ? 'The customer has confirmed the food arrived. Nothing else moves this money — releasing it is your call, and it splits between the cook and the platform. Both post to the ledger; neither can be edited afterwards.'
+      ? `The customer has confirmed the food arrived${
+          kind === 'cod' ? ' and the rider’s cash is in escrow against it' : ''
+        }. Nothing else moves this money — releasing it is your call, and it splits between the cook and the platform. Both post to the ledger; neither can be edited afterwards.`
       : 'Releasing splits the held amount between the cook and the platform. Both post to the ledger; neither can be edited afterwards.'
-    : kind === 'cod'
-      ? 'Cash on delivery: the customer pays the rider at the door, so the platform never holds this money and there is nothing to release. The cook was paid in cash.'
-      : payment === 'released'
-        ? 'Already released to the cook. The ledger is append-only, so this cannot be undone — only corrected with an entry in the opposite direction.'
-        : payment === 'refunded'
-          ? 'Already refunded to the customer. Nothing is left in escrow.'
+    : /* Settled first, and cash last. A released cash order is no longer a
+         cash order in any sense that matters here — testing `kind` before
+         `payment` told an operator who had just released ৳280 that the
+         customer had not confirmed delivery yet. */
+      payment === 'released'
+      ? 'Already released to the cook. The ledger is append-only, so this cannot be undone — only corrected with an entry in the opposite direction.'
+      : payment === 'refunded'
+        ? 'Already refunded to the customer. Nothing is left in escrow.'
+        : kind === 'cod'
+          ? 'Cash on delivery: the rider collects at the door. That cash only enters escrow when the customer confirms the food arrived — until they do, there is nothing here to release.'
           : 'Nothing is held against this order.';
 
   /** The same sentence, short enough for a tooltip on the dead button. */
   const whyOff = held
     ? undefined
-    : kind === 'cod'
-      ? 'Cash on delivery — the platform never held this money'
-      : payment === 'released'
-        ? 'Already released'
-        : payment === 'refunded'
-          ? 'Already refunded'
+    : payment === 'released'
+      ? 'Already released'
+      : payment === 'refunded'
+        ? 'Already refunded'
+        : kind === 'cod'
+          ? 'The customer has not confirmed delivery yet'
           : 'Nothing is held against this order';
 
   if (!canWrite && !canMoney && !canDispute) {

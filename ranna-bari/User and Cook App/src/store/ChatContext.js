@@ -196,6 +196,13 @@ export function ChatProvider({ children }) {
         // Coming back online is the moment to flush anything stuck.
         drain();
         loadThreads();
+        /* And to catch up on everything that happened while this was not
+           listening. A socket is only live from the moment it opens: an
+           order the kitchen moved during the seconds a cold app spends
+           booting, or during a tunnel, was announced to nobody and the
+           screen would sit on a status the server left behind minutes ago.
+           Whoever cares re-reads on this. */
+        emitLiveEvent({ type: 'socket-open' });
       };
 
       socket.onclose = () => {

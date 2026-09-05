@@ -353,7 +353,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
             {order.ledger.length === 0 ? (
               <EmptyRow span={5}>
                 {order.kind === 'cod'
-                  ? 'Cash on delivery never touches the ledger — the rider takes the money.'
+                  ? 'Nothing yet — the rider’s cash posts here when the customer confirms the food arrived.'
                   : 'No entries yet.'}
               </EmptyRow>
             ) : null}
