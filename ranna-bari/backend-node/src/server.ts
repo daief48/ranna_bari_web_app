@@ -94,7 +94,32 @@ async function main() {
     const { pathname, query } = parse(request.url ?? '', true);
     if (pathname !== '/ws') return;
 
+    /*
+     * A raw socket with no error listener is a process-level crash waiting
+     * for a phone to walk into a lift.
+     *
+     * `authenticate` is awaited — it verifies a token against the database —
+     * and this socket belongs to nobody during that await: `ws` has not
+     * adopted it and Fastify has handed it over. A client that disappears in
+     * that window makes it emit `'error'` (ECONNRESET) with nothing
+     * listening, which in Node is not an error but an uncaught exception, and
+     * the whole server exits. It did, repeatedly, and the only clue was a
+     * bare `read ECONNRESET` in the log.
+     *
+     * Attached before the first await, because after it is too late.
+     */
+    socket.on('error', () => {
+      /* Nothing to do and nothing to report: a client that reset the
+         connection is not waiting for an answer. Destroying it releases the
+         handle; `ws` installs its own handler once the handshake succeeds. */
+      socket.destroy();
+    });
+
     const identity = await authenticate(request.headers, query);
+
+    // It may have gone while we were asking who it was.
+    if (socket.destroyed) return;
+
     if (!identity) {
       // 401 before the handshake completes, so a bad token never becomes a
       // socket we then have to police.
@@ -104,6 +129,28 @@ async function main() {
     }
 
     wss.handleUpgrade(request, socket, head, (ws) => attach(ws, identity));
+  });
+
+  /* The same hazard one level up: a connection that fails between accept and
+     the handshake is reported here, and an unheard 'error' on an EventEmitter
+     is fatal. */
+  wss.on('error', (error) => {
+    console.warn('[ws] server error:', error instanceof Error ? error.message : error);
+  });
+
+  /*
+   * A malformed or reset HTTP request, for the same reason.
+   *
+   * Node emits `clientError` on the HTTP server for a request that never
+   * became a request. The default handler is fine, but the socket still needs
+   * to be closed rather than left to emit into nothing.
+   */
+  app.server.on('clientError', (_error, socket) => {
+    if (!socket.writable) {
+      socket.destroy();
+      return;
+    }
+    socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
   });
 
   console.log(
