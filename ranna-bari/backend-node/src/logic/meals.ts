@@ -772,6 +772,16 @@ export async function advanceOrder(args: {
  * panel's order screen or the escrow sweep. `payment` stays `held`, which is
  * what keeps the row on the release queue and what stops it being released
  * twice by any route.
+ *
+ * ## Cash orders
+ *
+ * A cash order carries `payment: 'cod'` and never had a hold — the rider took
+ * the money at the door. That used to be refused here as "already settled",
+ * which left every cash order sitting on `delivered` for ever: the courier's
+ * word was the last one anybody could say about it, and the customer had no
+ * way to disagree or to close it. Closing is not a money operation, so it is
+ * allowed on both rails; what differs is only that there is nothing for an
+ * operator to release afterwards, and the cook is told so.
  */
 export async function confirmReceived(args: {
   orderId: string;
@@ -782,8 +792,11 @@ export async function confirmReceived(args: {
   if (!order) return fail(ERR.NO_ORDER);
   if (args.customerKey && order.customerKey !== args.customerKey) return fail(ERR.FORBIDDEN);
   if (order.status !== 'delivered') return fail(ERR.WRONG_STATE);
-  // A hold that has already been settled has nothing left to confirm against.
-  if (order.payment !== 'held') return fail(ERR.ALREADY_SETTLED);
+  const cash = order.payment === 'cod';
+  /* A hold that has already been paid out or given back has nothing left to
+     confirm against; a cash order has nothing to confirm against by design,
+     and that is fine. */
+  if (!cash && order.payment !== 'held') return fail(ERR.ALREADY_SETTLED);
 
   const orderId = String(order._id);
 
@@ -802,7 +815,9 @@ export async function confirmReceived(args: {
       kind: 'order-confirmed',
       key: `cook:order-confirmed:${orderId}`,
       title: 'Customer confirmed delivery',
-      body: `${order.title} is complete. ${taka(order.amount)} is held and will be released to you by RannaBari.`,
+      body: cash
+        ? `${order.title} is complete. The rider collected ${taka(order.amount)} in cash at the door.`
+        : `${order.title} is complete. ${taka(order.amount)} is held and will be released to you by RannaBari.`,
       kitchenId: order.kitchenId,
       mealId: order.mealId,
       orderId,

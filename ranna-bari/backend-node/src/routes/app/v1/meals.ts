@@ -17,6 +17,7 @@ import {
   toggleInterest,
 } from '../../../logic/meals.js';
 import { Kitchen, Meal, MealInterest, Order } from '../../../models/index.js';
+import { publish } from '../../../realtime/hub.js';
 import { kitchenMayTrade } from '../../../logic/sync.js';
 import { leaveReview } from '../../../logic/reviews.js';
 
@@ -517,6 +518,33 @@ export async function mealRoutes(app: FastifyInstance) {
   /* ---------------- the order rail ---------------- */
 
   /** The cook pushes one order one step. The last step is not theirs to take. */
+  /**
+   * Tell both sides an order moved, after it has actually moved.
+   *
+   * The customer's tracker used to be a photograph: the cook pressed "Start
+   * cooking" and the doorstep learned about it on the next cold start, which
+   * for somebody watching a rail is never. A notification row was already
+   * written for them, but a row is a badge — it does not repaint the screen
+   * they are staring at.
+   *
+   * Called after the transaction, not inside it: a socket send cannot be
+   * rolled back, and announcing a step that then failed to commit is worse
+   * than announcing it a moment late. Deliberately thin — the event says
+   * which order and what it now is, and each side re-reads with the call it
+   * already has.
+   */
+  const announceOrder = async (orderId: string) => {
+    const order = await Order.findById(orderId, { customerKey: 1, kitchenId: 1, status: 1 })
+      .lean()
+      .catch(() => null);
+    if (!order) return;
+
+    publish(
+      { customerKey: order.customerKey, kitchenId: order.kitchenId },
+      { type: 'order', orderId: String(order._id), status: order.status },
+    );
+  };
+
   app.post('/orders/:id/advance', async (request, reply) => {
     const cook = await cookOf(request, reply);
     if (!cook) return;
@@ -526,6 +554,8 @@ export async function mealRoutes(app: FastifyInstance) {
 
     const out = await advanceOrder({ orderId: params.data.id, kitchenId: cook.kitchenId });
     if (!out.ok) return refuse(reply, out);
+
+    await announceOrder(params.data.id);
     return out.result;
   });
 
@@ -549,6 +579,8 @@ export async function mealRoutes(app: FastifyInstance) {
       customerKey: caller.customerKey,
     });
     if (!out.ok) return refuse(reply, out);
+
+    await announceOrder(params.data.id);
     return out.result;
   });
 
@@ -615,6 +647,10 @@ export async function mealRoutes(app: FastifyInstance) {
 
     const out = await cancelOrder({ orderId: params.data.id, by, reason });
     if (!out.ok) return refuse(reply, out);
+
+    /* A cancellation is the one step the other side most needs off a screen
+       they are already watching. */
+    await announceOrder(params.data.id);
     return out.result;
   });
 }

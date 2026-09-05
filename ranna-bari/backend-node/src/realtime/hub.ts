@@ -29,6 +29,16 @@ export type ServerEvent =
   | { type: 'thread'; thread: unknown }
   | { type: 'read'; threadId: string; side: Side; at: string }
   | { type: 'typing'; threadId: string; side: Side; name: string }
+  /**
+   * An order moved along the rail.
+   *
+   * Carries the new status so a client can decide whether it cares, and
+   * nothing else — the receiver re-reads the order it already knows how to
+   * read. Pushing the whole document down a socket would mean two shapes of
+   * order in the app, one from `/orders` and one from here, and they would
+   * drift the first time either changed.
+   */
+  | { type: 'order'; orderId: string; status: string }
   | { type: 'presence'; side: Side; online: boolean }
   | { type: 'error'; error: string }
   | { type: 'pong' };

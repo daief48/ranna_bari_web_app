@@ -11,6 +11,7 @@ import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { api, WS_URL, ApiError } from '../lib/server';
+import { emitLiveEvent } from '../lib/liveEvents';
 import { useSession } from './SessionContext';
 
 const OUTBOX_KEY = 'rannabari_chat_outbox';
@@ -235,6 +236,11 @@ export function ChatProvider({ children }) {
         } catch {
           return;
         }
+
+        /* Everything the server pushes, offered to the rest of the app before
+           this handler decides whether it is a chat frame. `liveEvents` is
+           where the order tracker listens. */
+        emitLiveEvent(payload);
 
         if (payload.type === 'message' && payload.threadId && payload.message) {
           const { threadId, message } = payload;

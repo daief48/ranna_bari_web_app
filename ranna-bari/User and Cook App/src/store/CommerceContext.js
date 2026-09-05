@@ -50,6 +50,7 @@ import React, {
   useState,
 } from 'react';
 import { AppState } from 'react-native';
+import { onLiveEvent } from '../lib/liveEvents';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { distanceKm } from '../lib/geo';
@@ -434,6 +435,33 @@ export function CommerceProvider({ children }) {
    * launched it. Coming back to the app is when that matters and when a
    * request is cheapest, because nobody is mid-scroll.
    */
+  /*
+   * The rail, live.
+   *
+   * A customer watching "Order placed → Kitchen accepted → Cooking now" had a
+   * photograph: the cook pressed the button, the server wrote the step, and
+   * the doorstep found out on the next cold start — which, for somebody
+   * sitting on that screen waiting, is never. The server already announces
+   * every transition down the socket the chat holds open; this is the half
+   * that listens.
+   *
+   * It re-reads rather than patching from the event. The event carries an id
+   * and a status on purpose — trusting it to mutate local state would mean a
+   * second way for an order to change shape, and the two would disagree the
+   * first time either side of the rail grew a field.
+   */
+  /* Held in a ref because `reloadOrders` is defined further down and would
+     otherwise resubscribe the socket listener on every render. */
+  const reloadOrdersRef = useRef(null);
+
+  useEffect(() => {
+    if (!hydrated || !isVerified) return undefined;
+
+    return onLiveEvent((event) => {
+      if (event.type === 'order') reloadOrdersRef.current?.();
+    });
+  }, [hydrated, isVerified]);
+
   const lastFocusRef = useRef(0);
   useEffect(() => {
     if (!hydrated) return undefined;
@@ -812,6 +840,11 @@ export function CommerceProvider({ children }) {
     if (preorders?.ok) fields.preorders = preorders.result.preorders ?? [];
     if (Object.keys(fields).length) patch(fields);
   }, [token, kitchenId, patch]);
+
+  /* Handed to the socket listener above, which was declared before this
+     existed. Kept in sync here rather than in an effect of its own: the
+     listener only ever reads it when an event actually arrives. */
+  reloadOrdersRef.current = reloadOrders;
 
   const reloadRequests = useCallback(async () => {
     const [requests, offers] = await Promise.all([
