@@ -11,7 +11,7 @@ import {
   ok,
   type Result,
 } from '../lib/domain.js';
-import { addDays, dayKey, makeCode } from '../lib/format.js';
+import { addDays, dayKey, makeCode, taka } from '../lib/format.js';
 import { balanceFor, post } from './ledger.js';
 import { getSettings } from './settings.js';
 
@@ -663,7 +663,7 @@ export async function createRequest(
         kind: 'request-new',
         key: `cook:request-new:${requestId}:${kitchenId}`,
         title: 'New food request',
-        body: '{customer} is looking for {title}. Name your price.',
+        body: `A customer is looking for ${created.title}. Name your price.`,
         kitchenId,
         requestId,
       })),
@@ -714,7 +714,7 @@ export async function cancelRequest(
         kind: 'request-cancelled',
         key: `cook:request-cancelled:${requestId}:${offer.kitchenId}`,
         title: 'Request withdrawn',
-        body: '{customer} withdrew the request for {title}.',
+        body: `The customer withdrew the request for ${request.title}.`,
         kitchenId: offer.kitchenId,
         requestId,
       })),
@@ -1030,7 +1030,7 @@ export async function rejectOffer(
       kind: 'offer-rejected',
       key: `cook:offer-rejected:${args.offerId}`,
       title: 'Offer turned down',
-      body: '{customer} did not take your price for {title}.',
+      body: `The customer did not take your price for ${request?.title ?? "their request"}.`,
       kitchenId: offer.kitchenId,
       requestId: offer.requestId,
       offerId: args.offerId,
@@ -1125,7 +1125,7 @@ export async function withdrawOffer(
         kind: 'offer-withdrawn',
         key: `customer:offer-withdrawn:${offerId}`,
         title: 'Offer withdrawn',
-        body: '{cook} pulled out of {title}.',
+        body: `${offer.cookName || "A cook"} pulled out of ${request.title}.`,
         customerKey: request.customerKey,
         requestId: offer.requestId,
         offerId,
@@ -1198,7 +1198,7 @@ export async function selectOffer(
       kind: 'offer-selected',
       key: `cook:offer-selected:${args.offerId}`,
       title: 'You were chosen',
-      body: '{customer} picked your offer for {title}.',
+      body: `The customer picked your offer for ${request.title}.`,
       kitchenId: offer.kitchenId,
       requestId: args.requestId,
       offerId: args.offerId,
@@ -1211,7 +1211,7 @@ export async function selectOffer(
         kind: 'offer-not-selected',
         key: `cook:offer-not-selected:${args.requestId}:${loser.kitchenId}`,
         title: 'Offer not selected',
-        body: '{customer} went with another cook for {title}.',
+        body: `The customer went with another cook for ${request.title}.`,
         kitchenId: loser.kitchenId,
         requestId: args.requestId,
       })),
@@ -1536,7 +1536,7 @@ export async function payForRequest(
       kind: 'request-paid',
       key: `cook:request-paid:${orderId}`,
       title: 'Order confirmed',
-      body: '{customer} paid ৳{amount} for {title}. Start when you are ready.',
+      body: `The customer paid ${taka(amount)} for ${request.title}. Start when you are ready.`,
       kitchenId: offer.kitchenId,
       requestId: args.requestId,
       orderId,

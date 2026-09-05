@@ -266,7 +266,7 @@ export async function publishMeal(
         kind: 'meal-published',
         key: `customer:meal-published:${mealId}`,
         title: 'New meal near you',
-        body: '{title} from {cook} — ৳{price}',
+        body: `${meal.title} from ${meal.cookName} — ${taka(meal.price)}`,
         zone: draft.area || null,
         mealId,
       });
@@ -437,7 +437,7 @@ export async function cancelMeal(args: {
           kind: 'meal-cancelled',
           key: `customer:meal-cancelled:${args.mealId}:${row.customerKey}`,
           title: 'Meal cancelled',
-          body: '{title} was cancelled. ৳{amount} is back in your wallet.',
+          body: `${meal.title} was cancelled. ${taka(back.result.refunded)} is back in your wallet.`,
           customerKey: row.customerKey,
           mealId: args.mealId,
           orderId,
@@ -524,7 +524,7 @@ export async function toggleInterest(args: {
            not one line per person on a list they can already see. */
         key: `cook:interest:${mealId}`,
         title: 'Someone is interested',
-        body: '{n} interested in {title}',
+        body: `Someone is interested in ${meal.title}.`,
         kitchenId: meal.kitchenId,
         mealId,
       });
@@ -659,7 +659,7 @@ export async function confirmOrder(args: {
       // Per order: a cook needs to count these, so they must not collapse.
       key: `cook:order-confirmed:${orderId}`,
       title: 'New confirmed order',
-      body: '{customer} confirmed {title}. Prepare {n}.',
+      body: `${args.customer.name?.trim() || 'A customer'} confirmed ${meal.title}.`,
       kitchenId: meal.kitchenId,
       mealId,
       orderId,
@@ -670,7 +670,7 @@ export async function confirmOrder(args: {
       kind: 'order-placed',
       key: `customer:order-placed:${orderId}`,
       title: 'Order confirmed',
-      body: '৳{amount} is held until you confirm the food arrived.',
+      body: `${taka(amount)} is held until you confirm the food arrived.`,
       customerKey,
       mealId,
       orderId,
@@ -684,7 +684,14 @@ export async function confirmOrder(args: {
  * the order rail — shared by both systems that sell into this wallet
  * ------------------------------------------------------------------ */
 
-/** What the customer is told at each step the cook drives. */
+/**
+ * What the customer is told at each step the cook drives.
+ *
+ * `{title}` is filled in below. It used to be sent as written — the only
+ * notifications in this file built from a table rather than a template
+ * literal, and the only ones nobody substituted — so four of the messages a
+ * customer actually reads said "{title} is being cooked."
+ */
 const TOLD: Record<string, [string, string]> = {
   preparing: ['Being prepared', '{title} is being cooked.'],
   ready: ['Ready', '{title} is ready.'],
@@ -735,14 +742,19 @@ export async function advanceOrder(args: {
     // Somebody else advanced it while we were deciding; their step stands.
     if (moved.matchedCount === 0) return fail(ERR.WRONG_STATE);
 
-    const told = order.kind === 'cod' && to === 'delivered' ? undefined : TOLD[to];
+    /* Every rail now ends with the customer's word, cash included — the
+       doorstep confirmation is what closes a cash order and what puts its
+       collected cash on the release queue. This used to skip the nudge for
+       cash on the grounds that `delivered` was the end of that rail; it is
+       not any more, and a customer who is never asked never confirms. */
+    const told = TOLD[to];
     if (told) {
       await notify(session, {
         audience: 'customer',
         kind: `order-${to}`,
         key: `customer:order-${to}:${orderId}`,
         title: told[0],
-        body: told[1],
+        body: told[1].replace('{title}', order.title ?? 'Your order'),
         customerKey: order.customerKey,
         mealId: order.mealId,
         orderId,
@@ -943,7 +955,7 @@ export async function cancelOrder(args: {
       kind: 'order-cancelled',
       key: `${tell}:order-cancelled:${orderId}`,
       title: 'Order cancelled',
-      body: '{title} was cancelled. ৳{amount} was refunded.',
+      body: `${order.title} was cancelled. ${taka(back.result.refunded)} was refunded.`,
       customerKey: tell === 'customer' ? order.customerKey : null,
       kitchenId: tell === 'cook' ? order.kitchenId : null,
       mealId: order.mealId,
