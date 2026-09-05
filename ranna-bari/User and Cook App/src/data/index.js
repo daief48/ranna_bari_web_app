@@ -10,11 +10,106 @@
  * menus, no indication that any of it was old. If the server cannot be
  * reached the screen is empty, which is the truth.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 
 import { useKitchen } from '../store/KitchenContext';
 import { normaliseArea } from '../lib/areas';
 import { api, hasServer } from '../lib/server';
+
+/** How long a directory read stays fresh enough not to ask again. */
+const STALE_AFTER_MS = 20_000;
+
+/**
+ * One copy of each list, for every screen that reads it.
+ *
+ * These lists used to be fetched exactly once per launch — a ref was set on
+ * the first effect and never cleared — so the directory a customer saw was a
+ * photograph taken when the app started. A cook opening their kitchen, adding
+ * a dish or changing a price reached nobody who already had the app open, and
+ * the only cure was a full restart. That is what "I opened my shop and the
+ * customer still sees it closed" is: not a failed write, a list that stopped
+ * asking.
+ *
+ * Refetching on focus fixes that, but naively it multiplies: the hook runs in
+ * every component that reads the directory, and each copy kept its own
+ * cooldown, so one screen coming into focus fired one request per consumer —
+ * eight, measured. So the freshness clock, the in-flight request and the data
+ * live here, once, and the hooks below are subscribers to it.
+ */
+const shelves = {
+  chefs: { at: 0, inflight: null, data: [], subs: new Set() },
+  menus: { at: 0, inflight: null, data: [], subs: new Set() },
+};
+
+async function fill(name, fetcher, force) {
+  const shelf = shelves[name];
+
+  if (!force && Date.now() - shelf.at < STALE_AFTER_MS) return shelf.data;
+  /* A second caller in the same moment waits for the first one's answer
+     rather than asking again. */
+  if (shelf.inflight) return shelf.inflight;
+
+  shelf.inflight = (async () => {
+    try {
+      const list = await fetcher();
+      /* An empty answer is left alone rather than painted: a directory that
+         blanks because one request came back short reads as "every kitchen
+         closed", which is never what it means. */
+      if (list.length > 0) {
+        shelf.data = list;
+        shelf.at = Date.now();
+        shelf.subs.forEach((notify) => notify(list));
+      }
+    } catch {
+      /* Keep what is on screen. */
+    } finally {
+      shelf.inflight = null;
+    }
+    return shelf.data;
+  })();
+
+  return shelf.inflight;
+}
+
+/**
+ * Subscribe to a shelf, and top it up when this screen comes into view.
+ *
+ * Focus is the right moment to ask: it is when somebody is about to read the
+ * thing, and nobody is mid-scroll.
+ */
+function useShelf(name, fetcher) {
+  const shelf = shelves[name];
+  const [data, setData] = useState(shelf.data);
+
+  useEffect(() => {
+    shelf.subs.add(setData);
+    return () => shelf.subs.delete(setData);
+  }, [shelf]);
+
+  const load = useCallback(
+    (force) => {
+      if (!hasServer) return;
+      fill(name, fetcher, force).then((list) => setData(list));
+    },
+    [name, fetcher],
+  );
+
+  /* The first read of a cold shelf is not a refresh, and must not be skipped
+     by a cooldown that a sibling screen happened to start. */
+  useEffect(() => {
+    load(shelf.at === 0);
+  }, [load, shelf]);
+
+  useFocusEffect(
+    useCallback(() => {
+      load(false);
+      return undefined;
+    }, [load]),
+  );
+
+  return data;
+}
 
 /**
  * Format local kitchen to match backend chef shape
@@ -27,26 +122,14 @@ const asChef = (kitchen) => {
 /**
  * Live Server Chefs Hook — fetches all verified kitchens directly from MongoDB.
  */
+const fetchChefs = async () => {
+  const out = await api('/kitchens');
+  return (out.chefs ?? []).map((k) => ({ ...k, area: normaliseArea(k.area || 'Dhaka') }));
+};
+
 export function useServerChefs() {
   const { kitchen } = useKitchen();
-  const [serverChefs, setServerChefs] = useState([]);
-  const fetchedRef = useRef(false);
-
-  /* Fetch live from server */
-  useEffect(() => {
-    if (!hasServer || fetchedRef.current) return;
-    fetchedRef.current = true;
-
-    api('/kitchens')
-      .then((out) => {
-        const list = (out.chefs ?? []).map((k) => ({
-          ...k,
-          area: normaliseArea(k.area || 'Dhaka'),
-        }));
-        if (list.length > 0) setServerChefs(list);
-      })
-      .catch(() => {});
-  }, []);
+  const serverChefs = useShelf('chefs', fetchChefs);
 
   return useMemo(() => {
     const base = serverChefs;
@@ -59,22 +142,11 @@ export function useServerChefs() {
 /**
  * Live Server Menus Hook — fetches all dishes grouped by kitchen from MongoDB.
  */
+const fetchMenus = async () => (await api('/kitchens?menus=1')).menus ?? [];
+
 export function useServerMenus() {
   const { kitchen } = useKitchen();
-  const [serverMenus, setServerMenus] = useState([]);
-  const fetchedRef = useRef(false);
-
-  useEffect(() => {
-    if (!hasServer || fetchedRef.current) return;
-    fetchedRef.current = true;
-
-    api('/kitchens?menus=1')
-      .then((out) => {
-        const list = out.menus ?? [];
-        if (list.length > 0) setServerMenus(list);
-      })
-      .catch(() => {});
-  }, []);
+  const serverMenus = useShelf('menus', fetchMenus);
 
   return useMemo(() => {
     const base = serverMenus;
@@ -142,16 +214,24 @@ export function useChef(id) {
 
     if (!listed && !fetched) return null;
 
-    /* The listed entry wins where both have an answer — it is what every
-       other screen is drawing, and two screens disagreeing about a rating is
-       worse than one of them being a few seconds stale. The gallery is the
-       field only one of them has, so it is named rather than left to the
-       spread: a cook viewing their own page has it on the local entry, and
-       everybody else has it only from the fetch. */
+    /*
+     * The fetched one wins where both have an answer.
+     *
+     * This was the other way round, on the reasoning that the directory is
+     * what every other screen draws and two screens should agree. That was
+     * wrong in the direction that matters: `/kitchens/:id` is read when this
+     * page opens and the directory can be minutes old, so letting the list
+     * win meant a kitchen that had just opened still said CLOSED here — the
+     * page most likely to be looked at for exactly that.
+     *
+     * The gallery is named rather than left to the spread: a cook viewing
+     * their own page has it on the local entry, everybody else only from the
+     * fetch, and neither should lose it to an `undefined` on the other.
+     */
     return {
-      ...fetched,
       ...listed,
-      photos: listed?.photos ?? fetched?.photos ?? [],
+      ...fetched,
+      photos: fetched?.photos?.length ? fetched.photos : (listed?.photos ?? []),
     };
   }, [allChefs, id, detail]);
 }

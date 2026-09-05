@@ -173,6 +173,18 @@ export default function CookDashboard() {
 
   const open = kitchen.isOpen;
 
+  /* One handler for the card and the button inside it, so the two controls
+     can never drift into meaning different things. */
+  const setShutter = () => {
+    Haptics.selectionAsync().catch(() => {});
+    /* Worth announcing: whether the kitchen is taking orders is the one thing
+       a cook most needs to be sure of. */
+    run(
+      () => toggleOpen(),
+      () => (kitchen?.isOpen ? t('Kitchen closed.') : t('Kitchen is open for orders.')),
+    );
+  };
+
   return (
     <CookScreen>
       <Container>
@@ -310,15 +322,7 @@ export default function CookDashboard() {
                 ? t('Open for orders')
                 : t('Tap to start taking orders')
             }
-            onPress={() => {
-              Haptics.selectionAsync().catch(() => {});
-              /* Worth announcing: whether the kitchen is taking orders is the
-                 one thing a cook most needs to be sure of. */
-              run(
-                () => toggleOpen(),
-                () => (kitchen?.isOpen ? t('Kitchen closed.') : t('Kitchen is open for orders.')),
-              );
-            }}
+            onPress={setShutter}
             style={({ pressed }) => [
               {
                 borderRadius: 28,
@@ -410,6 +414,52 @@ export default function CookDashboard() {
                   />
                 </View>
               </View>
+
+              {/*
+               * And the same thing as a button that says what it does.
+               *
+               * The card was already the control — the whole surface toggles
+               * and the knob on the right is a switch — but "tap the big
+               * green thing" is a convention you have to already know, and
+               * the one control on this screen that decides whether a
+               * kitchen earns money should not need to be discovered. This
+               * spells the next state out: what it says is what happens.
+               */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={open ? t('Close the kitchen') : t('Open the kitchen')}
+                onPress={setShutter}
+                style={({ pressed }) => ({
+                  marginTop: 16,
+                  paddingVertical: 12,
+                  borderRadius: radius.pill,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  /* Open: a quiet outline on the filled card — the loud
+                     option should not be the one that stops the orders.
+                     Closed: solid, because starting is what a cook came
+                     here to do. */
+                  backgroundColor: open
+                    ? 'rgba(255, 255, 255, 0.16)'
+                    : pressed
+                      ? colors.primary600
+                      : colors.primary,
+                  borderColor: open ? 'rgba(255, 255, 255, 0.45)' : 'transparent',
+                  opacity: pressed && open ? 0.85 : 1,
+                })}
+              >
+                <Text
+                  style={{
+                    fontFamily: font.uiBold,
+                    fontSize: type.sm + 1,
+                    letterSpacing: 0.4,
+                    textTransform: 'uppercase',
+                    color: open ? '#FFFFFF' : colors.onPrimary,
+                  }}
+                >
+                  {open ? t('Close the kitchen') : t('Open the kitchen')}
+                </Text>
+              </Pressable>
             </LinearGradient>
           </Pressable>
         </Reveal>

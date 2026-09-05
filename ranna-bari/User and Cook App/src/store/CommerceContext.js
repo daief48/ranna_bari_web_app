@@ -49,6 +49,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { distanceKm } from '../lib/geo';
@@ -422,6 +423,32 @@ export function CommerceProvider({ children }) {
     if (!hydrated) return;
     refresh();
   }, [hydrated, isVerified, kitchenId, refresh]);
+
+  /*
+   * And again when the app is looked at.
+   *
+   * Everything above fires on mount and on a sign-in, which between them
+   * happen once. A shop opening, a price changing, a jar going out of stock —
+   * all of it was invisible to a customer who already had the app open, and
+   * the shelf they were looking at was whatever the catalogue said when they
+   * launched it. Coming back to the app is when that matters and when a
+   * request is cheapest, because nobody is mid-scroll.
+   */
+  const lastFocusRef = useRef(0);
+  useEffect(() => {
+    if (!hydrated) return undefined;
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      const now = Date.now();
+      /* A tab flicked to and back is not new information. */
+      if (now - lastFocusRef.current < 20_000) return;
+      lastFocusRef.current = now;
+      refresh();
+    });
+
+    return () => sub.remove();
+  }, [hydrated, refresh]);
 
   /* ---------------- detail hydration ---------------- */
 
