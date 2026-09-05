@@ -63,6 +63,17 @@ export function statusMeta(status, colors) {
         icon: 'shieldCheck',
         action: null,
       };
+    /* The customer confirming it arrived. Not a step on the rail — it is the
+       rail finished — so without a case of its own it fell to the default,
+       looked up index -1, and told the cook a closed order was "In progress". */
+    case 'completed':
+      return {
+        label: 'Confirmed',
+        bg: colors.sage50,
+        fg: colors.sage,
+        icon: 'shieldCheck',
+        action: null,
+      };
     case 'rejected':
       return {
         label: 'Rejected',

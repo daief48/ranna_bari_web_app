@@ -288,7 +288,7 @@ export default function OrdersScreen() {
 
                       <View style={{ alignItems: 'flex-end' }}>
                         <Price size={17}>৳{n(order.total)}</Price>
-                        {order.paymentMethod === 'cod' ? (
+                        {order.kind === 'cod' ? (
                           <Text
                             style={{
                               fontFamily: font.uiSemi,

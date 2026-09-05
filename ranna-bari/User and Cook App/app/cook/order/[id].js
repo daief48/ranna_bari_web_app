@@ -402,7 +402,7 @@ export default function CookOrderScreen() {
                 <View style={{ height: 1, backgroundColor: colors.line }} />
                 <Line label={t('You receive')} value={`৳${n(cookPayout(order))}`} strong />
 
-                {order.paymentMethod === 'cod' ? (
+                {order.kind === 'cod' ? (
                   <View
                     style={{
                       flexDirection: 'row',

@@ -27,7 +27,7 @@ export default function OrderScreen() {
   const { id } = useLocalSearchParams();
   const { colors, shadow } = useTheme();
   const router = useRouter();
-  const { getOrder, cancelOrder, hydrated } = useOrders();
+  const { getOrder, cancelOrder, confirmReceived, hydrated } = useOrders();
   const [confirmCancel, setConfirmCancel] = useState(false);
   const { t, n, lang } = useLang();
   /* Every write below reports what happened. */
@@ -63,7 +63,19 @@ export default function OrderScreen() {
      worse than being told nothing. */
   const rejected = order.status === 'rejected';
   const stopped = cancelled || rejected;
-  const delivered = order.status === 'delivered';
+  /**
+   * The customer's own word, which is the last one on the order.
+   *
+   * `delivered` is what the kitchen pressed; `completed` is what the person
+   * at the door pressed afterwards. Everything that only cares whether the
+   * food arrived reads `delivered`, so it stays true once confirmed —
+   * otherwise a confirmed order would go back to reading "ready for the
+   * rider" and lose its stamps the moment it closed.
+   */
+  const completed = order.status === 'completed';
+  const delivered = order.status === 'delivered' || completed;
+  /** Only a delivered-but-unconfirmed order has anything to confirm. */
+  const canConfirm = order.status === 'delivered';
   /* When each step happened. Orders placed before the kitchen panel existed
      have no history, so the first step falls back to the order's own date
      and the rest simply go unstamped. */
@@ -73,8 +85,14 @@ export default function OrderScreen() {
       h.at,
     ]),
   );
-  const current = stepIndex(order.status);
-  const isCod = order.paymentMethod === 'cod';
+  /* `completed` is not a step on this rail — it is the rail finished — so it
+     lights the last one rather than falling off the end at -1. */
+  const current = completed ? ORDER_STEPS.length - 1 : stepIndex(order.status);
+  /* The rail this order runs on. It used to read `paymentMethod`, which is a
+     field of the checkout draft and not of an order — the server answers
+     `kind`, so this was undefined on every order and the cash callout below
+     had silently stopped rendering. */
+  const isCod = order.kind === 'cod';
 
   return (
     <Screen glow="both">
@@ -114,18 +132,22 @@ export default function OrderScreen() {
               ? t('The kitchen could not take this')
               : cancelled
                 ? t('Order cancelled')
-                : delivered
-                  ? t('Delivered.')
-                  : t('Order placed.')}
+                : completed
+                  ? t('All done.')
+                  : delivered
+                    ? t('Delivered.')
+                    : t('Order placed.')}
           </Heading>
           <Body muted size={14} style={{ textAlign: 'center' }}>
             {rejected
               ? t('{kitchen} turned this one down. Nothing was charged — cash orders are only paid on delivery.', { kitchen: order.chefName || t('The kitchen') })
               : cancelled
                 ? t('Nothing was charged — cash orders are only paid on delivery.')
-                : delivered
-                  ? t('{kitchen} cooked this one. Hope it was good.', { kitchen: order.chefName || t('The kitchen') })
-                  : t('{kitchen} has your order. You pay when it arrives.', { kitchen: order.chefName || t('The kitchen') })}
+                : completed
+                  ? t('You confirmed this one arrived. Thank you.')
+                  : delivered
+                    ? t('{kitchen} says it is at your door. Confirm below once you have it.', { kitchen: order.chefName || t('The kitchen') })
+                    : t('{kitchen} has your order. You pay when it arrives.', { kitchen: order.chefName || t('The kitchen') })}
           </Body>
 
           <View
@@ -334,7 +356,7 @@ export default function OrderScreen() {
                   }}
                 >
                   <Icon
-                    name={delivered ? 'shieldCheck' : 'clock'}
+                    name={completed ? 'shieldCheck' : 'clock'}
                     size={14}
                     color={colors.textLight}
                   />
@@ -347,9 +369,11 @@ export default function OrderScreen() {
                       color: colors.textLight,
                     }}
                   >
-                    {delivered
+                    {completed
                       ? t('This order is complete.')
-                      : t('The kitchen moves this along as they cook. You will see it update here.')}
+                      : canConfirm
+                        ? t('One step left, and it is yours: tell us the food arrived.')
+                        : t('The kitchen moves this along as they cook. You will see it update here.')}
                   </Text>
                 </View>
               </View>
@@ -471,6 +495,73 @@ export default function OrderScreen() {
 
         {/* ---- Actions ---- */}
         <View style={{ marginTop: 24, gap: 12 }}>
+          {/* The last step on the rail belongs to the person reading this, so
+              it sits above "browse more kitchens" and looks like the thing to
+              press. Absent the rest of the time — an order still cooking has
+              nothing to confirm, and a button that refuses is worse than no
+              button at all. */}
+          {canConfirm ? (
+            <View
+              style={[
+                {
+                  padding: 18,
+                  borderRadius: radius.lg,
+                  backgroundColor: colors.sage50,
+                  borderWidth: 1,
+                  borderColor: colors.sage100,
+                  gap: 12,
+                },
+                shadow.sm,
+              ]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <IconTile
+                  name="shieldCheck"
+                  variant="sage"
+                  style={{ width: 42, height: 42, borderRadius: 14 }}
+                />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text
+                    style={{
+                      fontFamily: font.uiBold,
+                      fontSize: type.md,
+                      color: colors.text,
+                      marginBottom: 3,
+                    }}
+                  >
+                    {t('Did your food arrive?')}
+                  </Text>
+                  <Text
+                    style={{
+                      fontFamily: font.ui,
+                      fontSize: 12.5,
+                      lineHeight: 18,
+                      color: colors.textMuted,
+                    }}
+                  >
+                    {/* Two different promises, and saying the wrong one is
+                        worse than saying nothing: cash has already changed
+                        hands at the door, a wallet order has not. */}
+                    {isCod
+                      ? t('You paid the rider at the door. Confirming just closes this order.')
+                      : t('Confirming closes this order. RannaBari then releases the payment to {kitchen}.', { kitchen: order.chefName || t('the kitchen') })}
+                  </Text>
+                </View>
+              </View>
+              <Button
+                label={t('Yes, I got my order')}
+                icon="check"
+                block
+                onPress={() =>
+                  run(
+                    () => confirmReceived(order.id),
+                    t('Thank you — this order is complete.'),
+                  )
+                }
+              />
+            </View>
+          ) : null}
+
           <Button
             label={t('Browse more kitchens')}
             icon="arrowRight"

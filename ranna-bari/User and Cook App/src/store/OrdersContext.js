@@ -230,6 +230,16 @@ export function OrdersProvider({ children }) {
   /** Cook-side. Move the order one step along the rail. */
   const advanceOrder = useCallback((id) => shop.advanceOrder(id), [shop]);
 
+  /**
+   * Customer-side. The last word on the order, and the only one that closes it.
+   *
+   * `delivered` is the kitchen's claim; this is the doorstep answering. On a
+   * wallet order it is also what puts the row on the operator's release
+   * queue — closing the order and paying the cook are two decisions with two
+   * owners, and this is the first of them.
+   */
+  const confirmReceived = useCallback((id) => shop.confirmReceived(id), [shop]);
+
   /** A kitchen turning an order down. The server refunds nothing on a COD
       order — the rider never collected — but it still tells the customer. */
   const rejectOrder = useCallback(
@@ -254,6 +264,7 @@ export function OrdersProvider({ children }) {
       getOrder,
       cancelOrder,
       advanceOrder,
+      confirmReceived,
       rejectOrder,
       ordersForKitchen,
       refresh: shop.refresh,
@@ -265,6 +276,7 @@ export function OrdersProvider({ children }) {
       getOrder,
       cancelOrder,
       advanceOrder,
+      confirmReceived,
       rejectOrder,
       ordersForKitchen,
       shop.refresh,
