@@ -89,6 +89,31 @@ export class ApiError extends Error {
  * code, so callers can branch on the same vocabulary the backend uses rather
  * than parsing sentences.
  */
+/**
+ * Who to tell when a token turns out to be dead.
+ *
+ * A set rather than one callback so a second subscriber cannot silently
+ * replace the first, and module-level so `api` can reach it without every
+ * caller having to thread a session through.
+ */
+const expiredWatchers = new Set();
+
+/** Returns an unsubscribe, so a provider can clean up on unmount. */
+export function onSessionExpired(fn) {
+  expiredWatchers.add(fn);
+  return () => expiredWatchers.delete(fn);
+}
+
+const notifyExpired = () => {
+  expiredWatchers.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      /* One bad listener must not stop the others, or swallow the request. */
+    }
+  });
+};
+
 export async function api(path, { method = 'GET', token, body, signal } = {}) {
   if (!API_BASE) {
     throw new ApiError('No server is configured.', {});
@@ -119,6 +144,22 @@ export async function api(path, { method = 'GET', token, body, signal } = {}) {
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      /*
+       * A 401 on a request that carried a token means the token is dead, and
+       * every other call this device makes is about to fail the same way.
+       *
+       * Only `/auth/me` used to notice, and only on a cold start — so a
+       * session that died while the app was open (revoked, or the account
+       * deleted out from under it) left somebody signed in on screen with
+       * every action refused. The symptom is "I am logged in, why does
+       * placing an order say unauthenticated": the app believed it, the
+       * server did not.
+       *
+       * Announced rather than handled here, because this module knows nothing
+       * about sessions. `SessionContext` subscribes and does the signing out.
+       */
+      if (response.status === 401 && token) notifyExpired();
+
       throw new ApiError(payload.message || 'That did not work.', {
         status: response.status,
         code: payload.error,

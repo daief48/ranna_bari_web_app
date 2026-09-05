@@ -219,17 +219,26 @@ export default function ProfileScreen() {
           />
         </View>
 
+        {/*
+          * One heading, whoever is reading.
+          *
+          * There were two: this one, unconditionally, and a second "Account"
+          * a few lines down for cooks — so a cook saw the same word twice
+          * with a gap between them, because the block in between holds only
+          * a guest row and collapsed to an empty `View` for anybody signed
+          * in. Guests keep the row; everyone gets one heading.
+          */}
         <GroupLabel icon="user" text={t('Account')} style={{ marginTop: 28 }} />
 
-        <View style={{ gap: 12, marginTop: 14 }}>
-          {/* Guests only.
-              For someone already signed in this was a trap: `/become-cook`
-              feeds the three-step signup, and finishing it calls signIn(),
-              which REPLACES the stored account rather than upgrading it --
-              their name, email, phone and saved address all came back as the
-              form's defaults. A signed-in user turns cook from the profile
-              editor, which changes the role in place. */}
-          {!isSignedIn ? (
+        {/* Guests only.
+            For someone already signed in this was a trap: `/become-cook`
+            feeds the three-step signup, and finishing it calls signIn(),
+            which REPLACES the stored account rather than upgrading it --
+            their name, email, phone and saved address all came back as the
+            form's defaults. A signed-in user turns cook from the profile
+            editor, which changes the role in place. */}
+        {!isSignedIn ? (
+          <View style={{ gap: 12, marginTop: 14 }}>
             <Row
               icon="chefHat"
               variant="sage"
@@ -237,12 +246,10 @@ export default function ProfileScreen() {
               sub={t('Turn your kitchen into a business')}
               onPress={() => router.push('/become-cook')}
             />
-          ) : null}
-        </View>
+          </View>
+        ) : null}
 
-        {isCook ? <GroupLabel icon="sliders" text={t('Account')} style={{ marginTop: 28 }} /> : null}
-
-        <View style={{ gap: 12, marginTop: isCook ? 0 : 12 }}>
+        <View style={{ gap: 12, marginTop: isSignedIn ? 14 : 12 }}>
           {isSignedIn ? (
             <Row
               icon="user"

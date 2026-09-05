@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { api, hasServer, ApiError } from '../lib/server';
+import { api, hasServer, ApiError, onSessionExpired } from '../lib/server';
 /* Auth is the outer provider, so this one can read it — the mirror of the
    server's profile lands in the account every screen already uses. */
 import { useAuth } from './AuthContext';
@@ -38,7 +38,7 @@ const SessionContext = createContext(null);
  * address does not.
  */
 export function SessionProvider({ children }) {
-  const { updateAccount } = useAuth();
+  const { updateAccount, signOut: forgetAccount } = useAuth();
   const [token, setTokenState] = useState(null);
 
   /*
@@ -239,6 +239,26 @@ export function SessionProvider({ children }) {
     setIdentity(null);
     await AsyncStorage.multiRemove([TOKEN_KEY, IDENTITY_KEY]).catch(() => {});
   }, []);
+
+  /*
+   * End the session the moment the server stops accepting it.
+   *
+   * Only the cold-start `/auth/me` used to notice a dead token, so a session
+   * that died while the app was open — revoked, or the account deleted out
+   * from under it — left somebody signed in on screen with every write coming
+   * back `unauthenticated`. `api` now announces a 401 on any authenticated
+   * call and this is what listens: the app stops claiming to be signed in,
+   * and the sign-in screen is one tap away instead of a mystery.
+   */
+  useEffect(() => onSessionExpired(() => {
+    if (!tokenRef.current) return;
+    signOutServer();
+    /* And the profile with it. The token lives here, but "am I signed in" is
+       answered by `AuthContext.account` — clearing only one leaves the app
+       showing somebody's name and role with no credential behind it, which
+       is the same half-state in a new disguise. */
+    forgetAccount();
+  }), [signOutServer, forgetAccount]);
 
   const value = useMemo(
     () => ({

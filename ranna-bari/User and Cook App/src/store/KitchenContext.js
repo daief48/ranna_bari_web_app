@@ -241,7 +241,26 @@ export function KitchenProvider({ children }) {
     const bearer = auth();
     if (!bearer || !hasServer) return null;
     const out = await call('/kitchens/mine', { token: bearer });
-    if (!out.ok) return null;
+
+    if (!out.ok) {
+      /*
+       * A refusal is an answer. A dropped connection is not.
+       *
+       * This returned on any failure and kept whatever was in state, which is
+       * right for a train going into a tunnel and wrong for a 401 — and 401 is
+       * what a device holding a token for a deleted or revoked account gets on
+       * every single call. The kitchen then lived forever: the panel showed it,
+       * and `asChef()` in `src/data` prepends the cook's own kitchen to the
+       * customer directory, so the device also advertised a kitchen the server
+       * had no record of. Browsing found it, its page opened, and its menu was
+       * empty because there was nothing behind it to list.
+       */
+      if (out.status === 401 || out.error === 'unauthenticated') {
+        setKitchen(null);
+        setLoaded(true);
+      }
+      return null;
+    }
 
     setLoaded(true);
 

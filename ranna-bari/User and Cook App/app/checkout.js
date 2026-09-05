@@ -25,6 +25,7 @@ import { useAuth } from '../src/store/AuthContext';
 import { PAYMENT_METHODS, useOrders } from '../src/store/OrdersContext';
 import { useCommerce } from '../src/store/CommerceContext';
 import { useLang } from '../src/i18n/LanguageContext';
+import { errorText } from '../src/lib/errors';
 
 const LABELS = [
   ['Home', 'home'],
@@ -126,11 +127,20 @@ function CheckoutForm() {
        it has never heard of, or a network that dropped. The basket is left
        exactly as it was so the customer can press the button again. */
     if (!out.ok) {
-      setNote(
-        out.error === 'network'
-          ? t('We could not reach the server. Check your connection and try again.')
-          : t('Something went wrong. Try again.'),
-      );
+      /*
+       * Say which failure it was.
+       *
+       * Every refusal that was not the network came out as "Something went
+       * wrong. Try again." — including `unauthenticated`, which is the one a
+       * customer can actually do something about and the one that never gets
+       * better by pressing the button again. A session that has expired or
+       * been revoked looks exactly like a glitch from here, and somebody with
+       * a full basket retries until they give up.
+       *
+       * `errorText` is the app's own mapper and already has a sentence for
+       * each of these; this screen was the one place not asking it.
+       */
+      setNote(errorText(out.error, t, n, out));
       return;
     }
 
