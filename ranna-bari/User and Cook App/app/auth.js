@@ -78,7 +78,7 @@ export default function AuthScreen() {
   const r = useResponsive();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { signIn, updateAccount } = useAuth();
   const { requestCode, verifyCode, saveProfile, saveAddress } = useSession();
   const { ensureKitchen } = useKitchen();
   const alert = useAlert();
@@ -376,6 +376,29 @@ export default function AuthScreen() {
        */
       if (role === 'cook') {
         const made = await ensureKitchen(profile).catch(() => null);
+
+        /*
+         * Say again, now that it is true on the server.
+         *
+         * `signIn` above set `role: 'cook'` from what this form collected —
+         * but the account is only a cook's account once a kitchen exists, and
+         * `registerKitchen` is what does that, here, several round trips
+         * later. In between, `SessionContext` fetches `/account` (it fires on
+         * every token change) and merges the answer over this one. Measured
+         * against the running server: that answer is `role: "user"` until the
+         * line above runs, and `role: "cook"` immediately after.
+         *
+         * So the profile the app held said cook, the server's said user, and
+         * the merge won. `isCookMode` went false, and "Go to my kitchen"
+         * landed on `/cook` where the gate bounced it straight back to the
+         * customer home — which looked like a broken button, and came right
+         * on a manual refresh because by then `/account` had caught up.
+         *
+         * Asserting it from the kitchen rather than re-fetching: the kitchen
+         * coming back *is* the server agreeing, so there is nothing left to
+         * ask and no second round trip to lose a race with.
+         */
+        if (made) await updateAccount({ role: 'cook', kitchenId: made.id });
 
         /*
          * And check that the gallery actually landed.
