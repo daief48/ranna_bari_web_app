@@ -17,6 +17,7 @@ import {
   EmptyRow,
 } from '@/components/ui';
 import { RowLink } from '@/components/ui/row-link';
+import { notificationHref, notificationTargetLabel } from '@/lib/notification-link';
 import { FilterSelect, Pager } from '@/components/ui/client';
 import { Composer } from './composer';
 import { requirePage } from '@/lib/guard';
@@ -34,6 +35,11 @@ type NoteRow = {
   customerKey: string | null;
   kitchenId: string | null;
   zone: string | null;
+  /* What the message is about, and therefore where a click on it goes. The
+     backend has always sent these; nothing here read them. */
+  orderId: string | null;
+  mealId: string | null;
+  requestId: string | null;
   broadcastBy: string | null;
   read: boolean;
   at: string;
@@ -145,7 +151,17 @@ export default async function NotificationsPage({
         >
           <Table head={['Audience', 'Kind', 'Title', 'Read', 'From', 'When']}>
             {rows.map((note) => (
-              <RowLink key={note.id} href={`/notifications/${note.id}`}>
+              /* The row opens what the message is about; the record itself is
+                 one more click away, in its own cell. An operator scanning
+                 this board is chasing the event, not the row that announced
+                 it — and the send/open counts on the record only mean
+                 anything for a broadcast, which is where `notificationHref`
+                 sends you anyway. */
+              <RowLink
+                key={note.id}
+                href={notificationHref(note)}
+                title={`Opens the ${notificationTargetLabel(note)}`}
+              >
                 <td>
                   <Badge tone={note.audience === 'cook' ? 'warn' : 'info'}>
                     {note.audience}
@@ -153,10 +169,16 @@ export default async function NotificationsPage({
                 </td>
                 <td className="text-ink2">{note.kind}</td>
                 <td className="max-w-[260px]">
-                  <Link href={`/notifications/${note.id}`} className="hover:text-primary">
+                  <Link href={notificationHref(note)} className="hover:text-primary">
                     <span className="block truncate font-medium">{note.title}</span>
                   </Link>
                   <span className="block truncate text-[11.5px] text-ink3">{note.body}</span>
+                  <Link
+                    href={`/notifications/${note.id}`}
+                    className="mt-0.5 inline-block text-[10.5px] text-ink3 hover:text-primary"
+                  >
+                    delivery record →
+                  </Link>
                 </td>
                 <td>
                   {note.read ? <Badge tone="good">read</Badge> : <Badge>unread</Badge>}

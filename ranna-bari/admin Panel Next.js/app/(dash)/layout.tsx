@@ -2,9 +2,10 @@ import { redirect } from 'next/navigation';
 
 import { currentUser, clearSessionCookie } from '@/lib/auth';
 import { get } from '@/lib/backend';
-import { ROLE_LABEL } from '@/lib/domain';
+import { ROLE_LABEL, can } from '@/lib/domain';
 import { Sidebar, PageContext } from '@/components/shell/Sidebar';
 import CommandPalette from '@/components/shell/CommandPalette';
+import { HeaderNotifications, type HeaderNote } from '@/components/shell/HeaderNotifications';
 import { ThemeToggle } from '@/components/ui/client';
 import { Avatar, BTN } from '@/components/ui';
 
@@ -23,6 +24,10 @@ export default async function DashLayout({ children }: { children: React.ReactNo
   const user = await currentUser();
   if (!user) redirect('/login');
 
+  /* The backend gates `/notifications` on `notification.broadcast`, so asking
+     for the bell's contents without it is a guaranteed 403 on every page. */
+  const canNotes = can(user.role, 'notification.broadcast');
+
   /*
    * The four counts the sidebar badges, from the backend.
    *
@@ -37,17 +42,35 @@ export default async function DashLayout({ children }: { children: React.ReactNo
    * backend is down, or an operator gets a stack trace instead of the page
    * that would have told them it is down.
    */
-  const [board, chatStats] = await Promise.all([
+  const [board, chatStats, notes] = await Promise.all([
     get<{ attention: { kyc: number; disputes: number; escrowAged: number } }>(
       '/overview',
     ).catch(() => null),
     get<{ waiting: number }>('/chat/stats').catch(() => null),
+    /*
+     * The bell's contents, fetched with the shell rather than polled.
+     *
+     * A desk tool navigates constantly and this layout is already dynamic, so
+     * every page load refreshes it. Polling would be a request every few
+     * seconds for a number that moves a few times an hour.
+     *
+     * Only operators who may read notifications ask for them, and the whole
+     * thing is behind a `.catch` for the same reason the counts are: the
+     * shell has to render when the backend is down.
+     */
+    canNotes
+      ? get<{ notifications: HeaderNote[]; facets: { unreadCustomer: number; unreadCook: number } }>(
+          '/notifications?take=8',
+        ).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   const kyc = board?.attention.kyc ?? 0;
   const disputes = board?.attention.disputes ?? 0;
   const escrow = board?.attention.escrowAged ?? 0;
   const chat = chatStats?.waiting ?? 0;
+  const unread =
+    (notes?.facets.unreadCustomer ?? 0) + (notes?.facets.unreadCook ?? 0);
 
   async function signOut() {
     'use server';
@@ -101,6 +124,10 @@ export default async function DashLayout({ children }: { children: React.ReactNo
               {ROLE_LABEL[user.role] ?? user.role}
             </span>
           </div>
+
+          {canNotes ? (
+            <HeaderNotifications notes={notes?.notifications ?? []} unread={unread} />
+          ) : null}
 
           <ThemeToggle />
 
