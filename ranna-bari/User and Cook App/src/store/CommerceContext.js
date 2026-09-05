@@ -131,11 +131,47 @@ export const SLOTS = [
 
 export const slotMeta = (key) => SLOTS.find((s) => s.key === key) ?? SLOTS[1];
 
+/** A local Date on the serve day at a given hour. Local, never UTC: a sitting
+    is an evening someone eats, not an offset. */
+function onServeDay(serveDate, hours, minutes = 0) {
+  const [y, m, d] = String(serveDate).split('-').map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1, hours, minutes, 0, 0);
+}
+
 /** The default cut-off for a service: a few hours before it is eaten. */
 export function defaultDeadline(serveDate, slot) {
-  const [y, m, d] = String(serveDate).split('-').map(Number);
-  const at = new Date(y, (m ?? 1) - 1, d ?? 1, slotMeta(slot).cutoffHour, 0, 0, 0);
+  return onServeDay(serveDate, slotMeta(slot).cutoffHour).toISOString();
+}
+
+/** When the food is actually handed over. */
+export function serveMoment(serveDate, slot) {
+  return onServeDay(serveDate, slotMeta(slot).serveHour);
+}
+
+/** A cut-off a whole number of hours before the sitting. */
+export function deadlineBefore(serveDate, slot, hours) {
+  const at = serveMoment(serveDate, slot);
+  at.setHours(at.getHours() - hours);
   return at.toISOString();
+}
+
+/**
+ * A cut-off at a clock time the cook typed, on the serve day.
+ *
+ * Returns null rather than a guess for anything unparseable — a deadline is
+ * the moment money stops being takeable, and "9" meaning nine in the morning
+ * when the cook meant nine at night is a whole evening of orders lost. The
+ * screen keeps the publish button off until this answers.
+ */
+export function deadlineAtTime(serveDate, time) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(time).trim());
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+
+  return onServeDay(serveDate, hours, minutes).toISOString();
 }
 
 /* ------------------------------------------------------------------ *

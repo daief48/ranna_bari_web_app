@@ -33,7 +33,10 @@ import {
   SLOTS,
   addDays,
   dayKey,
+  deadlineAtTime,
+  deadlineBefore,
   defaultDeadline,
+  serveMoment,
   tomorrowKey,
   useCommerce,
 } from '../../../src/store/CommerceContext';
@@ -61,6 +64,10 @@ export default function NewMeal() {
   const [image, setImage] = useState(PLACEHOLDER);
   const [serveDate, setServeDate] = useState(tomorrowKey());
   const [slot, setSlot] = useState('dinner');
+  /* 'auto' | hours-before as a string | 'custom', with the typed clock time
+     kept beside it so switching away and back does not lose it. */
+  const [closeRule, setCloseRule] = useState('auto');
+  const [closeTime, setCloseTime] = useState('');
   const [handover, setHandover] = useState('delivery');
   const [handoverNote, setHandoverNote] = useState('');
   const [note, setNote] = useState('');
@@ -87,8 +94,47 @@ export default function NewMeal() {
     [t, lang],
   );
 
-  const deadline = defaultDeadline(serveDate, slot);
-  const closes = deadlineLabel(deadline, t, n);
+  /**
+   * When ordering shuts.
+   *
+   * `auto` is the answer that follows from the sitting and is right most of
+   * the time, which is why it stays the default. But it was also the *only*
+   * answer: a cook who shops in the morning needs orders in by dawn, and one
+   * selling from a pot already on the stove can take them until it is served.
+   * Neither could say so, and a cut-off nobody chose is one they work around
+   * by not using the meal system at all.
+   */
+  const closeChoices = useMemo(
+    () => [
+      { key: 'auto', label: t('Default') },
+      { key: '1', label: t('{n}h before', { n: n(1) }) },
+      { key: '3', label: t('{n}h before', { n: n(3) }) },
+      { key: '6', label: t('{n}h before', { n: n(6) }) },
+      { key: '12', label: t('{n}h before', { n: n(12) }) },
+      { key: 'custom', label: t('Exact time') },
+    ],
+    [t, n],
+  );
+
+  const deadline = useMemo(() => {
+    if (closeRule === 'auto') return defaultDeadline(serveDate, slot);
+    if (closeRule === 'custom') return deadlineAtTime(serveDate, closeTime);
+    return deadlineBefore(serveDate, slot, Number(closeRule));
+  }, [closeRule, closeTime, serveDate, slot]);
+
+  const closes = deadline ? deadlineLabel(deadline, t, n) : null;
+  /* Clock time on the serve day, for the note under the chips — "2 hr left"
+     alone never says *when*, which is the thing a cook is choosing. */
+  const closesAt = deadline
+    ? new Date(deadline).toLocaleTimeString(lang === 'bn' ? 'bn-BD' : 'en-GB', {
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : null;
+  /* Taking orders after the food is served is not a cut-off, it is a mistake
+     with a plausible-looking time on it. */
+  const afterServing =
+    !!deadline && new Date(deadline).getTime() > serveMoment(serveDate, slot).getTime();
 
   const pickImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -133,8 +179,16 @@ export default function NewMeal() {
       alert.error(t('Leave the quantity blank for no limit, or set it above zero.'));
       return;
     }
+    if (!deadline) {
+      alert.error(t('Write the closing time as hours:minutes on a 24-hour clock — 09:00, 17:30.'));
+      return;
+    }
     if (new Date(deadline).getTime() <= Date.now()) {
-      alert.error(t('That service has already closed. Pick a later date or sitting.'));
+      alert.error(t('That closing time has already passed. Pick a later one, or a later day.'));
+      return;
+    }
+    if (afterServing) {
+      alert.error(t('Orders cannot close after the food is served. Pick an earlier time.'));
       return;
     }
 
@@ -393,32 +447,71 @@ export default function NewMeal() {
             ))}
           </Group>
 
+          <Group label={t('Orders close')}>
+            {closeChoices.map((choice) => (
+              <Chip
+                key={choice.key}
+                label={choice.label}
+                active={closeRule === choice.key}
+                onPress={() => setCloseRule(choice.key)}
+              />
+            ))}
+          </Group>
+
+          {closeRule === 'custom' ? (
+            <View style={{ marginTop: 12 }}>
+              <FloatLabelInput
+                label={t('Closing time (24h, e.g. 17:30)')}
+                value={closeTime}
+                onChangeText={(v) => setCloseTime(v.replace(/[^0-9:]/g, '').slice(0, 5))}
+                keyboardType="numbers-and-punctuation"
+                placeholder="17:30"
+              />
+              {closeTime.trim() && !deadline ? (
+                <FormNote
+                  tone="error"
+                  text={t('Write the time as hours:minutes on a 24-hour clock — 09:00, 17:30.')}
+                />
+              ) : null}
+            </View>
+          ) : null}
+
           <View
             style={{
               flexDirection: 'row',
               alignItems: 'center',
               gap: 10,
               padding: 14,
+              marginTop: 14,
               marginBottom: 22,
               borderRadius: radius.sm,
-              backgroundColor: colors.sunken,
+              backgroundColor: afterServing ? colors.primary50 : colors.sunken,
               borderWidth: 1,
-              borderColor: colors.line2,
+              borderColor: afterServing ? colors.primary100 : colors.line2,
             }}
           >
-            <Icon name="clock" size={15} color={colors.textMuted} />
+            <Icon
+              name={afterServing ? 'alertCircle' : 'clock'}
+              size={15}
+              color={afterServing ? colors.primary : colors.textMuted}
+            />
             <Text
               style={{
                 flex: 1,
                 fontFamily: font.ui,
                 fontSize: type.xs + 1,
                 lineHeight: (type.xs + 1) * 1.5,
-                color: colors.textMuted,
+                color: afterServing ? colors.text : colors.textMuted,
               }}
             >
-              {t('Orders close a few hours before the sitting — {when}.', {
-                when: closes ?? t('already closed'),
-              })}
+              {!deadline
+                ? t('Set a closing time and this will tell you when orders shut.')
+                : afterServing
+                  ? t('That is after the food is served. Customers could order a meal that has already gone.')
+                  : t('Orders close at {at} — {when}.', {
+                      at: closesAt,
+                      when: closes ?? t('already closed'),
+                    })}
             </Text>
           </View>
         </Reveal>

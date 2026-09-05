@@ -269,6 +269,32 @@ export const bn = {
   'This order is complete.': 'এই অর্ডার সম্পন্ন।',
   'The kitchen moves this along as they cook. You will see it update here.':
     'রান্না এগোনোর সাথে সাথে রান্নাঘর এটি এগিয়ে নেবে। এখানেই দেখতে পাবেন।',
+  /* Closing the order, and the rating that follows it. */
+  'All done.': 'সব হয়ে গেছে।',
+  'You confirmed this one arrived. Thank you.':
+    'আপনি জানিয়েছেন এটি পৌঁছেছে। ধন্যবাদ।',
+  '{kitchen} says it is at your door. Confirm below once you have it.':
+    '{kitchen} বলছে এটি আপনার দরজায়। হাতে পেলে নিচে নিশ্চিত করুন।',
+  'One step left, and it is yours: tell us the food arrived.':
+    'আর একটি ধাপ বাকি, সেটি আপনার: জানান খাবার পৌঁছেছে।',
+  'You paid the rider at the door. Confirming closes this order and lets RannaBari settle {kitchen}.':
+    'আপনি দরজাতেই রাইডারকে টাকা দিয়েছেন। নিশ্চিত করলে অর্ডারটি বন্ধ হবে এবং রান্নাবাড়ি {kitchen}-এর হিসাব মিটিয়ে দিতে পারবে।',
+  'Confirming closes this order. RannaBari then releases the payment to {kitchen}.':
+    'নিশ্চিত করলে অর্ডারটি বন্ধ হবে। এরপর রান্নাবাড়ি {kitchen}-কে টাকা ছেড়ে দেবে।',
+  'Yes, I got my order': 'হ্যাঁ, অর্ডার পেয়েছি',
+  'Rate {kitchen}': '{kitchen}-কে রেটিং দিন',
+  'How was it?': 'কেমন ছিল?',
+  'Your rating tells the next customer what to expect from {cook}.':
+    'আপনার রেটিং পরের ক্রেতাকে জানাবে {cook}-এর কাছে কী আশা করা যায়।',
+  'Your rating tells the next customer what to expect.':
+    'আপনার রেটিং পরের ক্রেতাকে জানাবে কী আশা করা যায়।',
+  'Anything you want to add? (optional)': 'কিছু বলতে চান? (ইচ্ছে হলে)',
+  'Send rating': 'রেটিং পাঠান',
+  'Sending…': 'পাঠানো হচ্ছে…',
+  'Not now': 'এখন নয়',
+  '{n} of 5': '৫-এর মধ্যে {n}',
+  'Thank you — your rating helps the next customer.':
+    'ধন্যবাদ — আপনার রেটিং পরের ক্রেতার কাজে লাগবে।',
   'ready for the rider': 'রাইডারের জন্য প্রস্তুত',
   'paid to the rider': 'রাইডারকে দেওয়া হয়েছে',
   'Cancel this order': 'অর্ডার বাতিল করুন',
@@ -1119,6 +1145,24 @@ export const bn = {
   'Orders close a few hours before the sitting — {when}.':
     'বেলার কয়েক ঘণ্টা আগে অর্ডার বন্ধ হয় — {when}।',
   'already closed': 'ইতিমধ্যেই বন্ধ',
+  /* The cut-off, which the cook now sets rather than inherits. */
+  Default: 'নিজে থেকে',
+  '{n}h before': '{n} ঘণ্টা আগে',
+  'Exact time': 'নির্দিষ্ট সময়',
+  'Closing time (24h, e.g. 17:30)': 'বন্ধের সময় (২৪ ঘণ্টার হিসাবে, যেমন ১৭:৩০)',
+  'Write the time as hours:minutes on a 24-hour clock — 09:00, 17:30.':
+    'সময়টি ২৪ ঘণ্টার হিসাবে ঘণ্টা:মিনিট আকারে লিখুন — ০৯:০০, ১৭:৩০।',
+  'Write the closing time as hours:minutes on a 24-hour clock — 09:00, 17:30.':
+    'বন্ধের সময়টি ২৪ ঘণ্টার হিসাবে ঘণ্টা:মিনিট আকারে লিখুন — ০৯:০০, ১৭:৩০।',
+  'Set a closing time and this will tell you when orders shut.':
+    'বন্ধের সময় দিন, তাহলে এখানে দেখাবে কখন অর্ডার বন্ধ হচ্ছে।',
+  'That is after the food is served. Customers could order a meal that has already gone.':
+    'এটা খাবার পরিবেশনের পরের সময়। এতে যে খাবার শেষ হয়ে গেছে সেটাই কেউ অর্ডার করে ফেলতে পারে।',
+  'Orders close at {at} — {when}.': '{at}-এ অর্ডার বন্ধ — {when}।',
+  'That closing time has already passed. Pick a later one, or a later day.':
+    'এই বন্ধের সময় পেরিয়ে গেছে। পরের কোনো সময় বা পরের দিন বেছে নিন।',
+  'Orders cannot close after the food is served. Pick an earlier time.':
+    'খাবার পরিবেশনের পরে অর্ডার বন্ধ করা যায় না। আগের কোনো সময় বেছে নিন।',
   'Give the meal a name.': 'খাবারটির একটি নাম দিন।',
   'Leave the quantity blank for no limit, or set it above zero.':
     'সীমা না চাইলে খালি রাখুন, নয়তো শূন্যের বেশি দিন।',
