@@ -59,7 +59,7 @@ const isToday = (iso) => {
 export default function CookDashboard() {
   const { colors, shadow } = useTheme();
   const router = useRouter();
-  const { kitchen, toggleOpen, liveDishes } = useKitchen();
+  const { kitchen, toggleOpen, liveDishes, loaded } = useKitchen();
   const { ordersForKitchen, advanceOrder } = useOrders();
   const meals = useCommerce();
   const { t, n } = useLang();
@@ -165,7 +165,18 @@ export default function CookDashboard() {
       <CookScreen>
         <Container style={{ alignItems: 'center', gap: 18, paddingTop: 40 }}>
           <IconTile name="chefHat" variant="sage" large />
-          <Heading size={20}>{t('Setting up your kitchen…')}</Heading>
+          {/*
+            * Two different nothings, and they used to read as one.
+            *
+            * Nothing is cached any more, so every cold open passes through
+            * here on the way to the server's answer — and "Setting up your
+            * kitchen…" told a cook of three months that theirs was being
+            * created. `loaded` is the difference: false means the answer has
+            * not arrived, true means the answer was that there is none.
+            */}
+          <Heading size={20}>
+            {loaded ? t('Setting up your kitchen…') : t('Loading your kitchen…')}
+          </Heading>
         </Container>
       </CookScreen>
     );
@@ -385,9 +396,12 @@ export default function CookDashboard() {
                       color: open ? 'rgba(255, 255, 255, 0.9)' : colors.textMuted,
                     }}
                   >
+                    {/* Closed used to say "tap to start taking orders", which
+                        the button underneath now says better. This says the
+                        thing the button cannot: what being closed costs. */}
                     {open
                       ? t(liveDishes.length === 1 ? '{n} dish listed right now' : '{n} dishes listed right now', { n: n(liveDishes.length) })
-                      : t('Tap to start taking orders')}
+                      : t('Nobody can order until you open')}
                   </Text>
                 </View>
 

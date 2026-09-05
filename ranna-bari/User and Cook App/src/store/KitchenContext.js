@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { normaliseArea } from '../lib/areas';
@@ -188,64 +189,45 @@ export function KitchenProvider({ children }) {
   /* Whether the server has actually answered, as opposed to not been asked. */
   const [loaded, setLoaded] = useState(false);
 
-  /* Which account the painted cache belongs to, so it can be taken back down
-     if that turns out not to be the account that is signed in. */
-  const [cachedFor, setCachedFor] = useState(null);
-
-  /* Paint the cached kitchen first: a cook opening the panel on a bad
-     connection should see their menu, not an empty one that reads as "your
-     dishes are gone". */
+  /*
+   * There is no cached kitchen any more, and that is the point.
+   *
+   * This used to paint a copy out of AsyncStorage before asking the server,
+   * so a cook on a bad connection saw their menu instead of an empty screen.
+   * Sound reasoning, wrong trade for this particular object: the kitchen is
+   * the one thing on the panel a cook *acts on*. Open or closed, how many
+   * dishes are live — those are not decorations to tide somebody over, they
+   * are the state they are about to change, and a wrong one is worse than a
+   * spinner.
+   *
+   * It failed exactly that way. A panel read "Open for orders · 1 dish listed
+   * right now" for a kitchen the server had as closed with no dishes at all.
+   * The cook opened it, the customer still saw CLOSED, and the dish they were
+   * counting had never existed on the server. A stale menu is a nuisance; a
+   * stale shutter is a kitchen that believes it is trading and is not.
+   *
+   * So the kitchen is whatever `/kitchens/mine` last said, held in memory for
+   * as long as the app is open, and nothing survives a reload except by
+   * asking again. `hydrated` no longer means "the cache was read" — it means
+   * the provider is ready, which is what every gate downstream actually
+   * wanted to know. `loaded` is still the one that says the server answered.
+   */
   useEffect(() => {
-    let alive = true;
-    AsyncStorage.getItem(KEY)
-      .then((raw) => {
-        if (!alive || !raw) return;
-        const saved = JSON.parse(raw);
-        /*
-         * Only a cache that says whose it is.
-         *
-         * This was stored as a bare kitchen, which is unusable the moment a
-         * second cook signs in on the same handset: there is no way to ask
-         * whether it is theirs, so it was painted for whoever came next.
-         * Entries written before this are exactly that shape and are dropped
-         * rather than guessed at — one cold read of the menu costs a spinner,
-         * and adopting them cost a cook their kitchen's name.
-         */
-        if (!saved?.accountId || !saved?.kitchen) {
-          AsyncStorage.removeItem(KEY).catch(() => {});
-          return;
-        }
-        setCachedFor(saved.accountId);
-        setKitchen(saved.kitchen);
-      })
-      .catch(() => {})
-      .finally(() => alive && setHydrated(true));
-    return () => {
-      alive = false;
-    };
+    setHydrated(true);
   }, []);
 
-  /* And down it comes if it belongs to somebody else. `loaded` goes with it:
-     what the server said about the previous account is not an answer about
-     this one. */
+  /* Signing out, or in as somebody else, leaves nothing behind: the kitchen
+     in memory belonged to the account that just left. */
   useEffect(() => {
-    const accountId = identity?.accountId ?? null;
-    if (!hydrated || !cachedFor || !accountId || cachedFor === accountId) return;
     setKitchen(null);
     setLoaded(false);
-    setCachedFor(null);
-  }, [hydrated, cachedFor, identity?.accountId]);
+  }, [identity?.accountId]);
 
+  /* One-off cleanup: drop what older builds persisted, so a device that has
+     been through them stops carrying a copy nothing writes to any more. */
   useEffect(() => {
-    if (!hydrated) return;
-    const accountId = identity?.accountId ?? null;
-    /* No owner, no cache. A kitchen written without one is the bug above. */
-    if (kitchen && accountId) {
-      AsyncStorage.setItem(KEY, JSON.stringify({ accountId, kitchen })).catch(() => {});
-    } else {
-      AsyncStorage.removeItem(KEY).catch(() => {});
-    }
-  }, [kitchen, hydrated, identity?.accountId]);
+    AsyncStorage.removeItem(KEY).catch(() => {});
+  }, []);
 
   /**
    * Read the kitchen and its whole menu back.
@@ -265,7 +247,6 @@ export function KitchenProvider({ children }) {
 
     if (!out.result.kitchen) {
       setKitchen(null);
-      setCachedFor(null);
       return null;
     }
 
@@ -277,13 +258,8 @@ export function KitchenProvider({ children }) {
       tags: tagsFromDishes(out.result.dishes ?? []),
     };
     setKitchen(next);
-    /* Recorded here as well as on hydrate, so the "is this mine?" check works
-       within a single run of the app too — sign out and back in as somebody
-       else and the kitchen on screen is still the first cook's until this
-       says whose it is. */
-    setCachedFor(identity?.accountId ?? null);
     return next;
-  }, [token, identity?.accountId]);
+  }, [token]);
 
   /* The account's own kitchen changes when it is registered, and when a cook
      signs in on a second device. Both are `identity.kitchenId` moving. */
@@ -291,6 +267,31 @@ export function KitchenProvider({ children }) {
     if (!hydrated || !isVerified) return;
     reload();
   }, [hydrated, isVerified, identity?.kitchenId, reload]);
+
+  /*
+   * And again whenever the app is looked at.
+   *
+   * With nothing cached, what is on screen is whatever the last read said —
+   * which goes stale on its own while a cook has the panel open in one tab
+   * and changes something in another, or on a second device. Coming back to
+   * the app is when that matters and when a request costs nothing, because
+   * nobody is mid-tap.
+   */
+  const lastActiveRef = useRef(0);
+  useEffect(() => {
+    if (!hydrated || !isVerified) return undefined;
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      const now = Date.now();
+      /* A tab flicked to and back is not new information. */
+      if (now - lastActiveRef.current < 15_000) return;
+      lastActiveRef.current = now;
+      reload();
+    });
+
+    return () => sub.remove();
+  }, [hydrated, isVerified, reload]);
 
   /* ---------------- writes ---------------- */
 
