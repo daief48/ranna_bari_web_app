@@ -55,7 +55,7 @@ function CheckoutForm() {
   const { t, n } = useLang();
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { account } = useAuth();
+  const { account, isSignedIn } = useAuth();
   const { placeOrder } = useOrders();
   const { wallet } = useCommerce();
   const {
@@ -88,7 +88,22 @@ function CheckoutForm() {
     [items],
   );
 
+  /*
+   * Where sign-in sends somebody back to.
+   *
+   * An order needs an account, and the old shape of that was: fill in the
+   * whole form, press the button, get "Sign in to do that." and be left
+   * holding it. Asking first — and returning here afterwards — is the same
+   * requirement without the wasted typing.
+   */
+  const toSignIn = () => router.push('/auth?next=/checkout');
+
   const submit = async () => {
+    if (!isSignedIn) {
+      toSignIn();
+      return;
+    }
+
     if (!name.trim() || !phone.trim() || !line.trim()) {
       setNote(t('We need a name, a phone number and a street address to deliver.'));
       return;
@@ -140,6 +155,15 @@ function CheckoutForm() {
        * `errorText` is the app's own mapper and already has a sentence for
        * each of these; this screen was the one place not asking it.
        */
+      /* A session that died between opening this screen and pressing the
+         button. Nothing here can fix it and retrying never will, so this goes
+         where the answer is rather than reporting a dead end. */
+      if (out.error === 'unauthenticated') {
+        setNote(t('Your session ended. Sign in and your basket will still be here.'));
+        toSignIn();
+        return;
+      }
+
       setNote(errorText(out.error, t, n, out));
       return;
     }
@@ -523,8 +547,17 @@ function CheckoutForm() {
           </Reveal>
 
           <View style={{ marginTop: 24, gap: 12 }}>
+            {/* The button says what the next tap does. A guest pressing
+                "Place order" and being told to sign in has been let walk into
+                a wall the screen could see coming. */}
             <Button
-              label={placing ? t('Placing…') : t('Place order · ৳{total}', { total: n(total) })}
+              label={
+                !isSignedIn
+                  ? t('Sign in to order')
+                  : placing
+                    ? t('Placing…')
+                    : t('Place order · ৳{total}', { total: n(total) })
+              }
               icon="arrowRight"
               block
               disabled={placing}

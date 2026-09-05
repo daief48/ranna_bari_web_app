@@ -181,6 +181,11 @@ export const ICONS = {
   shield: [
     ["path", {"d":"M12 21.5s7.6-3.8 7.6-9.5V5.2L12 2.5 4.4 5.2V12c0 5.7 7.6 9.5 7.6 9.5Z"}],
   ],
+  /* Two sheets, one behind the other — the copy glyph everywhere. */
+  copy: [
+    ["rect", {"x":"9","y":"9","width":"11","height":"11","rx":"2.5"}],
+    ["path", {"d":"M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"}],
+  ],
   shieldCheck: [
     ["path", {"d":"M12 21.5s7.6-3.8 7.6-9.5V5.2L12 2.5 4.4 5.2V12c0 5.7 7.6 9.5 7.6 9.5Z"}],
     ["path", {"d":"m9 11.8 2.1 2.1 4.2-4.2"}],

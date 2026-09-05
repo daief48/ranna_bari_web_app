@@ -89,6 +89,20 @@ export default function AuthScreen() {
   const params = useLocalSearchParams();
   const { t, n } = useLang();
   const fromCookFunnel = params.role === 'cook';
+
+  /*
+   * Where to land once this is done, when a screen asked for sign-in on its
+   * own behalf — `/auth?next=/checkout`.
+   *
+   * Only an in-app path is honoured. `next` arrives in a URL, and on web that
+   * URL is one anybody can hand somebody else: accepting `//evil.example` or
+   * `https://…` here would turn the sign-in screen into an open redirect.
+   */
+  const nextAfterAuth = (() => {
+    const raw = typeof params.next === 'string' ? params.next : null;
+    if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return null;
+    return raw;
+  })();
   const param = (key, fallback) =>
     typeof params[key] === 'string' && params[key] ? params[key] : fallback;
 
@@ -481,7 +495,10 @@ export default function AuthScreen() {
         phone: identity.phone,
       });
       alert.success(t('Signed in.'));
-      router.replace(acct.role === 'cook' ? '/cook' : '/profile');
+      /* Back where they were sent from, when they were sent. Checkout hands
+         over a basket somebody has already filled in; landing them on their
+         profile instead makes them find their own way back to it. */
+      router.replace(nextAfterAuth ?? (acct.role === 'cook' ? '/cook' : '/profile'));
     } catch (error) {
       alert.error(error?.message ?? t('That code did not work.'));
     } finally {
@@ -756,7 +773,9 @@ export default function AuthScreen() {
                 setPlace={setPlace}
                 /* A cook finishes signup inside their own kitchen, not on a
                    customer profile page they have no use for. */
-                onDone={() => router.replace(role === 'cook' ? '/cook' : '/browse')}
+                onDone={() =>
+                  router.replace(nextAfterAuth ?? (role === 'cook' ? '/cook' : '/browse'))
+                }
               />
             )}
           </View>
