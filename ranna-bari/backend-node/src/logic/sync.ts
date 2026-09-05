@@ -1,4 +1,4 @@
-import { Account, Dispute, Kitchen, Order, type OrderDoc } from '../models/index.js';
+import { Account, Dispute, Kitchen, Order, Review, type OrderDoc } from '../models/index.js';
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
 import { quotePromotion, redeem } from './promotions.js';
 import { balanceFor, post } from './ledger.js';
@@ -379,7 +379,7 @@ export async function recordOrder(
  */
 export function shapeOrder(
   row: OrderDoc & { _id: unknown },
-  extra: { disputed?: boolean } = {},
+  extra: { disputed?: boolean; reviewed?: boolean } = {},
 ) {
   return {
     id: String(row._id),
@@ -433,9 +433,28 @@ export function shapeOrder(
      */
     disputed: extra.disputed ?? false,
 
+    /**
+     * Whether this order has already been rated.
+     *
+     * One review per order is enforced here, so without this flag the app has
+     * two bad choices: offer the prompt on every visit to a finished order
+     * and let the server refuse it, or offer it exactly once and lose anybody
+     * who tapped "Not now". Neither is a fact a client can work out alone.
+     */
+    reviewed: extra.reviewed ?? false,
+
     history: row.history ?? [],
     createdAt: row.createdAt,
   };
+}
+
+/** Which of these orders have already been rated, as one query rather than N. */
+async function reviewedAmong(ids: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  const rows = await Review.find({ orderId: { $in: ids } }, { orderId: 1 })
+    .lean()
+    .catch(() => []);
+  return new Set(rows.map((row) => String(row.orderId)));
 }
 
 /** Which of these orders have an unresolved case, as one query rather than N. */
@@ -461,11 +480,16 @@ export async function ordersFor(caller: AppIdentity, take = 50) {
     .limit(take)
     .lean();
 
-  const disputed = await disputedAmong(rows.map((row) => String(row._id)));
+  const ids = rows.map((row) => String(row._id));
+  const [disputed, reviewed] = await Promise.all([
+    disputedAmong(ids),
+    reviewedAmong(ids),
+  ]);
 
   return rows.map((row) =>
     shapeOrder(row as unknown as OrderDoc & { _id: unknown }, {
       disputed: disputed.has(String(row._id)),
+      reviewed: reviewed.has(String(row._id)),
     }),
   );
 }
@@ -490,8 +514,12 @@ export async function orderFor(caller: AppIdentity, id: string) {
 
   if (!row) return null;
 
-  const disputed = await disputedAmong([String(row._id)]);
+  const [disputed, reviewed] = await Promise.all([
+    disputedAmong([String(row._id)]),
+    reviewedAmong([String(row._id)]),
+  ]);
   return shapeOrder(row as unknown as OrderDoc & { _id: unknown }, {
     disputed: disputed.has(String(row._id)),
+    reviewed: reviewed.has(String(row._id)),
   });
 }

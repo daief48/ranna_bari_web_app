@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,6 +10,7 @@ import Icon from '../../src/components/Icon';
 import Reveal from '../../src/components/Reveal';
 import ChatLauncher from '../../src/components/ChatLauncher';
 import Button from '../../src/components/Button';
+import RateSheet from '../../src/components/RateSheet';
 import { IconTile } from '../../src/components/Surfaces';
 import { Body, GradientText, Heading, Price } from '../../src/components/Typography';
 import { useTheme } from '../../src/theme/ThemeProvider';
@@ -27,13 +28,35 @@ export default function OrderScreen() {
   const { id } = useLocalSearchParams();
   const { colors, shadow } = useTheme();
   const router = useRouter();
-  const { getOrder, cancelOrder, confirmReceived, hydrated } = useOrders();
+  const { getOrder, cancelOrder, confirmReceived, rateOrder, ensureOrder, hydrated } =
+    useOrders();
   const [confirmCancel, setConfirmCancel] = useState(false);
+  /* Opened by a successful confirmation, never by a tap: the moment someone
+     has just said the food arrived is the one moment they still have an
+     opinion about it and the screen in front of them. */
+  const [rating, setRating] = useState(false);
   const { t, n, lang } = useLang();
   /* Every write below reports what happened. */
   const run = useAction();
 
   const order = useMemo(() => getOrder(String(id)), [getOrder, id]);
+
+  /* The list is capped at fifty and arrives a moment after the app does, so a
+     miss here is usually "not fetched", not "does not exist". Asking for it by
+     id is what turns a link from a notification — or an order older than the
+     last fifty — into a page rather than an apology. */
+  const [asked, setAsked] = useState(false);
+  useEffect(() => {
+    if (!id || order) return;
+    setAsked(false);
+    let alive = true;
+    ensureOrder(String(id)).finally(() => {
+      if (alive) setAsked(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [id, order, ensureOrder]);
 
   if (!order) {
     return (
@@ -41,9 +64,9 @@ export default function OrderScreen() {
         <Container style={{ alignItems: 'center', gap: 16, paddingTop: 40 }}>
           <Icon name="alertCircle" size={32} color={colors.primary} />
           <Heading size={20}>
-            {hydrated ? t('Order not found') : t('Loading your order…')}
+            {hydrated && asked ? t('Order not found') : t('Loading your order…')}
           </Heading>
-          {hydrated ? (
+          {hydrated && asked ? (
             <>
               <Body muted size={15} style={{ textAlign: 'center' }}>
                 {t('We could not find an order with the code {code}.', { code: String(id) })}
@@ -552,14 +575,34 @@ export default function OrderScreen() {
                 label={t('Yes, I got my order')}
                 icon="check"
                 block
-                onPress={() =>
-                  run(
-                    () => confirmReceived(order.id),
-                    t('Thank you — this order is complete.'),
-                  )
-                }
+                onPress={async () => {
+                  /* No success alert on purpose. It is a full-screen modal,
+                     and the rating sheet is another — stacking them buries
+                     the rating behind a dialog the customer has to dismiss
+                     first, and most will dismiss both. The page repainting
+                     to "All done." is the acknowledgement; the sheet is the
+                     only thing that needs the foreground. Failures still
+                     speak, because `run` reports those. */
+                  const out = await run(() => confirmReceived(order.id));
+                  if (!out || out.ok !== false) setRating(true);
+                }}
               />
             </View>
+          ) : null}
+
+          {/* The prompt after confirming is one tap from "Not now", and that
+              used to be the end of it — the sheet never opened again and the
+              rating was lost. `reviewed` comes from the server because one
+              review per order is enforced there, so this is the only honest
+              way to know whether there is still something to ask for. */}
+          {completed && !order.reviewed ? (
+            <Button
+              label={t('Rate {kitchen}', { kitchen: order.chefName || t('the kitchen') })}
+              icon="star"
+              variant="glass"
+              block
+              onPress={() => setRating(true)}
+            />
           ) : null}
 
           <Button
@@ -646,6 +689,19 @@ export default function OrderScreen() {
             </Pressable>
           )}
         </View>
+
+        <RateSheet
+          open={rating}
+          cook={order.chefName}
+          onClose={() => setRating(false)}
+          onSubmit={async (stars, text) => {
+            setRating(false);
+            await run(
+              () => rateOrder(order.id, stars, text),
+              t('Thank you — your rating helps the next customer.'),
+            );
+          }}
+        />
       </Container>
     </Screen>
   );

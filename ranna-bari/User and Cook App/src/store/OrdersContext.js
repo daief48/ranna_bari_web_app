@@ -240,6 +240,23 @@ export function OrdersProvider({ children }) {
    */
   const confirmReceived = useCallback((id) => shop.confirmReceived(id), [shop]);
 
+  /** Rate the kitchen an order came from. Once, and only by whoever ate it. */
+  const rateOrder = useCallback(
+    (id, rating, text) => shop.rateOrder(id, rating, text),
+    [shop],
+  );
+
+  /**
+   * Fetch one order that is not in the list.
+   *
+   * The list is capped at fifty and arrives a moment after the app does, so
+   * "not in `orders`" means three different things — too old, not loaded yet,
+   * and does not exist — and a screen that reads the list alone renders the
+   * last of them for all three. An order opened from a notification, or from
+   * a link a customer kept, is exactly the case that hits it.
+   */
+  const ensureOrder = useCallback((id) => shop.ensureOrder(id), [shop]);
+
   /** A kitchen turning an order down. The server refunds nothing on a COD
       order — the rider never collected — but it still tells the customer. */
   const rejectOrder = useCallback(
@@ -265,6 +282,8 @@ export function OrdersProvider({ children }) {
       cancelOrder,
       advanceOrder,
       confirmReceived,
+      rateOrder,
+      ensureOrder,
       rejectOrder,
       ordersForKitchen,
       refresh: shop.refresh,
@@ -277,6 +296,8 @@ export function OrdersProvider({ children }) {
       cancelOrder,
       advanceOrder,
       confirmReceived,
+      rateOrder,
+      ensureOrder,
       rejectOrder,
       ordersForKitchen,
       shop.refresh,
