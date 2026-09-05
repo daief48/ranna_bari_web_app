@@ -938,3 +938,92 @@
     animation: none !important;
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * SweetAlert2
+ *
+ * The library ships its own look, which is a different product's. Every
+ * value here is one of the panel's variables, so the dialog changes with
+ * `[data-theme='dark']` without anything having to read the theme.
+ * ------------------------------------------------------------------ */
+
+.rb-swal {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  font-family: var(--font-sans);
+  box-shadow: 0 18px 44px rgb(31 29 26 / 0.16);
+}
+
+.rb-swal-title {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.rb-swal-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink2);
+}
+
+.rb-swal-actions {
+  gap: 8px;
+}
+
+/* Buttons are the panel's, not the library's — `buttonsStyling: false` in
+   lib/sweet.ts is what hands them over. */
+.rb-swal-confirm,
+.rb-swal-cancel {
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+
+.rb-swal-confirm {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.rb-swal-confirm:hover {
+  background: var(--primary-600);
+}
+
+.rb-swal-cancel {
+  background: var(--raised);
+  color: var(--ink2);
+  border-color: var(--line-strong);
+}
+
+.rb-swal-cancel:hover {
+  background: var(--sunken);
+}
+
+/* A toast is a strip, not a card: tighter, and it must not cover the table
+   header it sits over. */
+.rb-swal-toast {
+  padding: 10px 14px;
+  box-shadow: 0 10px 26px rgb(31 29 26 / 0.14);
+}
+
+.rb-swal-toast .rb-swal-title {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.swal2-timer-progress-bar {
+  background: var(--line-strong);
+}
+
+/* The scrim: dark in both themes, the way a scrim over content should be. */
+.swal2-container.swal2-backdrop-show {
+  background: rgb(20 16 14 / 0.45);
+}

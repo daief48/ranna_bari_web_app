@@ -10,6 +10,7 @@ import {
 import { useFormStatus } from 'react-dom';
 
 import { BTN } from './index';
+import { confirmAction, toastResult } from '../../lib/sweet';
 
 /*
  * The control classes — `.field`, `.select`, `.chip` — live in globals.css and
@@ -328,9 +329,15 @@ export function Expandable({
  * — the correcting entry is a new row, not an undo — so anything destructive
  * asks first, and the answer is shown rather than swallowed.
  *
- * The answer is tinted to the legend and sits directly under the button that
- * produced it: on a row with three actions on it, a loose sentence underneath
- * belongs to none of them.
+ * Both halves are SweetAlert now. The question used to be `window.confirm`,
+ * an OS box in a font this panel does not own, which blocks the tab and says
+ * nothing about which of a row's three buttons is asking. The answer used to
+ * be a chip under the button — well attributed, but easy to miss on a long
+ * table, and gone the moment the row scrolled.
+ *
+ * The chip stays as well, quietly. A toast is read once and floats away; the
+ * chip is still there when an operator looks back down at the row to check
+ * what they just did, and it is the half that says *which button*.
  */
 export function ActionButton({
   action,
@@ -350,18 +357,23 @@ export function ActionButton({
   const [pending, start] = useTransition();
   const [note, setNote] = useState<{ ok: boolean; message: string } | null>(null);
 
-  const run = () => {
-    if (confirm && !window.confirm(confirm)) return;
+  const run = async () => {
+    /* Asked before the transition starts, so the button does not sit spinning
+       behind a dialog the operator has not answered yet. */
+    if (confirm && !(await confirmAction({ text: confirm, confirm: 'Yes, do it' }))) return;
+
     setNote(null);
     start(async () => {
+      const said = (ok: boolean, message: string) => {
+        setNote({ ok, message });
+        toastResult(ok, message);
+      };
+
       try {
         const out = await action();
-        if (out?.message) setNote({ ok: out.ok, message: out.message });
+        if (out?.message) said(out.ok, out.message);
       } catch (error) {
-        setNote({
-          ok: false,
-          message: error instanceof Error ? error.message : 'That did not work.',
-        });
+        said(false, error instanceof Error ? error.message : 'That did not work.');
       }
     });
   };

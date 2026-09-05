@@ -1,5 +1,5 @@
-import React from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { AppState, Platform, Pressable, Text, View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -229,9 +229,60 @@ function CookBar({ state, descriptors, navigation }) {
  * The backend refuses these actions regardless. This is the half that tells a
  * cook why, which the backend cannot do from inside a 403.
  */
+/** How often the waiting room asks whether it is still a waiting room. */
+const APPROVAL_POLL_MS = 12_000;
+
+/**
+ * Watch for an operator's decision, so the cook does not have to reload.
+ *
+ * Approval happens somewhere else entirely — a person in the admin panel —
+ * and nothing told this device about it. `reload()` runs on mount and when the
+ * token or kitchen id changes, none of which happen while a cook sits looking
+ * at "waiting for RannaBari to check your kitchen". So the screen stayed put
+ * until the app was restarted, and a cook approved thirty seconds after
+ * signing up had no way to know except by trying again later.
+ *
+ * A poll rather than a socket. There is a live one in `ChatContext`, but it
+ * is the chat's: routing a kitchen event through it means a new server event,
+ * a publish from the KYC endpoint and a bus between two contexts, all to save
+ * a request every twelve seconds on the one screen where waiting *is* the
+ * activity. It also keeps working when the socket does not.
+ *
+ * It runs only while unapproved, stops the moment it is not, and pauses with
+ * the app — a backgrounded phone polling an endpoint nobody is looking at is
+ * just battery.
+ */
+function useWatchForApproval(waiting, reload) {
+  useEffect(() => {
+    if (!waiting) return undefined;
+
+    let alive = true;
+    const ask = () => {
+      if (alive && AppState.currentState === 'active') reload();
+    };
+
+    const timer = setInterval(ask, APPROVAL_POLL_MS);
+    /* Coming back to the app is the likeliest moment for the answer to have
+       changed, so ask then rather than waiting out the rest of the interval. */
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') ask();
+    });
+
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [waiting, reload]);
+}
+
 export default function CookPanelLayout() {
-  const { kitchen, hydrated } = useKitchen();
+  const { kitchen, hydrated, reload } = useKitchen();
   const router = useRouter();
+
+  /* The one screen whose whole purpose is waiting has to notice when the wait
+     ends. Called before any early return — a hook cannot live behind an `if`. */
+  useWatchForApproval(hydrated && !!kitchen && kitchen.kycStatus !== 'approved', reload);
 
   /* Nothing until the kitchen is read. Rendering the gate first would flash
      "waiting for approval" at an approved cook on every cold start, which is
