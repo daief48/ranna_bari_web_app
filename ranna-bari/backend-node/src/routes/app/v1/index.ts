@@ -1088,6 +1088,21 @@ export async function appRoutes(app: FastifyInstance) {
         title: n.title,
         body: n.body,
         read: n.read,
+
+        /*
+         * What the notification is about.
+         *
+         * These are stored on every row and were being dropped here, so the
+         * app received a title, a body and nothing to act on: tapping any
+         * notification fell through every branch of its router and landed on
+         * the wallet. A notification that cannot take you to the thing it is
+         * about is a worse version of no notification at all.
+         */
+        mealId: n.mealId ?? null,
+        orderId: n.orderId ?? null,
+        requestId: n.requestId ?? null,
+        offerId: n.offerId ?? null,
+
         at: n.at,
       })),
       unread: rows.filter((n) => !n.read).length,

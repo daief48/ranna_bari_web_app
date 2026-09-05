@@ -95,28 +95,54 @@ export default function NotificationsScreen() {
     }
   }, [audience, isVerified, token, markRead]);
 
-  const open = (nt) => {
+  /**
+   * Where an order notification goes, once we know what sold the order.
+   *
+   * Four rails end in four different screens, and the kind is the only thing
+   * that tells them apart. This used to guess `meal` for everything that was
+   * not a shop order, which sent every cash order — the ordinary case — to
+   * the escrow tracker, and sent the cook to `/cook/meal/undefined`.
+   */
+  const orderRoute = (order, orderId, mealId) => {
+    const kind = order?.kind;
+
+    if (kind === 'store') {
+      if (!isCookMode) return `/store-order/${orderId}`;
+      return order?.status === 'pending' ? '/cook/store/preorders' : '/cook/store/orders';
+    }
+    if (kind === 'request') {
+      return isCookMode ? '/cook/requests' : `/request-order/${orderId}`;
+    }
+    if (kind === 'meal') {
+      /* A cook thinks in services, not in one customer's copy of one: their
+         screen is the meal, with every booking on it. */
+      return isCookMode && mealId ? `/cook/meal/${mealId}` : `/meal-order/${orderId}`;
+    }
+    /* Cash and wallet orders off the kitchen menu, and anything whose kind we
+       could not learn — the dish tracker reads every order shape, so it is
+       also the safe answer when the fetch failed. */
+    return isCookMode ? `/cook/order/${orderId}` : `/order/${orderId}`;
+  };
+
+  const open = async (nt) => {
     if (nt.orderId) {
-      /* Which order screen depends on what sold it -- a shop order has no
-         meal behind it, and a meal order has no shop. */
-      const order = meals.orders.find((o) => o.id === nt.orderId);
-      if (order?.kind === 'store') {
-        router.push(
-          isCookMode
-            ? order.status === 'pending'
-              ? '/cook/store/preorders'
-              : '/cook/store/orders'
-            : `/store-order/${nt.orderId}`,
-        );
-        return;
-      }
-      router.push(isCookMode ? `/cook/meal/${nt.mealId}` : `/meal-order/${nt.orderId}`);
+      const id = String(nt.orderId);
+      /* The list is capped at fifty, and a notification routinely outlives
+         that. Asking the server settles the kind rather than guessing it. */
+      const order =
+        meals.orders.find((o) => String(o.id) === id) ?? (await meals.ensureOrder(id));
+      router.push(orderRoute(order, id, nt.mealId));
       return;
     }
     if (nt.mealId) {
       router.push(isCookMode ? `/cook/meal/${nt.mealId}` : `/meals/${nt.mealId}`);
       return;
     }
+    if (nt.requestId) {
+      router.push(isCookMode ? `/cook/requests/${nt.requestId}` : `/requests/${nt.requestId}`);
+      return;
+    }
+    /* Money with nothing else attached — a top-up, a payout. */
     router.push('/wallet');
   };
 
