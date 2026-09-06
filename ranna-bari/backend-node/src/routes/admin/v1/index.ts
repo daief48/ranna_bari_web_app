@@ -20,7 +20,7 @@ import {
   releaseEscrow,
 } from '../../../logic/ledger.js';
 import { getFlags, getSettings, saveSetting, SETTING_META } from '../../../logic/settings.js';
-import { advanceOrder } from '../../../logic/meals.js';
+import { advanceOrder } from '../../../logic/orders.js';
 import { pendingPreorders } from '../../../logic/stores.js';
 import { notify } from '../../../logic/wallet.js';
 import { taka } from '../../../lib/format.js';
@@ -43,7 +43,6 @@ import {
   Dispute,
   Kitchen,
   LedgerEntry,
-  Meal,
   Notification,
   Order,
   PayoutRun,
@@ -1077,9 +1076,9 @@ export async function adminRoutes(app: FastifyInstance) {
   /**
    * One kitchen, with everything the panel's profile page draws.
    *
-   * Ten orders and eight meals rather than all of them: this is a support
-   * screen, not an export, and a cook with nine hundred orders would other-
-   * wise send nine hundred rows to render a list that shows ten.
+   * Ten orders rather than all of them: this is a support screen, not an
+   * export, and a cook with nine hundred orders would otherwise send nine
+   * hundred rows to render a list that shows ten.
    */
   app.get('/kitchens/:id', async (request, reply) => {
     const actor = await require(request, reply as never, 'kitchen.read');
@@ -1092,12 +1091,11 @@ export async function adminRoutes(app: FastifyInstance) {
       .catch(() => null);
     if (!kitchen) return fail(reply as never, ERR.NO_KITCHEN, 404);
 
-    const [store, dishes, orders, meals, totals, cancelled, owed, settled, reviews] =
+    const [store, dishes, orders, totals, cancelled, owed, settled, reviews] =
       await Promise.all([
         Store.findOne({ kitchenId: id }).lean(),
         Dish.find({ kitchenId: id }).sort({ createdAt: 1 }).lean(),
         Order.find({ kitchenId: id }).sort({ createdAt: -1 }).limit(10).lean(),
-        Meal.find({ kitchenId: id }).sort({ serveDate: -1 }).limit(8).lean(),
         /* GMV and the order count come from one grouped pass rather than two
            round trips that could disagree by an order placed between them. */
         Order.aggregate<{ _id: null; amount: number; count: number }>([
@@ -1149,11 +1147,12 @@ export async function adminRoutes(app: FastifyInstance) {
       store: store ? { ...store, id: String(store._id), productCount } : null,
       dishes: dishes.map((d) => ({ ...d, id: String(d._id) })),
       orders: orders.map((o) => ({ ...o, id: String(o._id) })),
-      meals: meals.map((m) => ({ ...m, id: String(m._id) })),
+      /* The old meal board's recent-meals join lived here. Stage 3 of the
+         meal-system replacement adds a mealService summary and booking
+         counts in its place. */
       counts: {
         orders: totals[0]?.count ?? 0,
         cancelled,
-        meals: await Meal.countDocuments({ kitchenId: id }),
         reviews,
       },
       money: {
@@ -1548,7 +1547,7 @@ export async function adminRoutes(app: FastifyInstance) {
       .catch(() => null);
     if (!entry) return fail(reply as never, ERR.NO_ORDER, 404);
 
-    const [order, siblings, meal, payoutRun] = await Promise.all([
+    const [order, siblings, payoutRun] = await Promise.all([
       entry.orderId
         ? Order.findById(entry.orderId)
             .lean()
@@ -1557,15 +1556,9 @@ export async function adminRoutes(app: FastifyInstance) {
       entry.orderId
         ? LedgerEntry.find({ orderId: entry.orderId }).sort({ at: 1 }).lean()
         : [],
-      /* The meal a held plate belongs to, and the run that paid the entry out.
-         The panel drew both from its own mirror because this endpoint joined
-         neither, which put a title and a payout code on the screen that no
-         live record stood behind. */
-      entry.mealId
-        ? Meal.findById(entry.mealId)
-            .lean()
-            .catch(() => null)
-        : null,
+      /* The run that paid the entry out. The panel drew it from its own
+         mirror because this endpoint joined nothing, which put a payout code
+         on the screen that no live record stood behind. */
       entry.payoutRunId
         ? PayoutRun.findById(entry.payoutRunId)
             .lean()
@@ -1574,10 +1567,12 @@ export async function adminRoutes(app: FastifyInstance) {
     ]);
 
     return {
+      /* `entry.mealId` is a legacy ref on historic rows — the Meal collection
+         is gone, so it renders raw. Stage 3 adds a booking join via
+         `order.bookingId` in its place. */
       entry: { ...entry, id: String(entry._id) },
       order: order ? { ...order, id: String(order._id) } : null,
       siblings: siblings.map((row) => ({ ...row, id: String(row._id) })),
-      meal: meal ? { ...meal, id: String(meal._id) } : null,
       payoutRun: payoutRun ? { ...payoutRun, id: String(payoutRun._id) } : null,
     };
   });

@@ -19,8 +19,9 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const MODELS =
-  'Account|OtpChallenge|AppSession|Kitchen|Dish|Meal|MealInterest|Store|StoreCategory|' +
-  'Product|Cart|TaxonomyCategory|Request|Offer|Order|LedgerEntry|PayoutRun|PayoutItem|' +
+  'Account|OtpChallenge|AppSession|Kitchen|Dish|Store|StoreCategory|' +
+  'Product|Cart|TaxonomyCategory|MealCategory|MealPlan|MealDish|MealService|MealBooking|' +
+  'Request|Offer|Order|LedgerEntry|PayoutRun|PayoutItem|' +
   'TopUp|Dispute|Review|Notification|Zone|Setting|FeatureFlag|AdminUser|AuditLog|' +
   'ChatThread|ChatMessage';
 

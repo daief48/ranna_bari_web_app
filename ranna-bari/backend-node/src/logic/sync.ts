@@ -390,6 +390,9 @@ export function shapeOrder(
     storeId: row.storeId ?? null,
     requestId: row.requestId ?? null,
     offerId: row.offerId ?? null,
+    /* The meal booking this order is one meal of, so an order screen can offer
+       the way back to the month it was bought in. */
+    bookingId: row.bookingId ?? null,
 
     kitchenId: row.kitchenId,
     cookName: row.cookName,

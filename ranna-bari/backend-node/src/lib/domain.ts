@@ -16,10 +16,16 @@
 export const ERR = {
   // meals
   NO_MEAL: 'meal-missing',
-  MEAL_CLOSED: 'meal-closed',
-  PAST_DEADLINE: 'meal-deadline-passed',
-  SOLD_OUT: 'meal-sold-out',
   ALREADY_ORDERED: 'meal-already-ordered',
+  /*
+   * The three the monthly plans added. Each is its own code because each has
+   * its own repair: too few meals is a number to change, an unpublished
+   * calendar is a cook to wait for, and a switched-off service is neither.
+   * MEAL_COUNT carries { min, max, count } so the app can name the range.
+   */
+  MEAL_COUNT: 'meal-count-out-of-range',
+  PLAN_MISSING: 'meal-plan-missing',
+  SERVICE_INACTIVE: 'meal-service-inactive',
 
   // stores
   NO_STORE: 'store-missing',
@@ -90,10 +96,12 @@ export const ERR_TEXT: Record<string, string> = {
      the client shows whatever `message` it is handed. */
   'bad-json': 'That request body was not valid JSON.',
   [ERR.NO_MEAL]: 'That meal no longer exists.',
-  [ERR.MEAL_CLOSED]: 'This meal is not taking orders.',
-  [ERR.PAST_DEADLINE]: 'The ordering deadline has passed.',
-  [ERR.SOLD_OUT]: 'Every plate is spoken for.',
   [ERR.ALREADY_ORDERED]: 'This customer already ordered this meal.',
+  /* The placeholders are filled by the client from `detail` — the same
+     split every other {amount}-carrying sentence uses. */
+  [ERR.MEAL_COUNT]: 'Pick between {min} and {max} meals.',
+  [ERR.PLAN_MISSING]: 'No meal plan is published for that day yet.',
+  [ERR.SERVICE_INACTIVE]: 'This cook is not taking meal bookings right now.',
   [ERR.NO_STORE]: 'That store no longer exists.',
   [ERR.STORE_CLOSED]: 'The shop is closed.',
   [ERR.NO_PRODUCT]: 'That product no longer exists.',
@@ -245,12 +253,30 @@ export const COD_ADVANCES: Record<string, string> = {
   on_the_way: 'delivered',
 };
 
+/**
+ * A pre-booked meal's shorter rail.
+ *
+ * A cook serving thirty subscribed meals in one sitting is not going to press
+ * four buttons for each of them, and three of those steps say nothing a
+ * customer expecting lunch at one o'clock did not already assume. "Cooking"
+ * and "delivered" are the two moments worth a notification, so those are the
+ * two steps.
+ *
+ * Every status here is still in `ESCROW_FLOW`, so the app's tracker draws a
+ * meal order with no change — it simply skips two of the marks it knows.
+ */
+export const MEAL_ADVANCES: Record<string, string> = {
+  confirmed: 'preparing',
+  preparing: 'delivered',
+};
+
 export function nextStatus(order: {
   kind: string;
   status: string;
   handover: string;
 }): string | null {
   if (order.kind === 'cod') return COD_ADVANCES[order.status] ?? null;
+  if (order.kind === 'meal') return MEAL_ADVANCES[order.status] ?? null;
   const table = COOK_ADVANCES[order.handover === 'pickup' ? 'pickup' : 'delivery'];
   return table[order.status] ?? null;
 }
@@ -272,16 +298,16 @@ export const awaitingReceipt = (order: { kind: string; status: string; payment: 
  * meals, requests, offers
  * ------------------------------------------------------------------ */
 
-/** When each service is eaten, and when ordering for it shuts. */
+/**
+ * When each service is eaten. The old meal board also carried a cutoff hour
+ * per slot; ordering deadlines died with it, so the label and serve hour —
+ * display and ordering — are all that remain.
+ */
 export const SLOTS = [
-  { key: 'breakfast', label: 'Breakfast', serveHour: 8, cutoffHour: 7 },
-  { key: 'lunch', label: 'Lunch', serveHour: 13, cutoffHour: 10 },
-  { key: 'dinner', label: 'Dinner', serveHour: 20, cutoffHour: 17 },
+  { key: 'breakfast', label: 'Breakfast', serveHour: 8 },
+  { key: 'lunch', label: 'Lunch', serveHour: 13 },
+  { key: 'dinner', label: 'Dinner', serveHour: 20 },
 ] as const;
-
-export const slotMeta = (key: string) => SLOTS.find((s) => s.key === key) ?? SLOTS[1];
-
-export const MEAL_STATUS = ['published', 'closed', 'cancelled'] as const;
 
 export const REQUEST_STATUS = {
   OPEN: 'open',

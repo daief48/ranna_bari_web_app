@@ -254,69 +254,6 @@ const dishSchema = new Schema(
 export const Dish = model('Dish', dishSchema);
 
 /* ------------------------------------------------------------------ *
- * meals
- * ------------------------------------------------------------------ */
-
-const mealSchema = new Schema(
-  {
-    code: { type: String, required: true, unique: true },
-    kitchenId: { type: String, required: true, index: true },
-    cookName: { type: String, default: '' },
-    title: { type: String, required: true },
-    description: { type: String, default: '' },
-    image: { type: String, default: '' },
-    price: { type: Number, required: true },
-    /** null is uncapped, which is not the same as zero. */
-    capacity: { type: Number, default: null },
-
-    /** Local calendar day in Asia/Dhaka, 'YYYY-MM-DD'. Never a timestamp. */
-    serveDate: { type: String, required: true, index: true },
-    /** 'breakfast' | 'lunch' | 'dinner' */
-    slot: { type: String, required: true },
-    deadline: { type: Date, required: true },
-
-    handover: { type: String, default: 'delivery' },
-    handoverNote: { type: String, default: '' },
-
-    area: { type: String, default: '' },
-    lat: { type: Number, default: 0 },
-    lng: { type: Number, default: 0 },
-    deliveryRadiusKm: { type: Number, default: 3 },
-
-    /** 'published' | 'closed' | 'cancelled' */
-    status: { type: String, default: 'published', index: true },
-    cancelReason: { type: String, default: null },
-  },
-  opts,
-);
-
-mealSchema.index({ serveDate: 1, slot: 1 });
-mealSchema.index({ status: 1, serveDate: 1 });
-
-export const Meal = model('Meal', mealSchema);
-
-/**
- * Interest in a meal.
- *
- * The app holds this as an array of `customerKey` on the meal, which is fine
- * for a device. Capacity is bounded; *interest* is not — a popular meal in a
- * real deployment is thousands of rows, and an unbounded array is how a
- * document reaches 16MB. The API shape stays an array either way.
- */
-const mealInterestSchema = new Schema(
-  {
-    mealId: { type: String, required: true, index: true },
-    customerKey: { type: String, required: true, index: true },
-    at: { type: Date, default: () => new Date() },
-  },
-  { versionKey: false },
-);
-
-mealInterestSchema.index({ mealId: 1, customerKey: 1 }, { unique: true });
-
-export const MealInterest = model('MealInterest', mealInterestSchema);
-
-/* ------------------------------------------------------------------ *
  * cook stores
  * ------------------------------------------------------------------ */
 
@@ -466,6 +403,211 @@ const iconSchema = new Schema(
 );
 
 export const Icon = model('Icon', iconSchema);
+
+/* ------------------------------------------------------------------ *
+ * meal plans
+ * ------------------------------------------------------------------ */
+
+/*
+ * A monthly meal subscription, in five collections.
+ *
+ * The old board sold one plate at a time and had a document per plate. This
+ * sells a *month* — a customer picks the days and services they want off a
+ * published calendar and pays for each one — so the shape splits into what the
+ * platform decides (categories and their rates, the system calendar), what a
+ * cook decides (their own service, their own calendar, their own dish names)
+ * and what a purchase is (a booking, and one order per meal on the escrow
+ * rail).
+ *
+ * Nothing here holds a status that an Order also holds. A booking's items
+ * carry ids and a snapshot of what was sold; whether a meal is preparing,
+ * delivered or paid for is read from its order, every time.
+ */
+
+/**
+ * What a meal costs by default, and what to call it.
+ *
+ * Same rules as the taxonomy above: `key` is the tag a service, a plan and a
+ * booking all store, so it is never edited, and a category leaves the list by
+ * being retired rather than deleted.
+ */
+const mealCategorySchema = new Schema(
+  {
+    key: { type: String, required: true, unique: true },
+    label: { type: String, required: true },
+    /** Whole taka per meal. A cook may undercut it; nobody may edit the key. */
+    rate: { type: Number, required: true },
+    order: { type: Number, default: 0 },
+    retired: { type: Boolean, default: false },
+  },
+  opts,
+);
+
+export const MealCategory = model('MealCategory', mealCategorySchema);
+
+/**
+ * One month's calendar of dish names, for one category.
+ *
+ * Two scopes: the platform publishes a `system` plan per category per month,
+ * and any cook may publish their own `cook` plan over it. Copy-on-write — a
+ * cook customising a month gets a document of their own, and the system plan
+ * they started from is never touched.
+ *
+ * `kitchenId` is `''` rather than null on a system plan so the uniqueness rule
+ * can be a plain compound index; a null there would need a partial expression
+ * to mean anything, and "one plan per scope, category, month and kitchen" is
+ * simpler stated once.
+ *
+ * The days embed: a month is at most 31 rows read all at once, and a day with
+ * no dish is an empty string rather than a missing row.
+ */
+const mealPlanSchema = new Schema(
+  {
+    /** 'system' | 'cook' */
+    scope: { type: String, required: true, index: true },
+    categoryKey: { type: String, required: true, index: true },
+    /** 'YYYY-MM', Dhaka. */
+    month: { type: String, required: true },
+    kitchenId: { type: String, default: '' },
+
+    days: {
+      type: [
+        {
+          _id: false,
+          /** 'YYYY-MM-DD', Dhaka — inside `month`. */
+          date: { type: String, required: true },
+          breakfast: { type: String, default: '' },
+          lunch: { type: String, default: '' },
+          dinner: { type: String, default: '' },
+        },
+      ],
+      default: [],
+    },
+
+    /** 'draft' | 'published' — only a published plan can be booked against. */
+    status: { type: String, default: 'draft', index: true },
+    /** An operator's email, or the kitchen id that last saved it. */
+    updatedBy: { type: String, default: '' },
+  },
+  opts,
+);
+
+mealPlanSchema.index({ scope: 1, categoryKey: 1, month: 1, kitchenId: 1 }, { unique: true });
+
+export const MealPlan = model('MealPlan', mealPlanSchema);
+
+/**
+ * The library of meal names a calendar is filled from.
+ *
+ * Platform-wide suggestions (`system`) and a cook's own (`cook`), kept in one
+ * collection because a picker offers both in one list and the only difference
+ * between a row of each is who may edit it.
+ */
+const mealDishSchema = new Schema(
+  {
+    /** 'system' | 'cook' */
+    scope: { type: String, required: true, index: true },
+    kitchenId: { type: String, default: '' },
+    categoryKey: { type: String, required: true, index: true },
+    name: { type: String, required: true },
+    /** 'breakfast' | 'lunch' | 'dinner' */
+    type: { type: String, required: true },
+    retired: { type: Boolean, default: false },
+  },
+  opts,
+);
+
+mealDishSchema.index({ kitchenId: 1, retired: 1 });
+
+export const MealDish = model('MealDish', mealDishSchema);
+
+/**
+ * One kitchen's meal service — the thing a customer books against.
+ *
+ * `rate` is null when the cook takes the category's default; the effective
+ * rate is `rate ?? category.rate` and is snapshotted onto a booking, so a cook
+ * changing their price never re-prices a month somebody already paid for.
+ *
+ * `active` is the switch. It is false by default because setting up a service
+ * and offering it are two decisions, and only the second one needs approval.
+ */
+const mealServiceSchema = new Schema(
+  {
+    kitchenId: { type: String, required: true, unique: true },
+    categoryKey: { type: String, required: true },
+    /** Null means "use the category's rate". Not zero — zero is free food. */
+    rate: { type: Number, default: null },
+    minMeals: { type: Number, required: true, min: 1 },
+    maxMeals: { type: Number, required: true },
+    active: { type: Boolean, default: false, index: true },
+    /** Denormalised so a list of services needs no join to name the cook. */
+    cookName: { type: String, default: '' },
+  },
+  opts,
+);
+
+export const MealService = model('MealService', mealServiceSchema);
+
+/**
+ * One purchase: the meals somebody picked off one cook's calendar.
+ *
+ * The parent of a handful of orders, and deliberately not their authority.
+ * Everything that moves — status, payment, delivery, a rating — lives on the
+ * Order, and this holds only what was true when the money moved: the rate, the
+ * category, the dish name against each date and slot. Reading a per-item
+ * status from here would be reading a copy that nothing keeps up to date.
+ *
+ * `status` is the fold of its items, written by `syncBookingStatus` when the
+ * last one closes: every item completed or cancelled makes it 'completed',
+ * every item cancelled makes it 'cancelled'.
+ */
+const mealBookingSchema = new Schema(
+  {
+    /** 'MB-XXXXXX' — the code a customer reads out, drawn like an order's. */
+    code: { type: String, required: true, unique: true },
+
+    customerKey: { type: String, required: true, index: true },
+    customerName: { type: String, default: '' },
+    phone: { type: String, default: '' },
+    /** One address object, never queried alone — embedded. */
+    address: { type: Schema.Types.Mixed, default: null },
+
+    kitchenId: { type: String, required: true, index: true },
+    cookName: { type: String, default: '' },
+
+    categoryKey: { type: String, required: true },
+    /** Snapshot: a renamed category must not rewrite an old receipt. */
+    categoryLabel: { type: String, default: '' },
+
+    month: { type: String, required: true },
+    /** Snapshots of the service at the moment of booking. */
+    rate: { type: Number, required: true },
+    minMeals: { type: Number, default: 1 },
+    maxMeals: { type: Number, default: 1 },
+
+    /** Bounded by maxMeals and always read whole — embedded. */
+    items: {
+      type: [
+        {
+          _id: false,
+          orderId: { type: String, required: true },
+          date: { type: String, required: true },
+          slot: { type: String, required: true },
+          name: { type: String, default: '' },
+          amount: { type: Number, default: 0 },
+        },
+      ],
+      default: [],
+    },
+
+    totalAmount: { type: Number, required: true },
+    /** 'active' | 'completed' | 'cancelled' */
+    status: { type: String, default: 'active', index: true },
+  },
+  opts,
+);
+
+export const MealBooking = model('MealBooking', mealBookingSchema);
 
 /*
  * A promotion, and the record of it being used.
@@ -624,6 +766,15 @@ const orderSchema = new Schema(
     storeId: { type: String, default: null, index: true },
     requestId: { type: String, default: null },
     offerId: { type: String, default: null },
+    /**
+     * The meal booking this order is one meal of.
+     *
+     * Indexed because both directions are read: a booking screen lists its
+     * orders, and every rail transition asks whether the order it just moved
+     * closes a booking. `mealId` above is the old board's, kept for the orders
+     * that still carry it.
+     */
+    bookingId: { type: String, default: null, index: true },
 
     kitchenId: { type: String, required: true, index: true },
     cookName: { type: String, default: '' },
@@ -838,6 +989,8 @@ const notificationSchema = new Schema(
     orderId: { type: String, default: null },
     requestId: { type: String, default: null },
     offerId: { type: String, default: null },
+    /** A meal booking to open on tap — the newest of the deep-link targets. */
+    bookingId: { type: String, default: null },
 
     broadcastBy: { type: String, default: null },
 

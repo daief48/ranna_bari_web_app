@@ -43,6 +43,7 @@ export type NotifyArgs = {
   orderId?: string | null;
   requestId?: string | null;
   offerId?: string | null;
+  bookingId?: string | null;
 
   broadcastBy?: string | null;
 };
@@ -75,9 +76,14 @@ export async function notify(
   session: ClientSession | null,
   args: NotifyArgs,
 ): Promise<{ filed: boolean; id: string | null }> {
+  /* `bookingId` is last in the fallback because a booking-wide notice always
+     passes its own key — the derived one is only ever a safety net for a
+     caller that names no reference at all. */
   const key =
     args.key ??
-    `${args.audience}:${args.kind}:${args.orderId ?? args.requestId ?? args.mealId ?? ''}`;
+    `${args.audience}:${args.kind}:${
+      args.orderId ?? args.requestId ?? args.mealId ?? args.bookingId ?? ''
+    }`;
 
   const standing = await Notification.findOne({ key, read: false }).session(session).lean();
   /* Two writers can pass this check at once and file the same badge twice.
@@ -101,6 +107,7 @@ export async function notify(
         orderId: args.orderId ?? null,
         requestId: args.requestId ?? null,
         offerId: args.offerId ?? null,
+        bookingId: args.bookingId ?? null,
         broadcastBy: args.broadcastBy ?? null,
         read: false,
       },

@@ -30,8 +30,11 @@ import {
   FeatureFlag,
   Kitchen,
   LedgerEntry,
-  Meal,
-  MealInterest,
+  MealBooking,
+  MealCategory,
+  MealDish,
+  MealPlan,
+  MealService,
   Notification,
   Offer,
   Order,
@@ -206,8 +209,9 @@ export async function seed() {
   /* An array of differently-typed models is a union TypeScript cannot call
      uniformly, so the loop asks for the one method it needs. */
   const wipe: { deleteMany: (filter: object) => Promise<unknown> }[] = [
+    MealBooking, MealPlan, MealDish, MealService, MealCategory,
     PayoutItem, PayoutRun, Dispute, ChatMessage, ChatThread, Order, Offer, Request,
-    Product, StoreCategory, Store, MealInterest, Meal, Review, Dish, Kitchen,
+    Product, StoreCategory, Store, Review, Dish, Kitchen,
     Account, TopUp, Notification, TaxonomyCategory, Zone, Setting, FeatureFlag,
     AdminUser, AppSession, OtpChallenge, Cart,
   ] as never;
@@ -268,8 +272,8 @@ export async function seed() {
   const menus = readJson<MenuDoc[]>('menus.json');
   const reviews = readJson<ReviewDoc[]>('reviews.json');
 
-  /* Carries the kitchen's location and reach, because the meals below need
-     both and reading them back out of Mongo per meal would be a query for
+  /* Carries the kitchen's location and reach, because the orders below need
+     them and reading them back out of Mongo per row would be a query for
      something this loop already has in hand. */
   const kitchens: {
     id: string;
@@ -489,81 +493,6 @@ export async function seed() {
   }
   console.log(`· ${stores.length} stores, ${productCount} products`);
 
-  /* ---- meals ---- */
-
-  const SLOT_CUTOFF: Record<string, number> = { breakfast: 7, lunch: 10, dinner: 17 };
-  const meals: { id: string; kitchenId: string; title: string; price: number; image: string; serveDate: string; slot: string; handover: string }[] = [];
-
-  for (const kitchen of kitchens) {
-    const dishes = dishesByKitchen.get(kitchen.id) ?? [];
-    if (!dishes.length) continue;
-
-    for (let i = 0; i < between(1, 3); i++) {
-      const offset = pick([-2, -1, -1, 0, 0, 1, 1, 2]);
-      const serveDay = new Date(Date.now() + offset * DAY);
-      const serveDate = dayKey(serveDay);
-      const slot = pick(['breakfast', 'lunch', 'dinner']);
-      const dish = pick(dishes);
-
-      const [y, m, d] = serveDate.split('-').map(Number);
-      // Dhaka is UTC+6 with no DST, so a fixed offset is correct here.
-      const deadline = new Date(Date.UTC(y!, m! - 1, d!, SLOT_CUTOFF[slot]! - 6, 0, 0));
-
-      /* Some are deliberately left `published` with the deadline behind them.
-         The app has no sweeper, so in production these pile up — the meals
-         board is where they get found and closed. */
-      const past = offset < 0;
-      const meal = await Meal.create({
-        code: code('ML'),
-        kitchenId: kitchen.id,
-        cookName: kitchen.name,
-        title: dish.name,
-        description: 'Cooked to order for this service, packed the moment it is ready.',
-        image: dish.image,
-        price: dish.price,
-        capacity: between(6, 30),
-        serveDate,
-        slot,
-        deadline,
-        handover: chance(0.25) ? 'pickup' : 'delivery',
-        area: kitchen.area,
-        /*
-         * The kitchen's own location and reach, not a fixed point.
-         *
-         * These were hard-coded to one spot in Dhanmondi with a 5km radius,
-         * which meant every meal in the database claimed to be cooked in the
-         * same building. The board filters on `distance <= deliveryRadiusKm`,
-         * so the effect was not subtle: a customer in Banani measured 7.5km
-         * to *every* meal — including the ones cooked in Banani — and the
-         * board told them no cook was planning anything near them, while the
-         * server was returning thirty-three meals it thought were fine.
-         *
-         * The meal carries its own copy rather than reading through to the
-         * kitchen because a meal is a promise made on a day: a cook who later
-         * moves, or narrows how far they will travel, must not silently
-         * change the terms of a plate somebody already booked.
-         */
-        lat: kitchen.lat,
-        lng: kitchen.lng,
-        deliveryRadiusKm: kitchen.deliveryRadiusKm,
-        status: past ? pick(['closed', 'published', 'closed']) : 'published',
-      });
-
-      for (const customer of customers.slice(0, between(0, 6))) {
-        await MealInterest.create({
-          mealId: String(meal._id),
-          customerKey: customer.customerKey,
-        }).catch(() => {});
-      }
-
-      meals.push({
-        id: String(meal._id), kitchenId: kitchen.id, title: meal.title, price: meal.price,
-        image: meal.image, serveDate, slot, handover: meal.handover,
-      });
-    }
-  }
-  console.log(`· ${meals.length} meals`);
-
   /* ---- orders, and the ledger they imply ---- */
 
   const ESCROW = ['confirmed', 'preparing', 'ready', 'delivering', 'delivered', 'completed'];
@@ -571,9 +500,8 @@ export async function seed() {
   let orderCount = 0;
 
   const makeOrder = async (spec: {
-    kind: 'cod' | 'meal' | 'store';
+    kind: 'cod' | 'store' | 'request';
     kitchenId: string;
-    mealId?: string;
     storeId?: string;
     title: string;
     image?: string;
@@ -617,14 +545,13 @@ export async function seed() {
     const payment = isCod ? 'cod' : settled ? 'released' : cancelled ? 'refunded' : 'held';
 
     const rate =
-      spec.kind === 'meal' ? 0.15 : spec.kind === 'store' ? 0.12 : 0.15;
+      spec.kind === 'request' ? 0.1 : spec.kind === 'store' ? 0.12 : 0.15;
     const platformAmount = settled ? Math.round(spec.amount * rate) : null;
     const cookAmount = settled ? spec.amount - platformAmount! : null;
 
     const order = await Order.create({
       code: code('RB'),
       kind: spec.kind,
-      mealId: spec.mealId ?? null,
       storeId: spec.storeId ?? null,
       kitchenId: spec.kitchenId,
       cookName: kitchen.name,
@@ -738,31 +665,6 @@ export async function seed() {
       createdAt,
       deliveredAt: status === 'delivered' ? new Date(createdAt.getTime() + 3600_000) : null,
     });
-  }
-
-  // Meals — escrow.
-  for (const meal of meals) {
-    for (let i = 0; i < between(0, 9); i++) {
-      const createdAt = daysAgo(between(0, 6));
-      const status = pick([...ESCROW, 'completed', 'completed', 'delivered', 'cancelled']);
-      await makeOrder({
-        kind: 'meal',
-        kitchenId: meal.kitchenId,
-        mealId: meal.id,
-        title: meal.title,
-        image: meal.image,
-        subtotal: meal.price,
-        amount: meal.price,
-        status,
-        handover: meal.handover,
-        serveDate: meal.serveDate,
-        slot: meal.slot,
-        createdAt,
-        deliveredAt: ['delivered', 'completed'].includes(status)
-          ? new Date(createdAt.getTime() + between(2, 20) * 3600_000)
-          : null,
-      });
-    }
   }
 
   // Store orders, including pre-orders still waiting on a cook.
@@ -976,7 +878,7 @@ export async function seed() {
       // One agreed request goes all the way through to a paid order.
       if (agreed && index === 0) {
         const order = await makeOrder({
-          kind: 'meal',
+          kind: 'request',
           kitchenId: chosen.kitchenId,
           title,
           subtotal: settled,
@@ -984,7 +886,7 @@ export async function seed() {
           status: 'preparing',
           createdAt: new Date(t0.getTime() + 7200_000),
         });
-        await Order.updateOne({ _id: order._id }, { kind: 'request', requestId: String(request._id) });
+        await Order.updateOne({ _id: order._id }, { requestId: String(request._id) });
         await Request.updateOne(
           { _id: request._id },
           { status: 'ordered', orderId: String(order._id) },
@@ -1177,7 +1079,6 @@ export async function seed() {
   const NOTICES: readonly (readonly ['customer' | 'cook', string, string, string])[] = [
     ['customer', 'order-completed', 'Payment released', 'Your payment has gone to the kitchen.'],
     ['customer', 'confirm-receipt', 'Did your food arrive?', 'Confirm you received it to complete the order.'],
-    ['customer', 'meal-published', 'New meal near you', 'Shorshe Ilish from Fatema B. — 520 taka.'],
     ['customer', 'refund', 'Refunded', 'The money is back in your wallet.'],
     ['cook', 'order-confirmed', 'New confirmed order', 'A customer confirmed a meal. Prepare 2.'],
     ['cook', 'request-new', 'New food request', 'Somebody is looking for a birthday cake. Name your price.'],

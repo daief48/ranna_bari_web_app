@@ -5,6 +5,7 @@ import { loadEnv } from './config/env.js';
 import { errText } from './lib/domain.js';
 import { appRoutes } from './routes/app/v1/index.js';
 import { mealRoutes } from './routes/app/v1/meals.js';
+import { orderRoutes } from './routes/app/v1/orders.js';
 import { storeRoutes } from './routes/app/v1/stores.js';
 import { requestRoutes } from './routes/app/v1/requests.js';
 import { walletRoutes } from './routes/app/v1/wallet.js';
@@ -132,7 +133,7 @@ export async function buildApp(): Promise<FastifyInstance> {
      prefixes; the prefix decides which authentication realm a handler is in,
      so a route cannot end up in the wrong one by being written in the wrong
      place. */
-  for (const routes of [appRoutes, mealRoutes, storeRoutes, requestRoutes, walletRoutes]) {
+  for (const routes of [appRoutes, mealRoutes, orderRoutes, storeRoutes, requestRoutes, walletRoutes]) {
     await app.register(routes, { prefix: '/api/app/v1' });
   }
   for (const routes of [adminRoutes, operationRoutes, moneyRoutes]) {

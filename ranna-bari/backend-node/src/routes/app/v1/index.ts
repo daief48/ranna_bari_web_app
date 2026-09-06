@@ -1102,6 +1102,9 @@ export async function appRoutes(app: FastifyInstance) {
         orderId: n.orderId ?? null,
         requestId: n.requestId ?? null,
         offerId: n.offerId ?? null,
+        /* The newest of them: a meal booking to open. Same rule as the rest —
+           the row carries it, so the wire has to. */
+        bookingId: n.bookingId ?? null,
 
         at: n.at,
       })),

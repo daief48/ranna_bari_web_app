@@ -133,13 +133,6 @@ export function daysSince(value: Date | string | null | undefined): number {
   return Math.floor((Date.now() - then) / 86_400_000);
 }
 
-/** The parsed cutoff instant for a meal's serve date and slot, in Dhaka. */
-export function deadlineFor(serveDate: string, cutoffHour: number): Date {
-  const [y, m, d] = String(serveDate).split('-').map(Number);
-  // Dhaka is UTC+6 year-round — no DST, so a fixed offset is correct here.
-  return new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1, cutoffHour - 6, 0, 0, 0));
-}
-
 /** "Dhanmondi · 2.4 km" style joins, skipping empty parts. */
 export const joinParts = (...parts: (string | null | undefined | false)[]) =>
   parts.filter(Boolean).join(' · ');

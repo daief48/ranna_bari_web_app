@@ -148,12 +148,6 @@ than from a customer.
 | `Offer.history` | embed | a negotiation is a handful of prices |
 | `Kitchen.dishes` | reference | a menu grows, dishes are queried alone |
 | `ChatMessage` | collection | unbounded — a busy thread would burst a document |
-| `Meal.interested` | `MealInterest` collection | capacity is bounded; *interest* is not |
-
-The app used to hold `interested` as an array on the meal. It no longer
-gets one: `/meals` returns `interested` as a boolean — whether *you* are —
-plus an `interestCount`. Who else is interested is nobody's business, and a
-list that is never sent cannot leak.
 
 **Two id spaces, both real.** The app ships kitchens numbered 1–20; Mongo
 gives everything an `_id`. `Kitchen.legacyId` bridges them, and

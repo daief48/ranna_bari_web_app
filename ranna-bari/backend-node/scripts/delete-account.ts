@@ -25,7 +25,7 @@
  *     user find/insert only. Money that moved and operator actions that
  *     happened are not erasable; a reversing entry is the mechanism.
  *
- * Cook-side data (kitchen, dishes, meals, store, products, offers) is only
+ * Cook-side data (kitchen, dishes, store, products, offers) is only
  * touched when `--cook` is passed, because deleting a kitchen takes its whole
  * menu and every customer's order history with it.
  */
@@ -41,8 +41,10 @@ import {
   Dish,
   Dispute,
   Kitchen,
-  Meal,
-  MealInterest,
+  MealBooking,
+  MealDish,
+  MealPlan,
+  MealService,
   Notification,
   Offer,
   Order,
@@ -75,7 +77,7 @@ const USAGE = `usage:
   tsx scripts/delete-account.ts <email|phone|customerKey> [...] [--cook] [--apply]
   tsx scripts/delete-account.ts --all [--cook] [--apply --yes-delete-every-account]
 
-  --cook   also remove the kitchen, shop, menu and meals of a cook
+  --cook   also remove the kitchen, shop and menu of a cook
   --apply  actually delete (without it, every run is a dry run)
   --all    target every account instead of the ones named
 
@@ -207,7 +209,7 @@ async function main() {
     counted('orders', Order, { _id: { $in: orderIds } }),
     counted('redemptions', Redemption, { customerKey: { $in: keys } }),
     counted('requests', Request, { customerKey: { $in: keys } }),
-    counted('mealInterests', MealInterest, { customerKey: { $in: keys } }),
+    counted('mealBookings', MealBooking, { customerKey: { $in: keys } }),
     counted('carts', Cart, { customerKey: { $in: keys } }),
     counted('topUps', TopUp, { customerKey: { $in: keys } }),
     counted('notifications', Notification, { customerKey: { $in: keys } }),
@@ -224,7 +226,12 @@ async function main() {
       counted('storeCategories', StoreCategory, { storeId: { $in: storeIds } }),
       counted('stores', Store, { _id: { $in: storeIds } }),
       counted('offers', Offer, { kitchenId: { $in: kitchenIds } }),
-      counted('meals', Meal, { kitchenId: { $in: kitchenIds } }),
+      /* The kitchen's meal service and everything it owns. Bookings against it
+         are the customer's and were counted above; the calendars and dish
+         names are the cook's alone. */
+      counted('mealServices', MealService, { kitchenId: { $in: kitchenIds } }),
+      counted('mealPlans', MealPlan, { scope: 'cook', kitchenId: { $in: kitchenIds } }),
+      counted('mealDishes', MealDish, { scope: 'cook', kitchenId: { $in: kitchenIds } }),
       counted('dishes', Dish, { kitchenId: { $in: kitchenIds } }),
       counted('kitchenNotifications', Notification, { kitchenId: { $in: kitchenIds } }),
       counted('kitchens', Kitchen, { _id: { $in: kitchenIds } }),

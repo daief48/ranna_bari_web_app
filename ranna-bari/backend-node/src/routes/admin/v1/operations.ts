@@ -7,9 +7,7 @@ import { z } from 'zod';
 import { isService, readSession, type AdminSession } from '../../../auth/admin-auth.js';
 import { ERR, can, errText, type Role } from '../../../lib/domain.js';
 import { isDuplicateKey, tx } from '../../../config/db.js';
-import { todayKey } from '../../../lib/format.js';
 import { getSettings } from '../../../logic/settings.js';
-import { cancelMeal, closeMeal } from '../../../logic/meals.js';
 import { pendingPreorders, setStock, toggleProduct, toggleStoreOpen } from '../../../logic/stores.js';
 import { standing, turnOf, type PriceMove } from '../../../logic/requests.js';
 import { notify } from '../../../logic/wallet.js';
@@ -42,8 +40,6 @@ import {
   Dish,
   Kitchen,
   LedgerEntry,
-  Meal,
-  MealInterest,
   Notification,
   Offer,
   Order,
@@ -226,187 +222,12 @@ async function kitchensByIds(
 }
 
 export async function operationRoutes(app: FastifyInstance) {
-  /* ---------------- meals ---------------- */
-
-  app.get('/meals', async (request, reply) => {
-    const actor = await require(request, reply, 'order.read');
-    if (!actor) return;
-
-    const query = z
-      .object({
-        status: z.string().optional(),
-        kitchenId: z.string().optional(),
-        serveDate: z.string().optional(),
-        view: z.string().optional(),
-        ...paging,
-      })
-      .parse(request.query ?? {});
-
-    const where: Record<string, unknown> = {};
-    if (query.status) where.status = query.status;
-    if (query.kitchenId) where.kitchenId = query.kitchenId;
-
-    /* An exact day, not a range: serveDate is stored as the Dhaka calendar key
-       'YYYY-MM-DD', so equality on the string is the whole comparison. The
-       panel asks for today's board with it. */
-    if (query.serveDate) where.serveDate = query.serveDate;
-
-    /* Stale is a meal whose day has gone and which nobody closed: still on the
-       board, still taking orders for food that will not be cooked.
-
-       `serveDate` is a Dhaka calendar day written 'YYYY-MM-DD', so the compare
-       is a string one against today's key. Against a timestamp the board would
-       roll over at UTC midnight — six hours early — and condemn a dinner that
-       has not been served yet. */
-    if (query.view === 'stale') {
-      where.status = 'published';
-      where.serveDate = { $lt: todayKey() };
-    }
-
-    const [rows, total] = await Promise.all([
-      Meal.find(where).sort({ serveDate: -1 }).skip(query.skip).limit(query.take).lean(),
-      Meal.countDocuments(where),
-    ]);
-
-    /* One grouped count for the page rather than a query per meal: 25 meals is
-       25 round trips otherwise, and the number is what makes a stale meal
-       urgent — forty plates of held money is not the same problem as none. */
-    const ids = rows.map((row) => String(row._id));
-    const [counts, interest] = await Promise.all([
-      Order.aggregate<{ _id: string; confirmed: number; held: number }>([
-        { $match: { mealId: { $in: ids }, status: { $ne: 'cancelled' } } },
-        {
-          $group: {
-            _id: '$mealId',
-            confirmed: { $sum: 1 },
-            held: { $sum: { $cond: [{ $eq: ['$payment', 'held'] }, 1, 0] } },
-          },
-        },
-      ]),
-      /* Interest is its own collection, and this endpoint never folded it back
-         in — so the panel's Interest column has been an em dash on every row.
-         One grouped count for the page, the same shape as the orders above. */
-      MealInterest.aggregate<{ _id: string; n: number }>([
-        { $match: { mealId: { $in: ids } } },
-        { $group: { _id: '$mealId', n: { $sum: 1 } } },
-      ]),
-    ]);
-    const byMeal = new Map(counts.map((row) => [row._id, row]));
-    const byInterest = new Map(interest.map((row) => [row._id, row.n]));
-
-    return {
-      meals: rows.map((row) => ({
-        ...withId(row),
-        confirmed: byMeal.get(String(row._id))?.confirmed ?? 0,
-        held: byMeal.get(String(row._id))?.held ?? 0,
-        interested: byInterest.get(String(row._id)) ?? 0,
-      })),
-      total,
-    };
-  });
-
-  app.post('/meals/:id/close', async (request, reply) => {
-    const actor = await require(request, reply, 'meal.write');
-    if (!actor) return;
-
-    const { id } = request.params as { id: string };
-    const before = await Meal.findById(id).lean().catch(() => null);
-
-    /* No `kitchenId`. `closeMeal` reads that argument as an ownership clause
-       and an operator owns no kitchen; naming one here would make the panel
-       act as whichever cook it happened to pass. The capability is the check. */
-    const out = await closeMeal({ mealId: id });
-    if (!out.ok) return refuse(reply, out.error);
-
-    /* `closeMeal` owns its write and accepts no session: the update is
-       conditional on the meal still being published, which is what makes it
-       atomic and safe to lose a race against a second operator. Handing it a
-       session it does not take would run that write *outside* the transaction
-       and roll back only the audit row — the silent failure `tx()` warns
-       about — so the trail is written after the change it describes. */
-    await audit(actor, {
-      action: 'meal.close',
-      targetType: 'Meal',
-      targetId: id,
-      summary: `${before?.title ?? id} — closed`,
-      before: { status: before?.status },
-      after: { status: 'closed' },
-    });
-
-    return out.result;
-  });
-
-  app.post('/meals/:id/cancel', async (request, reply) => {
-    const actor = await require(request, reply, 'meal.write');
-    if (!actor) return;
-
-    const { id } = request.params as { id: string };
-    const body = z.object({ reason: z.string().min(1) }).safeParse(request.body);
-    /* The reason is not paperwork: it is the sentence forty customers read
-       when their money comes back, so a blank one is refused rather than
-       defaulted into a shrug. */
-    if (!body.success || !body.data.reason.trim()) return refuse(reply, ERR.NAME_REQUIRED);
-
-    const before = await Meal.findById(id).lean().catch(() => null);
-
-    const out = await cancelMeal({ mealId: id, reason: body.data.reason.trim() });
-    if (!out.ok) return refuse(reply, out.error);
-
-    /* `cancelMeal` runs one transaction *per order* on purpose — forty
-       customers must not go unrefunded because the forty-first row is broken —
-       so no single transaction spans this change and none could carry the
-       audit row. What it records instead is the outcome, `failed` included:
-       the list of orders somebody still has to chase is the part of this
-       action an operator will be asked about. */
-    await audit(actor, {
-      action: 'meal.cancel',
-      targetType: 'Meal',
-      targetId: id,
-      summary: `${before?.title ?? id} — ${out.result.orders} refunded, ${out.result.failed.length} failed`,
-      before: { status: before?.status },
-      after: { status: 'cancelled', reason: body.data.reason.trim(), ...out.result },
-    });
-
-    return out.result;
-  });
+  /* The old meal-board endpoints (GET /meals, GET /meals/:id, POST
+     /meals/:id/close, POST /meals/:id/cancel) lived here. They were removed
+     with the system that owned them; stage 3 of the meal-system replacement
+     adds the new meal-plan admin endpoints in their place. */
 
   /* ---------------- stores ---------------- */
-
-  /**
-   * One meal, with the orders against it.
-   *
-   * The board links every row to a detail page, and the ids on that board are
-   * this database's. Without this the panel had to read its own mirror to
-   * open one of them, which holds different rows under different ids — so the
-   * link resolved to nothing and the screen 404'd.
-   */
-  app.get('/meals/:id', async (request, reply) => {
-    const actor = await require(request, reply, 'order.read');
-    if (!actor) return;
-
-    const { id } = request.params as { id: string };
-
-    const meal = await Meal.findById(id)
-      .lean()
-      .catch(() => null);
-    if (!meal) return fail(reply, ERR.NO_MEAL, 404);
-
-    const [kitchen, orders, interested] = await Promise.all([
-      Kitchen.findById(meal.kitchenId)
-        .select({ name: 1, area: 1, isVerified: 1 })
-        .lean()
-        .catch(() => null),
-      Order.find({ mealId: id }).sort({ createdAt: -1 }).lean(),
-      MealInterest.countDocuments({ mealId: id }),
-    ]);
-
-    return {
-      meal: withId(meal),
-      kitchen: kitchen ? { ...kitchen, id: String(kitchen._id) } : null,
-      orders: orders.map(withId),
-      interested,
-    };
-  });
 
   /**
    * Baskets with something in them and no order behind them.
@@ -1248,11 +1069,7 @@ export async function operationRoutes(app: FastifyInstance) {
        into a search box, and people type brackets and plus signs. */
     const needle = new RegExp(raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
 
-    const [meals, kitchens, products, dishes] = await Promise.all([
-      Meal.find({ $or: [{ title: needle }, { description: needle }] })
-        .sort({ createdAt: -1 })
-        .limit(15)
-        .lean(),
+    const [kitchens, products, dishes] = await Promise.all([
       Kitchen.find({ $or: [{ name: needle }, { area: needle }] })
         .select({ name: 1, area: 1, isVerified: 1 })
         .sort({ name: 1 })
@@ -1267,7 +1084,7 @@ export async function operationRoutes(app: FastifyInstance) {
 
     /* The owners behind the rows, so every hit links somewhere. One read for
        the kitchens and one for the stores rather than one per row. */
-    const kitchenIds = [...meals, ...dishes].map((row) => row.kitchenId);
+    const kitchenIds = dishes.map((row) => row.kitchenId);
     const owners = await kitchensByIds(kitchenIds);
 
     const stores = await Store.find({ _id: { $in: products.map((p) => p.storeId) } })
@@ -1277,10 +1094,9 @@ export async function operationRoutes(app: FastifyInstance) {
     const byStore = new Map(stores.map((s) => [String(s._id), s.name]));
 
     return {
-      meals: meals.map((row) => ({
-        ...withId(row),
-        kitchenName: owners.get(row.kitchenId)?.name ?? row.cookName ?? '',
-      })),
+      /* The old meal board searched here too. Empty until stage 3 replaces it
+         with a MealDish name search. */
+      meals: [],
       kitchens: kitchens.map(withId),
       products: products.map((row) => ({
         ...withId(row),
@@ -2131,7 +1947,7 @@ export async function operationRoutes(app: FastifyInstance) {
       .catch(() => null);
     if (!note) return fail(reply, MISSING, 404);
 
-    const [sent, opened, kitchen, order, meal, siblings] = await Promise.all([
+    const [sent, opened, kitchen, order, siblings] = await Promise.all([
       Notification.countDocuments({ key: note.key }),
       Notification.countDocuments({ key: note.key, read: true }),
       note.kitchenId
@@ -2146,12 +1962,6 @@ export async function operationRoutes(app: FastifyInstance) {
             .lean()
             .catch(() => null)
         : null,
-      note.mealId
-        ? Meal.findById(note.mealId)
-            .select({ title: 1 })
-            .lean()
-            .catch(() => null)
-        : null,
       Notification.find({ audience: note.audience, _id: { $ne: note._id } })
         .sort({ at: -1 })
         .limit(10)
@@ -2163,7 +1973,9 @@ export async function operationRoutes(app: FastifyInstance) {
       counts: { sent, opened },
       kitchen: kitchen ? { id: String(kitchen._id), name: kitchen.name } : null,
       order: order ? { id: String(order._id), code: order.code } : null,
-      meal: meal ? { id: String(meal._id), title: meal.title } : null,
+      /* `note.mealId` on historic rows has no Meal behind it any more. Stage 3
+         adds a booking join by `note.bookingId` in its place. */
+      meal: null,
       siblings: siblings.map(withId),
     };
   });
