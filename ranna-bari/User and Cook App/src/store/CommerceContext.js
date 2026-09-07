@@ -911,6 +911,14 @@ export function CommerceProvider({ children }) {
       reloadSavedStores,
       ensureRequest,
       ensureOrder,
+
+      /* The named refreshers, exposed because the write that needs them is
+         not in this file: the monthly booking posts through
+         `features/meal-plan`, so nothing here can invalidate the wallet and
+         the orders list on its behalf. */
+      reloadWallet,
+      reloadOrders,
+
       storeLoaded: (storeId) => state.loadedStores.includes(String(storeId)),
 
       /* The cook's share of what the platform is holding.
