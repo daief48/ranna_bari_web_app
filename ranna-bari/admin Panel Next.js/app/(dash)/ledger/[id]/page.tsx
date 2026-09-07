@@ -166,15 +166,11 @@ export default async function LedgerDetail({ params }: { params: Promise<{ id: s
               <span className="text-ink3">Not tied to an order</span>
             )}
           </Field>
-          <Field label="Meal">
-            {meal ? (
-              <Link href={`/meals/${meal.id}`} className="hover:text-primary">
-                {meal.title}
-              </Link>
-            ) : (
-              <span className="text-ink3">—</span>
-            )}
-          </Field>
+          {/* A "Meal" row sat here, joined off `entry.mealId`. The meal-plan
+              rewrite dropped that join from the endpoint, so it rendered "—"
+              on every entry — a field that is always empty is not information.
+              A meal's money reaches the ledger through its order, and the
+              Order row above already links there. */}
           <Field label="Payout run">
             {entry.payoutRun ? (
               <Link href={`/payouts/${entry.payoutRun.id}`} className="tnum hover:text-primary">

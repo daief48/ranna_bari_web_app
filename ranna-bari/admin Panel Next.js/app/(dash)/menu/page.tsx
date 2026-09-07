@@ -209,8 +209,10 @@ export default async function MenuPage({
 
       <p className="mt-6 text-[11.5px] leading-relaxed text-ink3">
         A dish is a standing menu item — always on offer at its price, cooked to
-        order. That is a different thing from a <Link href="/meals" className="text-ink2 hover:text-primary">meal</Link>,
-        which is one service on one date with a fixed number of seats, and from a{' '}
+        order. That is a different thing from a{' '}
+        <Link href="/meal-plans" className="text-ink2 hover:text-primary">planned meal</Link>,
+        which is one slot on one date of a monthly calendar somebody books a whole
+        month of, and from a{' '}
         <Link href="/stores" className="text-ink2 hover:text-primary">shop product</Link>,
         which has stock that runs out.
       </p>

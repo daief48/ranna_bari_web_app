@@ -33,7 +33,7 @@ const NEAREST_COUNT = 5;
  * Places before the things inside them: somebody typing a kitchen name
  * wants the kitchen, not the first of its dishes to sort alphabetically.
  */
-const KIND_ORDER = { kitchen: 0, shop: 1, meal: 2, dish: 3, product: 4 };
+const KIND_ORDER = { kitchen: 0, shop: 1, dish: 2, product: 3 };
 
 /**
  * How each kind reads in a result row.
@@ -45,23 +45,18 @@ const KIND_ORDER = { kitchen: 0, shop: 1, meal: 2, dish: 3, product: 4 };
 const KIND_TONE = {
   kitchen: { label: 'Kitchen', icon: 'chefHat', fg: 'primary', bg: 'primary50' },
   shop: { label: 'Shop', icon: 'box', fg: 'sage', bg: 'sage50' },
-  meal: { label: 'Meal', icon: 'pot', fg: 'saffron', bg: 'saffron50' },
   dish: { label: 'Dish', icon: 'utensils', fg: 'primary', bg: 'primary50' },
   product: { label: 'Item', icon: 'box', fg: 'sage', bg: 'sage50' },
 };
 
 /** Which screen a pin belongs to. */
 const hrefFor = (place) =>
-  place.kind === 'shop'
-    ? `/stores/${place.id}`
-    : place.kind === 'meal'
-      ? `/meals/${place.id}`
-      : `/chef/${place.id}`;
+  place.kind === 'shop' ? `/stores/${place.id}` : `/chef/${place.id}`;
 
 export default function MapScreen() {
   const chefs = useChefs();
   const menus = useMenus();
-  const { meals, stores, products } = useCommerce();
+  const { stores, products } = useCommerce();
   const { t, n } = useLang();
   const { colors, shadow, mode } = useTheme();
   const insets = useSafeAreaInsets();
@@ -145,32 +140,19 @@ export default function MapScreen() {
       });
     }
 
-    for (const m of meals) {
-      if (m.status !== 'published') continue;
-      if (typeof m.lat !== 'number' || typeof m.lng !== 'number') continue;
-      rows.push({
-        kind: 'meal',
-        id: String(m.id),
-        lat: m.lat,
-        lng: m.lng,
-        name: m.title,
-        sub: [m.cookName, m.serveDate].filter(Boolean).join(' · '),
-        image: m.image,
-        isOpen: true,
-        deliveryRadiusKm: m.deliveryRadiusKm,
-        area: m.area,
-      });
-    }
+    /* No meal pins. A meal had its own coordinates because it was a listing
+       that existed on its own; under the monthly system it is a slot on a
+       kitchen's calendar, and the kitchen is already pinned. Dropping a pin
+       per meal would put thirty markers on one address. */
 
     return rows;
-  }, [chefs, stores, meals]);
+  }, [chefs, stores]);
 
   /* One list, so the map and the search can never disagree about what is on
-     screen. "Open now" only means anything for a kitchen or a shop — a meal
-     is cooked for a date, not for right now, so the filter leaves it alone
-     rather than hiding tomorrow's dinner because it is late tonight. */
+     screen. Everything pinned is now a kitchen or a shop, and "open now"
+     means the same thing for both. */
   const visible = useMemo(
-    () => (openOnly ? places.filter((p) => p.kind === 'meal' || p.isOpen) : places),
+    () => (openOnly ? places.filter((p) => p.isOpen) : places),
     [places, openOnly],
   );
 
@@ -313,8 +295,6 @@ export default function MapScreen() {
         router.push(`/chef/${msg.id}`);
       } else if (msg.type === 'openStore') {
         router.push(`/stores/${msg.id}`);
-      } else if (msg.type === 'openMeal') {
-        router.push(`/meals/${msg.id}`);
       } else if (msg.type === 'error') {
         setPanel({ kind: 'error', title: 'Map unavailable', text: msg.message, raw: true });
       } else if (msg.type === 'tileerror') {

@@ -34,8 +34,12 @@ export default function CookLayout() {
       <Stack.Screen name="reviews" />
       <Stack.Screen name="order/[id]" />
       <Stack.Screen name="dish/[id]" />
-      <Stack.Screen name="meal/new" />
-      <Stack.Screen name="meal/[id]" />
+      {/* The monthly meal system: what this kitchen serves, the calendar it
+          serves from, and the dish names that fill it. `meal/new` and
+          `meal/[id]` stood here for the per-plate board that this replaced. */}
+      <Stack.Screen name="meal-service" />
+      <Stack.Screen name="meal-plan" />
+      <Stack.Screen name="meal-dishes" />
       {/* The shop is a hub with its own children rather than a seventh tab:
           six destinations is already the most a phone bar can carry. */}
       <Stack.Screen name="store/index" />

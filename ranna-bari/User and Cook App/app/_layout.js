@@ -121,11 +121,16 @@ function Root() {
         <Stack.Screen name="auth" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="become-cook" />
         <Stack.Screen name="edit-profile" />
-        {/* ---- pre-booked meals ---- */}
-        <Stack.Screen name="meals/[id]" />
-        {/* Confirming replaces the meal with its receipt, the same one-way
-            step checkout makes: back should not walk into a meal you have
+        {/* ---- monthly meals ----
+            A kitchen's calendar, the months bought off it, and one meal's
+            own order. `meals/[id]` stood here for the per-plate board this
+            replaced: there is no such thing as one meal for sale any more. */}
+        <Stack.Screen name="meal-service/[kitchenId]" />
+        <Stack.Screen name="meal-bookings" />
+        {/* Booking replaces the calendar with its receipt, the same one-way
+            step checkout makes: back should not walk into a month you have
             already paid for. */}
+        <Stack.Screen name="meal-booking/[id]" options={{ animation: 'fade' }} />
         <Stack.Screen name="meal-order/[id]" options={{ animation: 'fade' }} />
         <Stack.Screen name="wallet" />
         <Stack.Screen name="notifications" />

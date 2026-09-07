@@ -568,22 +568,27 @@ export { errorText } from '../lib/errors';
  * still read correctly a week later, after the price changed or the meal was
  * renamed, and looking the values up on read is what makes that true.
  */
-export function notificationText(nt, { mealById, orders, t, n }) {
+export function notificationText(nt, { orders, t, n }) {
   const order = nt.orderId ? orders.find((o) => o.id === nt.orderId) : null;
-  const meal = nt.mealId ? mealById(nt.mealId) : null;
 
+  /* The order alone. This used to fall back to the meal row a notification
+     named, and that collection went with the per-plate board — `mealId`
+     survives on historic rows and resolves to nothing. Every value below is
+     on the order, which is the record that outlives the listing anyway. */
   const vars = {
-    title: order?.title ?? meal?.title ?? t('a meal'),
-    cook: order?.cookName ?? meal?.cookName ?? '',
+    title: order?.title ?? t('a meal'),
+    cook: order?.cookName ?? '',
     customer: order?.customerName || t('A customer'),
-    price: n(meal?.price ?? order?.price ?? 0),
-    amount: n(order?.amount ?? meal?.price ?? 0),
-    // `n` means different things to the two sides: how many are interested,
-    // or how many portions the cook now has to cook.
+    price: n(order?.price ?? 0),
+    amount: n(order?.amount ?? 0),
+    /* How many portions this notification is about. "Interest" was a signal
+       on a published plate and has no counterpart in the monthly system, so
+       what is left to count is orders. */
     n: n(
-      nt.kind === 'interest'
-        ? (meal?.interestCount ?? 0)
-        : orders.filter((o) => o.mealId === nt.mealId && o.status !== 'cancelled').length,
+      nt.orderId
+        ? 1
+        : orders.filter((o) => o.bookingId && o.bookingId === nt.bookingId && o.status !== 'cancelled')
+            .length,
     ),
   };
 

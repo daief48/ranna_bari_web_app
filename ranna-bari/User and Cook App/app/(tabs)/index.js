@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../../src/components/Screen';
 import Icon from '../../src/components/Icon';
@@ -32,9 +32,10 @@ import { useChefs, useReviewSummary } from '../../src/data';
 import { useAuth } from '../../src/store/AuthContext';
 import { distanceKm } from '../../src/lib/geo';
 import { deliversTo } from '../../src/lib/kitchen';
-import { MealCard } from '../../src/components/MealBits';
 import { StoreCard } from '../../src/components/StoreBits';
-import { tomorrowKey, useCommerce } from '../../src/store/CommerceContext';
+import { useCommerce } from '../../src/store/CommerceContext';
+import { useSession } from '../../src/store/SessionContext';
+import { fetchMealServices } from '../../src/features/meal-plan/api';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 /** The seven cravings from index.html's mood carousel, in source order. */
@@ -135,7 +136,8 @@ export default function HomeScreen() {
     }
     return out;
   }, [orders]);
-  const { mealsNearby, remaining: mealRemaining, storesNearby } = useCommerce();
+  const { storesNearby } = useCommerce();
+  const { token } = useSession();
   const { colors, shadow, isDark } = useTheme();
   const r = useResponsive();
   const router = useRouter();
@@ -186,13 +188,28 @@ export default function HomeScreen() {
       .slice(0, 3);
   }, [chefs, account]);
 
-  const tomorrowsMeals = useMemo(() => {
-    const origin =
-      typeof account?.lat === 'number' && typeof account?.lng === 'number'
-        ? { lat: account.lat, lng: account.lng }
-        : null;
-    return mealsNearby(origin, { day: tomorrowKey() }).slice(0, 6);
-  }, [mealsNearby, account]);
+  /*
+   * Kitchens taking meal bookings.
+   *
+   * This rail used to be "tomorrow's meals near you", off the per-plate board
+   * that the monthly system replaced. The equivalent thing to put in front of
+   * somebody is no longer a plate but a kitchen: what it charges a meal, and
+   * how many meals it asks you to take.
+   */
+  const [mealServices, setMealServices] = useState([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!token) return;
+      let alive = true;
+      fetchMealServices(token).then((out) => {
+        if (alive) setMealServices(out.ok ? (out.result.services ?? []).slice(0, 6) : []);
+      });
+      return () => {
+        alive = false;
+      };
+    }, [token]),
+  );
 
   const shops = useMemo(() => {
     const origin =
@@ -666,12 +683,12 @@ export default function HomeScreen() {
         </ScrollView>
       </View>
 
-      {/* ============ TOMORROW'S MEALS ============
-          Pre-booking only works if people see it the evening before, and the
-          home screen is where they are. Hidden entirely when no kitchen near
-          them has planned anything: an empty rail here would teach people to
-          scroll past this spot. */}
-      {tomorrowsMeals.length ? (
+      {/* ============ MONTHLY MEALS ============
+          A month of meals is the largest single thing this app sells and the
+          least discoverable, so it gets a rail on the home screen. Hidden
+          entirely when nobody is offering one: an empty rail here would teach
+          people to scroll past this spot. */}
+      {mealServices.length ? (
         <View style={{ paddingTop: 16, paddingBottom: 20 }}>
           <Container>
             <View
@@ -683,7 +700,7 @@ export default function HomeScreen() {
               }}
             >
               <Heading size={20} style={{ flex: 1 }}>
-                {t('Tomorrow’s meals near you')}
+                {t('Meal plans near you')}
               </Heading>
               <Button
                 variant="glass"
@@ -699,16 +716,69 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 12, paddingHorizontal: r.gutter, paddingVertical: 2 }}
           >
-            {tomorrowsMeals.map(({ meal, km }) => (
-              <MealCard
-                key={meal.id}
-                meal={meal}
-                km={km}
-                remaining={mealRemaining(meal)}
-                interested={meal.interestCount ?? 0}
-                wide
-                onPress={() => router.push(`/meals/${meal.id}`)}
-              />
+            {mealServices.map((service) => (
+              <Pressable
+                key={service.kitchenId}
+                accessibilityRole="button"
+                accessibilityLabel={t('Open {name}', { name: service.kitchenName })}
+                onPress={() => router.push(`/meal-service/${service.kitchenId}`)}
+                style={({ pressed }) => ({
+                  width: 232,
+                  padding: 14,
+                  borderRadius: radius.lg,
+                  borderWidth: 1,
+                  borderColor: colors.line,
+                  backgroundColor: colors.surfaceSolid,
+                  opacity: pressed ? 0.85 : 1,
+                })}
+              >
+                <Text
+                  numberOfLines={1}
+                  style={{ fontFamily: font.uiBold, fontSize: 15, color: colors.text }}
+                >
+                  {service.kitchenName}
+                </Text>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    fontFamily: font.ui,
+                    fontSize: 12.5,
+                    marginTop: 2,
+                    color: colors.textMuted,
+                  }}
+                >
+                  {[service.categoryLabel, service.area].filter(Boolean).join(' · ')}
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: font.displayBold,
+                    fontSize: 20,
+                    marginTop: 10,
+                    color: colors.sage,
+                  }}
+                >
+                  ৳{n(service.rate)}
+                  <Text style={{ fontFamily: font.ui, fontSize: 12, color: colors.textMuted }}>
+                    {' '}
+                    {t('a meal')}
+                  </Text>
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: font.ui,
+                    fontSize: 11.5,
+                    marginTop: 4,
+                    color: colors.textMuted,
+                  }}
+                >
+                  {service.minMeals === service.maxMeals
+                    ? t('exactly {n} meals', { n: n(service.minMeals) })
+                    : t('{min}–{max} meals', {
+                        min: n(service.minMeals),
+                        max: n(service.maxMeals),
+                      })}
+                </Text>
+              </Pressable>
             ))}
           </ScrollView>
         </View>

@@ -36,7 +36,6 @@ import { deliversTo, isOpenNow } from '../../src/lib/kitchen';
 import { RANK, makeMatcher } from '../../src/lib/search';
 import useRecentSearches from '../../src/lib/useRecentSearches';
 import { Placeholder } from '../../src/components/StoreBits';
-import { serviceLabel } from '../../src/components/MealBits';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { call, hasServer } from '../../src/lib/server';
 import { useLang } from '../../src/i18n/LanguageContext';
@@ -508,18 +507,23 @@ export default function BrowseScreen() {
        Then the things you could put in a basket, then who sells them. */
     for (const { dish } of dishIndex) offer(dish.name, 'dish', 'Dish', 'utensils');
     for (const product of shop.products) offer(product.name, 'product', 'Shop item', 'cart');
-    for (const meal of shop.meals) offer(meal.title, 'meal', 'Meal', 'pot');
+    /* No meals: a meal is a slot on a month now, not a listing you can find
+       by name. Monthly kitchens are browsed from the Meals tab. */
     for (const chef of chefs) offer(chef.name, 'kitchen', 'Kitchen', 'chefHat');
     for (const store of shop.stores) offer(store.name, 'store', 'Shop', 'box');
 
     return out;
-  }, [draft, dishIndex, chefs, shop.products, shop.meals, shop.stores]);
+  }, [draft, dishIndex, chefs, shop.products, shop.stores]);
 
   /** Meals, shops and shop goods — the rest of what the app sells. */
   const extras = useMemo(
     () =>
       searchExtras({
-        meals: shop.meals,
+        /* Empty, and stays empty. A meal is a slot on a monthly calendar now
+           rather than a listing with a name to match — the kitchens offering
+           them are browsed from the Meals tab, where the thing being compared
+           is a rate and a commitment, not a dish. */
+        meals: [],
         stores: shop.stores,
         products: shop.products,
         query,
@@ -527,15 +531,11 @@ export default function BrowseScreen() {
         filters,
         area,
       }),
-    [shop.meals, shop.stores, shop.products, query, kmOf, filters, area],
+    [shop.stores, shop.products, query, kmOf, filters, area],
   );
 
   const total =
-    dishes.length +
-    kitchens.length +
-    extras.meals.length +
-    extras.stores.length +
-    extras.products.length;
+    dishes.length + kitchens.length + extras.stores.length + extras.products.length;
 
   /* Remembered once the typing stops and the query turned out to lead
      somewhere -- a term that found nothing is not worth offering back. */
@@ -1125,38 +1125,11 @@ export default function BrowseScreen() {
           </View>
         ) : null}
 
-        {/* ---- Meals somebody is cooking for a named day ----
-            Above the shops because a meal expires: it is cooked once, for one
-            sitting, and a customer who scrolls past it has missed it. A jar
-            of achar will still be there tomorrow. */}
-        {extras.meals.length ? (
-          <View style={{ marginBottom: 32 }}>
-            <ResultLabel
-              text={t(extras.meals.length === 1 ? '{n} meal' : '{n} meals', {
-                n: n(extras.meals.length),
-              })}
-              note={t('Booked ahead')}
-            />
-            <View style={{ gap: 12 }}>
-              {extras.meals.slice(0, extraLimit).map(({ meal, km }, i) => (
-                <Reveal key={meal.id} delay={(i % 5) + 1}>
-                  <ExtraResult
-                    title={meal.title}
-                    subtitle={serviceLabel(meal, t, lang)}
-                    image={meal.image}
-                    price={meal.price}
-                    km={km}
-                    onPress={() => router.push(`/meals/${meal.id}`)}
-                  />
-                </Reveal>
-              ))}
-            </View>
-            <SeeMore
-              remaining={extras.meals.length - extraLimit}
-              onPress={() => setExtraLimit((v) => v + STEP)}
-            />
-          </View>
-        ) : null}
+        {/* A meals section sat here, above the shops, because a meal expired:
+            it was cooked once for one sitting. That is not what a meal is any
+            more — it is a slot on a monthly calendar, bought a month at a
+            time — so it is not something this box can usefully return. The
+            Meals tab compares the kitchens offering them. */}
 
         {/* ---- Things on a shelf ----
             The gap this whole section exists to close: "achar" used to return

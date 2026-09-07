@@ -11,7 +11,7 @@ import { useAuth } from '../../src/store/AuthContext';
 import { useCart } from '../../src/store/CartContext';
 import LiveOrderStrip from '../../src/components/LiveOrderStrip';
 import { useCommerce } from '../../src/store/CommerceContext';
-import { customerKeyOf } from '../../src/lib/mealLogic';
+import { customerKeyOf } from '../../src/lib/ledger';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { font, radius } from '../../src/theme/tokens';
 

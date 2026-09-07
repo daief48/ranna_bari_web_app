@@ -20,14 +20,17 @@ export default function MealOrderScreen() {
   const shop = useCommerce();
 
   const order = shop.orders.find((o) => o.id === String(id));
-  const meal = order?.mealId ? shop.mealById(order.mealId) : null;
 
+  /* The order carries its own sitting now. It used to be looked up on the
+     meal row this order was a copy of, and that collection went with the
+     per-plate board — but `serveDate` and `slot` are on every meal order,
+     which is what `serviceLabel` actually reads. */
   return (
     <OrderTracker
       orderId={String(id)}
-      subtitle={meal ? serviceLabel(meal, t, lang) : null}
-      backTo="/meals"
-      backLabel={t('Tomorrow’s meals')}
+      subtitle={order?.serveDate ? serviceLabel(order, t, lang) : null}
+      backTo={order?.bookingId ? `/meal-booking/${order.bookingId}` : '/meal-bookings'}
+      backLabel={t('My meal bookings')}
     />
   );
 }

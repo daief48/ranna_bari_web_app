@@ -28,7 +28,13 @@ export const NAV: {
       { href: '/kyc', label: 'KYC queue', cap: 'kitchen.read', badge: 'kyc' },
       { href: '/menu', label: 'Menus & dishes', cap: 'kitchen.read' },
       { href: '/specialties', label: 'Specialties', cap: 'config.read' },
-      { href: '/meals', label: 'Meals', cap: 'order.read' },
+      /* The meal system, in the order it is set up: what a meal is worth, what
+         the platform serves, then what people bought. The old single "Meals"
+         entry pointed at the per-plate board that the meal-plan rewrite
+         removed. */
+      { href: '/meal-categories', label: 'Meal categories', cap: 'config.read' },
+      { href: '/meal-plans', label: 'Meal calendar', cap: 'meal.read' },
+      { href: '/meal-bookings', label: 'Meal bookings', cap: 'order.read' },
       { href: '/stores', label: 'Stores & products', cap: 'order.read' },
       { href: '/coverage', label: 'Coverage map', cap: 'kitchen.read' },
       { href: '/preorders', label: 'Pre-orders', cap: 'order.read' },
@@ -85,7 +91,12 @@ const ICON: Record<string, string> = {
   /* Fork and knife — the same glyph the cook's app puts on its Menu tab, so
      the two screens read as the same thing seen from two sides. */
   '/menu': 'M7 3v5.5a2 2 0 0 0 4 0V3M9 10.5V21M16.5 3c-1.3 1.3-1.3 6.2 0 7.5V21',
-  '/meals': 'M3 14h18M4 14a8 8 0 0 1 16 0M2.5 17.5h19M12 6V4.5',
+  /* A cloche — the platform's own meal, priced. */
+  '/meal-categories': 'M3 14h18M4 14a8 8 0 0 1 16 0M2.5 17.5h19M12 6V4.5',
+  /* A month grid: the calendar is the thing this page is. */
+  '/meal-plans': 'M4 5.5h16v15H4zM4 10h16M8.5 3v4M15.5 3v4M8 14h.01M12 14h.01M16 14h.01',
+  /* A receipt with a tick — a month bought and being worked through. */
+  '/meal-bookings': 'M6.5 3h11v18l-2.75-1.8L12 21l-2.75-1.8L6.5 21zM9.5 10.5l1.8 1.8 3.2-3.6',
   '/stores': 'M4.5 10h15v9h-15zM3 10l1.6-5h14.8L21 10M10 19v-5h4v5',
   '/orders': 'M6.5 3h11v18l-2.75-1.8L12 21l-2.75-1.8L6.5 21zM10 8.5h4.5M10 12.5h4.5',
   '/chat': 'M20 14.5a2 2 0 0 1-2 2H9l-4 3.5V6a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2z',

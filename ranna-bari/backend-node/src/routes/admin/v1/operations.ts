@@ -34,12 +34,26 @@ import {
   updateCategory,
 } from '../../../logic/taxonomy.js';
 import {
+  addMealCategory,
+  categoryFor,
+  mealCategoriesOf,
+  monthDays,
+  retireMealCategory,
+  savePlan,
+  updateMealCategory,
+} from '../../../logic/mealplan.js';
+import {
   Account,
   AuditLog,
   Cart,
   Dish,
   Kitchen,
   LedgerEntry,
+  MealBooking,
+  MealCategory,
+  MealDish,
+  MealPlan,
+  MealService,
   Notification,
   Offer,
   Order,
@@ -222,10 +236,433 @@ async function kitchensByIds(
 }
 
 export async function operationRoutes(app: FastifyInstance) {
-  /* The old meal-board endpoints (GET /meals, GET /meals/:id, POST
-     /meals/:id/close, POST /meals/:id/cancel) lived here. They were removed
-     with the system that owned them; stage 3 of the meal-system replacement
-     adds the new meal-plan admin endpoints in their place. */
+  /* ---------------- meal categories ---------------- */
+
+  /**
+   * The categories the platform sells meals under, and their default rates.
+   *
+   * Retired ones are included because this is the screen that un-retires them:
+   * a key is never reused, so a category taken out of circulation is the only
+   * way its calendars and past bookings stay readable.
+   *
+   * Each row carries how many cooks are standing on it, which is the question
+   * an operator has before re-pricing or retiring one — "Business Meal" with
+   * nine services behind it is a different decision from one with none.
+   */
+  app.get('/meal-categories', async (request, reply) => {
+    const actor = await require(request, reply, 'config.read');
+    if (!actor) return;
+
+    const rows = await mealCategoriesOf({ includeRetired: true });
+
+    /* One grouped pass rather than a count per row. */
+    const counts = await MealService.aggregate<{ _id: string; n: number }>([
+      { $group: { _id: '$categoryKey', n: { $sum: 1 } } },
+    ]);
+    const byKey = new Map(counts.map((c) => [c._id, c.n]));
+
+    return { categories: rows.map((row) => ({ ...row, services: byKey.get(row.key) ?? 0 })) };
+  });
+
+  app.post('/meal-categories', async (request, reply) => {
+    const actor = await require(request, reply, 'config.write');
+    if (!actor) return;
+
+    const body = z
+      .object({ key: z.string().optional(), label: z.string().min(1), rate: z.coerce.number() })
+      .safeParse(request.body);
+    if (!body.success) return refuse(reply, ERR.NAME_REQUIRED);
+
+    const out = await addMealCategory(body.data);
+    if (!out.ok) return refuse(reply, out.error);
+
+    await audit(actor, {
+      action: 'meal-category.create',
+      targetType: 'MealCategory',
+      targetId: out.result.id,
+      summary: `${out.result.label} — ${out.result.rate}`,
+    });
+
+    return { category: out.result };
+  });
+
+  /**
+   * Rename one, re-price it, or move it along the list.
+   *
+   * A new rate applies to services that take the default from here, and to
+   * nothing already booked: a booking snapshots the rate it was made at, so a
+   * price change cannot rewrite a receipt.
+   */
+  app.post('/meal-categories/:id', async (request, reply) => {
+    const actor = await require(request, reply, 'config.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        label: z.string().optional(),
+        rate: z.coerce.number().optional(),
+        order: z.coerce.number().optional(),
+      })
+      .safeParse(request.body);
+    if (!body.success) return refuse(reply, ERR.NAME_REQUIRED);
+
+    const before = await MealCategory.findById(id).lean().catch(() => null);
+
+    const out = await updateMealCategory(id, body.data);
+    if (!out.ok) return refuse(reply, out.error);
+
+    await audit(actor, {
+      action: 'meal-category.update',
+      targetType: 'MealCategory',
+      targetId: id,
+      summary: `${out.result.label} — ${out.result.rate}`,
+      before: before ? { label: before.label, rate: before.rate } : undefined,
+      after: { label: out.result.label, rate: out.result.rate },
+    });
+
+    return { category: out.result };
+  });
+
+  app.post('/meal-categories/:id/retire', async (request, reply) => {
+    const actor = await require(request, reply, 'config.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z.object({ retired: z.boolean() }).safeParse(request.body);
+    if (!body.success) return refuse(reply, ERR.NAME_REQUIRED);
+
+    const out = await retireMealCategory(id, body.data.retired);
+    if (!out.ok) return refuse(reply, out.error);
+
+    await audit(actor, {
+      action: body.data.retired ? 'meal-category.retire' : 'meal-category.restore',
+      targetType: 'MealCategory',
+      targetId: id,
+      summary: out.result.label,
+    });
+
+    return { category: out.result };
+  });
+
+  /* ---------------- the system meal calendar ---------------- */
+
+  /**
+   * One month of the platform's calendar for one category.
+   *
+   * This is the plan every cook on that category starts from. A cook who
+   * publishes their own gets a copy of their own and this is never touched by
+   * them — so the operator editing here is editing the default, not anybody's
+   * live menu.
+   *
+   * Returns the empty month rather than 404 when nothing is written yet: the
+   * editor's job is to fill a blank calendar, and a missing plan and an empty
+   * one are the same thing to it.
+   */
+  app.get('/meal-plans', async (request, reply) => {
+    const actor = await require(request, reply, 'meal.read');
+    if (!actor) return;
+
+    const query = z
+      .object({ categoryKey: z.string().min(1), month: z.string().min(1) })
+      .safeParse(request.query ?? {});
+    if (!query.success) return refuse(reply, ERR.BAD_REQUEST);
+
+    const days = monthDays(query.data.month);
+    if (!days.length) return refuse(reply, ERR.BAD_REQUEST);
+
+    const category = await categoryFor(query.data.categoryKey);
+    if (!category) return refuse(reply, ERR.NO_MEAL);
+
+    const row = await MealPlan.findOne({
+      scope: 'system',
+      kitchenId: '',
+      categoryKey: query.data.categoryKey,
+      month: query.data.month,
+    })
+      .lean()
+      .catch(() => null);
+
+    const written = new Map(
+      (row?.days ?? []).map((d) => [d.date, d] as const),
+    );
+
+    return {
+      category,
+      month: query.data.month,
+      status: row?.status ?? 'draft',
+      updatedBy: row?.updatedBy ?? '',
+      updatedAt: row?.updatedAt ?? null,
+      /* Every day of the month, written or not, so the editor renders one row
+         per date without having to know how long the month is. */
+      days: days.map((date) => ({
+        date,
+        breakfast: written.get(date)?.breakfast ?? '',
+        lunch: written.get(date)?.lunch ?? '',
+        dinner: written.get(date)?.dinner ?? '',
+      })),
+      /* The library the pickers offer, platform scope only: a cook's own
+         dishes are theirs and have no business on the system calendar. */
+      dishes: await MealDish.find({ scope: 'system', categoryKey: query.data.categoryKey, retired: false })
+        .sort({ type: 1, name: 1 })
+        .lean()
+        .then((rows) => rows.map((d) => ({ id: String(d._id), name: d.name, type: d.type }))),
+    };
+  });
+
+  /**
+   * Write the system calendar, and publish it.
+   *
+   * `publish` is the flag that makes the month bookable. Saving a draft is the
+   * safe half of the same action — an operator filling in thirty-one days over
+   * a lunch break should not be offering a half-written month while they do.
+   */
+  app.post('/meal-plans', async (request, reply) => {
+    const actor = await require(request, reply, 'meal.write');
+    if (!actor) return;
+
+    const body = z
+      .object({
+        categoryKey: z.string().min(1),
+        month: z.string().min(1),
+        publish: z.boolean().optional(),
+        days: z
+          .array(
+            z.object({
+              date: z.string().min(1),
+              breakfast: z.string().optional(),
+              lunch: z.string().optional(),
+              dinner: z.string().optional(),
+            }),
+          )
+          .default([]),
+      })
+      .safeParse(request.body);
+    if (!body.success) return refuse(reply, ERR.BAD_REQUEST);
+
+    /* One transaction with the audit row: the panel's rule is that a change
+       and the record of who made it land together or not at all. */
+    const out = await tx(async (session) =>
+      savePlan(
+        {
+          scope: 'system',
+          categoryKey: body.data.categoryKey,
+          month: body.data.month,
+          days: body.data.days,
+          publish: body.data.publish,
+          updatedBy: actor.email,
+        },
+        session,
+      ).then(async (result) => {
+        if (result.ok) {
+          await audit(
+            actor,
+            {
+              action: body.data.publish ? 'meal-plan.publish' : 'meal-plan.save',
+              targetType: 'MealPlan',
+              targetId: result.result.id,
+              summary: `${body.data.categoryKey} ${body.data.month}`,
+            },
+            session,
+          );
+        }
+        return result;
+      }),
+    );
+
+    if (!out.ok) return refuse(reply, out.error);
+
+    return { plan: out.result };
+  });
+
+  /* ---------------- what cooks are offering ---------------- */
+
+  /**
+   * Every cook's meal service, as the operator sees it.
+   *
+   * The rate column is the *effective* one — a cook taking the category
+   * default and a cook who set the same number by hand look identical to a
+   * customer, and this board is about what customers are charged.
+   */
+  app.get('/meal-services', async (request, reply) => {
+    const actor = await require(request, reply, 'meal.read');
+    if (!actor) return;
+
+    const query = z
+      .object({
+        categoryKey: z.string().optional(),
+        active: z.enum(['true', 'false']).optional(),
+        skip: z.coerce.number().default(0),
+        take: z.coerce.number().max(200).default(50),
+      })
+      .parse(request.query ?? {});
+
+    const where: Record<string, unknown> = {};
+    if (query.categoryKey) where.categoryKey = query.categoryKey;
+    if (query.active) where.active = query.active === 'true';
+
+    const [rows, total, categories] = await Promise.all([
+      MealService.find(where).sort({ updatedAt: -1 }).skip(query.skip).limit(query.take).lean(),
+      MealService.countDocuments(where),
+      mealCategoriesOf({ includeRetired: true }),
+    ]);
+
+    const byKey = new Map(categories.map((c) => [c.key, c]));
+    const kitchens = await kitchensByIds(rows.map((r) => r.kitchenId));
+
+    return {
+      services: rows.map((row) => {
+        const category = byKey.get(row.categoryKey) ?? null;
+        return {
+          id: String(row._id),
+          kitchenId: row.kitchenId,
+          kitchenName: kitchens.get(row.kitchenId)?.name ?? row.cookName ?? '',
+          categoryKey: row.categoryKey,
+          categoryLabel: category?.label ?? row.categoryKey,
+          /* Null `rate` means "take the category's", which is the one number
+             worth showing — with a flag so an operator can still tell which
+             cooks priced themselves. */
+          rate: row.rate ?? category?.rate ?? 0,
+          ownRate: row.rate != null,
+          minMeals: row.minMeals,
+          maxMeals: row.maxMeals,
+          active: !!row.active,
+          updatedAt: row.updatedAt,
+        };
+      }),
+      total,
+      categories,
+    };
+  });
+
+  /* ---------------- bookings ---------------- */
+
+  /**
+   * A month somebody bought, and the meals it became.
+   *
+   * The booking is the receipt and the orders are the work: every status,
+   * payment and release belongs to an order, and this joins them back so an
+   * operator can see one customer's month in one place rather than seven
+   * unrelated rows on the orders board.
+   */
+  app.get('/meal-bookings', async (request, reply) => {
+    const actor = await require(request, reply, 'order.read');
+    if (!actor) return;
+
+    const query = z
+      .object({
+        month: z.string().optional(),
+        kitchenId: z.string().optional(),
+        status: z.string().optional(),
+        skip: z.coerce.number().default(0),
+        take: z.coerce.number().max(200).default(50),
+      })
+      .parse(request.query ?? {});
+
+    const where: Record<string, unknown> = {};
+    if (query.month) where.month = query.month;
+    if (query.kitchenId) where.kitchenId = query.kitchenId;
+    if (query.status) where.status = query.status;
+
+    const [rows, total] = await Promise.all([
+      MealBooking.find(where).sort({ createdAt: -1 }).skip(query.skip).limit(query.take).lean(),
+      MealBooking.countDocuments(where),
+    ]);
+
+    /* One pass over every order named by the page, grouped back per booking:
+       the release counters are the reason this board exists and counting them
+       per row would be a query each. */
+    const ids = rows.map((r) => String(r._id));
+    const held = await Order.aggregate<{ _id: string; held: number; released: number; n: number }>([
+      { $match: { bookingId: { $in: ids } } },
+      {
+        $group: {
+          _id: '$bookingId',
+          n: { $sum: 1 },
+          held: { $sum: { $cond: [{ $eq: ['$payment', 'held'] }, 1, 0] } },
+          released: { $sum: { $cond: [{ $eq: ['$payment', 'released'] }, 1, 0] } },
+        },
+      },
+    ]);
+    const byBooking = new Map(held.map((h) => [h._id, h]));
+
+    return {
+      bookings: rows.map((row) => {
+        const counts = byBooking.get(String(row._id));
+        return {
+          id: String(row._id),
+          code: row.code,
+          customerKey: row.customerKey,
+          customerName: row.customerName,
+          kitchenId: row.kitchenId,
+          cookName: row.cookName,
+          categoryKey: row.categoryKey,
+          categoryLabel: row.categoryLabel,
+          month: row.month,
+          rate: row.rate,
+          meals: row.items?.length ?? 0,
+          total: (row.items ?? []).reduce((sum, item) => sum + (item.amount ?? 0), 0),
+          status: row.status,
+          createdAt: row.createdAt,
+          orders: counts?.n ?? 0,
+          held: counts?.held ?? 0,
+          released: counts?.released ?? 0,
+        };
+      }),
+      total,
+    };
+  });
+
+  /**
+   * One booking, with the live order behind every meal on it.
+   *
+   * The item rows on the booking are a snapshot — the dish name and the price
+   * as they were when the money moved. Everything that moves since is on the
+   * order, so both are returned and the panel renders the snapshot for what
+   * was bought and the order for where it has got to.
+   */
+  app.get('/meal-bookings/:id', async (request, reply) => {
+    const actor = await require(request, reply, 'order.read');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+
+    const booking = await MealBooking.findById(id).lean().catch(() => null);
+    if (!booking) return refuse(reply, ERR.NO_ORDER);
+
+    const [orders, kitchen] = await Promise.all([
+      Order.find({ bookingId: id }).sort({ serveDate: 1, slot: 1 }).lean(),
+      Kitchen.findById(booking.kitchenId).select({ name: 1, area: 1 }).lean().catch(() => null),
+    ]);
+
+    const byOrder = new Map(orders.map((o) => [String(o._id), o]));
+
+    return {
+      booking: { ...booking, id: String(booking._id) },
+      kitchen: kitchen ? { ...kitchen, id: String(kitchen._id) } : null,
+      /* Snapshot joined to live state, in the order the meals are eaten. */
+      items: (booking.items ?? [])
+        .map((item) => {
+          const order = byOrder.get(String(item.orderId));
+          return {
+            orderId: String(item.orderId),
+            date: item.date,
+            slot: item.slot,
+            name: item.name,
+            amount: item.amount,
+            code: order?.code ?? null,
+            status: order?.status ?? null,
+            payment: order?.payment ?? null,
+            deliveredAt: order?.deliveredAt ?? null,
+            /* The specification's "Meal Received" — the customer confirming,
+               which is what moves an order to completed and makes it
+               releasable. Not the courier's stamp, which is `deliveredAt`. */
+            receivedAt: order?.completedAt ?? null,
+          };
+        })
+        .sort((a, b) => a.date.localeCompare(b.date) || a.slot.localeCompare(b.slot)),
+    };
+  });
 
   /* ---------------- stores ---------------- */
 

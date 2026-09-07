@@ -52,8 +52,10 @@ export default function WalletScreen() {
 
   const titleFor = (tx) => {
     const order = meals.orders.find((o) => o.id === tx.orderId);
-    const meal = meals.mealById(tx.mealId);
-    const name = order?.title ?? meal?.title;
+    /* The order's title only. `tx.mealId` is a legacy field naming a row in
+       the per-plate board, and that collection is gone — a meal's money is
+       attached to its order now, and the order is what carries the name. */
+    const name = order?.title;
     if (tx.kind === 'topup') return t('Wallet top up');
     if (tx.kind === 'hold') return name ? t('Held for {title}', { title: name }) : t('Payment held');
     if (tx.kind === 'refund') return name ? t('Refund · {title}', { title: name }) : t('Refund');

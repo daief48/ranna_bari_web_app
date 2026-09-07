@@ -114,9 +114,10 @@ export default function NotificationsScreen() {
       return isCookMode ? '/cook/requests' : `/request-order/${orderId}`;
     }
     if (kind === 'meal') {
-      /* A cook thinks in services, not in one customer's copy of one: their
-         screen is the meal, with every booking on it. */
-      return isCookMode && mealId ? `/cook/meal/${mealId}` : `/meal-order/${orderId}`;
+      /* A cook thinks in days, not in one customer's copy of one plate: under
+         the monthly system their screen is the day's board, with every plate
+         on it. The old per-meal page went with the per-plate board. */
+      return isCookMode ? '/cook/meals' : `/meal-order/${orderId}`;
     }
     /* Cash and wallet orders off the kitchen menu, and anything whose kind we
        could not learn — the dish tracker reads every order shape, so it is
@@ -135,7 +136,11 @@ export default function NotificationsScreen() {
       return;
     }
     if (nt.mealId) {
-      router.push(isCookMode ? `/cook/meal/${nt.mealId}` : `/meals/${nt.mealId}`);
+      /* `mealId` is a legacy field: it named a row in the per-plate board, and
+         that collection is gone. Neither side can resolve the id any more, so
+         both land on the nearest screen that still means something rather than
+         on a dead page. */
+      router.push(isCookMode ? '/cook/meals' : '/orders');
       return;
     }
     if (nt.requestId) {
@@ -208,7 +213,6 @@ export default function NotificationsScreen() {
           <View style={{ gap: 10 }}>
             {rows.map((nt) => {
               const text = notificationText(nt, {
-                mealById: meals.mealById,
                 orders: meals.orders,
                 t,
                 n,

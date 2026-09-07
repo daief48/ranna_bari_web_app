@@ -67,7 +67,11 @@ export async function forceRelease(orderId: string, reason: string): Promise<Act
 
       revalidatePath('/ledger');
       revalidatePath('/orders');
-      revalidatePath(`/orders/${orderId}`);
+      revalidatePath(`/orders/`);
+      /* A meal is an order, so a release or a refund also moves a booking's
+         counters. 'layout' because the board and the detail page both show
+         them and neither knows this order's booking id. */
+      revalidatePath('/meal-bookings', 'layout');
       return good(`Released ${taka(out.cook)} to the cook.`);
     } catch (error) {
       return refused(error);
@@ -95,7 +99,11 @@ export async function forceRefund(
 
       revalidatePath('/ledger');
       revalidatePath('/orders');
-      revalidatePath(`/orders/${orderId}`);
+      revalidatePath(`/orders/`);
+      /* A meal is an order, so a release or a refund also moves a booking's
+         counters. 'layout' because the board and the detail page both show
+         them and neither knows this order's booking id. */
+      revalidatePath('/meal-bookings', 'layout');
       return good(`Refunded ${taka(out.refunded)}.`);
     } catch (error) {
       return refused(error);

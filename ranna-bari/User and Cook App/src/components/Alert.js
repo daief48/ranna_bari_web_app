@@ -132,7 +132,7 @@ export function AlertProvider({ children }) {
  *
  *   const run = useAction();
  *   await run(() => shop.toggleProduct(id));
- *   await run(() => meals.publishMeal(draft), t('Meal published.'));
+ *   await run(() => shop.confirmReceived(orderId), t('Confirmed.'));
  */
 export function useAction() {
   const alert = useAlert();

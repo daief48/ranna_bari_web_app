@@ -184,7 +184,7 @@ export async function api(path, { method = 'GET', token, body, signal } = {}) {
 /**
  * A request that answers instead of throwing.
  *
- * Every transition in `mealLogic`, `storeLogic` and `requestLogic` returns
+ * Every transition in `storeLogic` and `requestLogic` returns
  * `{ ok, result, error }`, and every screen branches on exactly that. The
  * backend was ported from those modules and answers in the same error
  * vocabulary — `meal-sold-out`, `wallet-low-balance`, `offer-not-your-turn` —

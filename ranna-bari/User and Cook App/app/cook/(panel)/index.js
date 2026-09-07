@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import CookScreen from '../../../src/components/CookScreen';
@@ -26,6 +26,8 @@ import {
 } from '../../../src/store/OrdersContext';
 import { tomorrowKey, useCommerce } from '../../../src/store/CommerceContext';
 import { useChat } from '../../../src/store/ChatContext';
+import { useSession } from '../../../src/store/SessionContext';
+import { fetchMealOrders } from '../../../src/features/meal-plan/api';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 /**
@@ -62,24 +64,33 @@ export default function CookDashboard() {
   const { kitchen, toggleOpen, liveDishes, loaded } = useKitchen();
   const { ordersForKitchen, advanceOrder } = useOrders();
   const meals = useCommerce();
+  const { token } = useSession();
   const { t, n } = useLang();
   /* Every write below reports what happened. */
   const run = useAction();
 
-  /* Tomorrow's service, summarised: plates already paid for, and the softer
-     number of people who said they were interested. */
-  const tomorrow = kitchen
-    ? meals
-        .mealsForKitchen(kitchen.id)
-        .filter((m) => m.serveDate === tomorrowKey() && m.status !== 'cancelled')
-    : [];
-  const platesTomorrow = tomorrow.reduce(
-    (sum, m) => sum + meals.confirmedCount(m.id),
-    0,
-  );
-  const interestTomorrow = tomorrow.reduce(
-    (sum, m) => sum + (m.interestCount ?? 0),
-    0,
+  /*
+   * Tomorrow's plates — the number a cook needs before they go shopping.
+   *
+   * Counted off tomorrow's meal orders rather than off published meals. Under
+   * the monthly system there is nothing to publish per day: a plate exists
+   * because somebody booked a month that includes tomorrow, so the orders
+   * *are* the count. The old reading came from the per-plate board and its
+   * endpoints are gone, which made this quietly zero on every kitchen.
+   */
+  const [platesTomorrow, setPlatesTomorrow] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!token) return;
+      let alive = true;
+      fetchMealOrders(token, tomorrowKey()).then((out) => {
+        if (alive) setPlatesTomorrow(out.ok ? (out.result.orders?.length ?? 0) : 0);
+      });
+      return () => {
+        alive = false;
+      };
+    }, [token]),
   );
   const unread = meals.unreadFor('cook');
   /* The inbox already renders a cook's side — it greets them with "Your
@@ -779,15 +790,12 @@ export default function CookDashboard() {
               title={
                 platesTomorrow
                   ? t('Prepare {n} plates tomorrow', { n: n(platesTomorrow) })
-                  : t('Plan tomorrow’s meal')
+                  : t('Nothing booked for tomorrow')
               }
               sub={
                 platesTomorrow
-                  ? t('{n} interested, {c} confirmed', {
-                      n: n(interestTomorrow),
-                      c: n(platesTomorrow),
-                    })
-                  : t('Publish tonight and let people book a plate')
+                  ? t('All paid for in advance — go shopping for this many')
+                  : t('Publish a month and let people book meals off it')
               }
               onPress={() => router.push('/cook/meals')}
             />

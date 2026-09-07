@@ -1,7 +1,7 @@
 /**
  * Everything the app sells, read from the server.
  *
- * This used to be a local state machine: `mealLogic`, `storeLogic` and
+ * This used to be a local state machine: `storeLogic` and
  * `requestLogic` applied pure transitions to one AsyncStorage document, and
  * the header above them said what that was for -- "when a backend arrives,
  * these transitions are its specification". The backend arrived, and it is a
@@ -11,10 +11,10 @@
  *
  * The **writes** are gone. Every transition now happens on the server, inside
  * a transaction, against a ledger no client can rewrite. What used to be
- * `mutate(L.confirmOrder, ...)` is a `POST /meals/:id/confirm`.
+ * `mutate(L.confirmOrder, ...)` is a `POST /orders/:id/received`.
  *
  * The **reads** did not move, and deliberately. `S.productsOf`,
- * `R.offersForRequest`, `L.ordersForMeal` and the rest are pure functions of
+ * `R.offersForRequest`, `S.productsOf` and the rest are pure functions of
  * the state shape -- they never knew where the document came from. Projecting
  * the server's responses back into that same shape means every one of them,
  * and every screen built on them, keeps working untouched.
@@ -55,7 +55,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { distanceKm } from '../lib/geo';
 import { deliversTo } from '../lib/kitchen';
-import * as L from '../lib/mealLogic';
 import * as S from '../lib/storeLogic';
 import * as R from '../lib/requestLogic';
 import { isOpenNow } from '../lib/kitchen';
@@ -179,7 +178,7 @@ export function deadlineAtTime(serveDate, time) {
  * ------------------------------------------------------------------ */
 
 /**
- * The same shape `mealLogic.EMPTY` had, because the read helpers still expect
+ * The shape the read helpers still expect —
  * it -- plus the few fields the server computes better than the device can.
  *
  * `wallet`, `summaries` and `overviews` are the server's own answers to
@@ -187,7 +186,6 @@ export function deadlineAtTime(serveDate, time) {
  * them here would mean folding a *page* of orders and calling it a total.
  */
 const EMPTY = {
-  meals: [],
   stores: [],
   categories: [],
   products: [],
@@ -375,9 +373,12 @@ export function CommerceProvider({ children }) {
     if (!token) return false;
     const auth = { token };
 
-    const [meals, orders, wallet, notifications, requests, cart, saved, mine, offers, preorders] =
+    /* No `/meals`. The per-plate board this context was written around was
+       replaced by the monthly meal system, whose screens read
+       `features/meal-plan` directly rather than through this store — a month
+       is chosen a screen at a time and never needed to be app-wide state. */
+    const [orders, wallet, notifications, requests, cart, saved, offers, preorders] =
       await Promise.all([
-        call('/meals', auth),
         call('/orders', auth),
         call('/wallet', auth),
         call('/notifications', auth),
@@ -387,26 +388,11 @@ export function CommerceProvider({ children }) {
            saved screen is opened, because the shop pages need the list too —
            it is what the save button on each one is drawn from. */
         call('/stores/saved', auth),
-        /* A cook's own board carries the closed and cancelled services the
-           public list hides -- that is what their panel is about. */
-        kitchenId ? call(`/meals?kitchenId=${encodeURIComponent(kitchenId)}`, auth) : null,
         kitchenId ? call('/offers', auth) : null,
         kitchenId ? call('/preorders', auth) : null,
       ]);
 
     const fields = {};
-
-    /* The two meal lists are one board: the cook's own services plus
-       everything else on offer, deduplicated by id with the cook's copy
-       winning because it is the one carrying their cancelled rows. */
-    if (meals.ok || mine?.ok) {
-      const own = mine?.ok ? (mine.result.meals ?? []) : [];
-      const ownIds = new Set(own.map((m) => String(m.id)));
-      const rest = meals.ok
-        ? (meals.result.meals ?? []).filter((m) => !ownIds.has(String(m.id)))
-        : [];
-      fields.meals = [...own, ...rest];
-    }
 
     if (orders.ok) fields.orders = asOrders(orders.result.orders);
     if (notifications.ok) fields.notifications = notifications.result.notifications ?? [];
@@ -434,7 +420,7 @@ export function CommerceProvider({ children }) {
 
     if (Object.keys(fields).length) patch(fields);
 
-    return meals.ok || orders.ok || wallet.ok;
+    return orders.ok || wallet.ok;
   }, [token, kitchenId, patch]);
 
   /** Everything, and a flag saying whether the server answered at all. */
@@ -726,25 +712,6 @@ export function CommerceProvider({ children }) {
     [token, commit],
   );
 
-  /** One meal, for the screen that shows only it. */
-  const ensureMeal = useCallback(
-    async (mealId) => {
-      if (!mealId || !hasServer || !token) return null;
-      const id = String(mealId);
-      const out = await call(`/meals/${id}`, { token });
-      if (!out.ok) return null;
-
-      commit({
-        ...live.current,
-        meals: live.current.meals.some((m) => String(m.id) === id)
-          ? live.current.meals.map((m) => (String(m.id) === id ? out.result.meal : m))
-          : [...live.current.meals, out.result.meal],
-      });
-      return out.result;
-    },
-    [token, commit],
-  );
-
   /* ---------------- writes ---------------- */
 
   /**
@@ -859,20 +826,6 @@ export function CommerceProvider({ children }) {
     [token, patch],
   );
 
-  const reloadMeals = useCallback(async () => {
-    const [all, mine] = await Promise.all([
-      call('/meals', { token }),
-      kitchenId ? call(`/meals?kitchenId=${encodeURIComponent(kitchenId)}`, { token }) : null,
-    ]);
-    if (!all.ok && !mine?.ok) return;
-    const own = mine?.ok ? (mine.result.meals ?? []) : [];
-    const ownIds = new Set(own.map((m) => String(m.id)));
-    const rest = all.ok
-      ? (all.result.meals ?? []).filter((m) => !ownIds.has(String(m.id)))
-      : [];
-    patch({ meals: [...own, ...rest] });
-  }, [token, kitchenId, patch]);
-
   const reloadOrders = useCallback(async () => {
     const [orders, preorders] = await Promise.all([
       call('/orders', { token }),
@@ -940,9 +893,6 @@ export function CommerceProvider({ children }) {
   /* ---------------- the value ---------------- */
 
   const value = useMemo(() => {
-    const mealById = (id) =>
-      state.meals.find((m) => String(m.id) === String(id)) ?? null;
-
     return {
       hydrated,
       loading,
@@ -952,7 +902,6 @@ export function CommerceProvider({ children }) {
 
       wallet: state.wallet,
       ledger: state.ledger,
-      meals: state.meals,
       orders: state.orders,
 
       /* ---- hydration, for the screens that show one thing ---- */
@@ -961,38 +910,15 @@ export function CommerceProvider({ children }) {
       toggleSavedStore,
       reloadSavedStores,
       ensureRequest,
-      ensureMeal,
       ensureOrder,
       storeLoaded: (storeId) => state.loadedStores.includes(String(storeId)),
 
-      /* ---- meals: reads ---- */
-      mealById,
-      /* The server counts these against every order in the collection; the
-         local fold could only ever count the page it was sent. */
-      remaining: (meal) => meal?.remaining ?? null,
-      confirmedCount: (mealId) => mealById(mealId)?.confirmed ?? 0,
-      interestCount: (mealId) => mealById(mealId)?.interestCount ?? 0,
-      ordersForMeal: (mealId) => L.ordersForMeal(state, mealId),
-      isOpen: (meal) => L.mealOpen(state, meal, Date.now()),
+      /* The cook's share of what the platform is holding.
+         The meal reads that stood here — mealById, mealsNearby,
+         mealsForKitchen and the rest — went with the per-plate board. The
+         monthly system's screens read `features/meal-plan` directly: a month
+         is chosen one screen at a time and never needed app-wide state. */
       pendingEarnings: () => state.wallet.held ?? 0,
-
-      /** Meals a customer at `origin` can actually be delivered, still open. */
-      mealsNearby: (origin, { day } = {}) =>
-        state.meals
-          .filter((m) => m.status === 'published')
-          .filter((m) => (day ? m.serveDate === day : true))
-          .map((m) => ({
-            meal: m,
-            km:
-              origin && typeof m.lat === 'number'
-                ? distanceKm(origin, { lat: m.lat, lng: m.lng })
-                : null,
-          }))
-          .filter(({ meal, km }) => deliversTo(meal, km))
-          .sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity)),
-
-      mealsForKitchen: (id) =>
-        state.meals.filter((m) => String(m.kitchenId) === String(id)),
 
       /**
        * The two sides of the same list.
@@ -1018,31 +944,16 @@ export function CommerceProvider({ children }) {
       unreadFor: (audience) =>
         state.notifications.filter((nt) => nt.audience === audience && !nt.read).length,
 
-      /* ---- meals: writes ---- */
-      publishMeal: (meal, notifyNearby) =>
-        write('/meals', {
-          body: { ...meal, notifyNearby },
-          after: reloadMeals,
-          shape: (r) => ({ ...r, id: r.mealId }),
-        }),
-      closeMeal: (mealId) => write(`/meals/${mealId}/close`, { after: reloadMeals }),
-      cancelMeal: (mealId, reason) =>
-        write(`/meals/${mealId}/cancel`, {
-          body: { reason },
-          after: async () => {
-            await Promise.all([reloadMeals(), reloadOrders(), reloadWallet()]);
-          },
-        }),
-      toggleInterest: (mealId) =>
-        write(`/meals/${mealId}/interest`, { after: reloadMeals }),
-      confirmOrder: (mealId, customer) =>
-        write(`/meals/${mealId}/confirm`, {
-          body: customer,
-          after: async () => {
-            await Promise.all([reloadMeals(), reloadOrders(), reloadWallet()]);
-          },
-          shape: (r) => ({ ...r, id: r.orderId }),
-        }),
+      /* ---- orders ----
+         `publishMeal`, `closeMeal`, `cancelMeal`, `toggleInterest` and
+         `confirmOrder` stood here. All five were the per-plate board's
+         transitions and all five now answer 404: a meal is not published and
+         confirmed one plate at a time any more, it is a slot on a month
+         somebody books. `features/meal-plan/api` carries what replaced them.
+
+         The order writes below stay exactly as they were, because a booked
+         meal *is* an order and walks the same rail — which is why a cook
+         delivering one and a customer confirming it needed nothing new. */
       advanceOrder: (orderId) =>
         write(`/orders/${orderId}/advance`, { after: reloadOrders }),
       confirmReceived: (orderId) =>
@@ -1306,9 +1217,7 @@ export function CommerceProvider({ children }) {
     toggleSavedStore,
     reloadSavedStores,
     ensureRequest,
-    ensureMeal,
     ensureOrder,
-    reloadMeals,
     reloadOrders,
     reloadWallet,
     reloadRequests,

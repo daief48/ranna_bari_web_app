@@ -160,12 +160,8 @@ export default async function NotificationDetail({
               <span className="tnum">{order.code}</span>
             </Link>
           ) : null}
-          {meal ? (
-            <Link href={`/meals/${meal.id}`} className="hover:text-primary">
-              <span className="label mr-1.5">Meal</span>
-              {meal.title}
-            </Link>
-          ) : null}
+          {/* The meal link went with the endpoint's meal join in the meal-plan
+              rewrite. A notification about a meal now carries its order. */}
           {note.requestId ? (
             <Link href={`/requests/${note.requestId}`} className="hover:text-primary">
               <span className="label mr-1.5">Request</span>
