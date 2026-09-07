@@ -111,3 +111,22 @@ export const countMeals = (days) =>
     (sum, day) => sum + SLOTS.filter((slot) => String(day[slot] ?? '').trim()).length,
     0,
   );
+
+/**
+ * "Today", "Tomorrow", or the date — for a meal somebody is waiting on.
+ *
+ * A booking screen answering "when is my next meal" with a bare calendar date
+ * makes the reader do the subtraction. Only the two days that have their own
+ * word get one; past that a date is clearer than "in 9 days".
+ */
+export function relativeDay(date, t) {
+  const say = t ?? ((s) => s);
+  const today = todayKey();
+  if (date === today) return say('Today');
+
+  const at = new Date(`${today}T00:00:00Z`);
+  at.setUTCDate(at.getUTCDate() + 1);
+  if (date === at.toISOString().slice(0, 10)) return say('Tomorrow');
+
+  return dateLabel(date);
+}

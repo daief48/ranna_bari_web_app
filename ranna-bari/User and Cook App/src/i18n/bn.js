@@ -2241,4 +2241,180 @@ export const bn = {
   'Sign in to do that.': 'এটি করতে সাইন ইন করুন।',
   'Nothing listed yet': 'এখনো কিছু তালিকাভুক্ত হয়নি',
   Released: 'ছাড় হয়েছে',
+  /* ---------------- the cook's side of the meal system ----------------
+     Setting up a service, writing a month, keeping a dish list, and the daily
+     board. These screens carried no translation at all while the customer half
+     of the same feature was fully Bengali — a cook was setting the terms of
+     their own business in a language the app does not otherwise make them use. */
+
+  SERVICE: 'সার্ভিস',
+  DISHES: 'খাবার',
+  'TODAY’S': 'আজকের',
+  'What you serve, for how much, and how many meals a customer must take.':
+    'আপনি কী দেবেন, কত দামে, আর একজন গ্রাহককে কয়টি মিল নিতে হবে।',
+  'What you cook each day, and what a customer picks from.':
+    'প্রতিদিন আপনি কী রাঁধবেন, আর গ্রাহক কোনটা থেকে বাছবেন।',
+  'The meals you cook, ready to drop onto any day.':
+    'আপনার রান্না করা খাবার, যেকোনো দিনে বসিয়ে দেওয়ার জন্য প্রস্তুত।',
+  'What to cook, how many, and who is waiting.':
+    'কী রাঁধতে হবে, কয়টি, আর কে অপেক্ষা করছে।',
+
+  /* ---- the service ---- */
+
+  'Reading your service…': 'আপনার সার্ভিস পড়া হচ্ছে…',
+  'The platform is not offering any meal categories yet.':
+    'প্ল্যাটফর্ম এখনো কোনো মিল ক্যাটাগরি দিচ্ছে না।',
+  'A meal service belongs to a category, so there is nothing to start one under until an operator adds one.':
+    'মিল সার্ভিস একটি ক্যাটাগরির অধীনে হয়, তাই অপারেটর একটি যোগ না করা পর্যন্ত শুরু করার কিছু নেই।',
+  'The category sets your calendar. What that means →':
+    'ক্যাটাগরি আপনার ক্যালেন্ডার ঠিক করে। এর মানে কী →',
+  'You cook from that category’s monthly calendar, and its rate is your default price. Changing it after a month is booked does not move that booking — it stores what was agreed — but your calendar starts again from the new category’s.':
+    'আপনি ওই ক্যাটাগরির মাসিক ক্যালেন্ডার থেকে রাঁধবেন, আর তার রেট আপনার ডিফল্ট দাম। কোনো মাস বুক হয়ে যাওয়ার পর এটি বদলালে সেই বুকিং বদলায় না — তাতে যা ঠিক হয়েছিল তা-ই থাকে — তবে আপনার ক্যালেন্ডার নতুন ক্যাটাগরিরটি থেকে আবার শুরু হয়।',
+  'Your rate': 'আপনার রেট',
+  'Set my own price': 'নিজের দাম ঠিক করব',
+  'Your number, fixed until you change it.': 'আপনার দেওয়া দাম, না বদলানো পর্যন্ত অপরিবর্তিত।',
+  'Follow the category — ৳{rate} today, and whatever it becomes.':
+    'ক্যাটাগরি অনুসরণ করুন — আজ ৳{rate}, পরে যা হবে তা-ই।',
+  'Your rate per meal': 'প্রতি মিলে আপনার রেট',
+  'Customers pay, per meal': 'গ্রাহক দেবেন, প্রতি মিলে',
+  'Meals per month': 'মাসে কয়টি মিল',
+  Minimum: 'সর্বনিম্ন',
+  Maximum: 'সর্বোচ্চ',
+  'Minimum meals': 'সর্বনিম্ন মিল',
+  'Maximum meals': 'সর্বোচ্চ মিল',
+  'A customer must take': 'একজন গ্রাহককে নিতে হবে',
+  'So a month is worth': 'তাহলে এক মাসের মূল্য',
+  'A customer picks any dates and any of breakfast, lunch or dinner — the only rule is that the total lands in this range. Setting both to the same number means they choose which meals, but not how many.':
+    'গ্রাহক যেকোনো তারিখ এবং সকাল, দুপুর বা রাতের যেকোনোটি বাছেন — নিয়ম শুধু একটাই, মোট সংখ্যা এই সীমার মধ্যে থাকতে হবে। দুটোতেই একই সংখ্যা দিলে তাঁরা কোন মিল নেবেন তা বাছতে পারবেন, কয়টি নেবেন তা নয়।',
+  'Offering it': 'চালু রাখা',
+  'Open for bookings': 'বুকিং খোলা',
+  'Not offered': 'দেওয়া হচ্ছে না',
+  'Customers can find your calendar and book a month.':
+    'গ্রাহকরা আপনার ক্যালেন্ডার পাবেন এবং এক মাস বুক করতে পারবেন।',
+  'Set everything up first, then switch it on.': 'আগে সব ঠিক করুন, তারপর চালু করুন।',
+  'How customers see it': 'গ্রাহকরা যেভাবে দেখবেন',
+  'Not visible to anyone while the switch above is off.':
+    'উপরের সুইচ বন্ধ থাকলে এটি কেউ দেখতে পাবেন না।',
+  'Pick a category first.': 'আগে একটি ক্যাটাগরি বাছুন।',
+  'Your own rate has to be a number above zero.':
+    'আপনার নিজের রেট শূন্যের বেশি একটি সংখ্যা হতে হবে।',
+  'The minimum has to be at least one meal.': 'সর্বনিম্ন অন্তত একটি মিল হতে হবে।',
+  'The maximum cannot be below the minimum.': 'সর্বোচ্চ সর্বনিম্নের চেয়ে কম হতে পারে না।',
+  'Your meal service is live': 'আপনার মিল সার্ভিস চালু হয়েছে',
+  'Customers can book a month from your calendar now.':
+    'গ্রাহকরা এখন আপনার ক্যালেন্ডার থেকে মাস বুক করতে পারবেন।',
+  'Nobody can book it until you switch it on.': 'চালু না করা পর্যন্ত কেউ বুক করতে পারবেন না।',
+  'Start my meal service': 'আমার মিল সার্ভিস শুরু করুন',
+  'Open my calendar': 'আমার ক্যালেন্ডার খুলুন',
+  'Once this is saved you can write your monthly calendar, or cook from the platform’s as it is.':
+    'এটি সংরক্ষণ করলে আপনি নিজের মাসিক ক্যালেন্ডার লিখতে পারবেন, অথবা প্ল্যাটফর্মেরটি যেমন আছে তেমনই রাঁধতে পারবেন।',
+
+  /* ---- the calendar ---- */
+
+  'Reading the month…': 'মাসটি পড়া হচ্ছে…',
+  'You have not started a meal service yet.': 'আপনি এখনো মিল সার্ভিস শুরু করেননি।',
+  'A calendar belongs to a category, and the category is part of your service.':
+    'ক্যালেন্ডার একটি ক্যাটাগরির অধীনে হয়, আর ক্যাটাগরি আপনার সার্ভিসের অংশ।',
+  'Set up my meal service': 'আমার মিল সার্ভিস চালু করুন',
+  'Cooking the platform’s menu this month.': 'এই মাসে আপনি প্ল্যাটফর্মের মেনু রাঁধছেন।',
+  'Your own menu is live for this month.': 'এই মাসে আপনার নিজের মেনু চালু আছে।',
+  'Your own menu is saved as a draft — customers still see the platform’s.':
+    'আপনার নিজের মেনু খসড়া হিসেবে সংরক্ষিত — গ্রাহকরা এখনো প্ল্যাটফর্মেরটিই দেখছেন।',
+  '{n} meals on offer': '{n}টি মিল দেওয়া হচ্ছে',
+  ' · {n} changed by you': ' · {n}টি আপনি বদলেছেন',
+  'Unsaved changes.': 'অসংরক্ষিত পরিবর্তন আছে।',
+  'Fill it quickly': 'দ্রুত ভরে ফেলুন',
+  'Repeat the first week': 'প্রথম সপ্তাহ পুনরাবৃত্তি করুন',
+  'Start from the platform’s month': 'প্ল্যাটফর্মের মাস থেকে শুরু করুন',
+  'The first week now repeats across the month.':
+    'প্রথম সপ্তাহ এখন পুরো মাস জুড়ে পুনরাবৃত্তি হচ্ছে।',
+  'Copied down to the end of the month.': 'মাসের শেষ পর্যন্ত কপি করা হয়েছে।',
+  'Tap any sitting to pick a dish. How this works →':
+    'খাবার বাছতে যেকোনো বেলায় ট্যাপ করুন। এটি যেভাবে কাজ করে →',
+  'An untouched day shows the platform’s dish in grey and is copied into your month when you save. Publishing replaces the platform’s calendar for your kitchen, so anything blank on both sides is a meal you are not offering. The arrow beside a day copies it down the rest of the month.':
+    'যে দিন আপনি ছোঁননি সেখানে প্ল্যাটফর্মের খাবার ধূসর রঙে দেখায়, আর সংরক্ষণ করলে সেটিই আপনার মাসে কপি হয়ে যায়। প্রকাশ করলে আপনার কিচেনের জন্য প্ল্যাটফর্মের ক্যালেন্ডারের জায়গা নেয় আপনারটি, তাই দুই দিকেই খালি থাকলে সেটি এমন একটি মিল যা আপনি দিচ্ছেন না। দিনের পাশের তীরটি সেই দিনটি মাসের বাকি অংশে কপি করে।',
+  'Save draft': 'খসড়া সংরক্ষণ করুন',
+  'Publish this month': 'এই মাসটি প্রকাশ করুন',
+  'Publishing…': 'প্রকাশ করা হচ্ছে…',
+  'Draft saved': 'খসড়া সংরক্ষিত',
+  '{month} published': '{month} প্রকাশিত হয়েছে',
+  'Customers booking this month will see your menu.':
+    'এই মাস যাঁরা বুক করবেন তাঁরা আপনার মেনু দেখবেন।',
+  'Saved. Publish it when the month is ready.':
+    'সংরক্ষিত। মাসটি প্রস্তুত হলে প্রকাশ করুন।',
+  'Not saved': 'সংরক্ষণ হয়নি',
+  'Nothing to publish yet — a published month with no meals in it shows a customer an empty calendar.':
+    'প্রকাশ করার মতো কিছু নেই — খালি মাস প্রকাশ করলে গ্রাহক একটি ফাঁকা ক্যালেন্ডার দেখবেন।',
+  'Cook the platform’s plan instead': 'বরং প্ল্যাটফর্মের প্ল্যান রাঁধুন',
+  'Cook the platform’s plan for {month}?': '{month} মাসে প্ল্যাটফর্মের প্ল্যান রাঁধবেন?',
+  'Your own menu for this month is removed, and your kitchen follows the platform again — including changes it makes later. Months already booked keep what was agreed.':
+    'এই মাসের জন্য আপনার নিজের মেনু মুছে যাবে, এবং আপনার কিচেন আবার প্ল্যাটফর্ম অনুসরণ করবে — পরে করা পরিবর্তনসহ। আগে বুক হওয়া মাসগুলোতে যা ঠিক হয়েছিল তা-ই থাকবে।',
+  'Use the platform plan': 'প্ল্যাটফর্মের প্ল্যান ব্যবহার করুন',
+  'Not changed': 'বদলায়নি',
+  'Your kitchen follows the platform for this month.':
+    'এই মাসে আপনার কিচেন প্ল্যাটফর্ম অনুসরণ করছে।',
+  'Copy this day down the month': 'এই দিনটি মাসের বাকি অংশে কপি করুন',
+  'What are you cooking?': 'আপনি কী রাঁধছেন?',
+  'What the platform serves — leave this day to them':
+    'প্ল্যাটফর্ম যা দেয় — এই দিনটি তাদের উপরেই ছেড়ে দিন',
+  'No saved dishes for this sitting yet. Type one above — it is offered on every day after this.':
+    'এই বেলার জন্য এখনো কোনো খাবার সংরক্ষিত নেই। উপরে একটি লিখুন — এরপরের প্রতিটি দিনে সেটি দেখানো হবে।',
+  'Set it': 'ঠিক করুন',
+
+  /* ---- the dish list ---- */
+
+  'Reading your list…': 'আপনার তালিকা পড়া হচ্ছে…',
+  'A dish belongs to a category, and the category is part of your service.':
+    'খাবার একটি ক্যাটাগরির অধীনে হয়, আর ক্যাটাগরি আপনার সার্ভিসের অংশ।',
+  'e.g. Chicken Khichuri': 'যেমন চিকেন খিচুড়ি',
+  'Add to my list': 'আমার তালিকায় যোগ করুন',
+  'Adding…': 'যোগ করা হচ্ছে…',
+  'Not added': 'যোগ হয়নি',
+  '{dish} is in your {slot} list.': '{dish} আপনার {slot} তালিকায় যোগ হয়েছে।',
+  Mine: 'আমার',
+  'Nothing of your own yet': 'এখনো নিজের কিছু নেই',
+  'Add the dishes you cook most. They are offered whenever you tap a sitting on your calendar.':
+    'যেসব খাবার সবচেয়ে বেশি রাঁধেন সেগুলো যোগ করুন। ক্যালেন্ডারে কোনো বেলায় ট্যাপ করলেই সেগুলো দেখানো হবে।',
+  'Remove {dish}': '{dish} সরান',
+  'Remove {dish}?': '{dish} সরাবেন?',
+  'It stops being offered when you fill in a calendar. Days that already name it are untouched.':
+    'ক্যালেন্ডার ভরার সময় এটি আর দেখানো হবে না। যেসব দিনে এটি আগেই আছে সেগুলো অপরিবর্তিত থাকবে।',
+  'Remove it': 'সরিয়ে ফেলুন',
+  'Not removed': 'সরানো হয়নি',
+  'From the platform': 'প্ল্যাটফর্ম থেকে',
+  'Suggestions for your category. Tap one to keep it in your own list — you can use any of them on a day either way.':
+    'আপনার ক্যাটাগরির জন্য পরামর্শ। নিজের তালিকায় রাখতে ট্যাপ করুন — যেকোনোটিই যেকোনো দিনে ব্যবহার করতে পারবেন।',
+
+  /* ---- the daily board ---- */
+
+  'Reading your day…': 'আপনার দিনটি পড়া হচ্ছে…',
+  'Previous day': 'আগের দিন',
+  'Next day': 'পরের দিন',
+  '{date}, {n} plates': '{date}, {n} প্লেট',
+  'Nothing booked for this day': 'এই দিনে কিছু বুক হয়নি',
+  'Meals appear here when a customer books a month that includes this date.':
+    'কোনো গ্রাহক এই তারিখসহ একটি মাস বুক করলে মিল এখানে দেখা যাবে।',
+  'Next cooking day — {date}': 'পরের রান্নার দিন — {date}',
+  'Plates today': 'আজকের প্লেট',
+  'Handed over': 'হস্তান্তর হয়েছে',
+  '{done} of {total}': '{total}-এর মধ্যে {done}',
+  'No delivery address on this order': 'এই অর্ডারে কোনো ডেলিভারি ঠিকানা নেই',
+  'Updating…': 'হালনাগাদ হচ্ছে…',
+  'Not updated': 'হালনাগাদ হয়নি',
+  'Handed over. The money moves when the customer confirms they got it.':
+    'হস্তান্তর হয়েছে। গ্রাহক পাওয়ার কথা নিশ্চিত করলেই টাকা আসবে।',
+  'The customer confirmed this one. Payment is with the platform to release.':
+    'গ্রাহক এটি নিশ্চিত করেছেন। টাকা ছাড়ার দায়িত্ব এখন প্ল্যাটফর্মের।',
+  'Marking a meal delivered does not pay you for it. The customer confirms they received it, and the platform releases that meal’s money — one plate at a time, so a good Monday is paid whatever happens on Tuesday.':
+    'পৌঁছে দেওয়া চিহ্নিত করলেই টাকা পাওয়া যায় না। গ্রাহক পাওয়ার কথা নিশ্চিত করেন, তারপর প্ল্যাটফর্ম সেই মিলের টাকা ছাড়ে — এক প্লেট করে, তাই মঙ্গলবার যা-ই হোক ভালো সোমবারের টাকা আপনি পাবেন।',
+
+  /* ---- the customer's new bits ---- */
+
+  'Booking {month}.': '{month} মাসের জন্য।',
+  'Every {slot}': 'প্রতিদিন {slot}',
+  '{n} earlier days have gone — show them': '{n}টি আগের দিন চলে গেছে — দেখান',
+  '{n} picked': '{n}টি বাছা',
+  'Next meal': 'পরের মিল',
+  'Open {meal}': '{meal} খুলুন',
+  'You confirmed this': 'আপনি এটি নিশ্চিত করেছেন',
 };

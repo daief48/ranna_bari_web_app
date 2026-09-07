@@ -573,7 +573,13 @@ export async function operationRoutes(app: FastifyInstance) {
        the release counters are the reason this board exists and counting them
        per row would be a query each. */
     const ids = rows.map((r) => String(r._id));
-    const held = await Order.aggregate<{ _id: string; held: number; released: number; n: number }>([
+    const held = await Order.aggregate<{
+      _id: string;
+      held: number;
+      released: number;
+      releasable: number;
+      n: number;
+    }>([
       { $match: { bookingId: { $in: ids } } },
       {
         $group: {
@@ -581,6 +587,23 @@ export async function operationRoutes(app: FastifyInstance) {
           n: { $sum: 1 },
           held: { $sum: { $cond: [{ $eq: ['$payment', 'held'] }, 1, 0] } },
           released: { $sum: { $cond: [{ $eq: ['$payment', 'released'] }, 1, 0] } },
+          /*
+           * Held *and* confirmed by the customer — the operator's actual queue.
+           *
+           * "Held" alone is most of a live month and says nothing about what
+           * to do; this is the subset somebody is owed money for right now,
+           * and without it the board could only be worked by opening every
+           * booking to see whether any row had a button on it.
+           */
+          releasable: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ['$payment', 'held'] }, { $eq: ['$status', 'completed'] }] },
+                1,
+                0,
+              ],
+            },
+          },
         },
       },
     ]);
@@ -607,6 +630,7 @@ export async function operationRoutes(app: FastifyInstance) {
           orders: counts?.n ?? 0,
           held: counts?.held ?? 0,
           released: counts?.released ?? 0,
+          releasable: counts?.releasable ?? 0,
         };
       }),
       total,

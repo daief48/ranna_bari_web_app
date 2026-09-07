@@ -36,7 +36,7 @@ import { useAuth } from '../../src/store/AuthContext';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { errorText } from '../../src/lib/errors';
 
-import { Divider, Loading, MonthPicker, Panel, Row } from '../../src/features/meal-plan/components';
+import { Chip, Divider, Loading, MonthPicker, Panel, Row } from '../../src/features/meal-plan/components';
 import { bookMeals, fetchMealService } from '../../src/features/meal-plan/api';
 import {
   SLOTS,
@@ -94,7 +94,22 @@ export default function MealServiceScreen() {
   }, [data]);
 
   const today = todayKey();
-  const days = useMemo(() => monthDays(month), [month]);
+  const allDays = useMemo(() => monthDays(month), [month]);
+
+  /*
+   * Days you can still buy, and the ones that have gone.
+   *
+   * Opened mid-month the calendar led with a full screen of greyed rows nobody
+   * can book — six dead days before the first live one. The past is kept, since
+   * "is the 3rd really gone" is a fair question, but it is behind a line rather
+   * than in front of the month.
+   */
+  const [showPast, setShowPast] = useState(false);
+  const pastDays = useMemo(() => allDays.filter((d) => d < today), [allDays, today]);
+  const days = useMemo(
+    () => (showPast ? allDays : allDays.filter((d) => d >= today)),
+    [allDays, showPast, today],
+  );
 
   const toggle = (date, slot) => {
     const key = keyOf(date, slot);
@@ -104,6 +119,32 @@ export default function MealServiceScreen() {
       else next.add(key);
       return next;
     });
+  };
+
+  /**
+   * Take one sitting across the month, up to the maximum.
+   *
+   * "Lunch every day" is the commonest shape of a meal plan and it took twenty
+   * taps down a long scroll. Capped at the maximum rather than refused after
+   * the fact: the rule is the kitchen's, so the shortcut should respect it
+   * instead of building a basket the button then rejects.
+   */
+  const takeSlot = (slot) => {
+    const room = max - picked.size;
+    if (room <= 0) return;
+
+    const additions = [];
+    for (const date of allDays) {
+      if (date < today) continue;
+      const key = keyOf(date, slot);
+      if (picked.has(key) || owned.has(key)) continue;
+      if (!String(planned.get(date)?.[slot] ?? '').trim()) continue;
+      additions.push(key);
+      if (additions.length >= room) break;
+    }
+
+    if (!additions.length) return;
+    setPicked((current) => new Set([...current, ...additions]));
   };
 
   const count = picked.size;
@@ -347,13 +388,45 @@ export default function MealServiceScreen() {
               </Body>
             </Panel>
           ) : (
-            <View style={{ marginTop: 20 }}>
+            <View style={{ marginTop: 18 }}>
+              {/* Whole-month shortcuts. "Lunch every day" is the commonest
+                  shape of a meal plan and it was twenty taps down a scroll. */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {SLOTS.map((slot) => (
+                  <Chip
+                    key={slot}
+                    label={t('Every {slot}', { slot: t(SLOT_LABEL[slot]).toLowerCase() })}
+                    onPress={() => takeSlot(slot)}
+                    disabled={count >= max}
+                  />
+                ))}
+                {count > 0 ? (
+                  <Chip label={t('Clear')} onPress={() => setPicked(new Set())} />
+                ) : null}
+              </View>
+
+              {pastDays.length && !showPast ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setShowPast(true)}
+                  style={({ pressed }) => ({ paddingVertical: 12, opacity: pressed ? 0.7 : 1 })}
+                >
+                  <Text style={{ fontFamily: font.ui, fontSize: 12.5, color: colors.textMuted }}>
+                    {t('{n} earlier days have gone — show them', { n: n(pastDays.length) })}
+                  </Text>
+                </Pressable>
+              ) : null}
+
               {days.map((date) => {
                 const plan = planned.get(date) ?? {};
                 const parts = dayParts(date);
                 const past = date < today;
                 const offered = SLOTS.filter((slot) => String(plan[slot] ?? '').trim());
                 if (!offered.length) return null;
+
+                /* How many of this day the customer has taken, so a day reads
+                   without opening it. */
+                const takenHere = offered.filter((slot) => picked.has(keyOf(date, slot))).length;
 
                 return (
                   <View
@@ -385,6 +458,18 @@ export default function MealServiceScreen() {
                           style={{ fontFamily: font.ui, fontSize: 11.5, color: colors.textMuted }}
                         >
                           {t('gone')}
+                        </Text>
+                      ) : null}
+                      {takenHere ? (
+                        <Text
+                          style={{
+                            marginLeft: 'auto',
+                            fontFamily: font.uiBold,
+                            fontSize: 11.5,
+                            color: colors.sage,
+                          }}
+                        >
+                          {t('{n} picked', { n: n(takenHere) })}
                         </Text>
                       ) : null}
                     </View>

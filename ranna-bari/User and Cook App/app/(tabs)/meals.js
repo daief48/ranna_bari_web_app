@@ -29,6 +29,7 @@ import { useLang } from '../../src/i18n/LanguageContext';
 import { makeMatcher } from '../../src/lib/search';
 
 import { Chip, ChipRow, Empty, Loading, Panel } from '../../src/features/meal-plan/components';
+import { SLOT_LABEL, dateLabel, monthLabel } from '../../src/features/meal-plan/format';
 import { fetchMealServices } from '../../src/features/meal-plan/api';
 
 export default function MealsTab() {
@@ -226,11 +227,65 @@ export default function MealsTab() {
                       </View>
                     </View>
 
+                    {/*
+                      The food, before the terms.
+
+                      This card sold a month on a rate and a range, which is
+                      the half of the decision a customer cares about least.
+                      What a kitchen actually cooks is the reason to choose it,
+                      and it was a tap away for no reason — the calendar is
+                      already resolved server-side to fill this in.
+                    */}
+                    {service.upcoming?.length ? (
+                      <View
+                        style={{
+                          marginTop: 12,
+                          paddingTop: 10,
+                          borderTopWidth: 1,
+                          borderTopColor: colors.line,
+                          gap: 3,
+                        }}
+                      >
+                        {service.upcoming.map((meal) => (
+                          <View
+                            key={`${meal.date}-${meal.slot}`}
+                            style={{ flexDirection: 'row', gap: 8 }}
+                          >
+                            {/* One line, always. "7 Sept · Breakfast" wrapped
+                                in a narrower column, which turned a three-row
+                                preview into six ragged ones. */}
+                            <Text
+                              numberOfLines={1}
+                              style={{
+                                width: 112,
+                                fontFamily: font.ui,
+                                fontSize: 11.5,
+                                color: colors.textMuted,
+                              }}
+                            >
+                              {dateLabel(meal.date)} · {t(SLOT_LABEL[meal.slot] ?? meal.slot)}
+                            </Text>
+                            <Text
+                              numberOfLines={1}
+                              style={{
+                                flex: 1,
+                                fontFamily: font.ui,
+                                fontSize: 13,
+                                color: colors.text,
+                              }}
+                            >
+                              {meal.name}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+
                     {/* The commitment, said plainly — it is the half of this
                         decision a menu photograph cannot answer. */}
                     <View
                       style={{
-                        marginTop: 12,
+                        marginTop: 10,
                         paddingTop: 10,
                         borderTopWidth: 1,
                         borderTopColor: colors.line,
@@ -248,6 +303,7 @@ export default function MealsTab() {
                               low: n(service.rate * service.minMeals),
                               high: n(service.rate * service.maxMeals),
                             })}
+                        {service.month ? ` ${t('Booking {month}.', { month: monthLabel(service.month) })}` : ''}
                       </Body>
                     </View>
                   </Panel>

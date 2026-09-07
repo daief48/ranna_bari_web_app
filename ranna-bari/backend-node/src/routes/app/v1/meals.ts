@@ -221,6 +221,11 @@ const shapeOffer = (
   minMeals: service.minMeals,
   maxMeals: service.maxMeals,
   active: !!service.active,
+  /* Filled in by the list endpoint, which resolves each kitchen's calendar.
+     Declared here so every offer has the same shape whether or not a plan
+     could be read. */
+  month: '' as string,
+  upcoming: [] as { date: string; slot: string; name: string }[],
 });
 
 type BookingLike = {
@@ -228,6 +233,7 @@ type BookingLike = {
   code: string;
   customerKey: string;
   customerName: string;
+  address?: unknown;
   kitchenId: string;
   cookName: string;
   categoryKey: string;
@@ -289,6 +295,8 @@ async function shapeBookings(rows: BookingLike[], opts: { reviewed?: boolean } =
     kitchenName: byKitchen.get(b.kitchenId) ?? '',
     cookName: b.cookName,
     customerName: b.customerName,
+    /* The receipt should be able to say where a month of food is going. */
+    address: b.address ?? null,
     categoryKey: b.categoryKey,
     categoryLabel: b.categoryLabel,
     month: b.month,
@@ -381,6 +389,41 @@ export async function mealRoutes(app: FastifyInstance) {
          show and cannot be booked — `bookMeals` refuses it too. */
       .filter((row) => row.rate > 0)
       .sort((a, b) => b.rating - a.rating);
+
+    /*
+     * A taste of each kitchen's month.
+     *
+     * The list sold a month on a rate and a range, and left the food — the one
+     * thing a customer is actually choosing between — behind a tap. This
+     * resolves each kitchen's live calendar and hands back the next few dishes
+     * it will serve, which is what a card needs to be worth comparing.
+     *
+     * The plans are resolved in parallel and the whole block is best-effort:
+     * a kitchen whose calendar cannot be read still belongs on the list, it
+     * just shows its price and nothing else.
+     */
+    const month = monthFrom(undefined);
+    const today = todayKey();
+
+    await Promise.all(
+      rows.map(async (row) => {
+        const plan = await resolvePlan(row.kitchenId, row.categoryKey, month).catch(() => null);
+        if (!plan) return;
+
+        const upcoming: { date: string; slot: string; name: string }[] = [];
+        for (const day of plan.days ?? []) {
+          if (day.date < today) continue;
+          for (const slot of ['breakfast', 'lunch', 'dinner'] as const) {
+            const name = String(day[slot] ?? '').trim();
+            if (name) upcoming.push({ date: day.date, slot, name });
+          }
+          if (upcoming.length >= 3) break;
+        }
+
+        row.month = month;
+        row.upcoming = upcoming.slice(0, 3);
+      }),
+    );
 
     return { services: rows };
   });
@@ -813,9 +856,47 @@ export async function mealRoutes(app: FastifyInstance) {
 
     rows.sort((a, b) => slotOrder(a.slot ?? '') - slotOrder(b.slot ?? ''));
 
+    /*
+     * The week around this day, and the next day there is anything to cook.
+     *
+     * Bookings are sparse by design — a customer takes three to seven days out
+     * of thirty — so an empty day is the *common* answer, and a board that
+     * could only step forward one day at a time made a cook tap through three
+     * blanks to discover Thursday. One grouped pass gives the strip its counts
+     * and finds the next working day in the same query.
+     */
+    const from = new Date(`${date}T00:00:00Z`);
+    const weekDates: string[] = [];
+    for (let i = 0; i < 7; i += 1) {
+      const at = new Date(from);
+      at.setUTCDate(at.getUTCDate() + i);
+      weekDates.push(at.toISOString().slice(0, 10));
+    }
+
+    const ahead = await Order.aggregate<{ _id: string; n: number }>([
+      {
+        $match: {
+          kitchenId: cook.kitchenId,
+          kind: 'meal',
+          status: { $ne: 'cancelled' },
+          /* The strip plus everything after it, so `next` can look past the
+             seven days the strip happens to show. */
+          serveDate: { $gte: date },
+        },
+      },
+      { $group: { _id: '$serveDate', n: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const byDate = new Map(ahead.map((row) => [row._id, row.n]));
+
     return {
       date,
       orders: rows.map((row) => shapeOrder(row as unknown as OrderDoc & { _id: unknown })),
+      week: weekDates.map((d) => ({ date: d, count: byDate.get(d) ?? 0 })),
+      /* The first day from here on with a plate on it — null when the rest of
+         the calendar is empty, which is a different sentence to say. */
+      next: ahead.find((row) => row._id > date)?._id ?? null,
     };
   });
 }

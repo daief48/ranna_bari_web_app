@@ -11,23 +11,29 @@ import { useAlert } from '../../src/components/Alert';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font } from '../../src/theme/tokens';
 import { useSession } from '../../src/store/SessionContext';
+import { useLang } from '../../src/i18n/LanguageContext';
 
 import {
-  Divider,
+  Chip,
   GroupLabel,
   Loading,
   MonthPicker,
   Panel,
-  PlanDayRow,
-  Row,
 } from '../../src/features/meal-plan/components';
-import { clearMyPlan, fetchMyPlan, saveMyPlan } from '../../src/features/meal-plan/api';
+import { DishSheet, Explainer, PlanDayTapRow } from '../../src/features/meal-plan/editor';
+import {
+  clearMyPlan,
+  fetchMyDishes,
+  fetchMyPlan,
+  saveMyPlan,
+} from '../../src/features/meal-plan/api';
 import {
   countMeals,
   currentMonth,
   daysByDate,
   monthLabel,
   spreadMonth,
+  todayKey,
 } from '../../src/features/meal-plan/format';
 
 /**
@@ -36,23 +42,29 @@ import {
  * Three things the specification asks for, and they are the same screen rather
  * than three: cook the platform's plan as it stands, change some of it, or
  * write the whole month yourself. The difference between them is only how many
- * fields you fill in, so making them three flows would be inventing a decision
- * the cook does not actually have to make up front.
+ * days you touch, so making them three flows would invent a decision the cook
+ * does not actually have to make up front.
  *
- * An empty field means "serve what the platform serves that day", which is why
- * the platform's dish is the placeholder rather than a dash: a cook can see
- * what they are replacing while the box is still empty, and clearing a box is
- * how you go back to it for one slot.
+ * ## Filling it has to be cheap
  *
- * Saving writes a document of the cook's own. The platform's calendar is never
- * touched by anything here — that is the whole point of the copy — and
- * "Cook the platform's plan" deletes the copy rather than blanking it, so the
- * kitchen follows the platform again including changes made later.
+ * Thirty days by three sittings is ninety decisions, and the first version
+ * asked for all ninety as free text. Three things make that survivable now, and
+ * all three exist because a real menu is a weekly rotation rather than ninety
+ * separate ideas: tapping a sitting offers this cook's own dishes, a day can be
+ * copied down the rest of the month, and one week can be repeated across it.
+ *
+ * ## What an untouched day means
+ *
+ * The platform's dish, shown through in muted type. Saving copies it into the
+ * cook's own month — `resolvePlan` does not merge the two calendars, so a
+ * published plan that named only one Tuesday would have cancelled the other
+ * thirty days without saying so.
  */
 export default function CookMealPlan() {
   const router = useRouter();
   const { token } = useSession();
   const { colors } = useTheme();
+  const { t, n } = useLang();
   const alert = useAlert();
 
   const [month, setMonth] = useState(currentMonth());
@@ -63,19 +75,23 @@ export default function CookMealPlan() {
   const [status, setStatus] = useState(null);
   const [categoryKey, setCategoryKey] = useState(null);
   const [dirty, setDirty] = useState(false);
+  const [dishes, setDishes] = useState({ system: [], mine: [] });
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
-    const out = await fetchMyPlan(token, month);
-    if (out.ok) {
-      const { cookPlan, systemPlan, categoryKey: key } = out.result;
+    const [plan, library] = await Promise.all([fetchMyPlan(token, month), fetchMyDishes(token)]);
+
+    if (plan.ok) {
+      const { cookPlan, systemPlan, categoryKey: key } = plan.result;
       setCategoryKey(key);
       setStatus(cookPlan?.status ?? null);
       setSystemDays(systemPlan?.days ?? []);
       setDays(spreadMonth(month, cookPlan?.days ?? []));
       setDirty(false);
     }
+    if (library.ok) setDishes({ system: library.result.system ?? [], mine: library.result.mine ?? [] });
     setLoading(false);
   }, [token, month]);
 
@@ -85,35 +101,71 @@ export default function CookMealPlan() {
 
   const systemBy = useMemo(() => daysByDate(systemDays), [systemDays]);
 
-  const change = (date, slot, value) => {
+  /* What the sheet offers for a sitting: this cook's own dishes first, then
+     the platform's, then anything already written elsewhere in this month —
+     a name typed on the 3rd is the likeliest answer again on the 10th. */
+  const suggestionsFor = useCallback(
+    (slot) => {
+      const mine = dishes.mine.filter((d) => d.type === slot).map((d) => d.name);
+      const system = dishes.system.filter((d) => d.type === slot).map((d) => d.name);
+      const used = days.map((d) => String(d[slot] ?? '').trim()).filter(Boolean);
+      return [...mine, ...system, ...used];
+    },
+    [dishes, days],
+  );
+
+  const setSlot = (date, slot, value) => {
     setDays((rows) => rows.map((row) => (row.date === date ? { ...row, [slot]: value } : row)));
     setDirty(true);
   };
 
-  /** Start from the platform's month, then edit it — the common way in. */
-  const copySystem = () => {
-    setDays(spreadMonth(month, systemDays));
+  /** This day's three sittings, onto every date after it. */
+  const copyDown = (from) => {
+    setDays((rows) => {
+      const source = rows.find((r) => r.date === from);
+      if (!source) return rows;
+      let reached = false;
+      return rows.map((row) => {
+        if (row.date === from) {
+          reached = true;
+          return row;
+        }
+        if (!reached) return row;
+        return { ...row, breakfast: source.breakfast, lunch: source.lunch, dinner: source.dinner };
+      });
+    });
     setDirty(true);
+    alert.success(t('Copied down to the end of the month.'));
+  };
+
+  /**
+   * The first seven days, repeated to the end.
+   *
+   * By position rather than by weekday: a cook filling "week one" fills the
+   * first seven rows they see, and matching those to the 8th, 15th and 22nd is
+   * what they mean by repeating it.
+   */
+  const repeatWeek = () => {
+    setDays((rows) => {
+      const week = rows.slice(0, 7);
+      if (!week.length) return rows;
+      return rows.map((row, i) => {
+        if (i < 7) return row;
+        const source = week[i % 7];
+        return { ...row, breakfast: source.breakfast, lunch: source.lunch, dinner: source.dinner };
+      });
+    });
+    setDirty(true);
+    alert.success(t('The first week now repeats across the month.'));
   };
 
   const save = async (publish) => {
     setBusy(true);
 
-    /*
-     * Blanks filled from the platform's month before this is sent.
-     *
-     * `resolvePlan` on the server does not merge the two calendars — a
-     * published cook plan wins for the whole month, and whatever it does not
-     * name is simply not on offer. So a cook who changed one Tuesday dinner
-     * and pressed Publish would have cancelled the other thirty days without
-     * being told, which is the opposite of what the empty boxes on this screen
-     * promise.
-     *
-     * Filling them here makes the promise literal: the stored month is exactly
-     * what the cook was looking at. It is a copy taken now rather than a live
-     * link, which is the honest reading of "publish my own month" — a later
-     * platform edit does not reach through it.
-     */
+    /* Blanks filled from the platform's month before this is sent, so the
+       stored month is exactly what the cook was looking at. A copy taken now
+       rather than a live link — which is the honest reading of publishing your
+       own month, and the only reading `resolvePlan` supports. */
     const filled = days.map((day) => {
       const base = systemBy.get(day.date) ?? {};
       return {
@@ -124,52 +176,47 @@ export default function CookMealPlan() {
       };
     });
 
-    /* Days with nothing on them from either side are dropped: a month of
-       blanks is a month with no override in it, and storing thirty-one empty
-       rows would make "I have my own plan" true of a cook who wrote nothing. */
     const written = filled.filter((d) => d.breakfast || d.lunch || d.dinner);
     const out = await saveMyPlan(token, { month, days: written, publish });
     setBusy(false);
 
     if (!out.ok) {
-      alert.error(out.message ?? 'That did not work.', 'Not saved');
+      alert.error(out.message ?? t('That did not work.'), t('Not saved'));
       return;
     }
     setDirty(false);
     setStatus(publish ? 'published' : 'draft');
     alert.success(
       publish
-        ? 'Customers booking this month will see your menu.'
-        : 'Saved. Publish it when the month is ready.',
-      publish ? `${monthLabel(month)} published` : 'Draft saved',
+        ? t('Customers booking this month will see your menu.')
+        : t('Saved. Publish it when the month is ready.'),
+      publish ? t('{month} published', { month: monthLabel(month) }) : t('Draft saved'),
     );
   };
 
   const revert = () => {
     alert.confirm({
-      title: `Cook the platform's plan for ${monthLabel(month)}?`,
-      body: 'Your own menu for this month is removed, and your kitchen follows the platform again — including any changes it makes later. Months already booked keep what was agreed.',
-      confirmLabel: 'Use the platform plan',
+      title: t('Cook the platform’s plan for {month}?', { month: monthLabel(month) }),
+      body: t(
+        'Your own menu for this month is removed, and your kitchen follows the platform again — including changes it makes later. Months already booked keep what was agreed.',
+      ),
+      confirmLabel: t('Use the platform plan'),
       danger: true,
       onConfirm: async () => {
         setBusy(true);
         const out = await clearMyPlan(token, month);
         setBusy(false);
         if (!out.ok) {
-          alert.error(out.message ?? 'That did not work.', 'Not changed');
+          alert.error(out.message ?? t('That did not work.'), t('Not changed'));
           return;
         }
         await load();
-        alert.success('Your kitchen follows the platform for this month.');
+        alert.success(t('Your kitchen follows the platform for this month.'));
       },
     });
   };
 
-  /* Two different questions, and the second is the one that matters before
-     publishing: how many meals this kitchen would actually be offering, which
-     is what the cook typed plus what the platform fills in behind it. */
   const typed = countMeals(days);
-  const platform = countMeals(spreadMonth(month, systemDays));
   const offering = countMeals(
     days.map((day) => {
       const base = systemBy.get(day.date) ?? {};
@@ -181,14 +228,23 @@ export default function CookMealPlan() {
     }),
   );
   const hasOwn = status != null;
+  const today = todayKey();
+
+  /* One sentence, where three counters used to be. What a cook needs to know
+     on arriving is whose menu is live, not the arithmetic behind it. */
+  const standing = !hasOwn
+    ? t('Cooking the platform’s menu this month.')
+    : status === 'published'
+      ? t('Your own menu is live for this month.')
+      : t('Your own menu is saved as a draft — customers still see the platform’s.');
 
   return (
     <Screen>
       <Container>
         <SectionHeader
-          lead="MY"
-          accent="CALENDAR"
-          subtitle="What you cook each day, and what a customer picks from."
+          lead={t('MY')}
+          accent={t('CALENDAR')}
+          subtitle={t('What you cook each day, and what a customer picks from.')}
           style={{ marginTop: 16 }}
         />
 
@@ -197,16 +253,15 @@ export default function CookMealPlan() {
         </View>
 
         {loading ? (
-          <Loading label="Reading the month…" />
+          <Loading label={t('Reading the month…')} />
         ) : !categoryKey ? (
           <Panel style={{ marginTop: 22 }}>
-            <Body>You have not started a meal service yet.</Body>
+            <Body>{t('You have not started a meal service yet.')}</Body>
             <Body muted style={{ marginTop: 6, lineHeight: 19 }}>
-              A calendar belongs to a category, and the category is part of your
-              service. Set that up and this month opens for editing.
+              {t('A calendar belongs to a category, and the category is part of your service.')}
             </Body>
             <Button
-              label="Set up my meal service"
+              label={t('Set up my meal service')}
               block
               style={{ marginTop: 14 }}
               onPress={() => router.push('/cook/meal-service')}
@@ -216,74 +271,64 @@ export default function CookMealPlan() {
           <>
             <Reveal delay={1}>
               <Panel style={{ marginTop: 18 }} tone={status === 'published' ? 'good' : undefined}>
-                <Row
-                  label="This month you are cooking"
-                  value={hasOwn ? 'your own menu' : "the platform's"}
-                  strong
-                  tone={hasOwn ? 'good' : undefined}
-                />
-                <Row label="Meals you would be offering" value={String(offering)} strong />
-                <Row label="Of those, changed by you" value={String(typed)} />
-                <Row label="Meals the platform publishes" value={String(platform)} />
-                {hasOwn ? (
-                  <>
-                    <Divider />
-                    <Row
-                      label="Your menu is"
-                      value={status === 'published' ? 'published' : 'a draft'}
-                      tone={status === 'published' ? 'good' : 'warn'}
-                    />
-                  </>
-                ) : null}
+                <Text style={{ fontFamily: font.uiBold, fontSize: 14.5, color: colors.text }}>
+                  {standing}
+                </Text>
+                <Body muted style={{ marginTop: 4, fontSize: 12.5 }}>
+                  {t('{n} meals on offer', { n: n(offering) })}
+                  {typed > 0 ? t(' · {n} changed by you', { n: n(typed) }) : ''}
+                </Body>
                 {dirty ? (
                   <Body style={{ marginTop: 8, color: colors.saffron, fontSize: 12.5 }}>
-                    Unsaved changes.
+                    {t('Unsaved changes.')}
                   </Body>
                 ) : null}
               </Panel>
             </Reveal>
 
-            {platform === 0 ? (
-              <Body muted style={{ marginTop: 12, fontSize: 12.5, lineHeight: 18 }}>
-                The platform has not published a calendar for this month, so there is
-                nothing underneath yours. Anything you leave blank has no meal on it.
-              </Body>
-            ) : (
-              <Button
-                label="Start from the platform's month"
-                variant="glass"
-                block
-                disabled={busy}
-                style={{ marginTop: 12 }}
-                onPress={copySystem}
-              />
-            )}
-
             <Reveal delay={2}>
-              <GroupLabel text={monthLabel(month)} style={{ marginTop: 26 }} />
-              <Body muted style={{ marginTop: 6, fontSize: 12.5, lineHeight: 18 }}>
-                Leave a box empty to serve what the platform serves that day — the
-                faint text is what that is, and it is copied into your month when you
-                save. Publishing replaces the platform&rsquo;s calendar for your
-                kitchen, so anything blank on both sides is a meal you are not
-                offering.
-              </Body>
+              <GroupLabel text={t('Fill it quickly')} style={{ marginTop: 26 }} />
+              {/* Wrapped, not scrolled. A horizontal rail cut the second
+                  action off mid-word at the screen edge with nothing to say it
+                  scrolled, which reads as a rendering fault. */}
+              <View
+                style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}
+              >
+                <Chip label={t('Repeat the first week')} onPress={repeatWeek} disabled={busy} />
+                <Chip
+                  label={t('Start from the platform’s month')}
+                  onPress={() => {
+                    setDays(spreadMonth(month, systemDays));
+                    setDirty(true);
+                  }}
+                  disabled={busy || systemDays.length === 0}
+                />
+              </View>
+              <Explainer summary={t('Tap any sitting to pick a dish. How this works →')}>
+                {t('An untouched day shows the platform’s dish in grey and is copied into your month when you save. Publishing replaces the platform’s calendar for your kitchen, so anything blank on both sides is a meal you are not offering. The arrow beside a day copies it down the rest of the month.')}
+              </Explainer>
+            </Reveal>
 
+            <Reveal delay={3}>
+              <GroupLabel text={monthLabel(month)} style={{ marginTop: 24 }} />
               <View style={{ marginTop: 10 }}>
                 {days.map((day) => (
-                  <PlanDayRow
+                  <PlanDayTapRow
                     key={day.date}
                     day={day}
                     placeholders={systemBy.get(day.date)}
-                    onChange={change}
+                    onOpen={(date, slot) => setEditing({ date, slot })}
+                    onCopyDown={copyDown}
                     disabled={busy}
+                    dim={day.date < today}
+                    t={t}
                   />
                 ))}
               </View>
             </Reveal>
 
             <Button
-              label={busy ? 'Saving…' : 'Save draft'}
+              label={busy ? t('Saving…') : t('Save draft')}
               variant="glass"
               block
               disabled={busy}
@@ -291,7 +336,7 @@ export default function CookMealPlan() {
               onPress={() => save(false)}
             />
             <Button
-              label={busy ? 'Publishing…' : 'Publish this month'}
+              label={busy ? t('Publishing…') : t('Publish this month')}
               block
               disabled={busy || offering === 0}
               style={{ marginTop: 10 }}
@@ -300,39 +345,37 @@ export default function CookMealPlan() {
 
             {offering === 0 ? (
               <Body muted style={{ marginTop: 8, fontSize: 12.5 }}>
-                Nothing to publish yet — a published month with no meals in it would
-                show a customer an empty calendar.
+                {t('Nothing to publish yet — a published month with no meals in it shows a customer an empty calendar.')}
               </Body>
             ) : null}
 
             {hasOwn ? (
               <Button
-                label="Cook the platform's plan instead"
+                label={t('Cook the platform’s plan instead')}
                 variant="glass"
                 block
                 disabled={busy}
-                style={{ marginTop: 10, marginBottom: 8 }}
+                style={{ marginTop: 10, marginBottom: 26 }}
                 onPress={revert}
               />
-            ) : null}
-
-            <Text
-              style={{
-                marginTop: 14,
-                marginBottom: 26,
-                fontFamily: font.ui,
-                fontSize: 12,
-                lineHeight: 18,
-                color: colors.textMuted,
-              }}
-            >
-              Editing here never changes the platform&rsquo;s calendar — yours is a
-              separate copy. A month somebody has already booked keeps the menu and the
-              price it was booked at, whatever you change afterwards.
-            </Text>
+            ) : (
+              <View style={{ height: 26 }} />
+            )}
           </>
         )}
       </Container>
+
+      <DishSheet
+        open={!!editing}
+        slot={editing?.slot}
+        date={editing?.date}
+        value={editing ? days.find((d) => d.date === editing.date)?.[editing.slot] : ''}
+        suggestions={editing ? suggestionsFor(editing.slot) : []}
+        fallback={editing ? systemBy.get(editing.date)?.[editing.slot] : ''}
+        onPick={(value) => setSlot(editing.date, editing.slot, value)}
+        onClose={() => setEditing(null)}
+        t={t}
+      />
     </Screen>
   );
 }

@@ -44,6 +44,15 @@ export function MealCategoryEditor({
   const [rate, setRate] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState({ label: '', rate: '' });
+  const [showRetired, setShowRetired] = useState(false);
+
+  /* Retired rows kept, but out of the way. They are never deleted — every
+     service, calendar and booking stores the key — so over time they
+     accumulate, and they were taking the same space as the live ones while
+     being the rows an operator almost never wants. */
+  const live = categories.filter((c) => !c.retired);
+  const retired = categories.filter((c) => c.retired);
+  const shown = showRetired ? [...live, ...retired] : live;
 
   return (
     <div>
@@ -74,7 +83,7 @@ export function MealCategoryEditor({
       ) : null}
 
       <ul className="divide-y divide-line2">
-        {categories.map((category) => {
+        {shown.map((category) => {
           const isEditing = editing === category.id;
 
           return (
@@ -180,6 +189,18 @@ export function MealCategoryEditor({
           );
         })}
       </ul>
+
+      {retired.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => setShowRetired((v) => !v)}
+          className="w-full border-t border-line px-4 py-2.5 text-left text-[12.5px] text-ink3 hover:text-ink"
+        >
+          {showRetired
+            ? 'Hide retired'
+            : `${retired.length} retired ${retired.length === 1 ? 'category' : 'categories'} — show`}
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -13,7 +13,7 @@
  * what was actually paid.
  */
 import React, { useCallback, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../../src/components/Screen';
@@ -29,7 +29,7 @@ import { useLang } from '../../src/i18n/LanguageContext';
 
 import { Divider, Loading, Panel, Row } from '../../src/features/meal-plan/components';
 import { fetchMyBooking } from '../../src/features/meal-plan/api';
-import { SLOT_LABEL, dateLabel, monthLabel } from '../../src/features/meal-plan/format';
+import { SLOT_LABEL, monthLabel, relativeDay, todayKey } from '../../src/features/meal-plan/format';
 
 /** What a meal's state means to the person who bought it. */
 function itemState(item, t) {
@@ -37,7 +37,7 @@ function itemState(item, t) {
   if (item.payment === 'refunded') return { label: t('Refunded'), tone: 'bad' };
   if (item.status === 'completed') {
     return item.payment === 'released'
-      ? { label: t('Done — cook paid'), tone: 'good' }
+      ? { label: t('You confirmed this'), tone: 'good' }
       : { label: t('Confirmed — releasing'), tone: 'good' };
   }
   if (item.status === 'delivered') return { label: t('Delivered — confirm it'), tone: 'warn' };
@@ -122,6 +122,13 @@ export default function MealBookingScreen() {
   const held = booking.items.filter((it) => it.payment === 'held');
   const done = booking.items.filter((it) => it.payment === 'released');
 
+  /* The question this screen is opened with. It was answerable from data
+     already on the page and buried as whichever row happened to be second. */
+  const today = todayKey();
+  const next = booking.items
+    .filter((it) => it.status !== 'cancelled' && it.status !== 'completed' && it.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+
   return (
     <Screen>
       <Container>
@@ -140,6 +147,18 @@ export default function MealBookingScreen() {
             <Body muted style={{ marginTop: 4, lineHeight: 19 }}>
               {t('The cook has handed these over. Confirming each one pays them for it.')}
             </Body>
+          </Panel>
+        ) : next ? (
+          <Panel style={{ marginTop: 18 }}>
+            <Body muted style={{ fontSize: 12.5 }}>
+              {t('Next meal')}
+            </Body>
+            <Text
+              style={{ fontFamily: font.uiBold, fontSize: 16, color: colors.text, marginTop: 2 }}
+            >
+              {relativeDay(next.date, t)} · {t(SLOT_LABEL[next.slot] ?? next.slot)}
+            </Text>
+            <Body style={{ marginTop: 2 }}>{next.name || t('Meal')}</Body>
           </Panel>
         ) : null}
 
@@ -165,6 +184,17 @@ export default function MealBookingScreen() {
             value={`৳${n(done.reduce((s, it) => s + it.amount, 0))}`}
             tone="good"
           />
+          {/* Where a month of food is going. Worth being able to check on the
+              receipt for it, rather than only at the moment of buying. */}
+          {booking.address?.line ? (
+            <>
+              <Divider />
+              <Row
+                label={t('Delivering to')}
+                value={[booking.address.line, booking.address.area].filter(Boolean).join(', ')}
+              />
+            </>
+          ) : null}
         </Panel>
 
         <View style={{ marginTop: 22, gap: 10 }}>
@@ -174,13 +204,20 @@ export default function MealBookingScreen() {
 
             return (
               <Panel key={item.orderId} tone={canConfirm ? 'warn' : undefined}>
-                <View
-                  style={{
+                {/* The whole row opens the order. The footer told people to
+                    "raise it with support from the order itself" while nothing
+                    on the screen was a way in. */}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('Open {meal}', { meal: item.name || t('this meal') })}
+                  onPress={() => router.push(`/meal-order/${item.orderId}`)}
+                  style={({ pressed }) => ({
                     flexDirection: 'row',
                     alignItems: 'flex-start',
                     justifyContent: 'space-between',
                     gap: 12,
-                  }}
+                    opacity: pressed ? 0.7 : 1,
+                  })}
                 >
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text
@@ -189,7 +226,7 @@ export default function MealBookingScreen() {
                       {item.name || t('Meal')}
                     </Text>
                     <Body muted style={{ fontSize: 12.5, marginTop: 2 }}>
-                      {dateLabel(item.date)} · {t(SLOT_LABEL[item.slot] ?? item.slot)}
+                      {relativeDay(item.date, t)} · {t(SLOT_LABEL[item.slot] ?? item.slot)}
                     </Body>
                   </View>
 
@@ -217,7 +254,7 @@ export default function MealBookingScreen() {
                       {state.label}
                     </Text>
                   </View>
-                </View>
+                </Pressable>
 
                 {canConfirm ? (
                   <Button

@@ -38,6 +38,8 @@ type Booking = {
   orders: number;
   held: number;
   released: number;
+  /** Held *and* confirmed by the customer — the queue this board is worked from. */
+  releasable: number;
 };
 
 const monthLabel = (month: string) =>
@@ -88,6 +90,11 @@ export default async function MealBookingsPage({
   const held = bookings.reduce((sum, b) => sum + b.held, 0);
   const meals = bookings.reduce((sum, b) => sum + b.meals, 0);
   const money = bookings.reduce((sum, b) => sum + b.total, 0);
+  /* The operator's actual daily job, which the board previously did not
+     surface at all: meals the customer has confirmed and the cook is owed
+     for. "Held" is most of a live month and says nothing about what to do. */
+  const releasable = bookings.reduce((sum, b) => sum + b.releasable, 0);
+  const waiting = bookings.filter((b) => b.releasable > 0);
 
   return (
     <>
@@ -97,16 +104,45 @@ export default async function MealBookingsPage({
       />
 
       <Grid cols={4}>
-        <Stat label="Bookings" value={total} />
-        <Stat label="Meals sold" value={meals} sub="across the bookings shown" />
+        <Stat
+          label="Ready to release"
+          value={releasable}
+          tone={releasable ? 'bad' : 'good'}
+          sub={
+            releasable
+              ? `confirmed by the customer, across ${waiting.length} ${waiting.length === 1 ? 'booking' : 'bookings'}`
+              : 'nothing waiting on you'
+          }
+        />
         <Stat
           label="Meals still held"
           value={held}
           tone={held ? 'warn' : 'good'}
-          sub={held ? 'waiting on delivery, confirmation or release' : 'nothing outstanding'}
+          sub={held ? 'including the ones not yet delivered' : 'nothing outstanding'}
         />
+        <Stat label="Meals sold" value={meals} sub={`across ${total} bookings`} />
         <Stat label="Booked value" value={taka(money)} />
       </Grid>
+
+      {waiting.length > 0 ? (
+        <div className="mt-3 rounded-[10px] border border-sage-100 bg-sage-50 px-3.5 py-2.5 text-[13px] text-ink2">
+          <strong className="text-sage">
+            {releasable} {releasable === 1 ? 'meal is' : 'meals are'} ready to release.
+          </strong>{' '}
+          {waiting.map((b, i) => (
+            <span key={b.id}>
+              {i > 0 ? ', ' : ''}
+              <Link
+                href={`/meal-bookings/${b.id}`}
+                className="font-semibold text-sage hover:underline"
+              >
+                {b.code}
+              </Link>
+              <span className="tnum"> ({b.releasable})</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       <Card
         className="mt-3"
@@ -144,14 +180,23 @@ export default async function MealBookingsPage({
               <td>
                 <Money amount={booking.total} />
               </td>
+              {/* Both halves. A booking with one meal released and two held
+                  read "2 held" — identical to one where nothing had moved. */}
               <td className="whitespace-nowrap">
-                {booking.held > 0 ? (
-                  <Badge tone="warn">{booking.held} held</Badge>
-                ) : booking.released > 0 ? (
-                  <Badge tone="good">all released</Badge>
-                ) : (
-                  <span className="text-ink3">—</span>
-                )}
+                <span className="flex flex-wrap items-center gap-1">
+                  {booking.releasable > 0 ? (
+                    <Badge tone="bad">{booking.releasable} to release</Badge>
+                  ) : null}
+                  {booking.held - booking.releasable > 0 ? (
+                    <Badge tone="warn">{booking.held - booking.releasable} held</Badge>
+                  ) : null}
+                  {booking.released > 0 ? (
+                    <Badge tone="good">{booking.released} paid</Badge>
+                  ) : null}
+                  {booking.held === 0 && booking.released === 0 ? (
+                    <span className="text-ink3">—</span>
+                  ) : null}
+                </span>
               </td>
               <td>
                 <StatusBadge status={booking.status} />

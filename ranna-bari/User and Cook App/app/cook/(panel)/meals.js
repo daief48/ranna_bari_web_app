@@ -5,9 +5,13 @@
  * making, how many, and for whom — and it is a *day*, not a catalogue: a month
  * somebody booked is thirty separate plates, and only today's are work.
  *
- * The previous version of this file listed published meals off the per-plate
- * board, which the monthly meal system replaced. Its endpoints are gone; this
- * reads the cook's own day off `/meal-orders`.
+ * ## Why there is a week strip
+ *
+ * Bookings are sparse by design: a customer takes three to seven days out of
+ * thirty, so most days are empty and the empty day is the common case. Stepping
+ * one day at a time meant a cook on the 7th tapped through three blank screens
+ * to find out about the 10th. The strip carries a plate count per day, and when
+ * today is empty the screen says outright which day is not.
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -25,23 +29,19 @@ import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius } from '../../../src/theme/tokens';
 import { useSession } from '../../../src/store/SessionContext';
 import { useOrders } from '../../../src/store/OrdersContext';
+import { useLang } from '../../../src/i18n/LanguageContext';
 
-import {
-  Empty,
-  GroupLabel,
-  Loading,
-  Panel,
-  Row,
-} from '../../../src/features/meal-plan/components';
+import { Empty, GroupLabel, Loading, Panel, Row } from '../../../src/features/meal-plan/components';
 import { fetchMealOrders } from '../../../src/features/meal-plan/api';
 import {
   SLOTS,
   SLOT_LABEL,
   dateLabel,
+  dayParts,
   todayKey,
 } from '../../../src/features/meal-plan/format';
 
-/** A day either side of today. Yesterday matters: a late delivery is normal. */
+/** A day either side. Yesterday matters: a late handover is ordinary. */
 function shiftDay(date, delta) {
   const at = new Date(`${date}T00:00:00Z`);
   at.setUTCDate(at.getUTCDate() + delta);
@@ -53,16 +53,17 @@ export default function CookMeals() {
   const router = useRouter();
   const { token } = useSession();
   const { advanceOrder } = useOrders();
+  const { t, n } = useLang();
   const alert = useAlert();
 
   const [date, setDate] = useState(todayKey());
-  const [orders, setOrders] = useState(null);
+  const [data, setData] = useState(null);
   const [busy, setBusy] = useState(null);
 
   const load = useCallback(async () => {
     if (!token) return;
     const out = await fetchMealOrders(token, date);
-    setOrders(out.ok ? (out.result.orders ?? []) : []);
+    setData(out.ok ? out.result : { orders: [], week: [], next: null });
   }, [token, date]);
 
   useFocusEffect(
@@ -71,9 +72,10 @@ export default function CookMeals() {
     }, [load]),
   );
 
+  const orders = data?.orders ?? null;
+
   /* Grouped by sitting rather than listed flat: a cook cooks breakfast, then
-     lunch, then dinner, and a list that interleaves them is a list that has to
-     be re-read three times. */
+     lunch, then dinner, and a list that interleaves them is read three times. */
   const bySlot = useMemo(() => {
     const out = new Map(SLOTS.map((slot) => [slot, []]));
     for (const order of orders ?? []) {
@@ -87,11 +89,10 @@ export default function CookMeals() {
     setBusy(order.id);
     const out = await advanceOrder(order.id);
     setBusy(null);
-    /* `advanceOrder` answers the shop's verdict shape, and a refusal here is
-       almost always "somebody already moved it" — worth saying, not worth a
-       dialog that blocks the next plate. */
+    /* A refusal here is almost always "somebody already moved it" — worth
+       saying, not worth a dialog that blocks the next plate. */
     if (out && out.ok === false) {
-      alert.error(out.message ?? 'That did not work.', 'Not updated');
+      alert.error(out.message ?? t('That did not work.'), t('Not updated'));
       return;
     }
     await load();
@@ -101,10 +102,12 @@ export default function CookMeals() {
   const delivered = (orders ?? []).filter(
     (o) => o.status === 'delivered' || o.status === 'completed',
   ).length;
+  const today = todayKey();
 
-  const DayButton = ({ delta, label }) => (
+  const DayButton = ({ delta, icon }) => (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={delta < 0 ? t('Previous day') : t('Next day')}
       onPress={() => setDate((d) => shiftDay(d, delta))}
       style={({ pressed }) => ({
         width: 36,
@@ -116,7 +119,7 @@ export default function CookMeals() {
         opacity: pressed ? 0.7 : 1,
       })}
     >
-      <Icon name={label} size={15} color={colors.text} strokeWidth={2} />
+      <Icon name={icon} size={15} color={colors.text} strokeWidth={2} />
     </Pressable>
   );
 
@@ -124,47 +127,109 @@ export default function CookMeals() {
     <CookScreen>
       <Container>
         <SectionHeader
-          lead="TODAY'S"
-          accent="MEALS"
-          subtitle="What to cook, how many, and who is waiting."
+          lead={t('TODAY’S')}
+          accent={t('MEALS')}
+          subtitle={t('What to cook, how many, and who is waiting.')}
           style={{ marginTop: 16 }}
         />
 
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-            marginTop: 18,
-          }}
-        >
-          <DayButton delta={-1} label="arrowLeft" />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18 }}>
+          <DayButton delta={-1} icon="arrowLeft" />
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={{ fontFamily: font.displayBold, fontSize: 17, color: colors.text }}>
-              {date === todayKey() ? 'Today' : dateLabel(date)}
+              {date === today ? t('Today') : dateLabel(date)}
             </Text>
-            {date !== todayKey() ? (
+            {date !== today ? (
               <Body muted style={{ fontSize: 11.5 }}>
-                {dateLabel(todayKey()) === dateLabel(date) ? '' : date}
+                {dayParts(date).weekday}
               </Body>
             ) : null}
           </View>
-          <DayButton delta={1} label="arrowRight" />
+          <DayButton delta={1} icon="arrowRight" />
         </View>
 
+        {/* The week, with a plate count under each day. */}
+        {data?.week?.length ? (
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 14 }}>
+            {data.week.map((day) => {
+              const on = day.date === date;
+              return (
+                <Pressable
+                  key={day.date}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={t('{date}, {n} plates', {
+                    date: dateLabel(day.date),
+                    n: n(day.count),
+                  })}
+                  onPress={() => setDate(day.date)}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    alignItems: 'center',
+                    paddingVertical: 8,
+                    borderRadius: radius.md,
+                    borderWidth: 1,
+                    borderColor: on ? colors.sage : colors.line,
+                    backgroundColor: on ? colors.sage50 : colors.sunken,
+                    opacity: pressed ? 0.75 : 1,
+                  })}
+                >
+                  <Text
+                    style={{
+                      fontFamily: font.ui,
+                      fontSize: 10.5,
+                      color: colors.textMuted,
+                    }}
+                  >
+                    {dayParts(day.date).weekday}
+                  </Text>
+                  <Text
+                    style={{
+                      fontFamily: font.uiBold,
+                      fontSize: 14,
+                      marginTop: 1,
+                      color: on ? colors.sage : colors.text,
+                    }}
+                  >
+                    {n(dayParts(day.date).day)}
+                  </Text>
+                  <Text
+                    style={{
+                      fontFamily: font.ui,
+                      fontSize: 10.5,
+                      marginTop: 2,
+                      color: day.count ? colors.primary : colors.textMuted,
+                    }}
+                  >
+                    {day.count ? n(day.count) : '·'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
         {orders === null ? (
-          <Loading label="Reading your day…" />
+          <Loading label={t('Reading your day…')} />
         ) : total === 0 ? (
-          <View style={{ marginTop: 22 }}>
+          <View style={{ marginTop: 20 }}>
             <Empty
-              title="Nothing booked for this day"
-              hint="Meals appear here when a customer books a month that includes this date."
+              title={t('Nothing booked for this day')}
+              hint={t('Meals appear here when a customer books a month that includes this date.')}
             />
+            {data?.next ? (
+              <Button
+                label={t('Next cooking day — {date}', { date: dateLabel(data.next) })}
+                block
+                style={{ marginTop: 14 }}
+                onPress={() => setDate(data.next)}
+              />
+            ) : null}
             <Button
-              label="Open my calendar"
+              label={t('Open my calendar')}
               variant="glass"
               block
-              style={{ marginTop: 14 }}
+              style={{ marginTop: 10 }}
               onPress={() => router.push('/cook/meal-plan')}
             />
           </View>
@@ -172,10 +237,10 @@ export default function CookMeals() {
           <>
             <Reveal delay={1}>
               <Panel style={{ marginTop: 18 }} tone={delivered === total ? 'good' : undefined}>
-                <Row label="Plates today" value={String(total)} strong />
+                <Row label={t('Plates today')} value={n(total)} strong />
                 <Row
-                  label="Handed over"
-                  value={`${delivered} of ${total}`}
+                  label={t('Handed over')}
+                  value={t('{done} of {total}', { done: n(delivered), total: n(total) })}
                   tone={delivered === total ? 'good' : 'warn'}
                 />
               </Panel>
@@ -188,7 +253,7 @@ export default function CookMeals() {
               return (
                 <Reveal key={slot} delay={i + 2}>
                   <GroupLabel
-                    text={`${SLOT_LABEL[slot]} · ${rows.length}`}
+                    text={`${t(SLOT_LABEL[slot])} · ${n(rows.length)}`}
                     style={{ marginTop: 26 }}
                   />
                   <View style={{ gap: 10, marginTop: 12 }}>
@@ -198,11 +263,7 @@ export default function CookMeals() {
                       return (
                         <Panel key={order.id} tone={done ? 'good' : undefined}>
                           <View
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'flex-start',
-                              gap: 12,
-                            }}
+                            style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}
                           >
                             <View style={{ flex: 1 }}>
                               <Text
@@ -217,10 +278,8 @@ export default function CookMeals() {
                               <Body muted style={{ fontSize: 12.5, marginTop: 2 }}>
                                 {order.customerName || order.customerKey}
                               </Body>
-                              {/* The street line, not just the area. This is
-                                  the screen a cook cooks and hands over from,
-                                  and an area alone is not somewhere you can
-                                  take a plate. */}
+                              {/* The street line, not just the area: this is the
+                                  screen a plate is handed over from. */}
                               {order.address?.line || order.address?.area ? (
                                 <Body muted style={{ fontSize: 12, marginTop: 2 }}>
                                   {[order.address.line, order.address.area]
@@ -228,8 +287,10 @@ export default function CookMeals() {
                                     .join(', ')}
                                 </Body>
                               ) : (
-                                <Body style={{ fontSize: 12, marginTop: 2, color: colors.primary }}>
-                                  No delivery address on this order
+                                <Body
+                                  style={{ fontSize: 12, marginTop: 2, color: colors.primary }}
+                                >
+                                  {t('No delivery address on this order')}
                                 </Body>
                               )}
                               {order.phone ? (
@@ -245,7 +306,7 @@ export default function CookMeals() {
                                 color: colors.sage,
                               }}
                             >
-                              ৳{order.amount}
+                              ৳{n(order.amount)}
                             </Text>
                           </View>
 
@@ -255,12 +316,12 @@ export default function CookMeals() {
                               style={{ marginTop: 10, fontSize: 12.5, lineHeight: 18 }}
                             >
                               {order.status === 'completed'
-                                ? 'The customer confirmed this one. Payment is with the platform to release.'
-                                : 'Handed over. The money moves when the customer confirms they got it.'}
+                                ? t('The customer confirmed this one. Payment is with the platform to release.')
+                                : t('Handed over. The money moves when the customer confirms they got it.')}
                             </Body>
                           ) : (
                             <Button
-                              label={busy === order.id ? 'Updating…' : 'Mark delivered'}
+                              label={busy === order.id ? t('Updating…') : t('Mark delivered')}
                               block
                               disabled={busy === order.id}
                               style={{ marginTop: 12 }}
@@ -279,9 +340,7 @@ export default function CookMeals() {
               muted
               style={{ marginTop: 22, marginBottom: 26, fontSize: 12, lineHeight: 18 }}
             >
-              Marking a meal delivered does not pay you for it. The customer confirms
-              they received it, and the platform releases that meal&rsquo;s money — one
-              plate at a time, so a good Monday is paid whatever happens on Tuesday.
+              {t('Marking a meal delivered does not pay you for it. The customer confirms they received it, and the platform releases that meal’s money — one plate at a time, so a good Monday is paid whatever happens on Tuesday.')}
             </Body>
           </>
         )}
