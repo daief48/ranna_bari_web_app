@@ -1664,8 +1664,12 @@ function DishResult({ dish, chef, km, onPress }) {
         shadow.sm,
       ]}
     >
+      {/* `null` rather than `{ uri: undefined }` for a dish with no picture.
+          The second renders a real <img> with no src — a broken-image icon on
+          the web, and a decode the native side attempts and fails. The tinted
+          box underneath is the intended placeholder either way. */}
       <Image
-        source={{ uri: dish.image }}
+        source={dish.image ? { uri: dish.image } : null}
         contentFit="cover"
         transition={200}
         style={{

@@ -19,7 +19,7 @@
  * Tuesday.
  */
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../../src/components/Screen';
@@ -233,10 +233,85 @@ export default function MealServiceScreen() {
 
   const anyPlanned = (data.days ?? []).length > 0;
 
+  /*
+   * The running total, pinned — through `Screen`'s own `footer` slot.
+   *
+   * It began as a `position: absolute` view inside a `ScrollView` of this
+   * screen's own, which was wrong twice: `Screen` already scrolls, so that
+   * nested a second scroller inside the first, and an absolute child of a
+   * scrolling box is positioned against the *content*. The one element that
+   * has to be true at every moment of a thirty-day scroll was therefore
+   * sitting at the bottom of it, thirty days down. `footer` renders as a
+   * sibling of the scroll view, which is what actually pins it — the same
+   * slot `CartBar` uses.
+   */
+  const totalBar = (
+    <View
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        paddingHorizontal: 18,
+        paddingTop: 12,
+        paddingBottom: 26,
+        borderTopWidth: 1,
+        borderTopColor: colors.line,
+        backgroundColor: colors.surfaceSolid,
+        gap: 8,
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontFamily: font.ui, fontSize: 13, color: colors.textMuted }}>
+          {count === 0
+            ? t('Nothing picked yet')
+            : t('{n} meals × ৳{rate}', { n: n(count), rate: n(rate) })}
+        </Text>
+        <Text style={{ fontFamily: font.displayBold, fontSize: 20, color: colors.text }}>
+          ৳{n(total)}
+        </Text>
+      </View>
+
+      {problem ? (
+        <Text style={{ fontFamily: font.ui, fontSize: 12.5, color: colors.primary }}>
+          {problem}
+        </Text>
+      ) : null}
+
+      {!address && count > 0 ? (
+        <Button
+          label={t('Add a delivery address')}
+          variant="glass"
+          block
+          onPress={() => router.push('/addresses')}
+        />
+      ) : total > balance && count > 0 ? (
+        <Button
+          label={t('Top up my wallet')}
+          variant="glass"
+          block
+          onPress={() => router.push('/wallet')}
+        />
+      ) : (
+        <Button
+          label={
+            busy
+              ? t('Booking…')
+              : count === 0
+                ? t('Pick your meals')
+                : t('Pay ৳{total} and book', { total: n(total) })
+          }
+          block
+          disabled={busy || !ready}
+          onPress={confirm}
+        />
+      )}
+    </View>
+  );
+
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={{ paddingBottom: 190 }}>
-        <Container>
+    <Screen footer={totalBar} contentStyle={{ paddingBottom: 250 }}>
+      <Container>
           <SectionHeader
             lead={service.kitchenName}
             accent={t('CALENDAR')}
@@ -384,71 +459,6 @@ export default function MealServiceScreen() {
             </View>
           )}
         </Container>
-      </ScrollView>
-
-      {/* The running total, pinned. It is the only thing on this screen that
-          has to be true at every moment of the scroll. */}
-      <View
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          paddingHorizontal: 18,
-          paddingTop: 12,
-          paddingBottom: 26,
-          borderTopWidth: 1,
-          borderTopColor: colors.line,
-          backgroundColor: colors.surfaceSolid,
-          gap: 8,
-        }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ fontFamily: font.ui, fontSize: 13, color: colors.textMuted }}>
-            {count === 0
-              ? t('Nothing picked yet')
-              : t('{n} meals × ৳{rate}', { n: n(count), rate: n(rate) })}
-          </Text>
-          <Text style={{ fontFamily: font.displayBold, fontSize: 20, color: colors.text }}>
-            ৳{n(total)}
-          </Text>
-        </View>
-
-        {problem ? (
-          <Text style={{ fontFamily: font.ui, fontSize: 12.5, color: colors.primary }}>
-            {problem}
-          </Text>
-        ) : null}
-
-        {!address && count > 0 ? (
-          <Button
-            label={t('Add a delivery address')}
-            variant="glass"
-            block
-            onPress={() => router.push('/addresses')}
-          />
-        ) : total > balance && count > 0 ? (
-          <Button
-            label={t('Top up my wallet')}
-            variant="glass"
-            block
-            onPress={() => router.push('/wallet')}
-          />
-        ) : (
-          <Button
-            label={
-              busy
-                ? t('Booking…')
-                : count === 0
-                  ? t('Pick your meals')
-                  : t('Pay ৳{total} and book', { total: n(total) })
-            }
-            block
-            disabled={busy || !ready}
-            onPress={confirm}
-          />
-        )}
-      </View>
     </Screen>
   );
 }

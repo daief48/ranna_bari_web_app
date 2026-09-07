@@ -248,8 +248,12 @@ export default function CookDashboard() {
             ]}
           >
             <View style={{ height: 92 }}>
+              {/* A kitchen that has not uploaded a banner yet is the ordinary
+                  state of a new one, and `{ uri: undefined }` renders a real
+                  <img> with no src for it — a broken-image glyph rather than
+                  the tinted panel underneath. `null` shows the panel. */}
               <Image
-                source={{ uri: kitchen.coverImage }}
+                source={kitchen.coverImage ? { uri: kitchen.coverImage } : null}
                 contentFit="cover"
                 transition={200}
                 style={{ width: '100%', height: '100%', backgroundColor: colors.sunken }}
@@ -262,7 +266,7 @@ export default function CookDashboard() {
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13 }}>
               <Image
-                source={{ uri: kitchen.avatar }}
+                source={kitchen.avatar ? { uri: kitchen.avatar } : null}
                 contentFit="cover"
                 transition={200}
                 style={{

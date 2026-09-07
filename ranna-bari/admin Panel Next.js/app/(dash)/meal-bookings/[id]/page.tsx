@@ -225,8 +225,16 @@ export default async function MealBookingDetail({
         title="The meals"
         subtitle="Delivery, confirmation and payment — tracked and released one at a time"
       >
+        {/*
+          "Meal status" and "Received", not "Delivery" and "Confirmed".
+          The first column renders the order's own status, whose second step is
+          literally called `confirmed` — meaning the kitchen accepted it. Under
+          a column headed "Delivery", beside a column headed "Confirmed"
+          reading "not yet", it said two opposite things about one meal. Same
+          data, headings that cannot collide.
+        */}
         <Table
-          head={['Date', 'Slot', 'Meal', 'Amount', 'Delivery', 'Confirmed', 'Payment', '']}
+          head={['Date', 'Slot', 'Meal', 'Amount', 'Meal status', 'Received', 'Payment', '']}
         >
           {items.map((item) => (
             <tr key={item.orderId}>
