@@ -84,7 +84,10 @@ async function main() {
   }
 
   const app = await buildApp();
-  await app.listen({ port: env.PORT, host: '0.0.0.0' });
+  /* `::` and not `0.0.0.0`: Node binds IPv4-only for the latter, so a browser
+     that resolves `localhost` to `::1` gets ECONNREFUSED. Dual-stack accepts
+     IPv4-mapped connections too, so the LAN address still works. */
+  await app.listen({ port: env.PORT, host: '::' });
 
   /* `noServer`, then route on pathname. Claiming every upgrade would break
      anything else that wants one. */
