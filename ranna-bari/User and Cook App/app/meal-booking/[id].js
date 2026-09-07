@@ -19,6 +19,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import Screen, { Container } from '../../src/components/Screen';
 import Button from '../../src/components/Button';
 import SectionHeader from '../../src/components/SectionHeader';
+import ChatLauncher from '../../src/components/ChatLauncher';
 import { Body } from '../../src/components/Typography';
 import { useAlert } from '../../src/components/Alert';
 import { useTheme } from '../../src/theme/ThemeProvider';
@@ -129,6 +130,9 @@ export default function MealBookingScreen() {
     .filter((it) => it.status !== 'cancelled' && it.status !== 'completed' && it.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date))[0];
 
+  /* The order a message about this month should hang off. */
+  const chatOrderId = (next ?? booking.items[0])?.orderId ?? null;
+
   return (
     <Screen>
       <Container>
@@ -196,6 +200,24 @@ export default function MealBookingScreen() {
             </>
           ) : null}
         </Panel>
+
+        {/*
+          A way to reach the cook, from the screen that tells people to.
+          The foot of this page says a meal that never arrived can be raised
+          with support "from the order itself" — which was true and had no door
+          on it. Chat is threaded per order, and a month has no order of its
+          own, so it opens against the meal in question: the next one due, or
+          the first on the booking once the month is over.
+        */}
+        {chatOrderId ? (
+          <View style={{ marginTop: 14 }}>
+            <ChatLauncher
+              spec={{ kind: 'order', orderId: chatOrderId }}
+              label={t('Message the cook')}
+              compact
+            />
+          </View>
+        ) : null}
 
         <View style={{ marginTop: 22, gap: 10 }}>
           {booking.items.map((item) => {
@@ -271,7 +293,7 @@ export default function MealBookingScreen() {
         </View>
 
         <Body muted style={{ marginTop: 20, marginBottom: 26, fontSize: 12, lineHeight: 18 }}>
-          {t('Nothing releases on its own. A meal you never received stays held, and you can raise it with support from the order itself.')}
+          {t('Nothing releases on its own. A meal you never received stays held — message the cook above, or open the meal to raise it with support.')}
         </Body>
       </Container>
     </Screen>

@@ -23,7 +23,7 @@ import { useLang } from '../src/i18n/LanguageContext';
 
 import { Divider, Empty, Loading, Panel, Row } from '../src/features/meal-plan/components';
 import { fetchMyBookings } from '../src/features/meal-plan/api';
-import { monthLabel } from '../src/features/meal-plan/format';
+import { SLOT_LABEL, monthLabel, relativeDay, todayKey } from '../src/features/meal-plan/format';
 
 export default function MealBookingsScreen() {
   const router = useRouter();
@@ -32,6 +32,7 @@ export default function MealBookingsScreen() {
   const { t, n } = useLang();
 
   const [bookings, setBookings] = useState(null);
+  const today = todayKey();
 
   useFocusEffect(
     useCallback(() => {
@@ -82,6 +83,22 @@ export default function MealBookingsScreen() {
                 (it) => it.status !== 'completed' && it.status !== 'cancelled',
               ).length;
 
+              /*
+               * What this card is *for*, on its first line.
+               *
+               * Three months bought from the same kitchen produced three
+               * identical cards — same name, same month, same total — with the
+               * only difference buried three rows down. A booking is not
+               * usefully identified by who sold it; it is identified by what is
+               * about to happen on it.
+               */
+              const next = booking.items
+                .filter(
+                  (it) =>
+                    it.status !== 'cancelled' && it.status !== 'completed' && it.date >= today,
+                )
+                .sort((a, b) => a.date.localeCompare(b.date))[0];
+
               return (
                 <Reveal key={booking.id} delay={Math.min(i + 1, 6)}>
                   <Pressable
@@ -99,15 +116,49 @@ export default function MealBookingsScreen() {
                         }}
                       >
                         <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text
-                            numberOfLines={1}
-                            style={{ fontFamily: font.uiBold, fontSize: 15.5, color: colors.text }}
-                          >
-                            {booking.kitchenName || booking.cookName}
-                          </Text>
-                          <Body muted style={{ fontSize: 12.5, marginTop: 1 }}>
-                            {monthLabel(booking.month)} ·{' '}
-                            {t(booking.categoryLabel || booking.categoryKey)}
+                          {/* The line that says what to do, where the kitchen
+                              name used to be. The name is still here — it is
+                              just not the most useful thing on the card. */}
+                          {toConfirm ? (
+                            <Text
+                              style={{
+                                fontFamily: font.uiBold,
+                                fontSize: 15.5,
+                                color: colors.saffron,
+                              }}
+                            >
+                              {t('{n} meals to confirm', { n: n(toConfirm) })}
+                            </Text>
+                          ) : next ? (
+                            <Text
+                              numberOfLines={1}
+                              style={{
+                                fontFamily: font.uiBold,
+                                fontSize: 15.5,
+                                color: colors.text,
+                              }}
+                            >
+                              {relativeDay(next.date, t)} ·{' '}
+                              {t(SLOT_LABEL[next.slot] ?? next.slot)} · {next.name || t('Meal')}
+                            </Text>
+                          ) : (
+                            <Text
+                              style={{
+                                fontFamily: font.uiBold,
+                                fontSize: 15.5,
+                                color: colors.textMuted,
+                              }}
+                            >
+                              {t('Month finished')}
+                            </Text>
+                          )}
+                          <Body muted style={{ fontSize: 12.5, marginTop: 2 }}>
+                            {booking.kitchenName || booking.cookName} · {monthLabel(booking.month)}
+                          </Body>
+                          {/* The code, quiet, because it is what a customer
+                              reads out to support and nothing else. */}
+                          <Body muted style={{ fontSize: 11, marginTop: 1 }}>
+                            {booking.code}
                           </Body>
                         </View>
                         <Icon name="arrowRight" size={16} color={colors.textMuted} />

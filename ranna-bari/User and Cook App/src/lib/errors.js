@@ -47,6 +47,15 @@ export function errorText(error, t, n, extra = {}) {
       return t('This cook has not published a menu for that month yet.');
     case 'meal-service-inactive':
       return t('This kitchen is not taking meal bookings right now.');
+    case 'meal-booking-missing':
+      return t('That booking no longer exists.');
+    case 'meal-category-missing':
+      return t('That meal category is no longer offered.');
+    /* The shared refusal for "not your kitchen". Its code and its own message
+       are the operator realm's — a customer who wandered onto a cook endpoint
+       is not an admin and has no role to be told about. */
+    case 'admin-forbidden':
+      return t('That is not something this account can do.');
     case 'wallet-low-balance':
       return t('Insufficient balance. Top up ৳{n} to confirm this meal.', {
         n: n(extra.short ?? 0),

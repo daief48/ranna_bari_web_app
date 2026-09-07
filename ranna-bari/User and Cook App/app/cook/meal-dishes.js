@@ -264,7 +264,7 @@ export default function CookMealDishes() {
             ) : null}
 
             <Button
-              label={t('Open my calendar')}
+              label={t('Open my monthly menu')}
               variant="glass"
               block
               style={{ marginTop: 24, marginBottom: 26 }}

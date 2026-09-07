@@ -483,14 +483,12 @@ export const bn = {
   /* The specialty picker, rebuilt for a list of twenty-four. */
   'Choose what you cook best': 'যা ভালো রাঁধেন বাছুন',
   'Search specialties': 'বিশেষত্ব খুঁজুন',
-  'Clear search': 'খোঁজা মুছুন',
   '{first} and {n} more': '{first} এবং আরও {n}টি',
   'Nothing matches “{q}”': '“{q}” এর সাথে কিছু মিলছে না',
   'Ask RannaBari to add it and it will appear here.': 'রান্নাবাড়িকে যোগ করতে বলুন, এখানে চলে আসবে।',
   'Tap a chip to make it the one shown on your kitchen card.': 'কোনটি আপনার রান্নাঘরের কার্ডে দেখাবে, সেটি বাছতে ট্যাপ করুন।',
   'shown on your card': 'আপনার কার্ডে দেখাচ্ছে',
   'Make {name} your main specialty': '{name} কে আপনার প্রধান বিশেষত্ব করুন',
-  'Remove {name}': '{name} সরান',
   'Sign in first': 'আগে সাইন ইন করুন',
   'Your profile details live with your account.':
     'আপনার প্রোফাইলের তথ্য অ্যাকাউন্টের সাথেই থাকে।',
@@ -550,7 +548,6 @@ export const bn = {
   /* ---------------- cook panel: orders ---------------- */
   'Order board': 'অর্ডার বোর্ড',
   New: 'নতুন',
-  Cooking: 'রান্না',
   Delivering: 'পথে',
   History: 'ইতিহাস',
   'Everything that comes through your kitchen.':
@@ -855,7 +852,6 @@ export const bn = {
   // The live order strip above the tab bar.
   'The kitchen has it': 'রান্নাঘর পেয়েছে',
   'Cooking': 'রান্না হচ্ছে',
-  'Ready': 'তৈরি',
   'Did it arrive?': 'পৌঁছেছে কি?',
   '+{n} more': '+আরও {n}',
   '{name}, {state}. Open your order.': '{name}, {state}। অর্ডার খুলুন।',
@@ -866,7 +862,6 @@ export const bn = {
   'Clear filters': 'ফিল্টার মুছুন',
   'Nothing matches that': 'এমন কিছু পাওয়া যায়নি',
   'Try a different word, or clear the filters.': 'অন্য শব্দ চেষ্টা করুন, বা ফিল্টার মুছে দিন।',
-  'Collection': 'কালেকশন',
   'on': 'চালু',
 
   // Outcomes announced by useAction.
@@ -2417,4 +2412,49 @@ export const bn = {
   'Next meal': 'পরের মিল',
   'Open {meal}': '{meal} খুলুন',
   'You confirmed this': 'আপনি এটি নিশ্চিত করেছেন',
+  /* ---------------- saying what to do next ----------------
+     Lines added so a screen reports a state or names an action instead of
+     describing a feature: the booking card's first line, the calendar's
+     distance to the kitchen's range, the cook's hub, and the setup order. */
+
+  /* ---- the customer's bookings and calendar ---- */
+
+  '{n} meals to confirm': '{n}টি মিল নিশ্চিত করতে হবে',
+  'Month finished': 'মাস শেষ',
+  'Choose your days': 'দিন বাছুন',
+  'Pay once': 'একবার পেমেন্ট',
+  'Confirm each meal': 'প্রতিটি মিল নিশ্চিত করুন',
+  'Browse tonight’s kitchens instead': 'বরং আজ রাতের কিচেন দেখুন',
+  'Clear the filters': 'ফিল্টার মুছুন',
+  'Pick {n} to {max} meals': '{n} থেকে {max}টি মিল বাছুন',
+  '{n} more to book': 'আরও {n}টি নিলে বুক করা যাবে',
+  '{n} of {max} — {room} more allowed': '{max}-এর মধ্যে {n} — আরও {room}টি নেওয়া যাবে',
+  'Full — {n} of {max}': 'পূর্ণ — {max}-এর মধ্যে {n}',
+  'Tap a meal below to start': 'শুরু করতে নিচে একটি মিলে ট্যাপ করুন',
+
+  /* ---- the cook's hub and calendar ---- */
+
+  'Your own menu is live': 'আপনার নিজের মেনু চালু আছে',
+  'Your menu is a draft — publish it': 'আপনার মেনু খসড়া — প্রকাশ করুন',
+  'Cooking the platform’s menu': 'প্ল্যাটফর্মের মেনু রাঁধছেন',
+  'No menu published for this month': 'এই মাসের জন্য কোনো মেনু প্রকাশিত হয়নি',
+  '{n} of your own': 'আপনার নিজের {n}টি',
+  'None yet — add the ones you cook most':
+    'এখনো কিছু নেই — যেগুলো সবচেয়ে বেশি রাঁধেন সেগুলো যোগ করুন',
+  'Set your category, price and meal range': 'ক্যাটাগরি, দাম আর মিলের সীমা ঠিক করুন',
+  'Have a menu for the month': 'মাসের জন্য একটি মেনু রাখুন',
+  'Switch the service on': 'সার্ভিসটি চালু করুন',
+  '{n} days changed': '{n} দিন বদলেছে',
+  Published: 'প্রকাশিত',
+  'Saved as a draft': 'খসড়া হিসেবে সংরক্ষিত',
+  'Following the platform': 'প্ল্যাটফর্ম অনুসরণ করছেন',
+  Publish: 'প্রকাশ করুন',
+  'Monthly menu': 'মাসিক মেনু',
+  'Open my monthly menu': 'আমার মাসিক মেনু খুলুন',
+  'That booking no longer exists.': 'বুকিংটি আর নেই।',
+  'That meal category is no longer offered.': 'এই মিল ক্যাটাগরি আর দেওয়া হয় না।',
+  'That is not something this account can do.': 'এই অ্যাকাউন্ট দিয়ে এটি করা যায় না।',
+  'Message the cook': 'রাঁধুনিকে বার্তা পাঠান',
+  'Nothing releases on its own. A meal you never received stays held — message the cook above, or open the meal to raise it with support.':
+    'কোনো টাকা নিজে থেকে ছাড়া হয় না। যে মিল আপনি পাননি তার টাকা জমাই থাকে — উপরে রাঁধুনিকে বার্তা পাঠান, অথবা মিলটি খুলে সাপোর্টে জানান।',
 };

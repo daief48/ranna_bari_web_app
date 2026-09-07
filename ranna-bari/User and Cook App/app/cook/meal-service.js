@@ -393,7 +393,7 @@ export default function CookMealService() {
 
             {existing ? (
               <Button
-                label={t('Open my calendar')}
+                label={t('Open my monthly menu')}
                 variant="glass"
                 block
                 style={{ marginTop: 10, marginBottom: 26 }}

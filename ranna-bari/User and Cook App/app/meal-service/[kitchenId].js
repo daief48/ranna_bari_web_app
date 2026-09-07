@@ -191,6 +191,27 @@ export default function MealServiceScreen() {
   const ready =
     count >= min && count <= max && total <= balance && total > 0 && !!address;
 
+  /*
+   * Where you are against the kitchen's rule, in words.
+   *
+   * The range was stated once at the top and then never referred to again while
+   * somebody tapped — the bar counted money, which is not the thing that stops
+   * you booking. This is the same rule expressed as a distance, so it can be
+   * read rather than remembered.
+   */
+  const progress =
+    count === 0
+      ? t('Pick {n} to {max} meals', { n: n(min), max: n(max) })
+      : count < min
+        ? t('{n} more to book', { n: n(min - count) })
+        : count < max
+          ? t('{n} of {max} — {room} more allowed', {
+              n: n(count),
+              max: n(max),
+              room: n(max - count),
+            })
+          : t('Full — {n} of {max}', { n: n(count), max: n(max) });
+
   const confirm = () => {
     const selections = [...picked].map((key) => {
       const [date, slot] = key.split('|');
@@ -303,11 +324,22 @@ export default function MealServiceScreen() {
       }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={{ fontFamily: font.ui, fontSize: 13, color: colors.textMuted }}>
-          {count === 0
-            ? t('Nothing picked yet')
-            : t('{n} meals × ৳{rate}', { n: n(count), rate: n(rate) })}
-        </Text>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text
+            style={{
+              fontFamily: font.uiBold,
+              fontSize: 13.5,
+              color: count >= min && count <= max ? colors.sage : colors.text,
+            }}
+          >
+            {progress}
+          </Text>
+          {count > 0 ? (
+            <Text style={{ fontFamily: font.ui, fontSize: 11.5, color: colors.textMuted }}>
+              {t('{n} meals × ৳{rate}', { n: n(count), rate: n(rate) })}
+            </Text>
+          ) : null}
+        </View>
         <Text style={{ fontFamily: font.displayBold, fontSize: 20, color: colors.text }}>
           ৳{n(total)}
         </Text>
@@ -333,15 +365,30 @@ export default function MealServiceScreen() {
           block
           onPress={() => router.push('/wallet')}
         />
+      ) : count === 0 ? (
+        /*
+         * No button at all until there is something to buy.
+         *
+         * A disabled primary control is the largest, most pressable-looking
+         * thing on the screen, and it refuses — which teaches somebody that
+         * the main action does not work rather than that they have not
+         * started it. The instruction is the honest version of the same line.
+         */
+        <Text
+          style={{
+            fontFamily: font.ui,
+            fontSize: 13,
+            lineHeight: 19,
+            color: colors.textMuted,
+            paddingVertical: 10,
+            textAlign: 'center',
+          }}
+        >
+          {t('Tap a meal below to start')}
+        </Text>
       ) : (
         <Button
-          label={
-            busy
-              ? t('Booking…')
-              : count === 0
-                ? t('Pick your meals')
-                : t('Pay ৳{total} and book', { total: n(total) })
-          }
+          label={busy ? t('Booking…') : t('Pay ৳{total} and book', { total: n(total) })}
           block
           disabled={busy || !ready}
           onPress={confirm}

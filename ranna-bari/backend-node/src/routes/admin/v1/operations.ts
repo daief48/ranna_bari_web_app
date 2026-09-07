@@ -102,6 +102,8 @@ const MISSING = ERR.NO_PRODUCT;
 /** What each refusal is over HTTP. A miss is 404; the rest are bad requests. */
 const STATUS: Record<string, number> = {
   [ERR.NO_MEAL]: 404,
+  [ERR.NO_CATEGORY]: 404,
+  [ERR.NO_BOOKING]: 404,
   [ERR.NO_STORE]: 404,
   [ERR.NO_PRODUCT]: 404,
   [ERR.NO_ORDER]: 404,
@@ -372,7 +374,7 @@ export async function operationRoutes(app: FastifyInstance) {
     if (!days.length) return refuse(reply, ERR.BAD_REQUEST);
 
     const category = await categoryFor(query.data.categoryKey);
-    if (!category) return refuse(reply, ERR.NO_MEAL);
+    if (!category) return refuse(reply, ERR.NO_CATEGORY);
 
     const row = await MealPlan.findOne({
       scope: 'system',
@@ -652,7 +654,7 @@ export async function operationRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
 
     const booking = await MealBooking.findById(id).lean().catch(() => null);
-    if (!booking) return refuse(reply, ERR.NO_ORDER);
+    if (!booking) return refuse(reply, ERR.NO_BOOKING);
 
     const [orders, kitchen] = await Promise.all([
       Order.find({ bookingId: id }).sort({ serveDate: 1, slot: 1 }).lean(),

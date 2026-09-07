@@ -78,6 +78,8 @@ const fail = (
  */
 const STATUS: Record<string, number> = {
   [ERR.NO_MEAL]: 404,
+  [ERR.NO_CATEGORY]: 404,
+  [ERR.NO_BOOKING]: 404,
   [ERR.NO_ORDER]: 404,
   [ERR.NO_KITCHEN]: 404,
   [ERR.FORBIDDEN]: 403,
@@ -569,7 +571,7 @@ export async function mealRoutes(app: FastifyInstance) {
     if (!caller) return fail(reply, 'unauthenticated', 401);
 
     const { id } = request.params as { id: string };
-    if (!isId(id)) return fail(reply, ERR.NO_MEAL, 404);
+    if (!isId(id)) return fail(reply, ERR.NO_BOOKING, 404);
 
     const row = await MealBooking.findOne({
       _id: id,
@@ -579,7 +581,7 @@ export async function mealRoutes(app: FastifyInstance) {
     })
       .lean()
       .catch(() => null);
-    if (!row) return fail(reply, ERR.NO_MEAL, 404);
+    if (!row) return fail(reply, ERR.NO_BOOKING, 404);
 
     const [booking] = await shapeBookings([row], { reviewed: true });
     return { booking };

@@ -108,6 +108,33 @@ export default function MealsTab() {
           </View>
         ) : null}
 
+        {/* How this works, before the thing it explains.
+            The full paragraph sits at the foot of the screen, which is after
+            the kitchens — so somebody who has never bought a month scrolled
+            past the decision before reaching the explanation of it. */}
+        <View
+          style={{
+            marginTop: 14,
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          {[t('Choose your days'), t('Pay once'), t('Confirm each meal')].map((step, i) => (
+            <View key={step} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {i > 0 ? (
+                <Icon name="arrowRight" size={11} color={colors.textMuted} />
+              ) : null}
+              <Text
+                style={{ fontFamily: font.ui, fontSize: 12.5, color: colors.textMuted }}
+              >
+                {step}
+              </Text>
+            </View>
+          ))}
+        </View>
+
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push('/meal-bookings')}
@@ -132,6 +159,9 @@ export default function MealsTab() {
           <Icon name="arrowRight" size={15} color={colors.textMuted} />
         </Pressable>
 
+        {/* The empty state below goes somewhere. "No kitchen is offering meals
+            yet" is true and is also a full stop — the customer still wants
+            dinner, and the rest of the app still sells it. */}
         {services === null ? (
           <Loading label={t('Finding kitchens…')} />
         ) : shown.length === 0 ? (
@@ -148,6 +178,25 @@ export default function MealsTab() {
                   : t('Try another area, or clear the filters.')
               }
             />
+            {services.length === 0 ? (
+              <Button
+                label={t('Browse tonight’s kitchens instead')}
+                block
+                style={{ marginTop: 14 }}
+                onPress={() => router.push('/browse')}
+              />
+            ) : (query || category) ? (
+              <Button
+                label={t('Clear the filters')}
+                variant="glass"
+                block
+                style={{ marginTop: 14 }}
+                onPress={() => {
+                  setQuery('');
+                  setCategory('');
+                }}
+              />
+            ) : null}
           </View>
         ) : (
           <View style={{ gap: 12, marginTop: 20 }}>

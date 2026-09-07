@@ -26,6 +26,14 @@ export const ERR = {
   MEAL_COUNT: 'meal-count-out-of-range',
   PLAN_MISSING: 'meal-plan-missing',
   SERVICE_INACTIVE: 'meal-service-inactive',
+  /*
+   * Two more, because `NO_MEAL` and `NO_ORDER` were answering for them and
+   * naming the wrong thing. An operator who mistyped a category read "That
+   * meal no longer exists", and a bad booking id read "That order no longer
+   * exists" — both true of something, neither true of what was asked for.
+   */
+  NO_CATEGORY: 'meal-category-missing',
+  NO_BOOKING: 'meal-booking-missing',
 
   // stores
   NO_STORE: 'store-missing',
@@ -96,6 +104,8 @@ export const ERR_TEXT: Record<string, string> = {
      the client shows whatever `message` it is handed. */
   'bad-json': 'That request body was not valid JSON.',
   [ERR.NO_MEAL]: 'That meal no longer exists.',
+  [ERR.NO_CATEGORY]: 'That meal category no longer exists.',
+  [ERR.NO_BOOKING]: 'That booking no longer exists.',
   [ERR.ALREADY_ORDERED]: 'This customer already ordered this meal.',
   /* The placeholders are filled by the client from `detail` — the same
      split every other {amount}-carrying sentence uses. */

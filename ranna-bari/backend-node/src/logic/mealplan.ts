@@ -445,14 +445,14 @@ export async function updateMealCategory(
       .session(session ?? null)
       .lean()
       .catch(() => null);
-    return row ? ok(shapeCategory(row)) : fail(ERR.NO_MEAL);
+    return row ? ok(shapeCategory(row)) : fail(ERR.NO_CATEGORY);
   }
 
   const updated = await MealCategory.findByIdAndUpdate(id, { $set: set }, { new: true })
     .session(session ?? null)
     .lean()
     .catch(() => null);
-  if (!updated) return fail(ERR.NO_MEAL);
+  if (!updated) return fail(ERR.NO_CATEGORY);
 
   return ok(shapeCategory(updated));
 }
@@ -474,7 +474,7 @@ export async function retireMealCategory(
     .session(session ?? null)
     .lean()
     .catch(() => null);
-  if (!updated) return fail(ERR.NO_MEAL);
+  if (!updated) return fail(ERR.NO_CATEGORY);
 
   return ok(shapeCategory(updated));
 }
@@ -520,7 +520,7 @@ export async function saveService(args: {
   if (!kitchenId) return fail(ERR.NO_KITCHEN);
 
   const category = await categoryFor(args.categoryKey);
-  if (!category || category.retired) return fail(ERR.NO_MEAL, { categoryKey: args.categoryKey });
+  if (!category || category.retired) return fail(ERR.NO_CATEGORY, { categoryKey: args.categoryKey });
 
   const min = Math.round(Number(args.minMeals));
   const max = Math.round(Number(args.maxMeals));
@@ -640,7 +640,7 @@ export async function savePlan(
   if (scope === 'cook' && !kitchenId) return fail(ERR.NO_KITCHEN);
 
   const category = await categoryFor(args.categoryKey, session);
-  if (!category) return fail(ERR.NO_MEAL, { categoryKey: args.categoryKey });
+  if (!category) return fail(ERR.NO_CATEGORY, { categoryKey: args.categoryKey });
 
   /* Keyed by date so a payload naming the same day twice cannot store it
      twice — the last one typed is the one meant. */
@@ -730,7 +730,7 @@ export async function addDish(
   if (!SLOT_KEYS.has(type)) return fail(ERR.BAD_REQUEST, { field: 'type' });
 
   const category = await categoryFor(args.categoryKey, session);
-  if (!category || category.retired) return fail(ERR.NO_MEAL, { categoryKey: args.categoryKey });
+  if (!category || category.retired) return fail(ERR.NO_CATEGORY, { categoryKey: args.categoryKey });
 
   const scope = args.scope === 'system' ? 'system' : 'cook';
   const kitchenId = scope === 'cook' ? String(args.kitchenId ?? '').trim() : '';
@@ -918,7 +918,7 @@ export async function bookMeals(args: {
         .session(session)
         .lean();
       if (!category || category.retired) {
-        return fail(ERR.NO_MEAL, { categoryKey: service.categoryKey });
+        return fail(ERR.NO_CATEGORY, { categoryKey: service.categoryKey });
       }
 
       const plan = await resolvePlan(kitchenId, service.categoryKey, month, session);

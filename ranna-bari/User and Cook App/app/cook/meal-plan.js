@@ -238,12 +238,67 @@ export default function CookMealPlan() {
       ? t('Your own menu is live for this month.')
       : t('Your own menu is saved as a draft — customers still see the platform’s.');
 
+  /*
+   * Save, pinned — the same fix the customer's calendar needed.
+   *
+   * Both buttons sat under thirty days of rows, so a cook who tapped three
+   * dishes had to scroll past twenty-seven untouched ones to commit them. The
+   * work is the scroll; the commit should not be at the end of it.
+   */
+  const saveBar =
+    loading || !categoryKey ? null : (
+      <View
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          paddingHorizontal: 18,
+          paddingTop: 10,
+          paddingBottom: 24,
+          borderTopWidth: 1,
+          borderTopColor: colors.line,
+          backgroundColor: colors.surfaceSolid,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+        }}
+      >
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ fontFamily: font.uiBold, fontSize: 13, color: colors.text }}>
+            {dirty
+              ? t('{n} days changed', { n: n(typed) })
+              : status === 'published'
+                ? t('Published')
+                : hasOwn
+                  ? t('Saved as a draft')
+                  : t('Following the platform')}
+          </Text>
+          <Text style={{ fontFamily: font.ui, fontSize: 11.5, color: colors.textMuted }}>
+            {t('{n} meals on offer', { n: n(offering) })}
+          </Text>
+        </View>
+
+        <Button
+          label={busy ? t('Saving…') : t('Save')}
+          variant="glass"
+          disabled={busy}
+          onPress={() => save(false)}
+        />
+        <Button
+          label={busy ? t('Publishing…') : t('Publish')}
+          disabled={busy || offering === 0}
+          onPress={() => save(true)}
+        />
+      </View>
+    );
+
   return (
-    <Screen>
+    <Screen footer={saveBar} contentStyle={{ paddingBottom: 210 }}>
       <Container>
         <SectionHeader
-          lead={t('MY')}
-          accent={t('CALENDAR')}
+          lead={t('MONTHLY')}
+          accent={t('MENU')}
           subtitle={t('What you cook each day, and what a customer picks from.')}
           style={{ marginTop: 16 }}
         />
@@ -327,24 +382,8 @@ export default function CookMealPlan() {
               </View>
             </Reveal>
 
-            <Button
-              label={busy ? t('Saving…') : t('Save draft')}
-              variant="glass"
-              block
-              disabled={busy}
-              style={{ marginTop: 18 }}
-              onPress={() => save(false)}
-            />
-            <Button
-              label={busy ? t('Publishing…') : t('Publish this month')}
-              block
-              disabled={busy || offering === 0}
-              style={{ marginTop: 10 }}
-              onPress={() => save(true)}
-            />
-
             {offering === 0 ? (
-              <Body muted style={{ marginTop: 8, fontSize: 12.5 }}>
+              <Body muted style={{ marginTop: 16, fontSize: 12.5, lineHeight: 18 }}>
                 {t('Nothing to publish yet — a published month with no meals in it shows a customer an empty calendar.')}
               </Body>
             ) : null}
@@ -355,7 +394,7 @@ export default function CookMealPlan() {
                 variant="glass"
                 block
                 disabled={busy}
-                style={{ marginTop: 10, marginBottom: 26 }}
+                style={{ marginTop: 16, marginBottom: 26 }}
                 onPress={revert}
               />
             ) : (
