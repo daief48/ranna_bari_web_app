@@ -156,8 +156,12 @@ export default function MealBookingScreen() {
             value={`৳${n(held.reduce((s, it) => s + it.amount, 0))}`}
             tone={held.length ? 'warn' : 'good'}
           />
+          {/* "Released", not "released to the cook": the cook receives this
+              less the platform's commission, and the customer has no business
+              being told a number that is not what either side actually got.
+              What is true for them is that this much has left escrow. */}
           <Row
-            label={t('Released to the cook')}
+            label={t('Released')}
             value={`৳${n(done.reduce((s, it) => s + it.amount, 0))}`}
             tone="good"
           />

@@ -25,6 +25,28 @@ export function errorText(error, t, n, extra = {}) {
       return t('This meal is sold out.');
     case 'meal-already-ordered':
       return t('You have already booked this meal.');
+    /* The monthly system's one range rule. The server sends the numbers in
+       `detail` precisely so this sentence can name them — its own message is
+       a template with the braces still in it. */
+    case 'meal-count-out-of-range': {
+      const { min, max, count } = extra.detail ?? {};
+      if (min == null || max == null) return t('That is not a number of meals this cook takes.');
+      if (min === max) {
+        return t('This cook takes exactly {n} meals a month. You picked {count}.', {
+          n: n(min),
+          count: n(count ?? 0),
+        });
+      }
+      return t('Pick between {min} and {max} meals. You picked {count}.', {
+        min: n(min),
+        max: n(max),
+        count: n(count ?? 0),
+      });
+    }
+    case 'meal-plan-missing':
+      return t('This cook has not published a menu for that month yet.');
+    case 'meal-service-inactive':
+      return t('This kitchen is not taking meal bookings right now.');
     case 'wallet-low-balance':
       return t('Insufficient balance. Top up ৳{n} to confirm this meal.', {
         n: n(extra.short ?? 0),

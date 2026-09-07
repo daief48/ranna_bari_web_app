@@ -360,11 +360,32 @@ export async function addMealCategory(
   const rate = Math.round(Number(input.rate));
   if (!Number.isFinite(rate) || rate <= 0) return fail(ERR.BAD_AMOUNT, { field: 'rate' });
 
-  const clash = await MealCategory.findOne({ key })
+  /*
+   * Two ways of being the same category, and both are refused.
+   *
+   * The key is the join, so a second row carrying it would split a category's
+   * calendars in half — that check was always here. The *label* is what an
+   * operator reads, and a duplicate one is its own problem: "Business Meal"
+   * slugifies to `business-meal`, which is a free key next to an existing
+   * `business`, so the panel ended up offering two rows a person cannot tell
+   * apart and a cook picking blindly between them. Compared case-insensitively
+   * because "business meal" and "Business Meal" are the same word to everyone
+   * except a string comparison.
+   */
+  const clash = await MealCategory.findOne({
+    $or: [{ key }, { label: new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }],
+  })
     .session(session ?? null)
     .lean();
   if (clash) {
-    return fail(ERR.CATEGORY_IN_USE, { id: String(clash._id), retired: !!clash.retired });
+    return fail(ERR.CATEGORY_IN_USE, {
+      id: String(clash._id),
+      key: clash.key,
+      retired: !!clash.retired,
+      /* Which of the two it was, so the panel can say "that name is taken"
+         rather than a sentence about keys nobody typed. */
+      on: clash.key === key ? 'key' : 'label',
+    });
   }
 
   /* Past the end of the list rather than at `count` — a retired category keeps

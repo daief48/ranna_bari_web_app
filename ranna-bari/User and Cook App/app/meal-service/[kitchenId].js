@@ -32,7 +32,9 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius } from '../../src/theme/tokens';
 import { useSession } from '../../src/store/SessionContext';
 import { useCommerce } from '../../src/store/CommerceContext';
+import { useAuth } from '../../src/store/AuthContext';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { errorText } from '../../src/lib/errors';
 
 import { Divider, Loading, MonthPicker, Panel, Row } from '../../src/features/meal-plan/components';
 import { bookMeals, fetchMealService } from '../../src/features/meal-plan/api';
@@ -55,6 +57,7 @@ export default function MealServiceScreen() {
   const { colors } = useTheme();
   const { token } = useSession();
   const { wallet, reloadWallet, reloadOrders } = useCommerce();
+  const { account } = useAuth();
   const { t, n } = useLang();
   const alert = useAlert();
 
@@ -110,6 +113,25 @@ export default function MealServiceScreen() {
   const max = service?.maxMeals ?? 1;
   const balance = wallet?.customer ?? 0;
 
+  /*
+   * Where a month of meals gets delivered.
+   *
+   * Sent with the booking and snapshotted onto every order it creates, the
+   * same way checkout does it. Without this each meal reached the cook's day
+   * with `address: null` on it — thirty plates and nowhere to take them — and
+   * nothing in the flow ever asked, because a month is bought from a calendar
+   * rather than through a checkout form.
+   */
+  const address = account?.addressDetail
+    ? {
+        label: account.addressLabel || 'Home',
+        line: account.addressDetail,
+        area: account.area || '',
+        lat: account.lat ?? null,
+        lng: account.lng ?? null,
+      }
+    : null;
+
   /* Said in the order a customer hits them, and only one at a time: three
      complaints stacked under a button is a button nobody reads. */
   const problem =
@@ -119,11 +141,14 @@ export default function MealServiceScreen() {
         ? t('Pick at least {n} meals.', { n: n(min) })
         : count > max
           ? t('That is {over} over the most this kitchen takes.', { over: n(count - max) })
-          : total > balance
-            ? t('Your wallet is ৳{short} short.', { short: n(total - balance) })
-            : null;
+          : !address
+            ? t('Add a delivery address before booking a month.')
+            : total > balance
+              ? t('Your wallet is ৳{short} short.', { short: n(total - balance) })
+              : null;
 
-  const ready = count >= min && count <= max && total <= balance && total > 0;
+  const ready =
+    count >= min && count <= max && total <= balance && total > 0 && !!address;
 
   const confirm = () => {
     const selections = [...picked].map((key) => {
@@ -148,11 +173,15 @@ export default function MealServiceScreen() {
           kitchenId: String(kitchenId),
           month,
           selections,
+          address,
         });
         setBusy(false);
 
         if (!out.ok) {
-          alert.error(out.message ?? t('That did not work.'), t('Not booked'));
+          /* `errorText` rather than the server's sentence: several refusals
+             here are templates the app fills in from `detail`, and the range
+             one is the likeliest to be seen. */
+          alert.error(errorText(out.error, t, n, { detail: out.detail }), t('Not booked'));
           /* The refusal is usually about what somebody else did in the last
              minute, so the calendar is re-read rather than left stale. */
           load();
@@ -391,7 +420,14 @@ export default function MealServiceScreen() {
           </Text>
         ) : null}
 
-        {total > balance && count > 0 ? (
+        {!address && count > 0 ? (
+          <Button
+            label={t('Add a delivery address')}
+            variant="glass"
+            block
+            onPress={() => router.push('/addresses')}
+          />
+        ) : total > balance && count > 0 ? (
           <Button
             label={t('Top up my wallet')}
             variant="glass"

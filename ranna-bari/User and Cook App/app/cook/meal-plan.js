@@ -98,10 +98,36 @@ export default function CookMealPlan() {
 
   const save = async (publish) => {
     setBusy(true);
-    /* Only the days that say something are sent. A month of blanks is a month
-       with no override in it, and storing thirty-one empty rows would make
-       "I have my own plan" true of a cook who has written nothing. */
-    const written = days.filter((d) => d.breakfast.trim() || d.lunch.trim() || d.dinner.trim());
+
+    /*
+     * Blanks filled from the platform's month before this is sent.
+     *
+     * `resolvePlan` on the server does not merge the two calendars — a
+     * published cook plan wins for the whole month, and whatever it does not
+     * name is simply not on offer. So a cook who changed one Tuesday dinner
+     * and pressed Publish would have cancelled the other thirty days without
+     * being told, which is the opposite of what the empty boxes on this screen
+     * promise.
+     *
+     * Filling them here makes the promise literal: the stored month is exactly
+     * what the cook was looking at. It is a copy taken now rather than a live
+     * link, which is the honest reading of "publish my own month" — a later
+     * platform edit does not reach through it.
+     */
+    const filled = days.map((day) => {
+      const base = systemBy.get(day.date) ?? {};
+      return {
+        date: day.date,
+        breakfast: day.breakfast.trim() || base.breakfast || '',
+        lunch: day.lunch.trim() || base.lunch || '',
+        dinner: day.dinner.trim() || base.dinner || '',
+      };
+    });
+
+    /* Days with nothing on them from either side are dropped: a month of
+       blanks is a month with no override in it, and storing thirty-one empty
+       rows would make "I have my own plan" true of a cook who wrote nothing. */
+    const written = filled.filter((d) => d.breakfast || d.lunch || d.dinner);
     const out = await saveMyPlan(token, { month, days: written, publish });
     setBusy(false);
 
@@ -139,8 +165,21 @@ export default function CookMealPlan() {
     });
   };
 
-  const mine = countMeals(days);
+  /* Two different questions, and the second is the one that matters before
+     publishing: how many meals this kitchen would actually be offering, which
+     is what the cook typed plus what the platform fills in behind it. */
+  const typed = countMeals(days);
   const platform = countMeals(spreadMonth(month, systemDays));
+  const offering = countMeals(
+    days.map((day) => {
+      const base = systemBy.get(day.date) ?? {};
+      return {
+        breakfast: day.breakfast.trim() || base.breakfast || '',
+        lunch: day.lunch.trim() || base.lunch || '',
+        dinner: day.dinner.trim() || base.dinner || '',
+      };
+    }),
+  );
   const hasOwn = status != null;
 
   return (
@@ -183,7 +222,8 @@ export default function CookMealPlan() {
                   strong
                   tone={hasOwn ? 'good' : undefined}
                 />
-                <Row label="Meals you have written" value={String(mine)} />
+                <Row label="Meals you would be offering" value={String(offering)} strong />
+                <Row label="Of those, changed by you" value={String(typed)} />
                 <Row label="Meals the platform publishes" value={String(platform)} />
                 {hasOwn ? (
                   <>
@@ -222,8 +262,11 @@ export default function CookMealPlan() {
             <Reveal delay={2}>
               <GroupLabel text={monthLabel(month)} style={{ marginTop: 26 }} />
               <Body muted style={{ marginTop: 6, fontSize: 12.5, lineHeight: 18 }}>
-                Leave a box empty to serve whatever the platform serves that day. The
-                faint text is what that is.
+                Leave a box empty to serve what the platform serves that day — the
+                faint text is what that is, and it is copied into your month when you
+                save. Publishing replaces the platform&rsquo;s calendar for your
+                kitchen, so anything blank on both sides is a meal you are not
+                offering.
               </Body>
 
               <View style={{ marginTop: 10 }}>
@@ -250,12 +293,12 @@ export default function CookMealPlan() {
             <Button
               label={busy ? 'Publishing…' : 'Publish this month'}
               block
-              disabled={busy || mine === 0}
+              disabled={busy || offering === 0}
               style={{ marginTop: 10 }}
               onPress={() => save(true)}
             />
 
-            {mine === 0 ? (
+            {offering === 0 ? (
               <Body muted style={{ marginTop: 8, fontSize: 12.5 }}>
                 Nothing to publish yet — a published month with no meals in it would
                 show a customer an empty calendar.

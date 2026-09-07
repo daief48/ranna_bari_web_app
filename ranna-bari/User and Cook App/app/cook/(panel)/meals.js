@@ -217,9 +217,24 @@ export default function CookMeals() {
                               <Body muted style={{ fontSize: 12.5, marginTop: 2 }}>
                                 {order.customerName || order.customerKey}
                               </Body>
-                              {order.address?.area ? (
+                              {/* The street line, not just the area. This is
+                                  the screen a cook cooks and hands over from,
+                                  and an area alone is not somewhere you can
+                                  take a plate. */}
+                              {order.address?.line || order.address?.area ? (
                                 <Body muted style={{ fontSize: 12, marginTop: 2 }}>
-                                  {order.address.area}
+                                  {[order.address.line, order.address.area]
+                                    .filter(Boolean)
+                                    .join(', ')}
+                                </Body>
+                              ) : (
+                                <Body style={{ fontSize: 12, marginTop: 2, color: colors.primary }}>
+                                  No delivery address on this order
+                                </Body>
+                              )}
+                              {order.phone ? (
+                                <Body muted style={{ fontSize: 12, marginTop: 1 }}>
+                                  {order.phone}
                                 </Body>
                               ) : null}
                             </View>

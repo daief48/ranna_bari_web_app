@@ -30,11 +30,23 @@ async function attempt(body: () => Promise<ActionResult>): Promise<ActionResult>
     return await body();
   } catch (error) {
     if (!(error instanceof BackendError)) throw error;
-    return bad(
-      error.status === 0
-        ? 'The backend is not answering. Start it with: cd backend-node && npm run dev'
-        : error.message,
-    );
+
+    if (error.status === 0) {
+      return bad('The backend is not answering. Start it with: cd backend-node && npm run dev');
+    }
+
+    /*
+     * `category-in-use` is shared with the shop taxonomy, whose sentence for
+     * it is "That category still holds products." That is the wrong sentence
+     * here twice over — a meal category holds calendars and services, not
+     * products, and the commonest way to hit this is simply typing a name
+     * that already exists. Said plainly rather than passed through.
+     */
+    if (error.code === 'category-in-use') {
+      return bad('A meal category with that name already exists. Rename it, or restore the retired one.');
+    }
+
+    return bad(error.message);
   }
 }
 

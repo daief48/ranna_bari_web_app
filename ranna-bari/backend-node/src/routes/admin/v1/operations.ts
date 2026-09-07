@@ -637,6 +637,24 @@ export async function operationRoutes(app: FastifyInstance) {
 
     const byOrder = new Map(orders.map((o) => [String(o._id), o]));
 
+    /**
+     * When the customer said it arrived.
+     *
+     * Off the history stamp, not off `completedAt`. That column is written by
+     * the *release*, so reading it here would answer null for exactly the
+     * orders this board exists to act on — confirmed, still held — and the
+     * release button would never appear on one. The stamp `confirmReceived`
+     * pushes is the only record of the moment itself.
+     */
+    const receivedAtOf = (order: { history?: unknown } | undefined) => {
+      const history = Array.isArray(order?.history) ? order.history : [];
+      const step = history.find(
+        (row): row is { status: string; at: string } =>
+          !!row && typeof row === 'object' && (row as { status?: string }).status === 'completed',
+      );
+      return step?.at ?? null;
+    };
+
     return {
       booking: { ...booking, id: String(booking._id) },
       kitchen: kitchen ? { ...kitchen, id: String(kitchen._id) } : null,
@@ -653,11 +671,18 @@ export async function operationRoutes(app: FastifyInstance) {
             code: order?.code ?? null,
             status: order?.status ?? null,
             payment: order?.payment ?? null,
+            /* What the split actually was, once it happened. `amount` above is
+               the snapshot — what left the customer's wallet — and is not the
+               same number as what reached the cook, because the commission
+               comes out in between. A board that added `amount` up under the
+               words "released to cook" overstated it by exactly the cut. */
+            cookAmount: order?.cookAmount ?? 0,
+            platformAmount: order?.platformAmount ?? 0,
             deliveredAt: order?.deliveredAt ?? null,
             /* The specification's "Meal Received" — the customer confirming,
-               which is what moves an order to completed and makes it
-               releasable. Not the courier's stamp, which is `deliveredAt`. */
-            receivedAt: order?.completedAt ?? null,
+               which is what makes a meal releasable. Not the courier's stamp,
+               which is `deliveredAt`. */
+            receivedAt: receivedAtOf(order),
           };
         })
         .sort((a, b) => a.date.localeCompare(b.date) || a.slot.localeCompare(b.slot)),

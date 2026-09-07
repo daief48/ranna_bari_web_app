@@ -2100,4 +2100,145 @@ export const bn = {
   'Sign in to use meal management.': 'মিল ম্যানেজমেন্ট ব্যবহার করতে সাইন ইন করুন।',
   'Something in that was not filled in correctly.':
     'কিছু একটা ঠিকমতো পূরণ করা হয়নি।',
+  /* ---------------- the monthly meal system ----------------
+     Browsing a kitchen's month, picking meals off its calendar, paying the
+     advance, and confirming each meal as it arrives. Placeholders are left
+     exactly as the English carries them — Bengali puts the verb last, so a
+     sentence cut around a value cannot be reassembled in the right order. */
+
+  'Pick your meals for the month. Pay once, eat all month.':
+    'মাসের মিল বেছে নিন। একবার পেমেন্ট, সারা মাস খাবার।',
+  'A kitchen or an area': 'কিচেন বা এলাকা',
+  'My meal bookings': 'আমার মিল বুকিং',
+  'Finding kitchens…': 'কিচেন খোঁজা হচ্ছে…',
+  'No kitchen is offering meals yet': 'এখনো কোনো কিচেন মিল দিচ্ছে না',
+  'A cook has to set up a meal service and switch it on before a month can be booked.':
+    'কোনো রাঁধুনি মিল সার্ভিস চালু না করা পর্যন্ত মাস বুক করা যায় না।',
+  'Try another area, or clear the filters.': 'অন্য এলাকা দেখুন, বা ফিল্টার মুছে দিন।',
+  'Open {name}': '{name} খুলুন',
+  'Take exactly {n} meals — ৳{total} for the month.':
+    'ঠিক {n}টি মিল নিতে হবে — মাসে ৳{total}।',
+  'Take {min} to {max} meals — ৳{low} to ৳{high}.':
+    '{min} থেকে {max}টি মিল — ৳{low} থেকে ৳{high}।',
+  'You choose which days and which meals — breakfast, lunch or dinner — as long as the total lands inside the kitchen’s range. Payment is taken up front and held; each meal is released to the cook only after you confirm it arrived.':
+    'কোন কোন দিন এবং কোন মিল — সকাল, দুপুর না রাত — সেটা আপনার পছন্দ, শুধু মোট সংখ্যাটা কিচেনের সীমার মধ্যে থাকতে হবে। টাকা আগেই নেওয়া হয় এবং জমা রাখা হয়; আপনি পৌঁছানোর কথা নিশ্চিত করার পরেই প্রতিটি মিলের টাকা রাঁধুনি পান।',
+  'Meal plans near you': 'আপনার কাছাকাছি মিল প্ল্যান',
+
+  /* ---- the calendar a customer picks from ---- */
+
+  'Tick the meals you want. {label} · ৳{rate} each.':
+    'যেসব মিল চান টিক দিন। {label} · প্রতিটি ৳{rate}।',
+  'Reading the calendar…': 'ক্যালেন্ডার পড়া হচ্ছে…',
+  'You must take': 'আপনাকে নিতে হবে',
+  'exactly {n} meals': 'ঠিক {n}টি মিল',
+  '{min} to {max} meals': '{min} থেকে {max}টি মিল',
+  '{min}–{max} meals': '{min}–{max}টি মিল',
+  'No menu is published for {month}.': '{month} মাসের জন্য কোনো মেনু প্রকাশ করা হয়নি।',
+  'Try the next month — a kitchen usually publishes one at a time.':
+    'পরের মাস দেখুন — কিচেন সাধারণত একবারে এক মাস প্রকাশ করে।',
+  'This kitchen is not taking meal bookings.': 'এই কিচেন এখন মিল বুকিং নিচ্ছে না।',
+  'Find another kitchen': 'অন্য কিচেন খুঁজুন',
+  gone: 'চলে গেছে',
+  'already booked': 'আগেই বুক করা',
+  'Nothing picked yet': 'এখনো কিছু বাছাই করা হয়নি',
+  '{n} meals × ৳{rate}': '{n}টি মিল × ৳{rate}',
+  'Pick at least {n} meals.': 'অন্তত {n}টি মিল বাছুন।',
+  'That is {over} over the most this kitchen takes.':
+    'এই কিচেনের সর্বোচ্চ সীমার চেয়ে {over}টি বেশি।',
+  'Add a delivery address before booking a month.':
+    'মাস বুক করার আগে একটি ডেলিভারি ঠিকানা যোগ করুন।',
+  'Add a delivery address': 'ডেলিভারি ঠিকানা যোগ করুন',
+  'Your wallet is ৳{short} short.': 'আপনার ওয়ালেটে ৳{short} কম আছে।',
+  'Top up my wallet': 'ওয়ালেটে টাকা যোগ করুন',
+  'Pick your meals': 'আপনার মিল বাছুন',
+  'Pay ৳{total} and book': '৳{total} দিয়ে বুক করুন',
+  'Pay ৳{total} now?': 'এখনই ৳{total} দেবেন?',
+  '{n} meals from {kitchen} in {month}. The money is held by the platform and released to the cook one meal at a time, as you confirm each one arrived.':
+    '{month} মাসে {kitchen} থেকে {n}টি মিল। টাকা প্ল্যাটফর্মে জমা থাকে এবং আপনি প্রতিটি মিল পৌঁছানোর কথা নিশ্চিত করার সাথে সাথে একটি একটি করে রাঁধুনিকে দেওয়া হয়।',
+  'Pay and book': 'পেমেন্ট করে বুক করুন',
+  'Booking…': 'বুক করা হচ্ছে…',
+  'Not booked': 'বুক হয়নি',
+  '{n} meals booked. ৳{total} is held until you confirm each one.':
+    '{n}টি মিল বুক হয়েছে। প্রতিটি নিশ্চিত না করা পর্যন্ত ৳{total} জমা থাকবে।',
+
+  /* ---- the months a customer has bought ---- */
+
+  'MEAL BOOKINGS': 'মিল বুকিং',
+  'Every month you have bought, and what is still to come.':
+    'আপনার কেনা প্রতিটি মাস, আর যা এখনো বাকি।',
+  'No meal bookings yet': 'এখনো কোনো মিল বুকিং নেই',
+  'Pick a kitchen, choose your meals for the month, and pay once.':
+    'একটি কিচেন বাছুন, মাসের মিল বেছে নিন, একবার পেমেন্ট করুন।',
+  'Find a kitchen': 'কিচেন খুঁজুন',
+  '{n} at ৳{rate}': '{n}টি, প্রতিটি ৳{rate}',
+  'Paid in advance': 'অগ্রিম পরিশোধিত',
+  'Waiting on you': 'আপনার জন্য অপেক্ষায়',
+  'none — month finished': 'কিছু নেই — মাস শেষ',
+  'Your money is held by the platform, not sent to the cook. Each meal is released only when you confirm it arrived — so a month you paid for on the first is still yours to hold on the twentieth.':
+    'আপনার টাকা প্ল্যাটফর্মে জমা থাকে, রাঁধুনিকে পাঠানো হয় না। আপনি পৌঁছানোর কথা নিশ্চিত করলেই কেবল প্রতিটি মিলের টাকা ছাড়া হয় — তাই ১ তারিখে দেওয়া টাকার নিয়ন্ত্রণ ২০ তারিখেও আপনার হাতেই থাকে।',
+
+  /* ---- one booking, meal by meal ---- */
+
+  BOOKING: 'বুকিং',
+  '{n} meals · {code}': '{n}টি মিল · {code}',
+  '{n} meals are waiting on you': '{n}টি মিল আপনার জন্য অপেক্ষা করছে',
+  'The cook has handed these over. Confirming each one pays them for it.':
+    'রাঁধুনি এগুলো পৌঁছে দিয়েছেন। প্রতিটি নিশ্চিত করলে তার টাকা তিনি পাবেন।',
+  'Rate agreed': 'নির্ধারিত রেট',
+  '৳{rate} a meal': 'প্রতি মিল ৳{rate}',
+  'Still held': 'এখনো জমা',
+  'Meal received': 'মিল পেয়েছি',
+  'Confirm {meal}?': '{meal} নিশ্চিত করবেন?',
+  'this meal': 'এই মিলটি',
+  '৳{amount} is released to the cook for this meal, and cannot be taken back. Only confirm a meal you actually received.':
+    'এই মিলের জন্য ৳{amount} রাঁধুনিকে দেওয়া হবে, এবং তা ফেরত নেওয়া যাবে না। যে মিল সত্যিই পেয়েছেন কেবল সেটিই নিশ্চিত করুন।',
+  'Yes, I got it': 'হ্যাঁ, পেয়েছি',
+  'Not confirmed': 'নিশ্চিত হয়নি',
+  'Coming: ': 'আসছে: ',
+  Coming: 'আসছে',
+  'Delivered — confirm it': 'পৌঁছেছে — নিশ্চিত করুন',
+  'Confirmed — releasing': 'নিশ্চিত — টাকা ছাড়া হচ্ছে',
+  'Done — cook paid': 'সম্পন্ন — রাঁধুনি টাকা পেয়েছেন',
+  'That booking could not be found.': 'বুকিংটি খুঁজে পাওয়া যায়নি।',
+  'My bookings': 'আমার বুকিং',
+  'Nothing releases on its own. A meal you never received stays held, and you can raise it with support from the order itself.':
+    'কোনো টাকা নিজে থেকে ছাড়া হয় না। যে মিল আপনি পাননি তার টাকা জমাই থাকে, এবং অর্ডার থেকেই আপনি সাপোর্টে জানাতে পারেন।',
+
+  /* ---- the cook's side of it ---- */
+
+  'Monthly meals': 'মাসিক মিল',
+  'Meal service': 'মিল সার্ভিস',
+  'My calendar': 'আমার ক্যালেন্ডার',
+  'My dishes': 'আমার খাবার',
+  'What you cook each day of the month': 'মাসের প্রতিদিন আপনি কী রাঁধবেন',
+  'The meals you drop onto a day': 'যে খাবারগুলো দিনে বসাবেন',
+  'Start a meal service first': 'আগে একটি মিল সার্ভিস চালু করুন',
+  'Not started yet': 'এখনো শুরু হয়নি',
+  'Checking…': 'দেখা হচ্ছে…',
+  '{label} · ৳{rate} a meal · open': '{label} · প্রতি মিল ৳{rate} · চালু',
+  '{label} · ৳{rate} a meal · not offered': '{label} · প্রতি মিল ৳{rate} · বন্ধ',
+
+  /* ---- refusals the server sends as templates ---- */
+
+  'Pick between {min} and {max} meals. You picked {count}.':
+    '{min} থেকে {max}টি মিল বাছুন। আপনি {count}টি বেছেছেন।',
+  'This cook takes exactly {n} meals a month. You picked {count}.':
+    'এই রাঁধুনি মাসে ঠিক {n}টি মিল নেন। আপনি {count}টি বেছেছেন।',
+  'That is not a number of meals this cook takes.':
+    'এই রাঁধুনি এই সংখ্যক মিল নেন না।',
+  'This cook has not published a menu for that month yet.':
+    'এই রাঁধুনি ওই মাসের মেনু এখনো প্রকাশ করেননি।',
+  'This kitchen is not taking meal bookings right now.':
+    'এই কিচেন এখন মিল বুকিং নিচ্ছে না।',
+  /* Generic refusals the meal flows surface, and which were untranslated
+     across the app: every one of them can be the last thing a customer
+     reads before giving up on a booking. */
+  PLAN: 'প্ল্যান',
+  'That did not work.': 'কাজটি হয়নি।',
+  'We could not reach the server. Check your connection.':
+    'সার্ভারে পৌঁছানো যায়নি। আপনার সংযোগ দেখুন।',
+  'You have already sent that.': 'এটি আপনি আগেই পাঠিয়েছেন।',
+  'Sign in to do that.': 'এটি করতে সাইন ইন করুন।',
+  'Nothing listed yet': 'এখনো কিছু তালিকাভুক্ত হয়নি',
+  Released: 'ছাড় হয়েছে',
 };

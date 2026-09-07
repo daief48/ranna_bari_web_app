@@ -71,11 +71,21 @@ export const hasServer = !!API_BASE;
 const TIMEOUT_MS = 12_000;
 
 export class ApiError extends Error {
-  constructor(message, { status, code } = {}) {
+  constructor(message, { status, code, detail } = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status ?? 0;
     this.code = code ?? null;
+    /**
+     * The values behind the refusal.
+     *
+     * Several backend messages are templates — "Pick between {min} and {max}
+     * meals." — and the numbers to put in them ride alongside as `detail`.
+     * Dropping it here meant those sentences reached the customer with the
+     * braces still in them, which is exactly the shape of bug the backend
+     * comment on `MEAL_COUNT` says this field exists to prevent.
+     */
+    this.detail = detail ?? null;
     /* Anything that never reached the server can be retried by the outbox.
        A 4xx cannot — replaying a refused message just refuses again. */
     this.retryable = !status || status >= 500;
@@ -163,6 +173,7 @@ export async function api(path, { method = 'GET', token, body, signal } = {}) {
       throw new ApiError(payload.message || 'That did not work.', {
         status: response.status,
         code: payload.error,
+        detail: payload.detail,
       });
     }
 
@@ -209,6 +220,8 @@ export async function call(path, options = {}) {
          answer is the network, whatever the cause underneath. */
       error: code ?? 'network',
       message: error?.message ?? 'Could not reach the server.',
+      /* Carried through so `errorText` can fill in a templated refusal. */
+      detail: error instanceof ApiError ? error.detail : null,
       status: error instanceof ApiError ? error.status : 0,
       retryable: error instanceof ApiError ? error.retryable : true,
     };

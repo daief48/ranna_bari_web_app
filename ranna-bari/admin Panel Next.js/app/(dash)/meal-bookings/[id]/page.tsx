@@ -34,6 +34,9 @@ type Item = {
   code: string | null;
   status: string | null;
   payment: string | null;
+  /** The realised split. Zero until this meal is released. */
+  cookAmount: number;
+  platformAmount: number;
   deliveredAt: string | null;
   receivedAt: string | null;
 };
@@ -109,8 +112,10 @@ export default async function MealBookingDetail({
   const held = items.filter((i) => i.payment === 'held');
   const released = items.filter((i) => i.payment === 'released');
   /* Confirmed by the customer and still holding money — the queue this page
-     exists to clear. */
-  const releasable = held.filter((i) => i.receivedAt);
+     exists to clear. `status` rather than the timestamp: reaching 'completed'
+     *is* the customer confirming, and it is the field the release endpoint
+     itself checks. The stamp is for showing when. */
+  const releasable = held.filter((i) => i.status === 'completed');
   const total = items.reduce((sum, i) => sum + i.amount, 0);
 
   return (
@@ -148,11 +153,15 @@ export default async function MealBookingDetail({
           tone={held.length ? 'warn' : 'good'}
           sub={held.length ? taka(held.reduce((s, i) => s + i.amount, 0)) : 'nothing outstanding'}
         />
+        {/* The cook's own share, not the escrow that came out. Adding up
+            `amount` here would count the platform's commission as money the
+            cook received — which is the one figure on this screen somebody
+            would quote back at a cook. */}
         <Stat
           label="Released to cook"
           value={released.length}
           tone="good"
-          sub={taka(released.reduce((s, i) => s + i.amount, 0))}
+          sub={`${taka(released.reduce((s, i) => s + i.cookAmount, 0))} after commission`}
         />
       </Grid>
 
@@ -269,7 +278,7 @@ export default async function MealBookingDetail({
                   code={item.code ?? item.orderId}
                   amount={item.amount}
                   payment={item.payment}
-                  confirmed={!!item.receivedAt}
+                  confirmed={item.status === 'completed'}
                   canMoney={canMoney}
                 />
               </td>
