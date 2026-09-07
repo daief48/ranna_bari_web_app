@@ -40,7 +40,7 @@ export const dynamic = 'force-dynamic';
  *
  * `GET /kitchens/:id` exists now (it did not when this page was written, which
  * is what the previous comment here said), and it returns the store, dishes,
- * recent orders, meals, counts and money in one round trip. So: try the
+ * recent orders, counts and money in one round trip. So: try the
  * backend first, because that is where the links come from, and fall back to
  * Prisma for a cuid the backend has never seen.
  *
@@ -68,8 +68,16 @@ type Remote = {
     amount: number;
     createdAt: string;
   }[];
-  meals: { id: string; title: string; serveDate: string; slot: string; status: string }[];
-  counts: { orders: number; cancelled: number; meals: number; reviews: number };
+  /*
+   * No `meals`, and no `counts.meals`.
+   *
+   * They were declared here for a while after the endpoint stopped sending
+   * them — the meal-plan rewrite dropped the recent-meals join, and its own
+   * comment says a booking summary takes its place at stage 3. A hand-written
+   * response type is an assertion, not a check, so the compiler went on
+   * believing both fields were there and the page read `undefined.map`.
+   */
+  counts: { orders: number; cancelled: number; reviews: number };
   money: { gmv: number; owed: number; releasedToCook: number; platformTook: number };
 };
 
@@ -124,7 +132,7 @@ type KitchenView = {
         }
       | null;
     dishes: { id: string; name: string; price: number; available: boolean }[];
-    _count: { meals: number; orders: number; reviews: number; offers: number };
+    _count: { orders: number; reviews: number; offers: number };
   };
   orders: {
     id: string;
@@ -134,7 +142,6 @@ type KitchenView = {
     amount: number;
     createdAt: Date | string;
   }[];
-  meals: { id: string; title: string; serveDate: string; slot: string; status: string }[];
   gmv: { _sum: { amount: number | null }; _count: number };
   cancelled: number;
   owed: number;
@@ -165,14 +172,12 @@ async function loadKitchen(id: string): Promise<KitchenView | null> {
         /* The endpoint carries no offer count, and `orders` here is the
            lifetime figure rather than the ten rows it also returns. */
         _count: {
-          meals: remote.counts.meals,
           orders: remote.counts.orders,
           reviews: remote.counts.reviews,
           offers: 0,
         },
       },
       orders: remote.orders,
-      meals: remote.meals,
       gmv: { _sum: { amount: remote.money.gmv }, _count: remote.counts.orders },
       cancelled: remote.counts.cancelled,
       owed: remote.money.owed,
@@ -199,7 +204,7 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
   const data = await loadKitchen(id);
   if (!data) notFound();
 
-  const { kitchen, orders, meals, gmv, cancelled, owed, released } = data;
+  const { kitchen, orders, gmv, cancelled, owed, released } = data;
 
   /* Prisma keeps tags as a JSON string; Mongo hands back a real array. Passing
      an array to `parseJson` would stringify it into `JSON.parse`, fail, and
@@ -518,21 +523,12 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
           </Table>
         </Card>
 
-        <Card title="Meals" subtitle={`${kitchen._count.meals} published`} pad={false}>
-          <Table head={['Meal', 'Serve', 'Slot', 'Status']}>
-            {meals.map((meal) => (
-              <tr key={meal.id}>
-                <td className="max-w-[200px] truncate font-medium">{meal.title}</td>
-                <td className="tnum text-ink2">{meal.serveDate}</td>
-                <td className="text-ink2 capitalize">{meal.slot}</td>
-                <td>
-                  <StatusBadge status={meal.status} />
-                </td>
-              </tr>
-            ))}
-            {meals.length === 0 ? <EmptyRow span={4}>No meals.</EmptyRow> : null}
-          </Table>
-        </Card>
+        {/*
+          A "Meals" card sat here, listing this kitchen's published meals off
+          the endpoint's recent-meals join. The meal-plan rewrite removed that
+          join; the card is not rebuilt until the booking summary its own
+          comment promises exists to fill it.
+        */}
       </div>
 
       <p className="mt-6 text-[11.5px] text-ink3">

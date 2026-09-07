@@ -13,6 +13,11 @@ import { adminRoutes } from './routes/admin/v1/index.js';
 import { operationRoutes } from './routes/admin/v1/operations.js';
 import { moneyRoutes } from './routes/admin/v1/money.js';
 import { internalRoutes } from './routes/internal/index.js';
+/* A self-contained feature rather than a domain of the marketplace: it keeps
+   its own collections, its own refusal codes and its own service layer under
+   src/modules, and borrows nothing from the rest of the backend but the token
+   on the request. Mounted here because that is where the app realm is. */
+import { mealManagementRoutes } from './modules/meal-management/routes.js';
 
 /**
  * The HTTP surface.
@@ -133,7 +138,15 @@ export async function buildApp(): Promise<FastifyInstance> {
      prefixes; the prefix decides which authentication realm a handler is in,
      so a route cannot end up in the wrong one by being written in the wrong
      place. */
-  for (const routes of [appRoutes, mealRoutes, orderRoutes, storeRoutes, requestRoutes, walletRoutes]) {
+  for (const routes of [
+    appRoutes,
+    mealRoutes,
+    orderRoutes,
+    storeRoutes,
+    requestRoutes,
+    walletRoutes,
+    mealManagementRoutes,
+  ]) {
     await app.register(routes, { prefix: '/api/app/v1' });
   }
   for (const routes of [adminRoutes, operationRoutes, moneyRoutes]) {

@@ -220,6 +220,26 @@ export default function ProfileScreen() {
         </View>
 
         {/*
+          * Meal management.
+          *
+          * Its own heading rather than a row under Money or Activity, because
+          * it is not part of ordering food here — it is a separate tool for
+          * keeping mess accounts, with its own screens, its own data and its
+          * own stack behind this one door.
+          */}
+        <GroupLabel icon="calendar" text={t('Meal management')} style={{ marginTop: 28 }} />
+
+        <View style={{ gap: 12, marginTop: 14 }}>
+          <Row
+            icon="calendar"
+            variant="sage"
+            title={t('Meal management')}
+            sub={t('Mess meals, monthly rate and a smart meal planner')}
+            onPress={() => router.push('/meal-management')}
+          />
+        </View>
+
+        {/*
           * One heading, whoever is reading.
           *
           * There were two: this one, unconditionally, and a second "Account"

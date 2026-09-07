@@ -16,6 +16,13 @@ export const ICONS = {
   activity: [
     ["path", {"d":"M21.5 12h-4l-3 8.2L9.5 3.8l-3 8.2h-4"}],
   ],
+  /* Added for meal management, which is the app's first calendar surface. */
+  calendar: [
+    ["rect", {"x":"3.5","y":"5","width":"17","height":"15.5","rx":"3"}],
+    ["path", {"d":"M3.5 9.8h17"}],
+    ["path", {"d":"M8.2 3.5v3"}],
+    ["path", {"d":"M15.8 3.5v3"}],
+  ],
   alertCircle: [
     ["circle", {"cx":"12","cy":"12","r":"9"}],
     ["path", {"d":"M12 7.6v5.2"}],

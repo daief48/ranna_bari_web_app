@@ -8,24 +8,13 @@ import {
   Card,
   Grid,
   LinkButton,
-  Money,
   PageHeader,
   Stat,
-  StatusBadge,
 } from '@/components/ui';
 import { requirePage } from '@/lib/guard';
 
 export const dynamic = 'force-dynamic';
 
-type MealHit = {
-  id: string;
-  title: string;
-  serveDate: string;
-  price: number;
-  status: string;
-  kitchenId: string;
-  kitchenName: string;
-};
 type KitchenHit = { id: string; name: string; area: string | null; isVerified: boolean };
 type ProductHit = {
   id: string;
@@ -62,20 +51,21 @@ export default async function SearchTermDetail({
 
   /* Searched against the catalogue the app searches, not the panel's mirror
      of it. On a screen about terms that found nothing, answering from a
-     different catalogue could report four matching meals for a search the app
-     returns nothing for — exactly backwards. */
-  let meals: MealHit[];
+     different catalogue could report four matching dishes for a search the app
+     returns nothing for — exactly backwards.
+
+     Three catalogues, not four: the meal-plan rewrite dropped meals from this
+     endpoint along with the collection behind them. */
   let kitchens: KitchenHit[];
   let products: ProductHit[];
   let dishes: DishHit[];
   try {
     const data = await get<{
-      meals: MealHit[];
       kitchens: KitchenHit[];
       products: ProductHit[];
       dishes: DishHit[];
     }>(`/search-terms/${encodeURIComponent(term)}`);
-    ({ meals, kitchens, products, dishes } = data);
+    ({ kitchens, products, dishes } = data);
   } catch (error) {
     if (error instanceof BackendError && error.status === 0) {
       return <BackendDown title={term} subtitle="What the catalogue holds for this search" />;
@@ -83,7 +73,7 @@ export default async function SearchTermDetail({
     throw error;
   }
 
-  const hits = meals.length + kitchens.length + products.length + dishes.length;
+  const hits = kitchens.length + products.length + dishes.length;
 
   return (
     <>
@@ -98,11 +88,11 @@ export default async function SearchTermDetail({
           label="Matches now"
           value={hits}
           tone={hits === 0 ? 'bad' : 'good'}
-          sub={hits === 0 ? 'A customer searching this still finds nothing' : 'Across all four catalogues'}
+          sub={hits === 0 ? 'A customer searching this still finds nothing' : 'Across all three catalogues'}
         />
-        <Stat label="Meals" value={meals.length} />
         <Stat label="Kitchens" value={kitchens.length} />
         <Stat label="Shop products" value={products.length} />
+        <Stat label="Menu dishes" value={dishes.length} />
       </Grid>
 
       {hits === 0 ? (
@@ -120,46 +110,8 @@ export default async function SearchTermDetail({
         </Card>
       ) : null}
 
-      {meals.length > 0 ? (
-        <Card className="mt-3" title="Meals" pad={false}>
-          <div className="scroll-x">
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>Meal</th>
-                  <th>Kitchen</th>
-                  <th>Serve</th>
-                  <th style={{ textAlign: 'right' }}>Price</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {meals.map((meal) => (
-                  <tr key={meal.id}>
-                    <td className="max-w-[240px] truncate">
-                      <Link href={`/meals/${meal.id}`} className="font-medium hover:text-primary">
-                        {meal.title}
-                      </Link>
-                    </td>
-                    <td className="text-ink2">
-                      <Link href={`/kitchens/${meal.kitchenId}`} className="hover:text-primary">
-                        {meal.kitchenName}
-                      </Link>
-                    </td>
-                    <td className="tnum whitespace-nowrap text-ink2">{meal.serveDate}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <Money amount={meal.price} />
-                    </td>
-                    <td>
-                      <StatusBadge status={meal.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      ) : null}
+      {/* A "Meals" table sat here, over the fourth catalogue this endpoint
+          used to search. It went with the Meal collection. */}
 
       {kitchens.length > 0 ? (
         <Card className="mt-3" title="Kitchens">

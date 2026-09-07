@@ -143,7 +143,9 @@ export default async function Dashboard({
     { label: 'Top-ups with no payment behind them', value: attention.orphanTopups, href: '/topups', tone: 'bad' as const, note: 'Unmatched credit' },
     { label: 'Cooks awaiting KYC', value: attention.kycPending, href: '/kyc', tone: 'warn' as const, note: 'Cannot trade until checked' },
     { label: 'Pre-orders waiting on a cook', value: attention.preordersWaiting, href: '/orders?status=pending', tone: 'warn' as const, note: 'Customer is waiting' },
-    { label: 'Meals open past their serve date', value: attention.staleMeals, href: '/meals?view=stale', tone: 'warn' as const, note: 'Taking orders for nothing' },
+    /* "Meals open past their serve date" sat here until the meal-plan rewrite
+       took the Meal collection and the admin `/meals` endpoints with it. The
+       row is not commented back in until there is a board behind it again. */
     { label: 'Products stuck at zero stock', value: attention.stockZero, href: '/stores?view=stock', tone: 'neutral' as const },
     { label: 'Broadcasts that reached nobody', value: dead.total, href: '/requests?view=dead', tone: 'neutral' as const },
     /* A null is a queue this role may not read, not an empty one. It drops

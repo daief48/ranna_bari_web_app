@@ -92,15 +92,23 @@ async function totalOrForbidden(path: string): Promise<number | null> {
  * panel is asking one question — what needs me — and every other number on
  * the page is context for it.
  *
- * `/overview` carries six of the eight counts. The other two are one row's
- * worth of `total` off boards that already exist, which is cheaper than
- * asking the overview to grow two more aggregates that could then disagree
- * with the lists behind them.
+ * `/overview` carries six of the seven counts. The last is one row's worth of
+ * `total` off a board that already exists, which is cheaper than asking the
+ * overview to grow another aggregate that could then disagree with the list
+ * behind it.
+ *
+ * There was an eighth — meals left open past their serve date. `fa27cc4`
+ * replaced the Meal collection with the meal-plan model and deleted the admin
+ * `/meals` endpoints with it, so this asked for a route that no longer
+ * answers. A 404 is not a 403, `totalOrForbidden` rethrew it exactly as it is
+ * documented to, and the one screen every role can see died on a count that
+ * was one of eight. The count is gone rather than caught: the board it linked
+ * to is gone too, and a dashboard row pointing at a dead board is worse than
+ * no row.
  */
 export async function overview() {
-  const [core, staleMeals, orphanTopups] = await Promise.all([
+  const [core, orphanTopups] = await Promise.all([
     get<OverviewResponse>('/overview'),
-    totalOrForbidden('/meals?view=stale&take=1'),
     totalOrForbidden('/topups?state=orphan&take=1'),
   ]);
 
@@ -112,7 +120,6 @@ export async function overview() {
       disputesOpen: core.attention.disputes,
       escrowAged: core.attention.escrowAged,
       preordersWaiting: core.attention.preorders,
-      staleMeals,
       stockZero: core.attention.stockZero,
       orphanTopups,
       reviewsFlagged: core.attention.reviewsFlagged,

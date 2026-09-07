@@ -27,15 +27,31 @@ import { requirePage } from '@/lib/guard';
 export const dynamic = 'force-dynamic';
 
 /** Exactly what the render below reads, named once so both loads must match. */
-type OrderView = Prisma.OrderGetPayload<{
-  include: {
-    kitchen: { select: { id: true; name: true; area: true } };
-    dispute: true;
-    ledger: true;
-    meal: { select: { id: true; title: true; serveDate: true; slot: true } };
-    store: { select: { id: true; name: true } };
-  };
-}>;
+type OrderView = Omit<
+  Prisma.OrderGetPayload<{
+    include: {
+      kitchen: { select: { id: true; name: true; area: true } };
+      dispute: true;
+      ledger: true;
+      meal: { select: { id: true; title: true; serveDate: true; slot: true } };
+      store: { select: { id: true; name: true } };
+    };
+  }>,
+  'kitchen'
+> & {
+  /*
+   * Nullable, unlike the Prisma relation it otherwise mirrors.
+   *
+   * The relation cannot be null — an order without a kitchen does not exist
+   * in that schema. The backend is not that schema: it holds the two in
+   * separate collections with no referential integrity between them, looks
+   * the kitchen up by id, and returns null when the row is not there. Taking
+   * the Prisma type verbatim asserted a guarantee the source does not make,
+   * and `loadOrder`'s cast then hid the mismatch from the compiler until an
+   * operator opened the one order it was true of.
+   */
+  kitchen: { id: string; name: string; area: string } | null;
+};
 
 /**
  * The order, from whichever store holds it.
@@ -255,12 +271,32 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
         </Card>
 
         <Card title="Kitchen" className="lg:col-span-1">
+          {/*
+            The kitchen row can be gone while the order is not.
+
+            `kitchenId` is required on an order, so there is always an id —
+            but `GET /orders/:id` looks the kitchen up separately and returns
+            `kitchen: null` when that lookup finds nothing. Dereferencing it
+            threw during the server render, and with no `error.tsx` anywhere
+            in the panel that surfaced as "A server error occurred" and a
+            digest, on an order that was otherwise perfectly readable.
+
+            So the id is shown when the row is missing. An operator looking at
+            an order whose kitchen has been deleted needs to see exactly that,
+            and the id is the thread they pull to find out why.
+          */}
           <Field label="Kitchen">
-            <Link href={`/kitchens/${order.kitchen.id}`} className="hover:text-primary">
-              {order.kitchen.name}
-            </Link>
+            {order.kitchen ? (
+              <Link href={`/kitchens/${order.kitchen.id}`} className="hover:text-primary">
+                {order.kitchen.name}
+              </Link>
+            ) : (
+              <span className="text-ink3">
+                No kitchen record — <span className="tnum">{order.kitchenId}</span>
+              </span>
+            )}
           </Field>
-          <Field label="Area">{order.kitchen.area}</Field>
+          <Field label="Area">{order.kitchen?.area ?? '—'}</Field>
           {order.meal ? (
             <Field label="From meal">
               {order.meal.title} · {order.meal.serveDate} {order.meal.slot}

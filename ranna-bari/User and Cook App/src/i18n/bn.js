@@ -1788,4 +1788,316 @@ export const bn = {
   '{n} cooks have offered': '{n} জন রাঁধুনি দাম দিয়েছেন',
   'The lowest so far is ৳{low} for {title}.':
     '{title}-এর জন্য এখন পর্যন্ত সবচেয়ে কম ৳{low}।',
+
+  /* ---------------- meal management ----------------
+     A self-contained feature under Profile: mess meal accounting, the monthly
+     rate, and the planner built on top of it. Money words are kept exact and
+     consistent -- প্রকৃত for what happened, আনুমানিক for what is projected --
+     because the whole feature rests on a reader being able to tell those two
+     apart at a glance. */
+
+  /* the door, and the shell */
+  'Meal management': 'মিল ম্যানেজমেন্ট',
+  'Mess meals, monthly rate and a smart meal planner':
+    'মেসের খাবার, মাসিক রেট আর স্মার্ট মিল প্ল্যানার',
+  'Track your mess meals, costs and monthly rate.':
+    'আপনার মেসের খাবার, খরচ আর মাসিক রেট হিসাব রাখুন।',
+  'Sign in to use meal management': 'মিল ম্যানেজমেন্ট ব্যবহার করতে সাইন ইন করুন',
+  'Your meals and costs are kept against your account.':
+    'আপনার খাবার আর খরচ আপনার অ্যাকাউন্টের সাথেই রাখা হয়।',
+  'Loading your meals…': 'আপনার খাবার লোড হচ্ছে…',
+  'That did not load.': 'এটি লোড হয়নি।',
+
+  /* section heads */
+  MEAL: 'মিল',
+  MANAGEMENT: 'ম্যানেজমেন্ট',
+  MY: 'আমার',
+  MESS: 'মেসের',
+  MONTHLY: 'মাসিক',
+  SUMMARY: 'সারসংক্ষেপ',
+  RATE: 'রেট',
+  EXPENSES: 'খরচ',
+  PLANNER: 'প্ল্যানার',
+  PREFERENCES: 'পছন্দ',
+  SMART: 'স্মার্ট',
+  SUGGESTIONS: 'পরামর্শ',
+  FORECAST: 'পূর্বাভাস',
+  CALENDAR: 'ক্যালেন্ডার',
+  SETTINGS: 'সেটিংস',
+
+  /* dashboard */
+  "Today's meals": 'আজকের খাবার',
+  'Total today': 'আজকের মোট',
+  'This month, actually': 'এই মাসে প্রকৃতপক্ষে',
+  'Meals eaten': 'খাওয়া মিল',
+  'Meal rate': 'মিল রেট',
+  'Your cost': 'আপনার খরচ',
+  'Costs counted this month': 'এই মাসে গণনায় ধরা খরচ',
+  'Your rate is what the counted costs divide by the meals recorded — nothing else.':
+    'গণনায় ধরা খরচকে রেকর্ড করা মিল দিয়ে ভাগ করলেই আপনার রেট — এর বাইরে কিছু নয়।',
+  'Your plan projects': 'আপনার পরিকল্পনার হিসাব',
+  'Meals planned': 'পরিকল্পিত মিল',
+  'Projected rate': 'সম্ভাব্য রেট',
+  'Projected cost': 'সম্ভাব্য খরচ',
+  'Your target': 'আপনার লক্ষ্য',
+  Smart: 'স্মার্ট',
+  Settings: 'সেটিংস',
+  'My meals': 'আমার খাবার',
+  'Every day this month, and what you took':
+    'এই মাসের প্রতিটি দিন, আর আপনি কী নিয়েছেন',
+  Calendar: 'ক্যালেন্ডার',
+  'The month at a glance': 'এক নজরে পুরো মাস',
+  'Monthly summary': 'মাসিক সারসংক্ষেপ',
+  'Meals, cost and rate, month by month': 'মাসে মাসে মিল, খরচ আর রেট',
+  'How this month’s rate was worked out': 'এই মাসের রেট কীভাবে বেরোলো',
+  Expenses: 'খরচ',
+  'What the mess spent, and what counts': 'মেস কী খরচ করেছে, আর কোনটা গণনায় ধরা হয়',
+  'Smart meal planner': 'স্মার্ট মিল প্ল্যানার',
+  'Build a month around your target': 'আপনার লক্ষ্য অনুযায়ী মাস সাজান',
+  'Planned · ৳{n} a meal': 'পরিকল্পিত · প্রতি মিল ৳{n}',
+  Recommendations: 'পরামর্শ',
+  'What to change, and why': 'কী বদলাবেন, আর কেন',
+  Forecast: 'পূর্বাভাস',
+  'What to cook, and where food is going to waste':
+    'কতটা রাঁধবেন, আর কোথায় খাবার নষ্ট হচ্ছে',
+  'Meal schedule and preferences': 'খাবারের সময়সূচি ও পছন্দ',
+  'Which sittings you take, and what you like': 'আপনি কোন বেলা নেন, আর কী পছন্দ করেন',
+  'Meal management settings': 'মিল ম্যানেজমেন্ট সেটিংস',
+  'Which costs count, and closing a month': 'কোন খরচ গণনায় ধরা হবে, আর মাস বন্ধ করা',
+  'Set a target meal rate': 'একটি লক্ষ্য মিল রেট ঠিক করুন',
+  'Tell the planner what you want to pay per meal and it will build a month around it.':
+    'প্রতি মিলে কত দিতে চান বলুন, প্ল্যানার সেই অনুযায়ী পুরো মাস সাজিয়ে দেবে।',
+  'Set a target': 'লক্ষ্য ঠিক করুন',
+
+  /* my meals */
+  'What you actually took, day by day.': 'দিন ধরে ধরে আপনি আসলে কী নিয়েছেন।',
+  'All days': 'সব দিন',
+  'Days I ate': 'যেদিন খেয়েছি',
+  'Still to come': 'সামনের দিন',
+  'Away for a few days?': 'কয়েক দিন বাইরে থাকবেন?',
+  'Every day': 'প্রতিদিন',
+  'Guest meals': 'অতিথির মিল',
+  'This month is settled': 'এই মাসের হিসাব চূড়ান্ত',
+  'Its meals are frozen, so the final rate cannot move.':
+    'এর মিল আটকে দেওয়া হয়েছে, তাই চূড়ান্ত রেট আর বদলাবে না।',
+  'Change a run of days': 'কয়েক দিন একসাথে বদলান',
+  'Pick the first day.': 'প্রথম দিনটি বাছুন।',
+  'Now pick the last day.': 'এবার শেষ দিনটি বাছুন।',
+  '{a} to {b}': '{a} থেকে {b}',
+  'Turn off': 'বন্ধ করুন',
+  'Turn on': 'চালু করুন',
+
+  /* calendar */
+  'A month of meals, at a glance.': 'এক নজরে পুরো মাসের খাবার।',
+  'Meals this month': 'এই মাসের মিল',
+  'Days you ate': 'যত দিন খেয়েছেন',
+  'meals a day': 'মিল প্রতিদিন',
+  'Tap a day to see or change it.': 'দেখতে বা বদলাতে কোনো দিনে চাপ দিন।',
+  '{d}, {n} meals': '{d}, {n}টি মিল',
+
+  /* monthly summary */
+  'Total meals': 'মোট মিল',
+  'Your share': 'আপনার ভাগ',
+  'The mess this month': 'এই মাসে মেস',
+  'Costs that count': 'গণনায় ধরা খরচ',
+  'All costs': 'মোট খরচ',
+  'Meals across the mess': 'মেসের মোট মিল',
+  'Rate = costs that count ÷ meals recorded.':
+    'রেট = গণনায় ধরা খরচ ÷ রেকর্ড করা মিল।',
+  'Against last month': 'গত মাসের তুলনায়',
+  Change: 'পরিবর্তন',
+  'Meals last month': 'গত মাসের মিল',
+  'Nothing recorded this month': 'এই মাসে কিছু রেকর্ড করা হয়নি',
+  'Log a few meals and the totals appear here.':
+    'কয়েকটি মিল রেকর্ড করলেই এখানে হিসাব দেখা যাবে।',
+  'Log meals': 'মিল রেকর্ড করুন',
+  'This month is settled. These figures are final.':
+    'এই মাসের হিসাব চূড়ান্ত। এই সংখ্যাগুলো আর বদলাবে না।',
+
+  /* the rate */
+  'Your meal rate this month': 'এই মাসে আপনার মিল রেট',
+  'per meal': 'প্রতি মিল',
+  'How that was worked out': 'এটি কীভাবে বেরোলো',
+  'Divided by meals': 'ভাগ হয়েছে যত মিলে',
+  'Meal rate = applicable monthly cost ÷ total monthly meals':
+    'মিল রেট = প্রযোজ্য মাসিক খরচ ÷ মাসের মোট মিল',
+  'Every cost this month': 'এই মাসের সব খরচ',
+  'Counted in the rate': 'রেটে গণনা করা হয়েছে',
+  'Not part of a meal': 'খাবারের অংশ নয',
+  Counted: 'গণনায় ধরা',
+  'Not counted': 'গণনায় ধরা হয়নি',
+  'You owe': 'আপনার দেয়',
+  'This figure is arithmetic over the meals you recorded and the costs you entered. The smart planner never changes it — it only suggests what to eat next.':
+    'এই সংখ্যাটি আপনার রেকর্ড করা মিল আর দেওয়া খরচের হিসাব মাত্র। স্মার্ট প্ল্যানার এটি কখনো বদলায় না — সে শুধু পরামর্শ দেয় পরে কী খাবেন।',
+
+  /* expenses */
+  'Counted in the rate ': 'রেটে গণনা করা হয়েছে',
+  'Spent altogether': 'সব মিলিয়ে খরচ',
+  'Add an expense': 'খরচ যোগ করুন',
+  'Add expense': 'খরচ যোগ করুন',
+  'This month': 'এই মাস',
+  'Nothing spent yet': 'এখনো কোনো খরচ নেই',
+  'Add what the mess bought and the meal rate works itself out.':
+    'মেসে যা কেনা হয়েছে যোগ করুন, মিল রেট নিজেই বেরিয়ে আসবে।',
+  'This month is settled, so its costs are frozen.':
+    'এই মাসের হিসাব চূড়ান্ত, তাই এর খরচ আর বদলানো যাবে না।',
+  'Remove this expense?': 'এই খরচটি মুছে ফেলবেন?',
+  '৳{n} will come out of this month, and the meal rate will change.':
+    'এই মাস থেকে ৳{n} বাদ যাবে, আর মিল রেট বদলে যাবে।',
+  'Amount in taka': 'টাকার পরিমাণ',
+  Date: 'তারিখ',
+  'Paid with': 'যেভাবে দেওয়া হয়েছে',
+  'Shop or vendor (optional)': 'দোকান বা বিক্রেতা (ঐচ্ছিক)',
+  'Note (optional)': 'নোট (ঐচ্ছিক)',
+  'Add ৳{n}': '৳{n} যোগ করুন',
+  'Added.': 'যোগ হয়েছে।',
+  'Removed.': 'মুছে ফেলা হয়েছে।',
+  'Rent does not count toward your meal rate unless you change that in settings.':
+    'সেটিংসে না বদলালে বাসা ভাড়া আপনার মিল রেটে গণনা করা হয় না।',
+  'Food / Bazar': 'খাবার / বাজার',
+  'Gas / Kitchen': 'গ্যাস / রান্নাঘর',
+  Utility: 'ইউটিলিটি',
+  Rent: 'বাসা ভাড়া',
+  Card: 'কার্ড',
+
+  /* planner */
+  'A month built around what you want to pay.':
+    'আপনি যত দিতে চান, সেই অনুযায়ী সাজানো একটি মাস।',
+  'Set a target meal rate first': 'আগে একটি লক্ষ্য মিল রেট ঠিক করুন',
+  'The planner needs to know what you are aiming to pay for each meal.':
+    'প্রতিটি মিলে আপনি কত দিতে চান, প্ল্যানারের সেটি জানা দরকার।',
+  'No plan for this month yet': 'এই মাসের জন্য এখনো কোনো পরিকল্পনা নেই',
+  'Build one from your target of ৳{n} a meal, your schedule and what you like.':
+    'প্রতি মিল ৳{n} লক্ষ্য, আপনার সময়সূচি আর পছন্দ থেকে একটি তৈরি করুন।',
+  'Build my plan': 'আমার পরিকল্পনা তৈরি করুন',
+  'Building…': 'তৈরি হচ্ছে…',
+  'Rebuild this plan': 'পরিকল্পনাটি আবার তৈরি করুন',
+  'Rebuilding…': 'আবার তৈরি হচ্ছে…',
+  'Plan ready.': 'পরিকল্পনা তৈরি।',
+  'Budget for the month': 'মাসের বাজেট',
+  Confidence: 'নির্ভরযোগ্যতা',
+  'Confidence rises as you record more months — it is built from your own history, not a guess.':
+    'যত বেশি মাস রেকর্ড করবেন নির্ভরযোগ্যতা তত বাড়বে — এটি আপনার নিজের হিসাব থেকেই আসে, অনুমান থেকে নয়।',
+  'The month': 'মাসটি',
+  estimated: 'আনুমানিক',
+  'Swap this meal': 'এই মিলটি বদলান',
+  Currently: 'এখন আছে',
+  'Estimated cost': 'আনুমানিক খরচ',
+  'Saves ৳{n}': '৳{n} সাশ্রয়',
+  'Keep what I have': 'যা আছে তাই থাক',
+  'Swapped.': 'বদলে দেওয়া হয়েছে।',
+  'Nothing cheaper is available for this sitting — this is already one of your least costly options.':
+    'এই বেলার জন্য এর চেয়ে সস্তা কিছু নেই — এটিই আপনার কম খরচের একটি।',
+  '{slot}: {name}, estimated ৳{n}. Tap for cheaper options.':
+    '{slot}: {name}, আনুমানিক ৳{n}। সস্তা বিকল্প দেখতে চাপ দিন।',
+  '{name}, ৳{n}. Saves ৳{s}.': '{name}, ৳{n}। ৳{s} সাশ্রয়।',
+  'Projected ৳{p} a meal against your ৳{t} target.':
+    'আপনার ৳{t} লক্ষ্যের বিপরীতে প্রতি মিল সম্ভাব্য ৳{p}।',
+  'Projected ৳{p} a meal.': 'প্রতি মিল সম্ভাব্য ৳{p}।',
+  'Within target': 'লক্ষ্যের মধ্যে',
+  'Close to target': 'লক্ষ্যের কাছাকাছি',
+  'Over target': 'লক্ষ্য ছাড়িয়ে গেছে',
+  'No target set': 'কোনো লক্ষ্য ঠিক করা নেই',
+
+  /* preferences */
+  'What the planner should aim for.': 'প্ল্যানার কী লক্ষ্য রাখবে।',
+  'Target meal rate': 'লক্ষ্য মিল রেট',
+  'Taka per meal': 'প্রতি মিলে টাকা',
+  'The planner builds a month that averages this. It does not change what your meals actually cost.':
+    'প্ল্যানার এই গড় ধরে মাস সাজায়। আপনার খাবারে আসলে কত খরচ হলো, তা এটি বদলায় না।',
+  'My meal schedule': 'আমার খাবারের সময়সূচি',
+  'Meals a day at most': 'দিনে সর্বোচ্চ মিল',
+  'This is what the planner expects. Your bill still counts only the meals you record.':
+    'প্ল্যানার এটিই ধরে নেয়। তবু আপনার হিসাবে কেবল রেকর্ড করা মিলই গণনা হয়।',
+  'Breakfasts a week': 'সপ্তাহে কত দিন নাশতা',
+  'Protein, days a week': 'প্রোটিন, সপ্তাহে কত দিন',
+  'Leave blank for no limit. Tap the same number again to clear it.':
+    'সীমা না চাইলে খালি রাখুন। একই সংখ্যায় আবার চাপ দিলে মুছে যাবে।',
+  'What you like': 'আপনি যা পছন্দ করেন',
+  'Never plan these': 'এগুলো কখনো পরিকল্পনায় রাখবেন না',
+  Variety: 'বৈচিত্র্য',
+  'Never the same dish two days running': 'পরপর দুই দিন একই পদ নয়',
+  'Save preferences': 'পছন্দ সংরক্ষণ করুন',
+  Often: 'প্রায়ই',
+  Sometimes: 'মাঝে মাঝে',
+  Rarely: 'কদাচিৎ',
+  Chicken: 'মুরগি',
+  Fish: 'মাছ',
+  Beef: 'গরুর মাংস',
+  Egg: 'ডিম',
+  Dal: 'ডাল',
+  Vegetable: 'সবজি',
+
+  /* recommendations */
+  'Nothing to suggest yet': 'এখনো পরামর্শ দেওয়ার মতো কিছু নেই',
+  'Record a few meals and costs, and suggestions appear here.':
+    'কয়েকটি মিল আর খরচ রেকর্ড করুন, পরামর্শ এখানে আসবে।',
+  'Open the planner': 'প্ল্যানার খুলুন',
+  'Plan against reality': 'পরিকল্পনা বনাম বাস্তব',
+  'Planned rate': 'পরিকল্পিত রেট',
+  'Actual rate': 'প্রকৃত রেট',
+  'Meals recorded': 'রেকর্ড করা মিল',
+  Difference: 'পার্থক্য',
+  'Neither figure is adjusted to match the other. The gap is what the planner learns from.':
+    'কোনো সংখ্যাকেই অন্যটির সাথে মিলিয়ে বদলানো হয় না। এই ফারাক থেকেই প্ল্যানার শেখে।',
+  'Your choices': 'আপনার সিদ্ধান্ত',
+  'Suggestions made': 'দেওয়া পরামর্শ',
+  'Swaps you took': 'যত বদল নিয়েছেন',
+  'Swaps you turned down': 'যত বদল ফিরিয়ে দিয়েছেন',
+
+  /* forecast */
+  'What the last four weeks suggest you will actually eat.':
+    'গত চার সপ্তাহ বলছে আপনি আসলে কতটা খাবেন।',
+  'Nothing to forecast from yet': 'পূর্বাভাস দেওয়ার মতো তথ্য এখনো নেই',
+  'Record a week of meals and this fills in.':
+    'এক সপ্তাহের মিল রেকর্ড করলেই এটি ভরে উঠবে।',
+  'Expected portions': 'সম্ভাব্য পরিমাণ',
+  'Taken {n}% of the time · {c} confidence':
+    '{n}% সময় নেওয়া হয়েছে · নির্ভরযোগ্যতা {c}',
+  'What that means': 'এর মানে কী',
+  'Kitchen note': 'রান্নাঘরের নোট',
+  High: 'বেশি',
+  Medium: 'মাঝারি',
+  Low: 'কম',
+
+  /* settings */
+  'What counts, and when a month is final.': 'কী গণনায় ধরা হবে, আর মাস কখন চূড়ান্ত।',
+  'Costs that count toward your rate': 'যেসব খরচ আপনার রেটে ধরা হবে',
+  'Rent is usually left out — it is a cost of living somewhere, not of eating. Changing this changes your meal rate for every open month.':
+    'বাসা ভাড়া সাধারণত বাদ থাকে — এটি থাকার খরচ, খাওয়ার নয়। এটি বদলালে খোলা প্রতিটি মাসের মিল রেট বদলে যাবে।',
+  'Close a month': 'মাস বন্ধ করুন',
+  'Final rate': 'চূড়ান্ত রেট',
+  'Close this month': 'এই মাস বন্ধ করুন',
+  'Closing…': 'বন্ধ হচ্ছে…',
+  'Close {m}?': '{m} বন্ধ করবেন?',
+  'Its meals and costs are frozen at ৳{r} a meal across {n} meals. This cannot be undone here.':
+    '{n}টি মিলের হিসাবে প্রতি মিল ৳{r} ধরে এর মিল আর খরচ আটকে যাবে। এখান থেকে এটি আর ফেরানো যাবে না।',
+  'Close the month': 'মাস বন্ধ করুন',
+  'Month closed.': 'মাস বন্ধ করা হয়েছে।',
+  'This month is already closed. Its figures are final.':
+    'এই মাস আগেই বন্ধ করা হয়েছে। এর হিসাব চূড়ান্ত।',
+  'Closing takes a snapshot: meals, costs and the rate stop moving, so a settled month reads the same however prices change afterwards.':
+    'বন্ধ করলে একটি স্ন্যাপশট নেওয়া হয়: মিল, খরচ আর রেট আর নড়ে না, তাই পরে দাম যাই হোক চূড়ান্ত মাসটি একই থাকে।',
+
+  /* refusals this module raises, in its own words rather than the app's
+     catch-all "something went wrong" */
+  'That month is closed, so its meals and costs cannot change.':
+    'মাসটি বন্ধ, তাই এর মিল আর খরচ বদলানো যাবে না।',
+  'That month is already closed.': 'মাসটি আগেই বন্ধ করা হয়েছে।',
+  'There are no meals in that month to close yet.':
+    'বন্ধ করার মতো কোনো মিল ওই মাসে এখনো নেই।',
+  'Set a target meal rate before building a plan.':
+    'পরিকল্পনা তৈরির আগে একটি লক্ষ্য মিল রেট ঠিক করুন।',
+  'There is no plan for that month yet.': 'ওই মাসের জন্য এখনো কোনো পরিকল্পনা নেই।',
+  'That meal is no longer in your plan.': 'মিলটি আর আপনার পরিকল্পনায় নেই।',
+  'That dish is no longer available.': 'পদটি আর পাওয়া যাচ্ছে না।',
+  'That expense has already been removed.': 'খরচটি আগেই মুছে ফেলা হয়েছে।',
+  'No dishes are left to plan with — check what you have chosen to avoid.':
+    'পরিকল্পনা করার মতো কোনো পদ বাকি নেই — কোনগুলো বাদ দিয়েছেন দেখে নিন।',
+  'That date is not valid.': 'তারিখটি সঠিক নয়।',
+  'That amount is not valid.': 'পরিমাণটি সঠিক নয়।',
+  'That mess could not be found.': 'মেসটি খুঁজে পাওয়া যায়নি।',
+  'Sign in to use meal management.': 'মিল ম্যানেজমেন্ট ব্যবহার করতে সাইন ইন করুন।',
+  'Something in that was not filled in correctly.':
+    'কিছু একটা ঠিকমতো পূরণ করা হয়নি।',
 };

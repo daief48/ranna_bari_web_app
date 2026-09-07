@@ -129,6 +129,11 @@ function Root() {
         <Stack.Screen name="meal-order/[id]" options={{ animation: 'fade' }} />
         <Stack.Screen name="wallet" />
         <Stack.Screen name="notifications" />
+
+        {/* Meal management — a self-contained feature reached from Profile. It
+            brings its own stack and its own provider, so this is the only line
+            the rest of the app needs to know about it. */}
+        <Stack.Screen name="meal-management" />
         {/* ---- cook stores ----
             The shop directory itself is a tab now — `(tabs)/stores` — so it
             belongs to that group's navigator, not this one. Declaring it here
