@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
-import Screen, { Container } from '../../../src/components/Screen';
+import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../../src/components/SectionHeader';
 import { Body } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
@@ -53,7 +53,7 @@ export default function Settlement() {
   const refund = data?.refund ?? [];
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/reports" />
 
@@ -162,6 +162,6 @@ export default function Settlement() {
           </>
         )}
       </Container>
-    </Screen>
+    </MessScreen>
   );
 }

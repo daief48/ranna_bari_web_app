@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import Screen, { Container } from '../../src/components/Screen';
+import MessScreen, { Container } from '../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../src/components/SectionHeader';
 import { Body } from '../../src/components/Typography';
 import { type } from '../../src/theme/tokens';
@@ -14,6 +14,7 @@ import {
   NavRow,
   Panel,
 } from '../../src/features/meal-management/components';
+import { MessExitRow } from '../../src/features/meal-management/MessScreen';
 import { useMealManagement, useSlice } from '../../src/features/meal-management/store';
 import { ROLE_TEXT } from '../../src/features/meal-management/format';
 
@@ -30,7 +31,7 @@ import { ROLE_TEXT } from '../../src/features/meal-management/format';
  */
 export default function More() {
   const router = useRouter();
-  const { t, n } = useLang();
+  const { t } = useLang();
 
   const { mess, can, dashboard, load } = useMealManagement();
   const notices = useSlice('notices');
@@ -45,7 +46,7 @@ export default function More() {
   const pending = dashboard?.pendingApprovals ?? {};
 
   return (
-    <Screen footer={<BottomNav active="more" badges={{ money: pending.total || 0 }} />}>
+    <MessScreen footer={<BottomNav active="more" badges={{ money: pending.total || 0 }} />}>
       <Container>
         <SectionHeader
           lead={t('EVERYTHING')}
@@ -150,7 +151,7 @@ export default function More() {
           />
         </View>
 
-        <Panel style={{ marginTop: 22, marginBottom: 8, gap: 5 }}>
+        <Panel style={{ marginTop: 22, gap: 5 }}>
           <GroupLabel text={t('How this mess bills')} />
           <Body muted style={{ fontSize: type.xs }}>
             {t(
@@ -158,7 +159,20 @@ export default function More() {
             )}
           </Body>
         </Panel>
+
+        {/* The way out, said in full.
+            The pill in the bar is reachable from every screen, but it is a
+            nine-pixel word — this is the row that explains what leaving
+            actually means, at the foot of the menu where somebody who has run
+            out of things to do in here will find it. */}
+        <View style={{ marginTop: 22, gap: 10, marginBottom: 8 }}>
+          <GroupLabel text={t('Leave meal management')} />
+          <MessExitRow />
+          <Body muted style={{ fontSize: type.xs }}>
+            {t('Your mess keeps everything as it is. Come back through Profile whenever you like.')}
+          </Body>
+        </View>
       </Container>
-    </Screen>
+    </MessScreen>
   );
 }

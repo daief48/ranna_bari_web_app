@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import Screen, { Container } from '../../../src/components/Screen';
+import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../../src/components/SectionHeader';
 import { Body } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
@@ -91,7 +91,7 @@ export default function Reports() {
   };
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/more" />
 
@@ -255,6 +255,6 @@ export default function Reports() {
           {t('CSV opens in Excel, Google Sheets and everything else.')}
         </Body>
       </Sheet>
-    </Screen>
+    </MessScreen>
   );
 }

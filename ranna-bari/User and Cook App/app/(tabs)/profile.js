@@ -22,6 +22,10 @@ import { useCommerce } from '../../src/store/CommerceContext';
 import { useChat } from '../../src/store/ChatContext';
 import { customerKeyOf } from '../../src/lib/ledger';
 import { useLang } from '../../src/i18n/LanguageContext';
+/* The one thing Profile imports from meal management: its front door. The
+   feature's state lives behind its own provider, so this pulls in a card and
+   nothing else. */
+import MessDoorCard from '../../src/features/meal-management/DoorCard';
 
 export default function ProfileScreen() {
   const { colors, shadow, isDark, toggle } = useTheme();
@@ -226,17 +230,18 @@ export default function ProfileScreen() {
           * it is not part of ordering food here — it is a separate tool for
           * keeping mess accounts, with its own screens, its own data and its
           * own stack behind this one door.
+          *
+          * And its own card rather than a `Row`, because a row is what a
+          * setting looks like. This is a door into a third world — the shop
+          * and the kitchen being the other two — so it is drawn as one, in the
+          * mess's saffron rather than the shop's vermilion. `MessDoorCard`
+          * owns the whole presentation, including whether to offer to resume
+          * a visit the app interrupted.
           */}
         <GroupLabel icon="calendar" text={t('Meal management')} style={{ marginTop: 28 }} />
 
         <View style={{ gap: 12, marginTop: 14 }}>
-          <Row
-            icon="calendar"
-            variant="sage"
-            title={t('Meal management')}
-            sub={t('Mess meals, monthly rate and a smart meal planner')}
-            onPress={() => router.push('/meal-management')}
-          />
+          <MessDoorCard />
         </View>
 
         {/*

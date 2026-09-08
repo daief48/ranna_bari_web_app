@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
-import Screen, { Container } from '../../src/components/Screen';
+import MessScreen, { Container } from '../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../src/components/SectionHeader';
 import Button from '../../src/components/Button';
 import Icon from '../../src/components/Icon';
@@ -64,7 +64,7 @@ export default function Menu() {
   const days = data?.days ?? [];
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/more" />
 
@@ -98,7 +98,7 @@ export default function Menu() {
                       flex: 1,
                       fontFamily: font.uiSemi,
                       fontSize: type.sm + 1,
-                      color: day.date === todayKey() ? colors.primary : colors.text,
+                      color: day.date === todayKey() ? colors.saffron : colors.text,
                     }}
                   >
                     {dayLabel(day.date, lang)}
@@ -116,6 +116,7 @@ export default function Menu() {
                         manage
                           ? () =>
                               setEditing({
+                                id: menu?.id,
                                 date: day.date,
                                 mealType: type_.key,
                                 label: type_.label,
@@ -232,6 +233,11 @@ export default function Menu() {
           if (out?.ok) setEditing(null);
           return out;
         }}
+        onRemove={async (menuId) => {
+          const out = await run(() => removeMenu(menuId), t('Menu cleared.'));
+          if (out?.ok) setEditing(null);
+          return out;
+        }}
       />
 
       <SuggestSheet
@@ -244,7 +250,7 @@ export default function Menu() {
           return out;
         }}
       />
-    </Screen>
+    </MessScreen>
   );
 }
 
@@ -288,7 +294,7 @@ function Stars({ value, average, count, onRate }) {
  * sheets
  * ------------------------------------------------------------------ */
 
-function MenuSheet({ entry, onClose, onSave }) {
+function MenuSheet({ entry, onClose, onSave, onRemove }) {
   const { t } = useLang();
 
   const [items, setItems] = useState('');
@@ -350,6 +356,18 @@ function MenuSheet({ entry, onClose, onSave }) {
         onChangeText={setNote}
         maxLength={500}
       />
+
+      {/* Only once there is a menu to clear. Saving an empty list would leave
+          a row with nothing in it, which reads as "nothing decided yet" but
+          keeps the ratings attached to it — clearing removes both. */}
+      {entry.id ? (
+        <MiniButton
+          label={t('Clear this menu')}
+          icon="x"
+          tone="bad"
+          onPress={() => onRemove(entry.id)}
+        />
+      ) : null}
     </Sheet>
   );
 }

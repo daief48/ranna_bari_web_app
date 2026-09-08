@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import Screen, { Container } from '../../../src/components/Screen';
+import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../../src/components/SectionHeader';
 import { Body } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
@@ -66,7 +66,7 @@ export default function Money() {
   const pending = dashboard?.pendingApprovals ?? {};
 
   return (
-    <Screen footer={<BottomNav active="money" badges={{ money: pending.total || 0 }} />}>
+    <MessScreen footer={<BottomNav active="money" badges={{ money: pending.total || 0 }} />}>
       <Container>
         <SectionHeader
           lead={t('THE')}
@@ -256,6 +256,6 @@ export default function Money() {
           </>
         )}
       </Container>
-    </Screen>
+    </MessScreen>
   );
 }

@@ -2,11 +2,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
-import Screen, { Container } from '../../src/components/Screen';
+import MessScreen, { Container } from '../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../src/components/SectionHeader';
 import Button from '../../src/components/Button';
 import { Body } from '../../src/components/Typography';
-import { useTheme } from '../../src/theme/ThemeProvider';
 import { type } from '../../src/theme/tokens';
 import { useLang } from '../../src/i18n/LanguageContext';
 
@@ -52,7 +51,6 @@ import {
  */
 export default function Cook() {
   const { t, n, lang } = useLang();
-  const { colors } = useTheme();
   const run = useMealAction();
 
   const { month, changeMonth, can, saveCook, recordCookDay, payCook, getCookMonth, load } =
@@ -94,7 +92,7 @@ export default function Cook() {
   const summary = detail?.summary ?? {};
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/more" />
 
@@ -297,7 +295,7 @@ export default function Cook() {
           return out;
         }}
       />
-    </Screen>
+    </MessScreen>
   );
 }
 

@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
-import Screen, { Container } from '../../src/components/Screen';
+import MessScreen, { Container } from '../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../src/components/SectionHeader';
 import Button from '../../src/components/Button';
 import Icon from '../../src/components/Icon';
@@ -42,7 +42,7 @@ const EXAMPLES = [
 ];
 
 export default function Assistant() {
-  const { t, n } = useLang();
+  const { t } = useLang();
   const { colors } = useTheme();
   const run = useMealAction();
 
@@ -88,7 +88,7 @@ export default function Assistant() {
   const messages = data?.messages ?? [];
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/more" />
 
@@ -117,9 +117,9 @@ export default function Assistant() {
                     alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
                     maxWidth: '86%',
                     backgroundColor:
-                      message.role === 'user' ? `${colors.primary}18` : colors.surfaceSolid,
+                      message.role === 'user' ? `${colors.saffron}18` : colors.surfaceSolid,
                     borderWidth: 1,
-                    borderColor: message.role === 'user' ? `${colors.primary}33` : colors.line,
+                    borderColor: message.role === 'user' ? `${colors.saffron}33` : colors.line,
                     borderRadius: radius.md,
                     paddingVertical: 10,
                     paddingHorizontal: 13,
@@ -151,7 +151,7 @@ export default function Assistant() {
           ) : (
             <Panel style={{ gap: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
-                <Icon name="sparkles" size={18} color={colors.primary} />
+                <Icon name="sparkles" size={18} color={colors.saffron} />
                 <Text style={{ fontFamily: font.uiSemi, fontSize: type.sm + 1, color: colors.text }}>
                   {t('Try one of these')}
                 </Text>
@@ -222,6 +222,6 @@ export default function Assistant() {
           </Panel>
         </View>
       </Container>
-    </Screen>
+    </MessScreen>
   );
 }

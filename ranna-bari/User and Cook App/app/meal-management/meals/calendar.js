@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
-import Screen, { Container } from '../../../src/components/Screen';
+import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../../src/components/SectionHeader';
 import { Body } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
@@ -51,7 +51,7 @@ export default function MealCalendar() {
   const { colors } = useTheme();
   const run = useMealAction();
 
-  const { month, changeMonth, mealTypes, setMeal, dashboard, load } = useMealManagement();
+  const { month, changeMonth, mealTypes, setMeal, load } = useMealManagement();
   const { data, loading } = useSlice('meals');
 
   const [open, setOpen] = useState(null);
@@ -91,7 +91,7 @@ export default function MealCalendar() {
   };
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/meals" />
 
@@ -258,7 +258,7 @@ export default function MealCalendar() {
           </>
         ) : null}
       </Sheet>
-    </Screen>
+    </MessScreen>
   );
 }
 
@@ -292,7 +292,7 @@ function DayCell({ day, today, onPress }) {
           gap: 2,
           backgroundColor: taken ? `${colors.sage}22` : day.onLeave ? `${colors.saffron}1A` : colors.sunken,
           borderWidth: isToday ? 1.5 : 1,
-          borderColor: isToday ? colors.primary : taken ? `${colors.sage}55` : 'transparent',
+          borderColor: isToday ? colors.saffron : taken ? `${colors.sage}55` : 'transparent',
         }}
       >
         <Text

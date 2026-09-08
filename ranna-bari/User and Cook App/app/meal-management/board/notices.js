@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
-import Screen, { Container } from '../../../src/components/Screen';
+import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../../src/components/SectionHeader';
 import Button from '../../../src/components/Button';
 import Icon from '../../../src/components/Icon';
@@ -62,7 +62,7 @@ export default function Notices() {
   };
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/more" />
 
@@ -118,7 +118,7 @@ export default function Notices() {
                           height: 7,
                           borderRadius: 4,
                           marginTop: 6,
-                          backgroundColor: colors.primary,
+                          backgroundColor: colors.saffron,
                         }}
                       />
                     ) : null}
@@ -191,7 +191,7 @@ export default function Notices() {
           return out;
         }}
       />
-    </Screen>
+    </MessScreen>
   );
 }
 

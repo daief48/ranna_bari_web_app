@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
-import Screen, { Container } from '../../../src/components/Screen';
+import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../../src/components/SectionHeader';
 import Button from '../../../src/components/Button';
 import { Body } from '../../../src/components/Typography';
@@ -43,7 +43,7 @@ import { agoLabel, dayLabel, mealText, todayKey } from '../../../src/features/me
  */
 export default function MealRequests() {
   const params = useLocalSearchParams();
-  const { t, n, lang } = useLang();
+  const { t, lang } = useLang();
   const { colors } = useTheme();
   const run = useMealAction();
 
@@ -84,7 +84,7 @@ export default function MealRequests() {
   };
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/meals" />
 
@@ -195,7 +195,7 @@ export default function MealRequests() {
           return out;
         }}
       />
-    </Screen>
+    </MessScreen>
   );
 }
 

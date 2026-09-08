@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 
-import Screen, { Container } from '../../../src/components/Screen';
+import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../../src/components/SectionHeader';
 import { Body } from '../../../src/components/Typography';
-import { useTheme } from '../../../src/theme/ThemeProvider';
 import { type } from '../../../src/theme/tokens';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
@@ -45,7 +44,6 @@ import {
  */
 export default function MealHistory() {
   const { t, n, lang } = useLang();
-  const { colors } = useTheme();
   const run = useMealAction();
 
   const { mealTypes, getMealHistory, month } = useMealManagement();
@@ -84,7 +82,7 @@ export default function MealHistory() {
   const days = data?.days ?? [];
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/meals" />
 
@@ -199,6 +197,6 @@ export default function MealHistory() {
           </>
         )}
       </Container>
-    </Screen>
+    </MessScreen>
   );
 }

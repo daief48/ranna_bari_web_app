@@ -135,10 +135,13 @@ function Root() {
         <Stack.Screen name="wallet" />
         <Stack.Screen name="notifications" />
 
-        {/* Meal management — a self-contained feature reached from Profile. It
-            brings its own stack and its own provider, so this is the only line
-            the rest of the app needs to know about it. */}
-        <Stack.Screen name="meal-management" />
+        {/* Meal management — the third world, reached from Profile. It brings
+            its own stack, its own provider, its own navbar and its own colour,
+            so this is the only line the rest of the app needs to know about it.
+
+            It fades for the same reason the cook panel does: this is not a
+            page opening on top of the shop, it is the shop being replaced. */}
+        <Stack.Screen name="meal-management" options={{ animation: 'fade' }} />
         {/* ---- cook stores ----
             The shop directory itself is a tab now — `(tabs)/stores` — so it
             belongs to that group's navigator, not this one. Declaring it here

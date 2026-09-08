@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
-import Screen, { Container } from '../../../src/components/Screen';
+import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../../src/components/SectionHeader';
 import Button from '../../../src/components/Button';
 import { Body } from '../../../src/components/Typography';
@@ -78,18 +78,18 @@ export default function BazarDetail() {
 
   if (loading && !bazar) {
     return (
-      <Screen>
+      <MessScreen>
         <Container>
           <BackLink fallback="/meal-management/bazar" />
           <Loading />
         </Container>
-      </Screen>
+      </MessScreen>
     );
   }
 
   if (failure || !bazar) {
     return (
-      <Screen>
+      <MessScreen>
         <Container>
           <BackLink fallback="/meal-management/bazar" />
           <View style={{ marginTop: 18 }}>
@@ -99,12 +99,12 @@ export default function BazarDetail() {
             />
           </View>
         </Container>
-      </Screen>
+      </MessScreen>
     );
   }
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/bazar" />
 
@@ -252,6 +252,6 @@ export default function BazarDetail() {
           return out;
         }}
       />
-    </Screen>
+    </MessScreen>
   );
 }

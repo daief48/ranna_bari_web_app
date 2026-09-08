@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import Screen, { Container } from '../../src/components/Screen';
+import MessScreen, { Container } from '../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../src/components/SectionHeader';
 import { Body } from '../../src/components/Typography';
 import { useTheme } from '../../src/theme/ThemeProvider';
@@ -69,7 +69,7 @@ export default function MealDashboard() {
     month,
     changeMonth,
     today,
-    dashboard,
+    
     mealTypes,
     can,
     setMeal,
@@ -88,7 +88,7 @@ export default function MealDashboard() {
 
   if (!token) {
     return (
-      <Screen>
+      <MessScreen>
         <Container>
           <SectionHeader
             lead={t('MEAL')}
@@ -104,17 +104,17 @@ export default function MealDashboard() {
             actionLabel={t('Sign in')}
           />
         </Container>
-      </Screen>
+      </MessScreen>
     );
   }
 
   if (booting || messes === null) {
     return (
-      <Screen>
+      <MessScreen>
         <Container>
           <Loading label={t('Opening your mess…')} />
         </Container>
-      </Screen>
+      </MessScreen>
     );
   }
 
@@ -122,7 +122,7 @@ export default function MealDashboard() {
 
   if (!active.length) {
     return (
-      <Screen>
+      <MessScreen>
         <Container>
           <SectionHeader
             lead={t('MEAL')}
@@ -150,27 +150,27 @@ export default function MealDashboard() {
             />
           </View>
         </Container>
-      </Screen>
+      </MessScreen>
     );
   }
 
   if (error) {
     return (
-      <Screen>
+      <MessScreen>
         <Container>
           <ErrorState message={t('This mess could not be opened.')} onRetry={reload} />
         </Container>
-      </Screen>
+      </MessScreen>
     );
   }
 
   if (loading || !data) {
     return (
-      <Screen footer={<BottomNav active="dashboard" />}>
+      <MessScreen footer={<BottomNav active="dashboard" />}>
         <Container>
           <Loading label={t('Loading your mess…')} />
         </Container>
-      </Screen>
+      </MessScreen>
     );
   }
 
@@ -189,7 +189,7 @@ export default function MealDashboard() {
   const guests = (key, value) => run(() => setMeal(data.today, { guests: { [key]: value } }));
 
   return (
-    <Screen footer={<BottomNav active="dashboard" badges={{ money: pending.total || 0 }} />}>
+    <MessScreen footer={<BottomNav active="dashboard" badges={{ money: pending.total || 0 }} />}>
       <Container>
         <SectionHeader
           lead={mess?.name?.split(' ')[0]?.toUpperCase() ?? t('MY')}
@@ -513,6 +513,6 @@ export default function MealDashboard() {
           ) : null}
         </View>
       </Container>
-    </Screen>
+    </MessScreen>
   );
 }

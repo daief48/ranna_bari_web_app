@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
-import Screen, { Container } from '../../../src/components/Screen';
+import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../../src/components/SectionHeader';
 import Button from '../../../src/components/Button';
 import { Body } from '../../../src/components/Typography';
@@ -90,7 +90,7 @@ export default function Deposits() {
   };
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/money" />
 
@@ -237,7 +237,7 @@ export default function Deposits() {
           return out;
         }}
       />
-    </Screen>
+    </MessScreen>
   );
 }
 

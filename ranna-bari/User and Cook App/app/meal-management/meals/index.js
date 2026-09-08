@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import Screen, { Container } from '../../../src/components/Screen';
+import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../../src/components/SectionHeader';
 import Button from '../../../src/components/Button';
 import { Body } from '../../../src/components/Typography';
@@ -100,7 +100,7 @@ export default function TodayMeals() {
   };
 
   return (
-    <Screen footer={<BottomNav active="meals" />}>
+    <MessScreen footer={<BottomNav active="meals" />}>
       <Container>
         <SectionHeader
           lead={t('TODAY’S')}
@@ -301,7 +301,7 @@ export default function TodayMeals() {
           return out;
         }}
       />
-    </Screen>
+    </MessScreen>
   );
 }
 

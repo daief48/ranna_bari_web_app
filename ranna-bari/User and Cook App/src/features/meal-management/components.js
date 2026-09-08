@@ -2,13 +2,17 @@ import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 
 import Icon from '../../components/Icon';
 import { Body, Heading } from '../../components/Typography';
@@ -45,6 +49,26 @@ const toneColour = (colors, tone) =>
       : tone === 'bad'
         ? colors.primary
         : colors.text;
+
+/**
+ * The mess world's own accent.
+ *
+ * Vermilion is the shop and sage is the kitchen, so saffron is this — the one
+ * full ramp in the palette no world had claimed. Everything neutral but
+ * emphatic in here takes it: a selected chip, the primary button, a focused
+ * field, today on the calendar, the tab you are on.
+ *
+ * Using the app's `primary` for those was what made the feature read as a
+ * screen of the shop rather than a place of its own — the colour was saying
+ * "you are still in the marketplace" underneath every word saying otherwise.
+ *
+ * The four *tones* above are deliberately untouched. A due balance is
+ * vermilion in every world, because there it means danger rather than brand.
+ */
+export const accentOf = (colors) => colors.saffron;
+
+/** The washed version, for a pressed state or a selected pill's ground. */
+export const accentSoftOf = (colors) => colors.saffron50;
 
 /* ------------------------------------------------------------------ *
  * chrome
@@ -155,7 +179,7 @@ export function StatTile({ value, label, tone, hint, style, onPress }) {
 /** A tappable row that leads somewhere — the module's menu shape. */
 export function NavRow({ icon, title, sub, onPress, tone, badge, right, disabled }) {
   const { colors } = useTheme();
-  const accent = tone ? toneColour(colors, tone) : colors.primary;
+  const accent = tone ? toneColour(colors, tone) : accentOf(colors);
 
   return (
     <Pressable
@@ -297,7 +321,7 @@ export function Loading({ label }) {
   const { t } = useLang();
   return (
     <View style={{ paddingVertical: 44, alignItems: 'center', gap: 12 }}>
-      <ActivityIndicator color={colors.primary} />
+      <ActivityIndicator color={accentOf(colors)} />
       <Body muted>{label ?? t('Loading…')}</Body>
     </View>
   );
@@ -358,7 +382,7 @@ export function ErrorState({ message, onRetry }) {
 
 export function Chip({ label, active, onPress, disabled, tone = 'primary', style, icon }) {
   const { colors } = useTheme();
-  const accent = tone === 'primary' ? colors.primary : toneColour(colors, tone);
+  const accent = tone === 'primary' ? accentOf(colors) : toneColour(colors, tone);
 
   return (
     <Pressable
@@ -404,8 +428,10 @@ export function ChipRow({ children, style }) {
 /** A compact button for inside a panel, where the app's Button is too large. */
 export function MiniButton({ label, onPress, tone = 'primary', disabled, icon, style }) {
   const { colors } = useTheme();
-  const accent = tone === 'plain' ? colors.line : toneColour(colors, tone === 'primary' ? undefined : tone);
-  const background = tone === 'plain' ? colors.sunken : tone === 'primary' ? colors.primary : `${accent}1A`;
+  const accent =
+    tone === 'plain' ? colors.line : tone === 'primary' ? accentOf(colors) : toneColour(colors, tone);
+  const background =
+    tone === 'plain' ? colors.sunken : tone === 'primary' ? accentOf(colors) : `${accent}1A`;
   const label_colour = tone === 'primary' ? '#FFFFFF' : tone === 'plain' ? colors.text : accent;
 
   return (
@@ -478,7 +504,7 @@ export function Field({
           gap: 8,
           borderRadius: radius.md,
           borderWidth: 1,
-          borderColor: focused ? colors.primary : colors.line,
+          borderColor: focused ? accentOf(colors) : colors.line,
           backgroundColor: disabled ? colors.sunken : colors.surfaceSolid,
           paddingHorizontal: 13,
         }}
@@ -937,58 +963,128 @@ export const PRIMARY_NAV = [
 
 export function BottomNav({ active, badges = {} }) {
   const router = useRouter();
-  const { colors } = useTheme();
-  const { t } = useLang();
+  const { colors, shadow, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { t, n } = useLang();
 
   return (
     <View
-      style={{
-        flexDirection: 'row',
-        borderTopWidth: 1,
-        borderTopColor: colors.line,
-        backgroundColor: colors.surfaceSolid,
-        paddingTop: 8,
-        paddingBottom: 10,
-        paddingHorizontal: 6,
-      }}
+      style={[
+        {
+          position: 'absolute',
+          left: 12,
+          right: 12,
+          bottom: 12 + insets.bottom,
+          borderRadius: radius.md,
+          overflow: 'hidden',
+          borderWidth: 1,
+          borderColor: colors.line,
+        },
+        shadow.lg,
+      ]}
     >
-      {PRIMARY_NAV.map((item) => {
-        const on = item.key === active;
-        return (
-          <Pressable
-            key={item.key}
-            accessibilityRole="button"
-            accessibilityState={{ selected: on }}
-            accessibilityLabel={t(item.label)}
-            onPress={() => (on ? null : router.replace(item.href))}
-            style={({ pressed }) => ({
-              flex: 1,
-              alignItems: 'center',
-              gap: 3,
-              paddingVertical: 4,
-              opacity: pressed ? 0.6 : 1,
-            })}
-          >
-            <View>
-              <Icon name={item.icon} size={20} color={on ? colors.primary : colors.textMuted} />
-              {badges[item.key] ? (
-                <View style={{ position: 'absolute', top: -5, right: -9 }}>
-                  <Badge count={badges[item.key]} />
+      <BlurView
+        intensity={Platform.OS === 'android' ? 40 : 26}
+        tint={isDark ? 'dark' : 'light'}
+      >
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            padding: 8,
+            backgroundColor: isDark
+              ? `rgba(${colors.rgbRaised}, 0.88)`
+              : 'rgba(250, 247, 240, 0.85)',
+          }}
+        >
+          {PRIMARY_NAV.map((item) => {
+            const on = item.key === active;
+            const badge = badges[item.key] ?? 0;
+
+            return (
+              <Pressable
+                key={item.key}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={
+                  badge
+                    ? `${t(item.label)}, ${t('{n} waiting', { n: n(badge) })}`
+                    : t(item.label)
+                }
+                onPress={() => {
+                  if (on) return;
+                  Haptics.selectionAsync().catch(() => {});
+                  router.replace(item.href);
+                }}
+                style={({ pressed }) => ({
+                  flex: 1,
+                  alignItems: 'center',
+                  gap: 4,
+                  paddingVertical: 8,
+                  borderRadius: 16,
+                  backgroundColor: on ? colors.saffron50 : 'transparent',
+                  transform: [{ scale: pressed ? 0.97 : 1 }],
+                })}
+              >
+                <View>
+                  <Icon
+                    name={item.icon}
+                    size={20}
+                    color={on ? colors.saffron : colors.textMuted}
+                    strokeWidth={on ? 2.1 : 1.75}
+                  />
+                  {badge > 0 ? (
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: -5,
+                        right: -9,
+                        minWidth: 16,
+                        height: 16,
+                        paddingHorizontal: 4,
+                        borderRadius: 8,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: colors.saffron,
+                        borderWidth: 1.5,
+                        borderColor: colors.canvas,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontFamily: font.uiBold,
+                          fontSize: 9,
+                          lineHeight: 11,
+                          color: '#FFFFFF',
+                        }}
+                      >
+                        {n(badge)}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
-              ) : null}
-            </View>
-            <Text
-              style={{
-                fontFamily: on ? font.uiSemi : font.ui,
-                fontSize: type.xs - 1,
-                color: on ? colors.primary : colors.textMuted,
-              }}
-            >
-              {t(item.label)}
-            </Text>
-          </Pressable>
-        );
-      })}
+
+                <Text
+                  /* Capped rather than disabled, the same compromise the app's
+                     own bar makes: a large system font is an accessibility
+                     setting and content must honour it, but five labels in a
+                     50px cell have nowhere to grow. */
+                  maxFontSizeMultiplier={1.2}
+                  numberOfLines={1}
+                  style={{
+                    fontFamily: on ? font.uiSemi : font.ui,
+                    fontSize: 9,
+                    letterSpacing: 0.1,
+                    color: on ? colors.saffron : colors.textMuted,
+                  }}
+                >
+                  {t(item.label)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </BlurView>
     </View>
   );
 }
@@ -1189,6 +1285,41 @@ export function TileGrid({ children, style }) {
           {row.length === 1 ? <View style={{ flex: 1 }} /> : null}
         </View>
       ))}
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * the mark
+ * ------------------------------------------------------------------ */
+
+/**
+ * The mess's own mark — a saffron squircle with a calendar in it.
+ *
+ * Deliberately *not* the RannaBari logo. Inside here the brand is the mess,
+ * and a lockup that said RannaBari on every screen would keep insisting you
+ * were still in the shop.
+ */
+export function MessMark({ size = 34 }) {
+  const { colors, shadow } = useTheme();
+
+  return (
+    <View
+      style={[
+        {
+          width: size,
+          height: size,
+          borderRadius: Math.round(size * 0.28),
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.saffron50,
+          borderWidth: 1,
+          borderColor: colors.saffron100,
+        },
+        shadow.xs,
+      ]}
+    >
+      <Icon name="calendar" size={Math.round(size * 0.52)} color={colors.saffron} strokeWidth={2} />
     </View>
   );
 }

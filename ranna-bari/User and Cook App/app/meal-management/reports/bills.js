@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import Screen, { Container } from '../../../src/components/Screen';
+import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../../src/components/SectionHeader';
 import { Body } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
@@ -67,7 +67,7 @@ export default function Bills() {
   const myId = dashboard?.mess?.memberId;
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/reports" />
 
@@ -224,6 +224,6 @@ export default function Bills() {
           </>
         )}
       </Container>
-    </Screen>
+    </MessScreen>
   );
 }

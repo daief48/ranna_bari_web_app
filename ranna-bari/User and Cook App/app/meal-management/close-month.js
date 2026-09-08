@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import Screen, { Container } from '../../src/components/Screen';
+import MessScreen, { Container } from '../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../src/components/SectionHeader';
 import Button from '../../src/components/Button';
 import Icon from '../../src/components/Icon';
@@ -56,7 +56,7 @@ export default function CloseMonth() {
   const { colors } = useTheme();
   const run = useMealAction();
 
-  const { month, changeMonth, getClosingReview, closeMonth, postAdjustment, load } =
+  const { month, changeMonth, getClosingReview, closeMonth, postAdjustment } =
     useMealManagement();
 
   const [review, setReview] = useState(null);
@@ -103,7 +103,7 @@ export default function CloseMonth() {
     (warnings.pendingCorrections ?? 0);
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/more" />
 
@@ -318,7 +318,7 @@ export default function CloseMonth() {
           return out;
         }}
       />
-    </Screen>
+    </MessScreen>
   );
 }
 

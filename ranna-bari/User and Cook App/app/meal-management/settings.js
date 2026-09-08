@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Switch, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
-import Screen, { Container } from '../../src/components/Screen';
+import MessScreen, { Container } from '../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../src/components/SectionHeader';
 import Button from '../../src/components/Button';
 import { Body } from '../../src/components/Typography';
@@ -89,7 +89,7 @@ export default function Settings() {
   );
 
   return (
-    <Screen>
+    <MessScreen>
       <Container>
         <BackLink fallback="/meal-management/more" />
 
@@ -378,7 +378,7 @@ export default function Settings() {
           return out;
         }}
       />
-    </Screen>
+    </MessScreen>
   );
 }
 

@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
-import Screen, { Container } from '../../../src/components/Screen';
+import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../../src/components/SectionHeader';
 import Button from '../../../src/components/Button';
 import Icon from '../../../src/components/Icon';
@@ -48,7 +48,7 @@ export default function BazarList() {
   const { colors } = useTheme();
   const run = useMealAction();
 
-  const { month, can, createBazar, load } = useMealManagement();
+  const { can, createBazar, load } = useMealManagement();
   const { data, loading } = useSlice('bazars');
 
   const [status, setStatus] = useState(
@@ -67,7 +67,7 @@ export default function BazarList() {
   const totals = data?.totals ?? { approved: 0, pending: 0 };
 
   return (
-    <Screen footer={<BottomNav active="bazar" />}>
+    <MessScreen footer={<BottomNav active="bazar" />}>
       <Container>
         <SectionHeader
           lead={t('THE')}
@@ -210,6 +210,6 @@ export default function BazarList() {
           return out;
         }}
       />
-    </Screen>
+    </MessScreen>
   );
 }
