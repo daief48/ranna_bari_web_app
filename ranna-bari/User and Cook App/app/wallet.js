@@ -165,7 +165,7 @@ export default function WalletScreen() {
                 <Text
                   style={{
                     fontFamily: font.uiBold,
-                    fontSize: type.md,
+                    fontSize: type.body,
                     color: colors.text,
                     fontVariant: ['tabular-nums'],
                   }}

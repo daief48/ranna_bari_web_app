@@ -439,7 +439,7 @@ export function NegotiationThread({ offer, cookName }) {
               <Text
                 style={{
                   fontFamily: font.uiBold,
-                  fontSize: type.md,
+                  fontSize: type.body,
                   color: entry.accepted ? colors.sage : colors.text,
                   fontVariant: ['tabular-nums'],
                 }}

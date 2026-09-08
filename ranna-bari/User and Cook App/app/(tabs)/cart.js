@@ -219,7 +219,7 @@ export default function CartScreen() {
               <Text
                 style={{
                   fontFamily: font.uiBold,
-                  fontSize: type.md,
+                  fontSize: type.body,
                   color: colors.text,
                   fontVariant: ['tabular-nums'],
                 }}

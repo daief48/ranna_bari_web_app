@@ -439,7 +439,7 @@ export default function CookRequestScreen() {
                 <Text
                   style={{
                     fontFamily: font.uiBold,
-                    fontSize: type.md,
+                    fontSize: type.body,
                     color: colors.text,
                     fontVariant: ['tabular-nums'],
                   }}

@@ -192,8 +192,8 @@ export default function DistanceChip({ target, kind = 'dish', style }) {
                 style={{
                   marginTop: 12,
                   fontFamily: font.display,
-                  fontSize: away ? 32 : type.lg,
-                  lineHeight: away ? 38 : type.lg * 1.4,
+                  fontSize: away ? 32 : type.h3,
+                  lineHeight: away ? 38 : type.h3 * 1.4,
                   textAlign: 'center',
                   color: colors.text,
                   fontVariant: ['tabular-nums'],

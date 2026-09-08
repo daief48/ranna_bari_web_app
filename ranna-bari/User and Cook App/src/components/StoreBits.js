@@ -685,7 +685,7 @@ export function Totals({ subtotal, delivery, total }) {
       <Text
         style={{
           fontFamily: font.uiBold,
-          fontSize: strong ? type.md : type.sm + 1,
+          fontSize: strong ? type.body : type.sm + 1,
           color: colors.text,
           fontVariant: ['tabular-nums'],
         }}

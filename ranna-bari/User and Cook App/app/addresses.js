@@ -156,7 +156,7 @@ export default function Addresses() {
                       <Text
                         style={{
                           fontFamily: font.uiBold,
-                          fontSize: type.md,
+                          fontSize: type.body,
                           color: colors.text,
                         }}
                       >
