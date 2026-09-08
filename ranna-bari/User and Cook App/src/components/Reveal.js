@@ -14,7 +14,13 @@ import Animated, {
  * The web build drives this from an IntersectionObserver. On a phone the
  * viewport is short enough that a mount-staggered entrance reads the same,
  * and it avoids threading scroll offsets through every card. Curve and
- * distance are the CSS values: 0.8s cubic-bezier(0.16, 1, 0.3, 1), 30px up.
+ * distance are the CSS values -- cubic-bezier(0.16, 1, 0.3, 1), 30px up.
+ *
+ * The timing is not. The stylesheet runs 0.8s and staggers 100ms a step,
+ * which on a page of five groups puts the last one on screen 1.3s after the
+ * tap that asked for it. On the web that entrance is scroll-triggered and has
+ * already happened by the time you look at it; here it sits between a button
+ * and its answer, so it runs at about a third -- 340ms, 40ms a step.
  *
  * `variant` mirrors .reveal-left / .reveal-right / .reveal-scale.
  */
@@ -35,9 +41,9 @@ export default function Reveal({
       return;
     }
     progress.value = withDelay(
-      delay * 100,
+      delay * 40,
       withTiming(1, {
-        duration: 800,
+        duration: 340,
         easing: Easing.bezier(0.16, 1, 0.3, 1),
       }),
     );
