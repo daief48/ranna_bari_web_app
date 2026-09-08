@@ -10,6 +10,7 @@ import React, {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useSession } from '../../store/SessionContext';
+import { onLiveEvent } from '../../lib/liveEvents';
 import * as api from './api';
 import { monthOfDay, sumMeals, thisMonth, todayKey } from './format';
 
@@ -112,6 +113,12 @@ export function MealManagementProvider({ children }) {
     setSlices({});
     live.current = {};
     inFlight.current = {};
+    /* The room belongs to the mess, so switching mess empties it. Leaving the
+       old conversation on screen under a new mess's name would be the worst
+       kind of stale: it looks like data rather than like a loading state. */
+    liveMessages.current = null;
+    setMessages(null);
+    setUnreadChat(0);
     void AsyncStorage.setItem(MESS_KEY, String(next)).catch(() => {});
   }, []);
 
@@ -193,6 +200,8 @@ export function MealManagementProvider({ children }) {
     live.current = {};
     inFlight.current = {};
     setSlices({});
+    liveMessages.current = null;
+    setMessages(null);
   }, []);
 
   /* Changing the month drops everything keyed to the old one. Slice keys
@@ -283,6 +292,189 @@ export function MealManagementProvider({ children }) {
     }),
     [load, keys, month],
   );
+
+  /* ---------------------------------------------------------------- *
+   * the mess room
+   * ---------------------------------------------------------------- */
+
+  /*
+   * Held as its own state rather than as a slice.
+   *
+   * Every other payload here is "the answer for this month", fetched whole and
+   * replaced whole. A conversation is neither: it is paged backwards, appended
+   * to by other people, and written to optimistically. Forcing it through the
+   * slice cache would mean a refetch on every message.
+   */
+  const [messages, setMessages] = useState(null);
+  const [chatMeta, setChatMeta] = useState({ hasMore: false, oldest: null, canModerate: false });
+  const [unreadChat, setUnreadChat] = useState(0);
+
+  /* Mirrors `messages` so a send can dedupe against what is already on screen
+     without waiting for a render. */
+  const liveMessages = useRef(null);
+  const putMessages = useCallback((next) => {
+    liveMessages.current = next;
+    setMessages(next);
+  }, []);
+
+  const loadMessages = useCallback(
+    async ({ force = false } = {}) => {
+      if (!token || !messId) return null;
+      if (!force && liveMessages.current) return liveMessages.current;
+
+      const out = await api.fetchMessages(token, messId, {});
+      if (!out.ok) return null;
+
+      putMessages(out.result.messages ?? []);
+      setChatMeta({
+        hasMore: !!out.result.hasMore,
+        oldest: out.result.oldest ?? null,
+        canModerate: !!out.result.canModerate,
+      });
+      return out.result.messages;
+    },
+    [token, messId, putMessages],
+  );
+
+  /** One page further back, prepended. */
+  const loadOlderMessages = useCallback(async () => {
+    if (!token || !messId || !chatMeta.oldest) return null;
+
+    const out = await api.fetchMessages(token, messId, { before: chatMeta.oldest });
+    if (!out.ok) return null;
+
+    const older = out.result.messages ?? [];
+    const known = new Set((liveMessages.current ?? []).map((m) => m.id));
+    putMessages([...older.filter((m) => !known.has(m.id)), ...(liveMessages.current ?? [])]);
+    setChatMeta((prev) => ({
+      ...prev,
+      hasMore: !!out.result.hasMore,
+      oldest: out.result.oldest ?? prev.oldest,
+    }));
+    return older;
+  }, [token, messId, chatMeta.oldest, putMessages]);
+
+  /**
+   * Say something, and draw it before the server has heard.
+   *
+   * The `clientId` is generated here and sent with the message, which is what
+   * makes the write idempotent: a retry over a flaky connection posts the same
+   * id and the server returns the row it already has. The optimistic copy is
+   * then replaced by the real one rather than joined by it.
+   */
+  const postMessage = useCallback(
+    async (body, options = {}) => {
+      if (!token || !messId) return { ok: false, error: 'mm-mess-missing' };
+
+      const text = String(body ?? '').trim();
+      if (!text) return { ok: false, error: 'mm-message-empty' };
+
+      const clientId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+      const pending = {
+        id: clientId,
+        clientId,
+        /* No name and no member id on the optimistic copy: a room does not
+           label your own messages with your own name, and `mine` is the only
+           thing the bubble needs to know. The server's copy replaces this one
+           a moment later carrying both. */
+        kind: 'text',
+        body: text,
+        replyToId: options.replyTo?.id ?? null,
+        replyToName: options.replyTo?.senderName ?? null,
+        replyToBody: options.replyTo?.body ?? null,
+        about: options.about ?? null,
+        at: new Date().toISOString(),
+        mine: true,
+        sending: true,
+      };
+
+      putMessages([...(liveMessages.current ?? []), pending]);
+
+      const out = await api.sendMessage(token, messId, {
+        body: text,
+        clientId,
+        replyToId: options.replyTo?.id || undefined,
+        about: options.about || undefined,
+      });
+
+      putMessages(
+        (liveMessages.current ?? []).flatMap((message) => {
+          if (message.clientId !== clientId) return [message];
+          /* A refusal takes the optimistic copy back off rather than leaving a
+             message on screen that nobody else will ever see. */
+          if (!out.ok) return [];
+          return [{ ...out.result.message, clientId }];
+        }),
+      );
+
+      return out;
+    },
+    [token, messId, putMessages],
+  );
+
+  const markChatRead = useCallback(async () => {
+    setUnreadChat(0);
+    if (!token || !messId) return null;
+    return api.readMessages(token, messId);
+  }, [token, messId]);
+
+  const hideMessage = useCallback(
+    async (messageId) => {
+      if (!token || !messId) return { ok: false, error: 'mm-mess-missing' };
+      const out = await api.hideMessage(token, messId, messageId);
+      if (out.ok) {
+        putMessages(
+          (liveMessages.current ?? []).map((message) =>
+            message.id === messageId ? { ...message, hidden: true, body: '' } : message,
+          ),
+        );
+      }
+      return out;
+    },
+    [token, messId, putMessages],
+  );
+
+  /**
+   * Somebody else spoke.
+   *
+   * `liveEvents` is the app's own bus for socket frames that are not chat —
+   * `ChatContext` owns the one WebSocket and offers every frame to it before
+   * deciding whether the frame is its own. Subscribing here means the mess
+   * room is live without a second connection and without the shop's chat
+   * knowing this feature exists.
+   *
+   * A frame for a different mess is dropped: one account can keep more than
+   * one set of books, and both are on the same socket.
+   */
+  useEffect(() => {
+    if (!messId) return undefined;
+
+    return onLiveEvent((event) => {
+      if (event?.type === 'socket-open') {
+        /* The socket is only live from the moment it opens. Anything said
+           while it was down was announced to nobody. */
+        if (liveMessages.current) loadMessages({ force: true });
+        return;
+      }
+
+      if (event?.type !== 'mm-message' || event.messId !== messId) return;
+
+      const message = event.message;
+      if (!message?.id) return;
+
+      /* Only into a room that has been opened. Appending to a list nobody has
+         loaded would leave a partial conversation that looks whole. */
+      if (liveMessages.current) {
+        const seen = liveMessages.current.some(
+          (row) => row.id === message.id || (message.clientId && row.clientId === message.clientId),
+        );
+        if (!seen) putMessages([...liveMessages.current, message]);
+      }
+
+      setUnreadChat((was) => was + 1);
+    });
+  }, [messId, putMessages, loadMessages]);
 
   /* ---------------------------------------------------------------- *
    * writes
@@ -541,6 +733,18 @@ export function MealManagementProvider({ children }) {
       invalidate,
       refreshAll,
 
+      /* the mess room */
+      messages,
+      chatMeta,
+      /* Live while the room is open; the dashboard's own figure otherwise, so
+         a badge is right on a cold start too. */
+      unreadMessages: unreadChat || dashboard?.unreadMessages || 0,
+      loadMessages,
+      loadOlderMessages,
+      postMessage,
+      markChatRead,
+      hideMessage,
+
       /* the payload nearly every screen needs */
       dashboard,
       permissions,
@@ -569,6 +773,14 @@ export function MealManagementProvider({ children }) {
       isLoading,
       invalidate,
       refreshAll,
+      messages,
+      chatMeta,
+      unreadChat,
+      loadMessages,
+      loadOlderMessages,
+      postMessage,
+      markChatRead,
+      hideMessage,
       dashboard,
       permissions,
       mealTypes,

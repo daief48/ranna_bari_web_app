@@ -189,7 +189,14 @@ export default function MealDashboard() {
   const guests = (key, value) => run(() => setMeal(data.today, { guests: { [key]: value } }));
 
   return (
-    <MessScreen footer={<BottomNav active="dashboard" badges={{ money: pending.total || 0 }} />}>
+    <MessScreen
+      footer={
+        <BottomNav
+          active="dashboard"
+          badges={{ money: pending.total || 0, more: data.unreadMessages || 0 }}
+        />
+      }
+    >
       <Container>
         <SectionHeader
           lead={mess?.name?.split(' ')[0]?.toUpperCase() ?? t('MY')}
@@ -493,6 +500,13 @@ export default function MealDashboard() {
             title={t('Meal calendar')}
             sub={t('Every day of the month, and what you took')}
             onPress={() => router.push('/meal-management/meals/calendar')}
+          />
+          <NavRow
+            icon="chat"
+            title={t('Mess chat')}
+            sub={t('Ask the others — one room for the whole mess')}
+            badge={data.unreadMessages}
+            onPress={() => router.push('/meal-management/chat')}
           />
           <NavRow
             icon="bell"

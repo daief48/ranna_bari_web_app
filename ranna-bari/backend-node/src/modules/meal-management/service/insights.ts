@@ -39,6 +39,7 @@ import { statementFor } from './closing.js';
 import { pendingCounts } from './money.js';
 import { setMeal } from './meals.js';
 import { todayMenu } from './board.js';
+import { unreadMessages } from './chat.js';
 
 /**
  * The dashboard, the analytics and the assistant. §4.7, §4.16, §4.15.
@@ -76,7 +77,7 @@ export async function dashboard(
   const target = month ?? monthFor(ctx, today);
   const zone = ctx.settings?.timezone ?? 'Asia/Dhaka';
 
-  const [statement, session, todayEntries, pending, corrections, duty, notices, menu, members] =
+  const [statement, session, todayEntries, pending, corrections, duty, notices, menu, members, unreadChat] =
     await Promise.all([
       statementFor(ctx, target),
       MmSession.findOne({ messId: ctx.messId, month: target }).lean(),
@@ -94,6 +95,7 @@ export async function dashboard(
       }),
       todayMenu(ctx),
       membersOf(ctx.messId),
+      unreadMessages(ctx),
     ]);
 
   const rateTypes = rateTypesOf(ctx);
@@ -187,6 +189,7 @@ export async function dashboard(
 
     nextCutoff: nextCutoff(ctx.mealTypes, zone),
     unreadNotices: notices,
+    unreadMessages: unreadChat,
     menu,
   });
 }

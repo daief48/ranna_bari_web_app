@@ -488,3 +488,15 @@ export default function MessScreen({
 
 /** `.container` — 16px of page gutter, 14px on a small phone. */
 export { Container } from '../../components/Screen';
+
+/**
+ * How much room the bar needs at the top.
+ *
+ * `MessScreen` applies this to its own scroll's padding, which a screen using
+ * `scroll={false}` never gets — the room lays out its own list and has to
+ * clear the bar itself.
+ */
+export function useMessTopOffset() {
+  const insets = useSafeAreaInsets();
+  return insets.top + NAVBAR_TOP + NAVBAR_HEIGHT + 16;
+}

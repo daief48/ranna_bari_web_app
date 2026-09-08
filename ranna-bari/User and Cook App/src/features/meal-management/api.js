@@ -383,6 +383,22 @@ export const confirmAssistant = (token, messId, proposalId) =>
   post(token, '/meal-management/assistant/confirm', { messId, proposalId });
 
 /* ================================================================== *
+ * the mess room
+ * ================================================================== */
+
+export const fetchMessages = (token, messId, params) =>
+  get(token, '/meal-management/messages', { messId, ...params });
+
+export const sendMessage = (token, messId, body) =>
+  post(token, '/meal-management/messages', { ...body, messId });
+
+export const readMessages = (token, messId) =>
+  post(token, '/meal-management/messages/read', { messId });
+
+export const hideMessage = (token, messId, messageId) =>
+  post(token, `/meal-management/messages/${id(messageId)}/hide`, { messId });
+
+/* ================================================================== *
  * attachments
  * ================================================================== */
 

@@ -1394,6 +1394,64 @@ export async function mealManagementRoutes(app: FastifyInstance): Promise<void> 
   });
 
   /* ================================================================ *
+   * the mess room
+   * ================================================================ */
+
+  app.get('/meal-management/messages', async (request, reply) => {
+    const ctx = await contextOf(request, reply as never);
+    if (!ctx) return;
+
+    const q = z
+      .object({
+        before: z.string().max(40).optional(),
+        limit: z.coerce.number().int().min(1).max(40).optional(),
+        messId: ID.optional(),
+      })
+      .safeParse(request.query ?? {});
+    if (!q.success) return badBody(reply as never, q.error);
+
+    return send(reply as never, await mm.listMessages(ctx, q.data));
+  });
+
+  app.post('/meal-management/messages', async (request, reply) => {
+    const ctx = await contextOf(request, reply as never);
+    if (!ctx) return;
+
+    const body = z
+      .object({
+        body: z.string().min(1).max(2000),
+        /* The device's own id, so a retry posts once. */
+        clientId: z.string().min(6).max(64),
+        replyToId: ID.optional(),
+        about: z
+          .object({
+            kind: z.enum(['bazar', 'expense', 'deposit', 'month', 'meal']),
+            id: z.string().min(1).max(64),
+            label: z.string().max(120).optional(),
+          })
+          .optional(),
+      })
+      .safeParse(request.body ?? {});
+    if (!body.success) return badBody(reply as never, body.error);
+
+    const out = await mm.sendMessage(ctx, body.data);
+    if (!out.ok) return refuse(reply as never, out);
+    return reply.status(201).send(out.result);
+  });
+
+  app.post('/meal-management/messages/read', async (request, reply) => {
+    const ctx = await contextOf(request, reply as never);
+    if (!ctx) return;
+    return send(reply as never, await mm.readMessages(ctx));
+  });
+
+  app.post<{ Params: { id: string } }>('/meal-management/messages/:id/hide', async (request, reply) => {
+    const ctx = await contextOf(request, reply as never);
+    if (!ctx) return;
+    return send(reply as never, await mm.hideMessage(ctx, request.params.id));
+  });
+
+  /* ================================================================ *
    * attachments
    * ================================================================ */
 

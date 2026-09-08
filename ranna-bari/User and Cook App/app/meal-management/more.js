@@ -33,7 +33,7 @@ export default function More() {
   const router = useRouter();
   const { t } = useLang();
 
-  const { mess, can, dashboard, load } = useMealManagement();
+  const { mess, can, dashboard, unreadMessages, load } = useMealManagement();
   const notices = useSlice('notices');
 
   useFocusEffect(
@@ -46,7 +46,9 @@ export default function More() {
   const pending = dashboard?.pendingApprovals ?? {};
 
   return (
-    <MessScreen footer={<BottomNav active="more" badges={{ money: pending.total || 0 }} />}>
+    <MessScreen
+      footer={<BottomNav active="more" badges={{ money: pending.total || 0, more: unreadMessages }} />}
+    >
       <Container>
         <SectionHeader
           lead={t('EVERYTHING')}
@@ -90,6 +92,13 @@ export default function More() {
             sub={t('People, roles, invitations and history')}
             badge={dashboard?.pendingJoinRequests}
             onPress={() => router.push('/meal-management/members')}
+          />
+          <NavRow
+            icon="chat"
+            title={t('Mess chat')}
+            sub={t('One room for everybody in the mess')}
+            badge={unreadMessages}
+            onPress={() => router.push('/meal-management/chat')}
           />
           <NavRow
             icon="bell"

@@ -21,4 +21,5 @@ export * from './service/money.js';
 export * from './service/closing.js';
 export * from './service/reports.js';
 export * from './service/board.js';
+export * from './service/chat.js';
 export * from './service/insights.js';

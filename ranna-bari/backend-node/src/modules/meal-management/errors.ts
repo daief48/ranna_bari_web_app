@@ -123,6 +123,12 @@ export const MM_ERR = {
   /** A cook that is not there. */
   NO_COOK: 'mm-cook-missing',
 
+  /* ---- the mess room ---- */
+  /** A message that is not there, or is hidden. */
+  NO_MESSAGE: 'mm-message-missing',
+  /** A message with nothing in it. */
+  MESSAGE_EMPTY: 'mm-message-empty',
+
   /* ---- assistant ---- */
   /** The assistant could not turn the sentence into an action. */
   AI_UNCLEAR: 'mm-assistant-unclear',
@@ -189,6 +195,9 @@ const MM_ERR_TEXT: Record<string, string> = {
   [MM_ERR.BAD_OPTION]: 'That option is not on this poll.',
   [MM_ERR.NO_MENU]: 'That menu could not be found.',
   [MM_ERR.NO_COOK]: 'That cook could not be found.',
+
+  [MM_ERR.NO_MESSAGE]: 'That message could not be found.',
+  [MM_ERR.MESSAGE_EMPTY]: 'Write something first.',
 
   [MM_ERR.AI_UNCLEAR]: 'I could not turn that into an action — try naming the meal and the day.',
   [MM_ERR.AI_FORBIDDEN]: 'You do not have permission for that action.',

@@ -190,6 +190,16 @@ const memberSchema = new Schema(
       },
       default: () => ({}),
     },
+
+    /**
+     * How far this member has read the mess room.
+     *
+     * A watermark rather than a read receipt per message: unread is then one
+     * `countDocuments({ at: { $gt } })` instead of a row per member per
+     * message, which for a ten-person mess is ten times the writes for a
+     * number nobody needs to be exact about.
+     */
+    chatReadAt: { type: Date, default: null },
   },
   opts,
 );
@@ -983,3 +993,83 @@ const attachmentSchema = new Schema(
 );
 
 export const MmAttachment = model('MmAttachment', attachmentSchema, 'mm_attachments');
+
+/* ------------------------------------------------------------------ *
+ * the mess's own room
+ * ------------------------------------------------------------------ */
+
+/**
+ * A message between the people in one mess.
+ *
+ * One room per mess rather than a thread list: a mess is four to ten people
+ * who already share a single set of books, and splitting them into private
+ * pairs would fragment exactly the conversation the books depend on — "who is
+ * doing bazar tomorrow", "why is gas up this month". Those belong where
+ * everybody can see them.
+ *
+ * Deliberately not the app's `ChatMessage`. That collection is the record a
+ * customer–cook dispute gets settled on, it is readable by platform
+ * operators, and a mess arguing about its own rent has no business in it.
+ * This one is `mm_` like everything else here, and no operator can read it.
+ *
+ * The message is written once and never edited, for the reason the host
+ * chat gives: a conversation that can be rewritten afterwards is not a record
+ * of anything. A moderator hides; the row stays.
+ */
+const messageSchema = new Schema(
+  {
+    messId: { type: String, required: true, index: true },
+
+    /** The member row, not the account — so a ghost's messages are impossible. */
+    memberId: { type: String, required: true, index: true },
+    /** Denormalised so a room renders without joining every sender. */
+    senderName: { type: String, default: '' },
+
+    /** 'text' | 'system' */
+    kind: { type: String, default: 'text' },
+    body: { type: String, default: '' },
+
+    /**
+     * The message this one answers.
+     *
+     * Light threading: an id and the quoted line, held here rather than
+     * resolved at read time, so a reply still reads correctly after the
+     * message it answers is hidden.
+     */
+    replyToId: { type: String, default: '' },
+    replyToName: { type: String, default: '' },
+    replyToBody: { type: String, default: '' },
+
+    /**
+     * A record this message is about — `{ kind, id, label }`.
+     *
+     * "About this ৳2,400 bazar" is the sentence a mess argument actually
+     * starts with, so the room can carry the thing itself rather than a
+     * description of it.
+     */
+    about: { type: Schema.Types.Mixed, default: null },
+
+    /**
+     * The sender's own id, generated on the device before the message left it.
+     *
+     * An optimistic send that the network then retries must not post twice,
+     * which is what the unique index below guarantees.
+     */
+    clientId: { type: String, required: true },
+
+    at: { type: Date, default: Date.now, index: true },
+
+    hidden: { type: Boolean, default: false },
+    hiddenBy: { type: String, default: '' },
+    hiddenAt: { type: Date, default: null },
+  },
+  { versionKey: false },
+);
+
+messageSchema.index({ messId: 1, at: -1 });
+/* Scoped to the mess rather than global: two messes cannot collide, and a
+   replayed send inside one mess is refused by the index rather than by a
+   check somebody could forget. */
+messageSchema.index({ messId: 1, clientId: 1 }, { unique: true });
+
+export const MmMessage = model('MmMessage', messageSchema, 'mm_messages');

@@ -8,6 +8,7 @@ import {
   MmMealEntry,
   MmMealRequest,
   MmMember,
+  MmMessage,
   MmSession,
 } from '../src/modules/meal-management/models.js';
 import {
@@ -1013,3 +1014,220 @@ describe('countMeals', () => {
   });
 });
 
+/* ================================================================== *
+ * the mess room
+ * ================================================================== */
+
+describe('mess messaging', () => {
+  it('keeps one room per mess and shows what was said in it', async () => {
+    const { messId, code, ctx } = await makeMess({ approvals: false });
+    const bob = await addMember(ctx, messId, code, BOB);
+
+    await mm.sendMessage(ctx, { body: 'Who is doing bazar tomorrow?', clientId: 'c1' });
+    await mm.sendMessage(bob, { body: 'I can go', clientId: 'c2' });
+
+    const room = ok<{ messages: { body: string; mine: boolean; senderName: string }[] }>(
+      await mm.listMessages(bob),
+    );
+
+    /* Oldest last, so a client appends rather than prepends. */
+    expect(room.messages.map((m) => m.body)).toEqual([
+      'Who is doing bazar tomorrow?',
+      'I can go',
+    ]);
+
+    /* `mine` is the reader's answer, not the sender's. */
+    expect(room.messages[0].mine).toBe(false);
+    expect(room.messages[0].senderName).toBe('Alice');
+    expect(room.messages[1].mine).toBe(true);
+  });
+
+  it('posts once when the same clientId is replayed', async () => {
+    const { ctx } = await makeMess({ approvals: false });
+
+    const first = ok<{ message: { id: string }; replayed?: boolean }>(
+      await mm.sendMessage(ctx, { body: 'gas is up again', clientId: 'retry-me' }),
+    );
+    const second = ok<{ message: { id: string }; replayed?: boolean }>(
+      await mm.sendMessage(ctx, { body: 'gas is up again', clientId: 'retry-me' }),
+    );
+
+    /* The retry gets the row that already exists, not a second one. */
+    expect(second.replayed).toBe(true);
+    expect(second.message.id).toBe(first.message.id);
+    expect(await MmMessage.countDocuments({ messId: ctx.messId })).toBe(1);
+  });
+
+  it('refuses a message with nothing in it', async () => {
+    const { ctx } = await makeMess({ approvals: false });
+    const out = await mm.sendMessage(ctx, { body: '   ', clientId: 'blank' });
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error).toBe('mm-message-empty');
+  });
+
+  it('keeps one mess out of another mess room', async () => {
+    const first = await makeMess({ approvals: false });
+    await mm.sendMessage(first.ctx, { body: 'our rent went up', clientId: 'x1' });
+
+    const second = await mm.createMess(BOB, { name: 'Bob Mess' });
+    if (!second.ok) throw new Error('no second mess');
+    const bobCtx = await mm.contextFor(BOB, second.result.messId);
+    if (!bobCtx.ok) throw new Error('no context');
+
+    const room = ok<{ messages: unknown[] }>(await mm.listMessages(bobCtx.result));
+    expect(room.messages).toHaveLength(0);
+  });
+
+  it('counts other people messages as unread, and not your own', async () => {
+    const { messId, code, ctx } = await makeMess({ approvals: false });
+    const bob = await addMember(ctx, messId, code, BOB);
+
+    await mm.sendMessage(ctx, { body: 'one', clientId: 'a1' });
+    await mm.sendMessage(ctx, { body: 'two', clientId: 'a2' });
+    await mm.sendMessage(bob, { body: 'mine', clientId: 'b1' });
+
+    /* Bob has two of Alice's to read; his own does not badge him. */
+    expect(await mm.unreadMessages(bob)).toBe(2);
+    expect(await mm.unreadMessages(ctx)).toBe(1);
+
+    await mm.readMessages(bob);
+    expect(await mm.unreadMessages(bob)).toBe(0);
+
+    await mm.sendMessage(ctx, { body: 'three', clientId: 'a3' });
+    expect(await mm.unreadMessages(bob)).toBe(1);
+  });
+
+  it('hides the words and keeps the row', async () => {
+    const { ctx } = await makeMess({ approvals: false });
+
+    const sent = ok<{ message: { id: string } }>(
+      await mm.sendMessage(ctx, { body: 'something regrettable', clientId: 'oops' }),
+    );
+
+    await mm.hideMessage(ctx, sent.message.id);
+
+    const row = await MmMessage.findById(sent.message.id);
+    /* The record survives — a conversation that can be rewritten afterwards
+       is not a record of what was said. */
+    expect(row).toBeTruthy();
+    expect(row?.hidden).toBe(true);
+    expect(row?.body).toBe('something regrettable');
+
+    const room = ok<{ messages: { hidden: boolean; body: string }[] }>(await mm.listMessages(ctx));
+    expect(room.messages[0].hidden).toBe(true);
+    expect(room.messages[0].body).toBe('');
+  });
+
+  it('lets a member remove their own but not another member entry', async () => {
+    const { messId, code, ctx } = await makeMess({ approvals: false });
+    const bob = await addMember(ctx, messId, code, BOB);
+
+    const alices = ok<{ message: { id: string } }>(
+      await mm.sendMessage(ctx, { body: 'alice speaking', clientId: 'a1' }),
+    );
+    const bobs = ok<{ message: { id: string } }>(
+      await mm.sendMessage(bob, { body: 'bob speaking', clientId: 'b1' }),
+    );
+
+    const refused = await mm.hideMessage(bob, alices.message.id);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error).toBe('mm-not-allowed');
+
+    expect((await mm.hideMessage(bob, bobs.message.id)).ok).toBe(true);
+    /* An admin moderates anybody's. */
+    expect((await mm.hideMessage(ctx, alices.message.id)).ok).toBe(true);
+  });
+
+  it('copies the quoted line so a reply survives its parent being hidden', async () => {
+    const { messId, code, ctx } = await makeMess({ approvals: false });
+    const bob = await addMember(ctx, messId, code, BOB);
+
+    const parent = ok<{ message: { id: string } }>(
+      await mm.sendMessage(ctx, { body: 'bazar budget is 4000', clientId: 'p1' }),
+    );
+
+    const reply = ok<{ message: { replyToName: string; replyToBody: string } }>(
+      await mm.sendMessage(bob, {
+        body: 'too low',
+        clientId: 'r1',
+        replyToId: parent.message.id,
+      }),
+    );
+
+    expect(reply.message.replyToName).toBe('Alice');
+    expect(reply.message.replyToBody).toBe('bazar budget is 4000');
+
+    await mm.hideMessage(ctx, parent.message.id);
+
+    const room = ok<{ messages: { body: string; replyToBody: string | null }[] }>(
+      await mm.listMessages(bob),
+    );
+    const still = room.messages.find((m) => m.body === 'too low');
+    expect(still?.replyToBody).toBe('bazar budget is 4000');
+  });
+
+  it('carries a reference to the record it is about', async () => {
+    const { ctx } = await makeMess({ approvals: false });
+
+    const bazar = ok<{ id: string; total: number }>(
+      await mm.createBazar(ctx, {
+        date: day(1),
+        items: [{ name: 'Rice', qty: 5, unit: 'kg', unitPrice: 60 }],
+      }),
+    );
+
+    const sent = ok<{ message: { about: { kind: string; id: string; label: string } } }>(
+      await mm.sendMessage(ctx, {
+        body: 'why so much rice?',
+        clientId: 'about-1',
+        about: { kind: 'bazar', id: bazar.id, label: '300 taka bazar' },
+      }),
+    );
+
+    expect(sent.message.about).toEqual({
+      kind: 'bazar',
+      id: bazar.id,
+      label: '300 taka bazar',
+    });
+  });
+
+  it('drops a reference to something it does not recognise', async () => {
+    const { ctx } = await makeMess({ approvals: false });
+
+    const sent = ok<{ message: { about: unknown } }>(
+      await mm.sendMessage(ctx, {
+        body: 'hello',
+        clientId: 'about-2',
+        about: { kind: 'not-a-thing', id: 'x' },
+      }),
+    );
+
+    expect(sent.message.about).toBeNull();
+  });
+
+  it('pages backwards from the newest', async () => {
+    const { ctx } = await makeMess({ approvals: false });
+
+    for (let i = 1; i <= 45; i += 1) {
+      await mm.sendMessage(ctx, { body: `message ${i}`, clientId: `m${i}` });
+    }
+
+    const first = ok<{ messages: { body: string }[]; hasMore: boolean; oldest: string }>(
+      await mm.listMessages(ctx, { limit: 40 }),
+    );
+
+    expect(first.messages).toHaveLength(40);
+    expect(first.hasMore).toBe(true);
+    /* The newest is last, the page's own oldest is first. */
+    expect(first.messages[39].body).toBe('message 45');
+    expect(first.messages[0].body).toBe('message 6');
+
+    const older = ok<{ messages: { body: string }[]; hasMore: boolean }>(
+      await mm.listMessages(ctx, { before: String(first.oldest), limit: 40 }),
+    );
+
+    expect(older.messages).toHaveLength(5);
+    expect(older.hasMore).toBe(false);
+    expect(older.messages[0].body).toBe('message 1');
+  });
+});

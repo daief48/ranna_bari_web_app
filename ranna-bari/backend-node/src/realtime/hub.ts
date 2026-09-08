@@ -40,6 +40,21 @@ export type ServerEvent =
    */
   | { type: 'order'; orderId: string; status: string }
   | { type: 'presence'; side: Side; online: boolean }
+  /**
+   * A message in a mess's own room.
+   *
+   * Meal management keeps its own conversation in its own collection and does
+   * not use `ChatThread` — a mess arguing about its rent is not a
+   * customer–cook dispute and no operator should be reading it. This is the
+   * one line the feature needs from this file, and it is deliberately a
+   * separate variant rather than a reuse of `message`: sharing the type would
+   * mean `ChatContext` treating a mess message as a chat frame and filing it
+   * under a thread that does not exist.
+   *
+   * Published with `admins: false`. That is not optional — `publish` copies
+   * every operator in by default, which for this event would be a leak.
+   */
+  | { type: 'mm-message'; messId: string; message: unknown }
   | { type: 'error'; error: string }
   | { type: 'pong' };
 
