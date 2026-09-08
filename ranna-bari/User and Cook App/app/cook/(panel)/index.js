@@ -11,6 +11,7 @@ import Icon from '../../../src/components/Icon';
 import Reveal from '../../../src/components/Reveal';
 import Button from '../../../src/components/Button';
 import SectionHeader from '../../../src/components/SectionHeader';
+import NextUp from '../../../src/components/NextUp';
 import { BentoBox, IconTile } from '../../../src/components/Surfaces';
 import { ActionRow, RowHeading, StatTile } from '../../../src/components/CookBits';
 import { Body, Heading, Price } from '../../../src/components/Typography';
@@ -221,6 +222,111 @@ export default function CookDashboard() {
               ? t('{name} is taking orders.', { name: kitchen.name })
               : t('{name} is closed. Nothing can be ordered.', { name: kitchen.name })
           }
+        />
+
+        {/*
+          * What is actually waiting on this cook.
+          *
+          * Every one of these was already somewhere on this screen — the
+          * open/close control says a closed kitchen takes no orders, the
+          * gallery says there are no photos, the shop row says the shop is
+          * shut. All of it below the fold, on a screen a busy cook scrolls
+          * half of. This promotes whichever of them is true right now, and
+          * renders nothing on the day none of them is.
+          */}
+        <NextUp
+          style={{ marginTop: 6, marginBottom: 18 }}
+          steps={[
+            stats.waiting > 0 && {
+              key: 'accept',
+              urgent: true,
+              icon: 'receipt',
+              tone: 'primary',
+              title: t(
+                stats.waiting === 1 ? 'Accept 1 order' : 'Accept {n} orders',
+                { n: n(stats.waiting) },
+              ),
+              sub: t('Somebody has paid and is waiting to hear from you'),
+              onPress: () => router.push('/cook/orders'),
+            },
+
+            stats.disputed > 0 && {
+              key: 'disputed',
+              urgent: true,
+              icon: 'alertCircle',
+              tone: 'primary',
+              title: t('{n} orders under review', { n: n(stats.disputed) }),
+              sub: t('That money stays put until the case is settled'),
+              onPress: () => router.push('/cook/orders'),
+            },
+
+            !open && {
+              key: 'open',
+              urgent: true,
+              icon: 'flame',
+              tone: 'sage',
+              title: t('Open your kitchen'),
+              sub: t('While it is closed you are off the map and nobody can order'),
+              onPress: setShutter,
+            },
+
+            /* The two that make a kitchen worth opening at all. */
+            liveDishes.length === 0 && {
+              key: 'dish',
+              urgent: true,
+              icon: 'pot',
+              tone: 'sage',
+              title: t('Add your first dish'),
+              sub: t('An open kitchen with an empty menu has nothing to sell'),
+              onPress: () => router.push('/cook/menu'),
+            },
+
+            (kitchen.photos ?? []).length === 0 && {
+              key: 'photos',
+              icon: 'gem',
+              tone: 'saffron',
+              title: t('Add kitchen photos'),
+              sub: t('People scroll past a kitchen they cannot see'),
+              onPress: () => router.push('/cook/kitchen'),
+            },
+
+            waitingPreorders > 0 && {
+              key: 'preorders',
+              urgent: true,
+              icon: 'box',
+              tone: 'primary',
+              title: t('{n} pre-orders to confirm', { n: n(waitingPreorders) }),
+              sub: t('They are waiting on you before they can pay'),
+              onPress: () => router.push('/cook/store'),
+            },
+
+            shopClosed && {
+              key: 'shop',
+              icon: 'cart',
+              tone: 'saffron',
+              title: t('Your shop is closed'),
+              sub: t('Everything you stocked is there and nobody can buy it'),
+              onPress: () => router.push('/cook/store'),
+            },
+
+            outOfStock > 0 && {
+              key: 'stock',
+              icon: 'box',
+              tone: 'saffron',
+              title: t('{n} products are out of stock', { n: n(outOfStock) }),
+              sub: t('Customers can see them and cannot buy them'),
+              onPress: () => router.push('/cook/store/products'),
+            },
+
+            openRequests > 0 && {
+              key: 'requests',
+              icon: 'chat',
+              tone: 'sage',
+              title: t('{n} people are asking for food', { n: n(openRequests) }),
+              sub: t('Nobody has offered to cook it yet'),
+              onPress: () => router.push('/cook/requests'),
+            },
+          ]}
         />
 
         {/* ---- The shopfront ----

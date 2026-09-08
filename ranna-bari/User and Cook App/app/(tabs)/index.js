@@ -12,6 +12,7 @@ import Button from '../../src/components/Button';
 import ChefCard from '../../src/components/ChefCard';
 import MoodPill from '../../src/components/MoodPill';
 import SectionHeader from '../../src/components/SectionHeader';
+import NextUp from '../../src/components/NextUp';
 import TestimonialSlider, { Stars } from '../../src/components/TestimonialSlider';
 import Brand from '../../src/components/Brand';
 import { BentoBox, IconTile } from '../../src/components/Surfaces';
@@ -32,6 +33,7 @@ import { useChefs, useReviewSummary } from '../../src/data';
 import { useAuth } from '../../src/store/AuthContext';
 import { distanceKm } from '../../src/lib/geo';
 import { deliversTo } from '../../src/lib/kitchen';
+import { customerKeyOf } from '../../src/lib/ledger';
 import { StoreCard } from '../../src/components/StoreBits';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { useSession } from '../../src/store/SessionContext';
@@ -104,7 +106,7 @@ export default function HomeScreen() {
   const chefs = useChefs();
   const { account } = useAuth();
   const { orders } = useOrders();
-  const { reorder } = useCart();
+  const { reorder, count: cartCount } = useCart();
 
   /**
    * The last three kitchens worth repeating.
@@ -136,8 +138,45 @@ export default function HomeScreen() {
     }
     return out;
   }, [orders]);
-  const { storesNearby } = useCommerce();
-  const { token } = useSession();
+  const {
+    storesNearby,
+    orders: allOrders,
+    requestsForCustomer,
+    offersForRequest,
+  } = useCommerce();
+  const { token, addresses } = useSession();
+
+  /*
+   * The things actually waiting on this person.
+   *
+   * `toConfirm` is the one that matters most and is the least visible: an
+   * order sits at `delivered` until the customer says the food arrived, and
+   * until they do the platform is holding the cook's money. The tab bar
+   * badges it; nothing on this screen said why.
+   */
+  const customerKey = customerKeyOf(account);
+
+  const toConfirm = useMemo(
+    () =>
+      (allOrders ?? []).filter(
+        (order) => order.customerKey === customerKey && order.status === 'delivered',
+      ).length,
+    [allOrders, customerKey],
+  );
+
+  /* Requests of this person's own that a cook has answered and nobody has
+     chosen from yet. Filtered by key as well as by the reader's own list: the
+     server already scopes `/requests` to the caller, and agreeing with it
+     costs nothing. */
+  const answeredRequests = useMemo(() => {
+    if (!customerKey) return 0;
+    return (requestsForCustomer(customerKey) ?? []).filter(
+      (request) =>
+        request.customerKey === customerKey &&
+        request.status === 'open' &&
+        (offersForRequest(request.id) ?? []).length > 0,
+    ).length;
+  }, [customerKey, requestsForCustomer, offersForRequest]);
   const { colors, shadow, isDark } = useTheme();
   const r = useResponsive();
   const router = useRouter();
@@ -322,6 +361,77 @@ export default function HomeScreen() {
             </View>
           </BentoBox>
         </Reveal>
+
+        {/*
+          * What is waiting on this person, above the marketing.
+          *
+          * The band below this one explains what the platform is, which is the
+          * right thing to show somebody deciding whether to use it and the
+          * wrong thing to show somebody whose dinner arrived an hour ago and
+          * whose cook has not been paid because they never said so.
+          *
+          * Every row is read off real state and disappears when it is done, so
+          * this is empty for most people most of the time — which is what
+          * makes it worth looking at on the days it is not.
+          */}
+        <NextUp
+          title={t('Waiting on you')}
+          steps={[
+              toConfirm > 0 && {
+                key: 'confirm',
+                urgent: true,
+                icon: 'check',
+                tone: 'primary',
+                title: t(
+                  toConfirm === 1 ? 'Confirm your food arrived' : 'Confirm {n} deliveries',
+                  { n: n(toConfirm) },
+                ),
+                sub: t('Your cook is not paid until you do'),
+                onPress: () => router.push('/orders'),
+              },
+
+              !token && {
+                key: 'signin',
+                urgent: true,
+                icon: 'user',
+                tone: 'primary',
+                title: t('Sign in to order'),
+                sub: t('Browsing is open to everyone; ordering needs an account'),
+                onPress: () => router.push('/auth'),
+              },
+
+              token && addresses.length === 0 && {
+                key: 'address',
+                urgent: true,
+                icon: 'pin',
+                tone: 'sage',
+                title: t('Add where your food should go'),
+                sub: t('Nothing can be delivered until there is an address to deliver to'),
+                onPress: () => router.push('/addresses'),
+              },
+
+              cartCount > 0 && {
+                key: 'cart',
+                icon: 'cart',
+                tone: 'saffron',
+                title: t(
+                  cartCount === 1 ? '1 item in your basket' : '{n} items in your basket',
+                  { n: n(cartCount) },
+                ),
+                sub: t('Nothing is ordered until you check out'),
+                onPress: () => router.push('/cart'),
+              },
+
+              answeredRequests > 0 && {
+                key: 'offers',
+                icon: 'chat',
+                tone: 'sage',
+                title: t('{n} cooks answered your request', { n: n(answeredRequests) }),
+                sub: t('Pick one and they will cook it for you'),
+              onPress: () => router.push('/requests'),
+            },
+          ]}
+        />
 
         {/* Featured dish tile */}
         <Reveal delay={2}>
