@@ -125,7 +125,7 @@ export default function MealCalendar() {
                 ))}
                 <StatTile
                   value={n(mealText(counts.weighted))}
-                  label={t('Billable total')}
+                  label={t('Meals counted')}
                   tone="good"
                   hint={counts.guests ? t('{n} guest', { n: n(mealText(counts.guests)) }) : undefined}
                 />
@@ -254,7 +254,7 @@ export default function MealCalendar() {
               />
             ))}
 
-            <Row label={t('Billable that day')} value={n(mealText(day.weighted))} strong />
+            <Row label={t('Counted that day')} value={n(mealText(day.weighted))} strong />
           </>
         ) : null}
       </Sheet>

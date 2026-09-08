@@ -36,6 +36,13 @@ export function shiftDay(date, by) {
   return todayKey(next);
 }
 
+/** How many days lie between two days, `to` minus `from`. */
+export function daysBetween(from, to) {
+  const [ay, am, ad] = String(from).split('-').map(Number);
+  const [by, bm, bd] = String(to).split('-').map(Number);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000);
+}
+
 export function shiftMonth(month, by) {
   const [y, m] = String(month).split('-').map(Number);
   const d = new Date(y, m - 1 + by, 1);

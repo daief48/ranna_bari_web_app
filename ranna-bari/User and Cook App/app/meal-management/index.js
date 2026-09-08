@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 
 import MessScreen, { Container } from '../../src/features/meal-management/MessScreen';
 import SectionHeader from '../../src/components/SectionHeader';
+import Icon from '../../src/components/Icon';
 import { Body } from '../../src/components/Typography';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, type } from '../../src/theme/tokens';
@@ -69,7 +70,6 @@ export default function MealDashboard() {
     month,
     changeMonth,
     today,
-    
     mealTypes,
     can,
     setMeal,
@@ -214,6 +214,9 @@ export default function MealDashboard() {
           <MonthPicker month={month} onChange={changeMonth} closed={closed} />
         </View>
 
+        <FirstLook data={data} />
+        <NextSteps data={data} can={can} onGo={(href) => router.push(href)} />
+
         {/* ---- today's meals: the reason most people opened this ---- */}
         {isToday ? (
           <View style={{ marginTop: 20, gap: 10 }}>
@@ -263,9 +266,11 @@ export default function MealDashboard() {
           <TileGrid>
             <StatTile value={n(mealText(me.meals ?? 0))} label={t('Meals taken')} />
             <StatTile
-              value={`৳${n(rateText(data.mealRate))}`}
+              /* Zero is not a rate, it is the absence of one — "৳0" would say
+                 the food was free rather than that nothing has been spent. */
+              value={data.mealRate > 0 ? `৳${n(rateText(data.mealRate))}` : '—'}
               label={t('Meal rate')}
-              hint={t('per meal')}
+              hint={data.mealRate > 0 ? t('per meal') : t('not yet')}
             />
             <StatTile value={`৳${n(takaText(me.totalCharge ?? 0))}`} label={t('Charged to me')} />
             <StatTile
@@ -514,5 +519,156 @@ export default function MealDashboard() {
         </View>
       </Container>
     </MessScreen>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * teaching without a tutorial
+ * ------------------------------------------------------------------ */
+
+/**
+ * The one paragraph a brand-new mess needs, and only then.
+ *
+ * A tutorial is a thing you dismiss and then cannot find again; this is a
+ * panel that exists exactly while it is true. The moment anybody records a
+ * meal or spends any money, the mess is no longer new and this is gone for
+ * good — no flag, no "don't show again", nothing to store.
+ *
+ * Three sentences, because that is the whole model: you record what you eat,
+ * you record what the mess spends, and the app divides one by the other.
+ */
+function FirstLook({ data }) {
+  const { colors } = useTheme();
+  const { t } = useLang();
+
+  const fresh = !data.totalMeals && !data.totalCost;
+  if (!fresh) return null;
+
+  const lines = [
+    t('Everybody taps their own meals — breakfast, lunch, dinner.'),
+    t('Somebody records the bazar and the bills.'),
+    t('The app divides one by the other. That is the meal rate, and your bill is your meals times it.'),
+  ];
+
+  return (
+    <Panel style={{ marginTop: 18, gap: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+        <Icon name="sprout" size={18} color={colors.sage} />
+        <Text style={{ fontFamily: font.uiSemi, fontSize: type.sm + 1, color: colors.text }}>
+          {t('How a mess is kept')}
+        </Text>
+      </View>
+
+      {lines.map((line, index) => (
+        // eslint-disable-next-line react/no-array-index-key
+        <View key={index} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+          <Text
+            style={{
+              fontFamily: font.uiBold,
+              fontSize: type.xs,
+              color: colors.saffron,
+              minWidth: 14,
+              marginTop: 2,
+            }}
+          >
+            {index + 1}
+          </Text>
+          <Text
+            style={{
+              flex: 1,
+              fontFamily: font.ui,
+              fontSize: type.sm,
+              lineHeight: type.sm * 1.5,
+              color: colors.textMuted,
+            }}
+          >
+            {line}
+          </Text>
+        </View>
+      ))}
+
+      <Body muted style={{ fontSize: type.xs }}>
+        {t('This note goes away once the mess has anything in it.')}
+      </Body>
+    </Panel>
+  );
+}
+
+/**
+ * What is worth doing next, read off the books rather than off a checklist.
+ *
+ * Every row here is derived from the month's own figures, so it appears when
+ * the thing is genuinely undone and vanishes when it is done — including when
+ * somebody *else* does it. That is the difference between this and an
+ * onboarding flow: there is no progress to store, nothing to reset, and it
+ * cannot ever be wrong about what has already happened.
+ *
+ * Ordered by what unblocks the most. Members first, because a mess with one
+ * member is a spreadsheet; then food cost, because without it there is no
+ * rate; then deposits, because without them a balance is only ever negative.
+ */
+function NextSteps({ data, can, onGo }) {
+  const { t, n } = useLang();
+
+  const totals = data.mess_totals;
+  const steps = [];
+
+  if (can('manage_members') && (totals?.members ?? 2) <= 1) {
+    steps.push({
+      key: 'invite',
+      icon: 'user',
+      title: t('Invite the others'),
+      sub: t('Share the mess code so everybody records their own meals'),
+      href: '/meal-management/members',
+    });
+  }
+
+  if (!data.foodCost) {
+    steps.push({
+      key: 'cost',
+      icon: 'cart',
+      title: t('Record the first bazar'),
+      sub: t('Food cost is the top half of the rate — without it there is nothing to divide'),
+      href: '/meal-management/bazar',
+    });
+  }
+
+  if (data.foodCost > 0 && totals && !totals.totalDeposits) {
+    steps.push({
+      key: 'deposit',
+      icon: 'banknote',
+      title: t('Record what people have paid in'),
+      sub: t('A balance is deposits minus charges — right now everybody looks in debt'),
+      href: '/meal-management/money/deposits',
+    });
+  }
+
+  if (data.pendingApprovals?.total > 0) {
+    steps.push({
+      key: 'approve',
+      icon: 'check',
+      title: t('{n} records are waiting on you', { n: n(data.pendingApprovals.total) }),
+      sub: t('Nothing counts toward the rate until it is approved'),
+      href: '/meal-management/money/expenses',
+      tone: 'warn',
+    });
+  }
+
+  if (!steps.length) return null;
+
+  return (
+    <View style={{ marginTop: 18, gap: 10 }}>
+      <GroupLabel text={t('What to do next')} />
+      {steps.map((step) => (
+        <NavRow
+          key={step.key}
+          icon={step.icon}
+          title={step.title}
+          sub={step.sub}
+          tone={step.tone}
+          onPress={() => onGo(step.href)}
+        />
+      ))}
+    </View>
   );
 }

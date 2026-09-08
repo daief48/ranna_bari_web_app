@@ -8,7 +8,17 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { font, type } from '../../theme/tokens';
 import { useLang } from '../../i18n/LanguageContext';
 
-import { Chip, ChipRow, Field, GroupLabel, MiniButton, Panel, Row, Sheet } from './components';
+import {
+  Chip,
+  ChipRow,
+  DatePicker,
+  Field,
+  GroupLabel,
+  MiniButton,
+  Panel,
+  Row,
+  Sheet,
+} from './components';
 import { takaText, todayKey } from './format';
 
 /**
@@ -110,7 +120,7 @@ export function BazarSheet({ open, onClose, onSubmit, initial }) {
         </View>
       }
     >
-      <Field label={t('Which day')} value={date} onChangeText={setDate} placeholder="2026-09-01" />
+      <DatePicker label={t('Which day')} value={date} onChange={setDate} />
 
       <View style={{ gap: 10 }}>
         <GroupLabel

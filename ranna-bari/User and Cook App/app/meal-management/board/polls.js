@@ -22,12 +22,13 @@ import {
   Loading,
   Meter,
   MiniButton,
+  OptionalDatePicker,
   Panel,
   Sheet,
 } from '../../../src/features/meal-management/components';
 import { useMealManagement, useSlice } from '../../../src/features/meal-management/store';
 import { useMealAction } from '../../../src/features/meal-management/errors';
-import { agoLabel, shiftDay, todayKey } from '../../../src/features/meal-management/format';
+import { agoLabel } from '../../../src/features/meal-management/format';
 
 /**
  * Polls. §4.12.
@@ -97,6 +98,8 @@ export default function Polls() {
               icon="check"
               title={t('No polls yet')}
               hint={t('Ask the mess what to cook on Friday, or who the next cook should be.')}
+              action={manage ? () => setCreating(true) : undefined}
+              actionLabel={t('Start a poll')}
             />
           </View>
         ) : (
@@ -355,11 +358,12 @@ function PollSheet({ open, onClose, onSubmit }) {
         </Body>
       </View>
 
-      <Field
-        label={t('Closes on (optional)')}
+      <OptionalDatePicker
+        label={t('Stop taking votes on')}
+        emptyLabel={t('Keep it open')}
         value={endAt}
-        onChangeText={setEndAt}
-        placeholder={shiftDay(todayKey(), 2)}
+        onChange={setEndAt}
+        hint={t('You can always close it by hand.')}
       />
     </Sheet>
   );

@@ -13,6 +13,7 @@ import {
   BackLink,
   Chip,
   ChipRow,
+  DatePicker,
   Divider,
   Empty,
   Field,
@@ -388,7 +389,7 @@ function DaySheet({ open, onClose, onSubmit }) {
       title={t('Record a day')}
       footer={<Button label={t('Record it')} onPress={submit} disabled={busy} block />}
     >
-      <Field label={t('Which day')} value={date} onChangeText={setDate} />
+      <DatePicker label={t('Which day')} value={date} onChange={setDate} />
 
       <View style={{ gap: 8 }}>
         <GroupLabel text={t('Status')} />
@@ -458,17 +459,15 @@ function PaySheet({ open, salary, onClose, onSubmit }) {
         <Button label={t('Record the payment')} onPress={submit} disabled={busy || !(Number(amount) > 0)} block />
       }
     >
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Field label={t('Which day')} value={date} onChangeText={setDate} style={{ flex: 1.2 }} />
-        <Field
-          label={t('Amount')}
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="decimal-pad"
-          suffix="৳"
-          style={{ flex: 1 }}
-        />
-      </View>
+      <Field
+        label={t('How much')}
+        value={amount}
+        onChangeText={setAmount}
+        keyboardType="decimal-pad"
+        suffix="৳"
+      />
+
+      <DatePicker label={t('Which day')} value={date} onChange={setDate} />
 
       <View style={{ gap: 8 }}>
         <GroupLabel text={t('How')} />

@@ -219,6 +219,8 @@ export default function Menu() {
                 icon="salad"
                 title={t('No suggestions yet')}
                 hint={t('Anybody can ask for a dish, and anybody can back it.')}
+                action={() => setSuggesting(true)}
+                actionLabel={t('Suggest a dish')}
               />
             )}
           </View>

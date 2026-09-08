@@ -22,6 +22,7 @@ import {
   MiniButton,
   NavRow,
   Panel,
+  RangePicker,
   Sheet,
   StatTile,
   TileGrid,
@@ -379,10 +380,14 @@ function BulkSheet({ open, onClose, mealTypes, allowedValues, onSubmit }) {
         />
       }
     >
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Field label={t('From')} value={from} onChangeText={setFrom} placeholder="2026-09-01" style={{ flex: 1 }} />
-        <Field label={t('To')} value={to} onChangeText={setTo} placeholder="2026-09-30" style={{ flex: 1 }} />
-      </View>
+      <RangePicker
+        from={from}
+        to={to}
+        onChange={(start, end) => {
+          setFrom(start);
+          setTo(end);
+        }}
+      />
 
       <View style={{ gap: 8 }}>
         <GroupLabel text={t('Which sittings')} />
@@ -446,10 +451,14 @@ function LeaveSheet({ open, onClose, onSubmit }) {
       title={t('I am away')}
       footer={<Button label={t('Turn my meals off')} onPress={submit} disabled={busy} block />}
     >
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Field label={t('From')} value={from} onChangeText={setFrom} style={{ flex: 1 }} />
-        <Field label={t('To')} value={to} onChangeText={setTo} style={{ flex: 1 }} />
-      </View>
+      <RangePicker
+        from={from}
+        to={to}
+        onChange={(start, end) => {
+          setFrom(start);
+          setTo(end);
+        }}
+      />
 
       <Field
         label={t('Note (optional)')}

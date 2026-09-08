@@ -15,6 +15,7 @@ import {
   BackLink,
   Chip,
   ChipRow,
+  DatePicker,
   Divider,
   Empty,
   Field,
@@ -224,7 +225,7 @@ function RaiseSheet({ open, onClose, mealTypes, date: initialDate, onSubmit }) {
       title={t('Request a correction')}
       footer={<Button label={t('Send the request')} onPress={submit} disabled={busy} block />}
     >
-      <Field label={t('Which day')} value={date} onChangeText={setDate} placeholder="2026-09-01" />
+      <DatePicker label={t('Which day')} value={date} onChange={setDate} />
 
       <View style={{ gap: 8 }}>
         <GroupLabel text={t('What it should be')} />

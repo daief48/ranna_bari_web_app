@@ -12,11 +12,11 @@ import {
   Chip,
   ChipRow,
   Empty,
-  Field,
   GroupLabel,
   Loading,
   MiniButton,
   Panel,
+  RangePicker,
   Row,
   StatTile,
   TileGrid,
@@ -121,11 +121,19 @@ export default function MealHistory() {
           </ChipRow>
 
           {preset === 'custom' ? (
-            <Panel style={{ gap: 12 }}>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <Field label={t('From')} value={from} onChangeText={setFrom} style={{ flex: 1 }} />
-                <Field label={t('To')} value={to} onChangeText={setTo} style={{ flex: 1 }} />
-              </View>
+            <Panel style={{ gap: 14 }}>
+              {/* No presets here — the four chips above this panel already are
+                  the presets, so a second row of them would be the same
+                  question asked twice. */}
+              <RangePicker
+                from={from}
+                to={to}
+                presets={false}
+                onChange={(start, end) => {
+                  setFrom(start);
+                  setTo(end);
+                }}
+              />
               <MiniButton label={t('Show these days')} onPress={() => fetch(from, to)} />
             </Panel>
           ) : null}
@@ -150,7 +158,7 @@ export default function MealHistory() {
                 ))}
                 <StatTile
                   value={n(mealText(counts.weighted))}
-                  label={t('Billable total')}
+                  label={t('Meals counted')}
                   tone="good"
                 />
                 <StatTile

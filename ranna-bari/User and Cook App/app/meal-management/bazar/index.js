@@ -139,6 +139,8 @@ export default function BazarList() {
               icon="cart"
               title={t('No bazar recorded')}
               hint={t('Every approved trip goes straight into the meal rate.')}
+              action={can('add_bazar') ? () => setAdding(true) : undefined}
+              actionLabel={t('Record a bazar')}
             />
           ) : (
             shown.map((bazar) => (

@@ -14,12 +14,14 @@ import {
   BackLink,
   Chip,
   ChipRow,
+  DatePicker,
   Empty,
   Field,
   GroupLabel,
   Loading,
   MiniButton,
   Panel,
+  RangePicker,
   Sheet,
   StatusPill,
 } from '../../../src/features/meal-management/components';
@@ -137,6 +139,8 @@ export default function BazarDuty() {
                       ? t('Generate a rota and everybody takes a turn in order.')
                       : t('An admin sets the rota.')
                   }
+                  action={canManage ? () => setRotating(true) : undefined}
+                  actionLabel={t('Generate a rota')}
                 />
               )}
             </View>
@@ -206,10 +210,14 @@ function RotateSheet({ open, onClose, members, onSubmit }) {
       title={t('Generate a rota')}
       footer={<Button label={t('Set the rota')} onPress={submit} disabled={busy} block />}
     >
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Field label={t('From')} value={from} onChangeText={setFrom} style={{ flex: 1 }} />
-        <Field label={t('To')} value={to} onChangeText={setTo} style={{ flex: 1 }} />
-      </View>
+      <RangePicker
+        from={from}
+        to={to}
+        onChange={(start, end) => {
+          setFrom(start);
+          setTo(end);
+        }}
+      />
 
       <View style={{ gap: 8 }}>
         <GroupLabel text={t('Who takes a turn')} />
@@ -252,7 +260,7 @@ function AssignSheet({ open, onClose, members, onSubmit }) {
       title={t('Assign one day')}
       footer={<Button label={t('Assign')} onPress={submit} disabled={busy || !memberId} block />}
     >
-      <Field label={t('Which day')} value={date} onChangeText={setDate} />
+      <DatePicker label={t('Which day')} value={date} onChange={setDate} />
 
       <View style={{ gap: 8 }}>
         <GroupLabel text={t('Who')} />

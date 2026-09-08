@@ -155,7 +155,7 @@ export default function More() {
           <GroupLabel text={t('How this mess bills')} />
           <Body muted style={{ fontSize: type.xs }}>
             {t(
-              'Meal rate = total approved food expense ÷ total weighted meals. Only approved bazar, expenses and deposits count. A settled month is frozen and never recalculated.',
+              'Your bill is your meals × the meal rate. The rate is the mess’s approved food cost divided by everybody’s meals, so a month where more people ate is a cheaper month. Only approved bazar, expenses and deposits count, and a settled month never changes again.',
             )}
           </Body>
         </Panel>

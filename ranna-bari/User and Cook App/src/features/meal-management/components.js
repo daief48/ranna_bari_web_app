@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -23,11 +23,19 @@ import { useLang } from '../../i18n/LanguageContext';
 import {
   STATUS_TEXT,
   STATUS_TONE,
+  dayLabel,
+  dayNumber,
+  daysBetween,
   mealText,
   monthLabel,
+  monthOfDay,
+  monthRange,
   rateText,
+  shiftDay,
   shiftMonth,
+  shortDayLabel,
   takaText,
+  todayKey,
 } from './format';
 
 /**
@@ -1229,6 +1237,53 @@ export function RateCard({ mealRate, foodCost, totalMeals, formula, style }) {
   const { colors } = useTheme();
   const { t, n } = useLang();
 
+  const meals = Number(totalMeals) || 0;
+  const cost = Number(foodCost) || 0;
+
+  /*
+   * The empty month, said properly.
+   *
+   * A new mess showed "৳0 per meal" over "৳0 ÷ 0 = ৳0", which is not a rate of
+   * zero — it is the absence of one, and printing it as a figure teaches
+   * somebody that the feature is broken before they have used it. So the card
+   * names which of the two halves is missing and what would fill it.
+   */
+  if (!meals || !cost) {
+    return (
+      <Panel style={[{ gap: 9 }, style]}>
+        <GroupLabel text={t('Meal rate')} />
+        <Text style={{ fontFamily: font.displayBold, fontSize: 26, color: colors.textMuted }}>
+          {t('Not yet')}
+        </Text>
+
+        <Text
+          style={{
+            fontFamily: font.ui,
+            fontSize: type.sm,
+            lineHeight: type.sm * 1.5,
+            color: colors.textMuted,
+          }}
+        >
+          {!meals && !cost
+            ? t('A rate needs two things: meals eaten, and money spent on food. Neither has been recorded this month yet.')
+            : !cost
+              ? t('{n} meals recorded, but no food cost yet. Add a bazar or an expense and the rate appears.', {
+                  n: n(mealText(meals)),
+                })
+              : t('৳{n} of food cost, but no meals recorded yet. Once somebody eats, it has something to divide by.', {
+                  n: n(takaText(cost)),
+                })}
+        </Text>
+
+        <View style={{ backgroundColor: colors.sunken, borderRadius: radius.md, padding: 11 }}>
+          <Text style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}>
+            {formula ?? t('Meal rate = total approved food expense ÷ total meals')}
+          </Text>
+        </View>
+      </Panel>
+    );
+  }
+
   return (
     <Panel style={[{ gap: 10 }, style]}>
       <GroupLabel text={t('Meal rate')} />
@@ -1250,7 +1305,7 @@ export function RateCard({ mealRate, foodCost, totalMeals, formula, style }) {
         }}
       >
         <Text style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}>
-          {formula ?? t('Meal rate = total approved food expense ÷ total weighted meals')}
+          {formula ?? t('Meal rate = total approved food expense ÷ total meals')}
         </Text>
         <Text
           style={{
@@ -1260,7 +1315,7 @@ export function RateCard({ mealRate, foodCost, totalMeals, formula, style }) {
             fontVariant: ['tabular-nums'],
           }}
         >
-          ৳{n(takaText(foodCost))} ÷ {n(mealText(totalMeals))} = ৳{n(rateText(mealRate))}
+          ৳{n(takaText(cost))} ÷ {n(mealText(meals))} = ৳{n(rateText(mealRate))}
         </Text>
       </View>
     </Panel>
@@ -1320,6 +1375,258 @@ export function MessMark({ size = 34 }) {
       ]}
     >
       <Icon name="calendar" size={Math.round(size * 0.52)} color={colors.saffron} strokeWidth={2} />
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * dates, without typing
+ * ------------------------------------------------------------------ */
+
+/** How far either side of today a picker lets somebody reach. */
+const BACK_DAYS = 45;
+const FORWARD_DAYS = 21;
+/** Width of one day cell, including its gap — used to scroll to the selection. */
+const CELL = 52;
+
+/**
+ * Pick a day.
+ *
+ * This replaces a text field that expected somebody to type `2026-09-01` by
+ * hand. That field was the single worst thing in the feature: it demanded a
+ * format nobody was told, it accepted `1/9/26` and then refused it on the
+ * server, and it made recording yesterday's bazar a spelling test.
+ *
+ * The chips carry the three days almost every entry actually uses, and the
+ * strip carries the rest. Nothing here can produce an invalid date, so the
+ * "that date is not valid" refusal becomes unreachable from the app — which
+ * is the right way to remove an error message.
+ */
+export function DatePicker({ value, onChange, label, hint, back = BACK_DAYS, forward = FORWARD_DAYS }) {
+  const { colors } = useTheme();
+  const { t, n, lang } = useLang();
+  const strip = useRef(null);
+
+  const today = todayKey();
+
+  const days = useMemo(() => {
+    /* Always wide enough to contain the day already chosen. Editing a bazar
+       from three months ago would otherwise open a strip with nothing
+       selected in it, which reads as the date having been lost. */
+    let first = -back;
+    let last = forward;
+    if (value) {
+      const away = daysBetween(today, value);
+      if (away < first) first = away;
+      if (away > last) last = away;
+    }
+
+    const out = [];
+    for (let i = first; i <= last; i += 1) out.push(shiftDay(today, i));
+    return out;
+  }, [today, back, forward, value]);
+
+  const index = days.indexOf(value);
+
+  /* Open on the chosen day rather than at the far past. Laid out on a fixed
+     cell width so this is arithmetic instead of a measurement pass. */
+  useEffect(() => {
+    if (index < 0) return;
+    const to = Math.max(0, index * CELL - CELL * 2);
+    const id = setTimeout(() => strip.current?.scrollTo({ x: to, animated: false }), 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const quick = [
+    { key: shiftDay(today, -1), label: t('Yesterday') },
+    { key: today, label: t('Today') },
+    { key: shiftDay(today, 1), label: t('Tomorrow') },
+  ].filter((row) => days.includes(row.key));
+
+  return (
+    <View style={{ gap: 9 }}>
+      {label ? (
+        <Text style={{ fontFamily: font.uiSemi, fontSize: type.xs + 1, color: colors.textMuted }}>
+          {label}
+        </Text>
+      ) : null}
+
+      <ChipRow>
+        {quick.map((row) => (
+          <Chip
+            key={row.key}
+            label={row.label}
+            active={value === row.key}
+            onPress={() => onChange(row.key)}
+          />
+        ))}
+      </ChipRow>
+
+      <ScrollView
+        ref={strip}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 6, paddingVertical: 2 }}
+      >
+        {days.map((day) => {
+          const on = day === value;
+          const isToday = day === today;
+
+          return (
+            <Pressable
+              key={day}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={dayLabel(day, lang)}
+              onPress={() => onChange(day)}
+              style={({ pressed }) => ({
+                width: CELL - 6,
+                paddingVertical: 8,
+                alignItems: 'center',
+                gap: 2,
+                borderRadius: radius.sm,
+                backgroundColor: on ? accentSoftOf(colors) : colors.sunken,
+                borderWidth: 1,
+                borderColor: on ? colors.saffron : isToday ? colors.line : 'transparent',
+                opacity: pressed ? 0.75 : 1,
+              })}
+            >
+              <Text
+                style={{
+                  fontFamily: font.ui,
+                  fontSize: type.xs - 2,
+                  textTransform: 'uppercase',
+                  color: on ? colors.saffron : colors.textMuted,
+                }}
+              >
+                {shortDayLabel(day, lang).split(' ')[0]}
+              </Text>
+              <Text
+                style={{
+                  fontFamily: on ? font.uiBold : font.uiSemi,
+                  fontSize: type.sm,
+                  color: on ? colors.saffron : colors.text,
+                  fontVariant: ['tabular-nums'],
+                }}
+              >
+                {n(dayNumber(day))}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      {/* The chosen day, spelled out — the strip shows a number, and a number
+          on its own is not a date somebody can check. */}
+      <Text style={{ fontFamily: font.uiSemi, fontSize: type.xs + 1, color: colors.text }}>
+        {dayLabel(value, lang)}
+        {value === today ? ` · ${t('today')}` : ''}
+      </Text>
+
+      {hint ? (
+        <Text style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}>{hint}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Pick a stretch of days.
+ *
+ * Presets first, because almost every real range is one of four — the rest of
+ * this month, the next week, and so on. The two pickers underneath are for
+ * the times it is not, and they stay collapsed until somebody asks for them:
+ * two full day strips open at once is a lot of screen for a control most
+ * people will never touch.
+ */
+export function RangePicker({ from, to, onChange, presets = true }) {
+  const { colors } = useTheme();
+  const { t, lang } = useLang();
+  const [open, setOpen] = useState(false);
+
+  const today = todayKey();
+
+  const options = [
+    { key: 'week', label: t('Next 7 days'), from: today, to: shiftDay(today, 6) },
+    { key: 'fortnight', label: t('Next 14 days'), from: today, to: shiftDay(today, 13) },
+    { key: 'past-week', label: t('Last 7 days'), from: shiftDay(today, -6), to: today },
+    { key: 'month', label: t('Rest of the month'), from: today, to: monthRange(monthOfDay(today)).to },
+  ];
+
+  const matched = options.find((option) => option.from === from && option.to === to);
+
+  return (
+    <View style={{ gap: 10 }}>
+      {presets ? (
+        <ChipRow>
+          {options.map((option) => (
+            <Chip
+              key={option.key}
+              label={option.label}
+              active={matched?.key === option.key}
+              onPress={() => onChange(option.from, option.to)}
+            />
+          ))}
+          <Chip
+            label={t('Pick days')}
+            icon="calendar"
+            active={open || !matched}
+            onPress={() => setOpen((was) => !was)}
+          />
+        </ChipRow>
+      ) : null}
+
+      {!presets || open || !matched ? (
+        <View style={{ gap: 14 }}>
+          <DatePicker label={t('From')} value={from} onChange={(day) => onChange(day, day > to ? day : to)} />
+          <DatePicker label={t('To')} value={to} onChange={(day) => onChange(day < from ? day : from, day)} />
+        </View>
+      ) : (
+        <Text style={{ fontFamily: font.uiSemi, fontSize: type.xs + 1, color: colors.text }}>
+          {t('{from} to {to}', { from: dayLabel(from, lang), to: dayLabel(to, lang) })}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+/**
+ * A day, or no day at all.
+ *
+ * For the two fields where "never" is a real answer — when a notice drops off
+ * the board, when a poll stops taking votes. A plain `DatePicker` always has a
+ * value selected, which would quietly turn "no expiry" into "expires today".
+ */
+export function OptionalDatePicker({ value, onChange, label, emptyLabel, hint }) {
+  const { colors } = useTheme();
+  const { t } = useLang();
+
+  const today = todayKey();
+
+  return (
+    <View style={{ gap: 9 }}>
+      {label ? (
+        <Text style={{ fontFamily: font.uiSemi, fontSize: type.xs + 1, color: colors.textMuted }}>
+          {label}
+        </Text>
+      ) : null}
+
+      <ChipRow>
+        <Chip label={emptyLabel ?? t('Never')} active={!value} onPress={() => onChange('')} />
+        <Chip
+          label={t('Pick a day')}
+          icon="calendar"
+          active={!!value}
+          onPress={() => onChange(value || shiftDay(today, 7))}
+        />
+      </ChipRow>
+
+      {value ? <DatePicker value={value} onChange={onChange} back={0} forward={90} /> : null}
+
+      {hint ? (
+        <Text style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}>{hint}</Text>
+      ) : null}
     </View>
   );
 }

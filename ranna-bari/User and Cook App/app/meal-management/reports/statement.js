@@ -189,7 +189,7 @@ export default function Statement() {
                 <Row label={t('Guest meals')} value={n(mealText(data.guestMeals))} />
               ) : null}
               <Divider />
-              <Row label={t('Billable meals')} value={n(mealText(data.meals))} strong />
+              <Row label={t('Meals counted')} value={n(mealText(data.meals))} strong />
               <Row label={t('Meal rate')} value={`৳${n(rateText(data.mealRate))}`} />
               <Row label={t('Food cost')} value={`৳${n(takaText(data.foodCost))}`} strong />
             </Panel>

@@ -86,13 +86,22 @@ export default function Bills() {
           <Loading />
         ) : !members.length ? (
           <View style={{ marginTop: 18 }}>
-            <Empty icon="user" title={t('Nothing billed this month')} />
+            <Empty
+              icon="user"
+              title={t('Nothing billed this month')}
+              hint={t(
+                'Bills appear once there are meals to count and approved costs to divide between them.',
+              )}
+            />
           </View>
         ) : (
           <>
             <View style={{ marginTop: 18 }}>
               <TileGrid>
-                <StatTile value={`৳${n(rateText(data.mealRate))}`} label={t('Meal rate')} />
+                <StatTile
+                  value={data.mealRate > 0 ? `৳${n(rateText(data.mealRate))}` : '—'}
+                  label={t('Meal rate')}
+                />
                 <StatTile value={n(mealText(data.totalMeals))} label={t('Total meals')} />
                 <StatTile value={`৳${n(takaText(data.totalCost))}`} label={t('Total cost')} />
                 <StatTile value={n(members.length)} label={t('Members billed')} />

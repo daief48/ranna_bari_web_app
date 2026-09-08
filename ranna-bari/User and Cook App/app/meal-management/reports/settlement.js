@@ -85,7 +85,10 @@ export default function Settlement() {
 
             <View style={{ marginTop: 16 }}>
               <TileGrid>
-                <StatTile value={`৳${n(rateText(data?.mealRate))}`} label={t('Meal rate')} />
+                <StatTile
+                  value={data?.mealRate > 0 ? `৳${n(rateText(data.mealRate))}` : '—'}
+                  label={t('Meal rate')}
+                />
                 <StatTile value={`৳${n(takaText(data?.totalCost))}`} label={t('Total cost')} />
                 <StatTile
                   value={`৳${n(takaText(data?.totalDue))}`}

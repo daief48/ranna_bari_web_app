@@ -15,6 +15,7 @@ import {
   BackLink,
   Chip,
   ChipRow,
+  DatePicker,
   Divider,
   Empty,
   Field,
@@ -166,6 +167,8 @@ export default function Expenses() {
               icon="receipt"
               title={t('No expenses here')}
               hint={t('Gas, rent, wifi, the cook’s salary — anything the mess pays for.')}
+              action={can('add_expense') ? () => setAdding(true) : undefined}
+              actionLabel={t('Add an expense')}
             />
           ) : (
             shown.map((expense) => (
@@ -328,18 +331,19 @@ function ExpenseSheet({ open, onClose, categories, members, onSubmit }) {
         />
       }
     >
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Field label={t('Which day')} value={date} onChangeText={setDate} style={{ flex: 1.2 }} />
-        <Field
-          label={t('Amount')}
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="decimal-pad"
-          suffix="৳"
-          placeholder="0"
-          style={{ flex: 1 }}
-        />
-      </View>
+      {/* Amount first: it is the one thing that is certainly not already
+          right. The day defaults to today, which is what it is for most
+          entries, so it sits underneath rather than beside. */}
+      <Field
+        label={t('How much')}
+        value={amount}
+        onChangeText={setAmount}
+        keyboardType="decimal-pad"
+        suffix="৳"
+        placeholder="0"
+      />
+
+      <DatePicker label={t('Which day')} value={date} onChange={setDate} />
 
       <View style={{ gap: 8 }}>
         <GroupLabel text={t('Category')} />

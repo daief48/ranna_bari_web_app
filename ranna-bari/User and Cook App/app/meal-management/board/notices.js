@@ -19,12 +19,13 @@ import {
   Field,
   GroupLabel,
   Loading,
+  OptionalDatePicker,
   Panel,
   Sheet,
 } from '../../../src/features/meal-management/components';
 import { useMealManagement, useSlice } from '../../../src/features/meal-management/store';
 import { useMealAction } from '../../../src/features/meal-management/errors';
-import { agoLabel, shiftDay, todayKey } from '../../../src/features/meal-management/format';
+import { agoLabel } from '../../../src/features/meal-management/format';
 
 /**
  * The notice board. §4.11.
@@ -92,6 +93,8 @@ export default function Notices() {
               icon="bell"
               title={t('Nothing on the board')}
               hint={t('An admin posts here when everybody needs to know something.')}
+              action={manage ? () => setEditing({}) : undefined}
+              actionLabel={t('Post a notice')}
             />
           </View>
         ) : (
@@ -276,11 +279,11 @@ function NoticeSheet({ notice, onClose, onSave }) {
         </Body>
       </View>
 
-      <Field
-        label={t('Expires on (optional)')}
+      <OptionalDatePicker
+        label={t('Take it down on')}
+        emptyLabel={t('Leave it up')}
         value={expires}
-        onChangeText={setExpires}
-        placeholder={shiftDay(todayKey(), 7)}
+        onChange={setExpires}
         hint={t('After this day it drops off the board on its own.')}
       />
     </Sheet>

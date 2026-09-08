@@ -15,6 +15,7 @@ import {
   BackLink,
   Chip,
   ChipRow,
+  DatePicker,
   Empty,
   Field,
   GroupLabel,
@@ -150,6 +151,8 @@ export default function Deposits() {
               icon="banknote"
               title={t('No deposits here')}
               hint={t('A deposit only counts toward a balance once it has been approved.')}
+              action={can('add_deposit') ? () => setAdding(true) : undefined}
+              actionLabel={t('Record a deposit')}
             />
           ) : (
             shown.map((deposit) => (
@@ -285,18 +288,16 @@ function DepositSheet({ open, onClose, members, canRecordForOthers, myMemberId, 
         />
       }
     >
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Field label={t('Which day')} value={date} onChangeText={setDate} style={{ flex: 1.2 }} />
-        <Field
-          label={t('Amount')}
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="decimal-pad"
-          suffix="৳"
-          placeholder="0"
-          style={{ flex: 1 }}
-        />
-      </View>
+      <Field
+        label={t('How much')}
+        value={amount}
+        onChangeText={setAmount}
+        keyboardType="decimal-pad"
+        suffix="৳"
+        placeholder="0"
+      />
+
+      <DatePicker label={t('Which day')} value={date} onChange={setDate} />
 
       <View style={{ gap: 8 }}>
         <GroupLabel text={t('How it was paid')} />
