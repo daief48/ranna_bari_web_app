@@ -185,6 +185,32 @@ export function deadlineAtTime(serveDate, time) {
  * questions the local modules used to fold out of the whole document. Folding
  * them here would mean folding a *page* of orders and calling it a total.
  */
+/**
+ * The slices that belong to whoever is signed in.
+ *
+ * Everything else here — shops, products, the taxonomy — is the public
+ * catalogue and is the same for a guest as for an account. These are not:
+ * they are one person's orders, one person's money, one person's basket, and
+ * they must not survive that person signing out.
+ *
+ * Named as a list rather than cleared inline so that adding a private slice
+ * later is one edit in one place. A slice that is added to `EMPTY` and
+ * forgotten here is a slice that leaks.
+ */
+const PRIVATE_SLICES = [
+  'orders',
+  'preorders',
+  'requests',
+  'offers',
+  'notifications',
+  'ledger',
+  'wallet',
+  'cart',
+  'savedStores',
+  'summaries',
+  'overviews',
+];
+
 const EMPTY = {
   stores: [],
   categories: [],
@@ -439,6 +465,30 @@ export function CommerceProvider({ children }) {
       setLoading(false);
     }
   }, [loadPublic, loadPrivate, isVerified]);
+
+  /*
+   * Forget the last account the moment it stops being the current one.
+   *
+   * `refresh` below skips `loadPrivate` when nobody is verified, which is
+   * correct — there is no token to ask with. But skipping the load is not the
+   * same as clearing what the load last wrote, and it was not cleared: after
+   * signing out, `orders`, `wallet` and the rest still held the previous
+   * person's data, and the Profile screen went on drawing "1 in progress" and
+   * a wallet balance to a guest. The next person on the handset saw the last
+   * one's money.
+   *
+   * Ordered before the refresh effect deliberately: React runs effects in
+   * declaration order, so the wipe lands before the reload that follows it,
+   * and there is no frame in which the old data is still on screen.
+   */
+  useEffect(() => {
+    if (!hydrated || isVerified) return;
+    const stale = PRIVATE_SLICES.some(
+      (slice) => live.current[slice] !== EMPTY[slice],
+    );
+    if (!stale) return;
+    patch(Object.fromEntries(PRIVATE_SLICES.map((slice) => [slice, EMPTY[slice]])));
+  }, [hydrated, isVerified, patch]);
 
   /* Load on mount, and again whenever the account or its kitchen changes --
      signing in turns eight of these slices from refusals into content. */

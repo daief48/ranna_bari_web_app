@@ -211,6 +211,7 @@ export const bn = {
   'Increase quantity': 'সংখ্যা বাড়ান',
   'Decrease quantity': 'সংখ্যা কমান',
   'Max {n}': 'সর্বোচ্চ {n}',
+  'Updates': 'আপডেট',
   'Remove all': 'সব সরান',
   'Empty the shelf basket?': 'দোকানের ঝুড়ি খালি করবেন?',
   'Everything you have picked from the shops goes. Your kitchen basket stays.': 'দোকান থেকে নেওয়া সব চলে যাবে। রান্নাঘরের ঝুড়ি থাকবে।',

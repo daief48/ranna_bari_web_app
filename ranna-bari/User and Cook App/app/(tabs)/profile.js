@@ -118,47 +118,61 @@ export default function ProfileScreen() {
 
         {isCook ? <GroupLabel icon="utensils" text={t('As a customer')} style={{ marginTop: 28 }} /> : null}
 
-        <GroupLabel
-          icon="activity"
-          text={t('Activity')}
-          style={{ marginTop: isCook ? 20 : 24 }}
-        />
+        {/* Orders and money belong to an account, so a guest is not shown
+            either. Both read from context, and context is cleared on sign-out
+            — but a row that says "৳0 available" to somebody with no wallet
+            is still a row about nothing, and the banner above has already
+            asked them to sign in. */}
+        {isSignedIn ? (
+          <>
+            <GroupLabel
+              icon="activity"
+              text={t('Activity')}
+              style={{ marginTop: isCook ? 20 : 24 }}
+            />
+
+            <View style={{ gap: 12, marginTop: 14 }}>
+              <Row
+                icon="receipt"
+                variant="primary"
+                title={t('Your orders')}
+                sub={
+                  activeOrders.length
+                    ? t('{n} in progress', { n: n(activeOrders.length) })
+                    : orders.length
+                      ? t(orders.length === 1 ? '{n} past order' : '{n} past orders', { n: n(orders.length) })
+                      : t('Nothing ordered yet')
+                }
+                onPress={() => router.push('/orders')}
+              />
+            </View>
+
+            {/* Meals are paid for from the wallet, so the balance is a thing
+                people check before they go looking, not after. */}
+            <GroupLabel icon="banknote" text={t('Money')} style={{ marginTop: 28 }} />
+
+            <View style={{ gap: 12, marginTop: 14 }}>
+              <Row
+                icon="banknote"
+                variant="sage"
+                title={t('Wallet')}
+                sub={
+                  wallet.held
+                    ? t('৳{n} available · ৳{held} held', {
+                        n: n(wallet.customer),
+                        held: n(wallet.held),
+                      })
+                    : t('৳{n} available', { n: n(wallet.customer) })
+                }
+                onPress={() => router.push('/wallet')}
+              />
+            </View>
+          </>
+        ) : null}
+
+        <GroupLabel icon="bell" text={t('Updates')} style={{ marginTop: 28 }} />
 
         <View style={{ gap: 12, marginTop: 14 }}>
-          <Row
-            icon="receipt"
-            variant="primary"
-            title={t('Your orders')}
-            sub={
-              activeOrders.length
-                ? t('{n} in progress', { n: n(activeOrders.length) })
-                : orders.length
-                  ? t(orders.length === 1 ? '{n} past order' : '{n} past orders', { n: n(orders.length) })
-                  : t('Nothing ordered yet')
-            }
-            onPress={() => router.push('/orders')}
-          />
-        </View>
-
-        {/* Meals are paid for from the wallet, so the balance is a thing
-            people check before they go looking, not after. */}
-        <GroupLabel icon="banknote" text={t('Money')} style={{ marginTop: 28 }} />
-
-        <View style={{ gap: 12, marginTop: 14 }}>
-          <Row
-            icon="banknote"
-            variant="sage"
-            title={t('Wallet')}
-            sub={
-              wallet.held
-                ? t('৳{n} available · ৳{held} held', {
-                    n: n(wallet.customer),
-                    held: n(wallet.held),
-                  })
-                : t('৳{n} available', { n: n(wallet.customer) })
-            }
-            onPress={() => router.push('/wallet')}
-          />
           <Row
             icon="sparkles"
             variant="primary"
