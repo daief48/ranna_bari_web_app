@@ -815,6 +815,8 @@ export default function AuthScreen() {
                 setSuCode={setSuCode}
                 suBusy={suBusy}
                 goStep={goStep}
+                roleLocked={roleLocked}
+                backFromDetails={backFromDetails}
                 submit={submit}
                 fields={{
                   name,
@@ -1102,6 +1104,11 @@ function SignUpView({
   setSuCode,
   suBusy,
   goStep,
+  /* Both come from the screen above: whether the role was settled before this
+     funnel started, and where "back" goes when it was. This view cannot work
+     either out on its own — it does not know how somebody got here. */
+  roleLocked,
+  backFromDetails,
   submit,
   fields,
   pwLevel,
