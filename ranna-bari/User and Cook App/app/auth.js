@@ -191,6 +191,28 @@ export default function AuthScreen() {
   const pwLevel = passwordScore(pw);
 
   /* ---- validation, port of js/auth.js validate() ---- */
+  /*
+   * Where "back" goes from the first step somebody actually types into.
+   *
+   * Step 1 is the role question, and for anyone who arrived through the
+   * portal or the become-cook funnel it has already been answered elsewhere.
+   * Sending them back to it would ask a second time and let them contradict
+   * the door they walked through — so back returns to where the choice was
+   * really made.
+   */
+  const roleLocked = fromCookFunnel || asksPortal;
+  const backFromDetails = () => {
+    if (!roleLocked) return goStep(1);
+    if (asksPortal) {
+      /* Reopens the portal. The details typed so far are kept: coming back
+         to the same door leaves them where they were. */
+      setIntent(null);
+      setStep(1);
+      return;
+    }
+    return router.canGoBack() ? router.back() : router.replace('/');
+  };
+
   const goStep = (target) => {
     if (target < step) {
       setStep(target);
@@ -547,10 +569,12 @@ export default function AuthScreen() {
       <RolePortal
         onPick={(picked) => {
           setIntent(picked);
-          /* A cook arriving to sell food is signing in to a kitchen; the
-             signup tab for them is the kitchen registration, which
-             `become-cook` starts properly. */
           setRole(picked === 'cook' ? 'cook' : 'user');
+          /* Step 1 of the signup funnel *is* "what brings you here?", and the
+             portal has just been answered. Asking again two screens later is
+             the app failing to remember what it was told — so jump the step,
+             exactly as the become-cook funnel already does. */
+          setStep(2);
         }}
         onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
       />
@@ -760,6 +784,7 @@ export default function AuthScreen() {
 
             {tab === 'signin' ? (
               <SignInView
+                intent={intent}
                 phone={siPhone}
                 setPhone={setSiPhone}
                 code={siCode}
@@ -900,7 +925,7 @@ function AsideTitle({ title, emphasis }) {
 /* ---------------------------------------------------------
    Sign in
    --------------------------------------------------------- */
-function SignInView({ phone, setPhone, code, setCode, stage, busy, note, onSubmit, onBack, onSwitch }) {
+function SignInView({ phone, setPhone, code, setCode, stage, busy, note, onSubmit, onBack, onSwitch, intent }) {
   const { colors, shadow } = useTheme();
   const { t } = useLang();
 
@@ -917,7 +942,7 @@ function SignInView({ phone, setPhone, code, setCode, stage, busy, note, onSubmi
             marginBottom: 8,
           }}
         >
-          {t('Welcome back.')}
+          {intent === 'cook' ? t('Welcome back, chef.') : t('Welcome back.')}
         </Text>
         <Text
           style={{
@@ -927,7 +952,14 @@ function SignInView({ phone, setPhone, code, setCode, stage, busy, note, onSubmi
             color: colors.textMuted,
           }}
         >
-          {t('Sign in to order dinner, or to open your kitchen for the day.')}
+          {/* Named for the door they came through. "Order dinner, or open
+              your kitchen" is the right sentence for somebody who has not
+              said which — and the wrong one for somebody who just did. */}
+          {intent === 'cook'
+            ? t('Sign in to your kitchen. No kitchen yet? We will set one up.')
+            : intent === 'user'
+              ? t('Sign in to order from the kitchens near you.')
+              : t('Sign in to order dinner, or to open your kitchen for the day.')}
         </Text>
       </View>
 
@@ -1119,7 +1151,7 @@ function SignUpView({
             </Text>
           </View>
 
-          <StepRail step={step} />
+          <StepRail step={step} from={roleLocked ? 2 : 1} />
         </>
       ) : null}
 
@@ -1270,7 +1302,7 @@ function SignUpView({
             <Actions
               next={{ label: 'Continue', onPress: () => goStep(3) }}
               backLabel="Back"
-              onBack={() => goStep(1)}
+              onBack={backFromDetails}
             />
           </Animated.View>
         ) : null}
@@ -1450,8 +1482,18 @@ function SignUpView({
    --------------------------------------------------------- */
 
 /** `.step-rail` — labels are hidden below 768px, so this is dots and lines. */
-function StepRail({ step }) {
+/**
+ * How far along the signup is.
+ *
+ * `from` is the first step this particular funnel actually shows. Somebody
+ * who chose their side at the portal never sees step 1, and a rail that
+ * opened on a greyed-out "1" they could not reach — and could not remember
+ * doing — counted a step against them that they had in fact completed
+ * somewhere else.
+ */
+function StepRail({ step, from = 1 }) {
   const { colors, shadow } = useTheme();
+  const steps = [1, 2, 3].filter((n) => n >= from);
 
   return (
     <View
@@ -1462,7 +1504,7 @@ function StepRail({ step }) {
         marginBottom: 20,
       }}
     >
-      {[1, 2, 3].map((n, i) => {
+      {steps.map((n, i) => {
         const active = step === n;
         const done = step > n;
         return (
@@ -1502,7 +1544,9 @@ function StepRail({ step }) {
               )}
             </View>
 
-            {i < 2 ? (
+            {/* Length of what is actually drawn, not a hardcoded three — a
+                two-step rail would otherwise trail a connector into nothing. */}
+            {i < steps.length - 1 ? (
               <View
                 style={{
                   flex: 1,
