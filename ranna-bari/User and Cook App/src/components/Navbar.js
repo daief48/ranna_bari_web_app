@@ -297,7 +297,7 @@ export default function Navbar() {
                 accessibilityLabel={t('Sign in or join')}
                 onPress={() => {
                   Haptics.selectionAsync().catch(() => {});
-                  router.push('/auth');
+                  router.push('/auth?portal=1');
                 }}
                 style={({ pressed }) => ({
                   flexDirection: 'row',

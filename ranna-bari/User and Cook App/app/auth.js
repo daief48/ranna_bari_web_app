@@ -15,11 +15,13 @@ import { fitGallery, toStorableImages } from '../src/lib/pickedImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import Icon from '../src/components/Icon';
 import Button from '../src/components/Button';
+import { GradientText } from '../src/components/Typography';
 import FloatLabelInput, { FormNote } from '../src/components/FloatLabelInput';
 import LocationPicker from '../src/components/LocationPicker';
 import { IconTile } from '../src/components/Surfaces';
@@ -107,6 +109,29 @@ export default function AuthScreen() {
     typeof params[key] === 'string' && params[key] ? params[key] : fallback;
 
   const [tab, setTab] = useState(fromCookFunnel ? 'signup' : 'signin');
+
+  /*
+   * Which door somebody came through: ordering, or cooking.
+   *
+   * Signing in is one flow — a phone and a code — and the server decides what
+   * the account is, so this is not a second kind of login. It is what the
+   * person came here to do, and it changes two things that matter: the words
+   * on the screen, and where they land afterwards.
+   *
+   * A cook who signs in and turns out to have no kitchen is not finished:
+   * they are somebody who came to sell food and has not registered a kitchen
+   * yet, and sending them to a customer profile is how that intent gets lost.
+   *
+   * Only asked when a front door sends them here with `?portal=1` — the home
+   * card, the header button, the guest profile. Everywhere else already knows
+   * what this is for: a basket at checkout is not ambiguous, and asking there
+   * would be a question with one sensible answer in the way of the thing they
+   * were doing.
+   */
+  const asksPortal = params.portal === '1' && !fromCookFunnel;
+  const [intent, setIntent] = useState(
+    fromCookFunnel ? 'cook' : asksPortal ? null : 'user',
+  );
 
   /* ---- sign in ---- */
   /* Sign in is a phone and a code now, not an id and a password: the server
@@ -498,13 +523,39 @@ export default function AuthScreen() {
       /* Back where they were sent from, when they were sent. Checkout hands
          over a basket somebody has already filled in; landing them on their
          profile instead makes them find their own way back to it. */
-      router.replace(nextAfterAuth ?? (acct.role === 'cook' ? '/cook' : '/profile'));
+      /* Somebody who came in through the cook door and has no kitchen has not
+         finished arriving: the account exists, the kitchen does not, and
+         registering it is the next step rather than a thing to go and find. */
+      const landing =
+        intent === 'cook' && acct.role !== 'cook'
+          ? '/become-cook'
+          : acct.role === 'cook'
+            ? '/cook'
+            : '/profile';
+      router.replace(nextAfterAuth ?? landing);
     } catch (error) {
       alert.error(error?.message ?? t('That code did not work.'));
     } finally {
       setSiBusy(false);
     }
   };
+
+  /* The fork, before anything is typed. Nothing below this has been reached
+     yet, so there is no state to preserve and no form to lose. */
+  if (intent === null) {
+    return (
+      <RolePortal
+        onPick={(picked) => {
+          setIntent(picked);
+          /* A cook arriving to sell food is signing in to a kitchen; the
+             signup tab for them is the kitchen registration, which
+             `become-cook` starts properly. */
+          setRole(picked === 'cook' ? 'cook' : 'user');
+        }}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+      />
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas }}>
@@ -2731,5 +2782,212 @@ function GoogleMark() {
         d="M12 4.64c2.27 0 3.8.98 4.67 1.8l3.41-3.33C18 1.17 15.24 0 12 0 7.31 0 3.26 2.69 1.3 6.61l3.88 3.01A7.23 7.23 0 0 1 12 4.64Z"
       />
     </Svg>
+  );
+}
+
+/**
+ * The fork: ordering, or cooking.
+ *
+ * Signing in is one flow either way — a phone and a code, and the server
+ * decides what the account is. So this is not two logins. It is the question
+ * the app could not answer for somebody arriving cold: whether they are here
+ * to buy dinner or to sell it.
+ *
+ * Asking it up front does three things that asking it later cannot. It sets
+ * the wording, so a cook is not read marketing about neighbourhood kitchens.
+ * It sets where they land: somebody who came to cook and turns out to have no
+ * kitchen goes to registration rather than to a customer profile, which is
+ * where that intent used to disappear. And it makes the second door visible
+ * at all — the cook side of this app was reachable only from a row inside a
+ * customer profile, which is a strange place to discover that you can sell
+ * food here.
+ *
+ * Two cards rather than a segmented control, because the choice is not a
+ * setting to toggle: each side needs a sentence to explain what it is, and a
+ * segmented control has room for a word.
+ */
+function RolePortal({ onPick, onBack }) {
+  const { colors, shadow } = useTheme();
+  const { t } = useLang();
+  const insets = useSafeAreaInsets();
+  const r = useResponsive();
+
+  const DOORS = [
+    {
+      key: 'user',
+      icon: 'utensils',
+      accent: colors.primary,
+      soft: colors.primary50,
+      edge: colors.primary100,
+      title: 'I want to order food',
+      sub: 'Browse home kitchens near you, order, and track it to your door.',
+      cta: 'Continue as a customer',
+    },
+    {
+      key: 'cook',
+      icon: 'chefHat',
+      accent: colors.sage,
+      soft: colors.sage50,
+      edge: colors.sage100,
+      title: 'I cook and sell food',
+      sub: 'Run your kitchen, take orders, and get paid. New here? You can register your kitchen.',
+      cta: 'Continue as a cook',
+    },
+  ];
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.canvas }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingTop: insets.top + 20,
+          paddingBottom: 40 + insets.bottom,
+          paddingHorizontal: r.gutter,
+          flexGrow: 1,
+          justifyContent: 'center',
+        }}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('Back')}
+          onPress={onBack}
+          hitSlop={8}
+          style={({ pressed }) => ({
+            alignSelf: 'flex-start',
+            padding: 8,
+            marginBottom: 20,
+            borderRadius: 999,
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <Icon name="arrowLeft" size={20} color={colors.text} strokeWidth={2} />
+        </Pressable>
+
+        <Text
+          style={{
+            fontFamily: font.displayExtra,
+            fontSize: r.sectionTitle,
+            lineHeight: r.sectionTitle * 1.1,
+            letterSpacing: r.sectionTitle * tracking.tight,
+            color: colors.text,
+          }}
+        >
+          {t('How will you')}
+        </Text>
+        <GradientText
+          style={{
+            fontFamily: font.displayExtra,
+            fontSize: r.sectionTitle,
+            lineHeight: r.sectionTitle * 1.1,
+            letterSpacing: r.sectionTitle * tracking.tight,
+          }}
+        >
+          {t('use RannaBari?')}
+        </GradientText>
+
+        <Text
+          style={{
+            marginTop: 10,
+            marginBottom: 26,
+            fontFamily: font.ui,
+            fontSize: type.body,
+            lineHeight: type.body * 1.5,
+            color: colors.textMuted,
+          }}
+        >
+          {t('You can change your mind later — a cook orders dinner too.')}
+        </Text>
+
+        <View style={{ gap: 14 }}>
+          {DOORS.map((door) => (
+            <Pressable
+              key={door.key}
+              accessibilityRole="button"
+              accessibilityLabel={t(door.title)}
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+                onPick(door.key);
+              }}
+              style={({ pressed }) => [
+                {
+                  padding: 18,
+                  borderRadius: radius.lg,
+                  backgroundColor: colors.surfaceSolid,
+                  borderWidth: 1.5,
+                  borderColor: pressed ? door.accent : colors.line,
+                  transform: [{ scale: pressed ? 0.985 : 1 }],
+                },
+                shadow.sm,
+              ]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                <View
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 18,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: door.soft,
+                    borderWidth: 1,
+                    borderColor: door.edge,
+                  }}
+                >
+                  <Icon name={door.icon} size={24} color={door.accent} strokeWidth={1.9} />
+                </View>
+
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text
+                    style={{
+                      fontFamily: font.uiBold,
+                      fontSize: type.body + 1,
+                      color: colors.text,
+                    }}
+                  >
+                    {t(door.title)}
+                  </Text>
+                  <Text
+                    style={{
+                      marginTop: 3,
+                      fontFamily: font.ui,
+                      fontSize: type.sm,
+                      lineHeight: type.sm * 1.45,
+                      color: colors.textMuted,
+                    }}
+                  >
+                    {t(door.sub)}
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={{
+                  marginTop: 14,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 7,
+                  paddingVertical: 11,
+                  borderRadius: radius.pill,
+                  backgroundColor: door.soft,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: font.uiBold,
+                    fontSize: type.sm,
+                    letterSpacing: 0.3,
+                    color: door.accent,
+                  }}
+                >
+                  {t(door.cta)}
+                </Text>
+                <Icon name="arrowRight" size={15} color={door.accent} strokeWidth={2.2} />
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
   );
 }

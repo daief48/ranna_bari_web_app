@@ -391,7 +391,7 @@ export default function HomeScreen() {
           */}
         {!token ? (
           <Reveal delay={2}>
-            <SignInInvite onPress={() => router.push('/auth')} />
+            <SignInInvite onPress={() => router.push('/auth?portal=1')} />
           </Reveal>
         ) : null}
 
