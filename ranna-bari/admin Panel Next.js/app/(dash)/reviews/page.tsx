@@ -95,15 +95,6 @@ export default async function ReviewsPage({
     <>
       <PageHeader title="Reviews" subtitle="Moderation, and the ratings that follow from it" />
 
-      <GapNote>
-        <strong>Why this screen exists.</strong> Reviews ship as a static JSON file in
-        the app bundle. Nothing moderates them, and nothing can — a review that names a
-        competitor&rsquo;s phone number or was left on the wrong kitchen stays on that
-        kitchen&rsquo;s page forever. Hiding one here also recomputes the
-        kitchen&rsquo;s score, because a hidden review that still counts toward the
-        rating achieves nothing except removing the evidence.
-      </GapNote>
-
       <Grid cols={4}>
         <Stat label="Reviews" value={total} />
         <Stat

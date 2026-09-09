@@ -104,9 +104,9 @@ export default async function DisputesPage() {
             subtitle="Where the app stops and a person has to decide"
           />
           <GapNote>
-            <strong>The backend is not answering.</strong> This board is served by{' '}
-            <code>backend-node</code>, and nothing on it can be read without it. Start
-            it with <code>cd backend-node &amp;&amp; npm run dev</code>, then reload.
+            <strong>This board cannot be loaded right now.</strong> The service that
+            holds these cases is not responding. Try again in a moment, and let your
+            technical team know if it continues.
           </GapNote>
         </>
       );

@@ -130,9 +130,10 @@ export default async function AuditPage({
           subtitle="Every state-changing action in this panel, with a before and an after"
         />
         <GapNote>
-          <strong>The backend is not reachable.</strong> The trail is written and
-          held by <code>backend-node</code>, so there is nothing to read until it
-          answers. Start it with <code>cd backend-node &amp;&amp; npm run dev</code>.
+          <strong>The audit trail cannot be loaded right now.</strong> The service
+          that records it is not responding, so there is nothing to read until it
+          does. Try again in a moment, and let your technical team know if it
+          continues.
         </GapNote>
       </>
     );

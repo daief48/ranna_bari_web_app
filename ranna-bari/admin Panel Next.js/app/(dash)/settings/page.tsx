@@ -1,6 +1,6 @@
 import { currentUser } from '@/lib/auth';
 import { can } from '@/lib/domain';
-import { BACKEND_URL, BackendError, get } from '@/lib/backend';
+import { BackendError, get } from '@/lib/backend';
 import { getFlags, type PlatformSettings } from '@/lib/settings';
 import { Card, GapNote, PageHeader, Badge } from '@/components/ui';
 import { type LibraryIcon } from '@/components/ui/icon-picker';
@@ -22,19 +22,19 @@ type Zone = { id: string; name: string; deliveryFee: number | null; active: bool
 type Category = { id: string; key: string; label: string; emoji: string; retired: boolean };
 
 /**
- * What is left of this screen when the backend is not there.
+ * What is left of this screen when the service behind it is not there.
  *
- * The panel is a client of `backend-node` now, so a dead backend is a dead
- * page — and the honest version of that is a sentence naming the process that
- * is missing, not a stack trace an operator standing at a desk cannot act on.
+ * Names no process, address or command. The address in particular was worth
+ * removing on its own: it is infrastructure detail on a screen anybody with a
+ * config capability can open, and it told an operator nothing they could use.
  */
 function BackendDown() {
   return (
     <GapNote>
-      <strong>The backend is not answering.</strong> This screen reads its
-      configuration from <code>backend-node</code>, which is not responding at{' '}
-      <code>{BACKEND_URL}</code>. Start it with{' '}
-      <code>cd backend-node &amp;&amp; npm run dev</code>, then reload.
+      <strong>Configuration cannot be loaded right now.</strong> The service that
+      holds these settings is not responding, so nothing here can be read or
+      changed. Try again in a moment, and let your technical team know if it
+      continues.
     </GapNote>
   );
 }
@@ -76,7 +76,7 @@ export default async function SettingsPage() {
         <>
           <PageHeader
             title="Configuration"
-            subtitle="Everything here used to be a constant inside the mobile bundle"
+            subtitle="Fees, commission and the limits every order is held to"
           />
           <BackendDown />
         </>
@@ -105,19 +105,8 @@ export default async function SettingsPage() {
     <>
       <PageHeader
         title="Configuration"
-        subtitle="Everything here used to be a constant inside the mobile bundle"
+        subtitle="Fees, commission and the limits every order is held to"
       />
-
-      <GapNote>
-        <strong>Why this screen exists.</strong> <code>DELIVERY_FEE = 40</code> and{' '}
-        <code>PLATFORM_FEE = 10</code> were literals in{' '}
-        <code>CartContext.js</code>. The area list was a hardcoded array of 37 names.
-        The category vocabulary was a <code>const</code> in a React component — the
-        app&rsquo;s own comment on it reads{' '}
-        <em>&ldquo;used by nothing in the UI yet, and by a future admin screen&rdquo;</em>.
-        This is that screen. A price you can only change by shipping a new build to the
-        app stores is not a price, it is a release.
-      </GapNote>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Card title="Fees" subtitle="Charged once per basket, not once per kitchen">
@@ -139,10 +128,9 @@ export default async function SettingsPage() {
           subtitle="The platform's cut of an order's food value, per system"
         >
           <div className="mb-3 rounded-[10px] border border-saffron-100 bg-saffron-50 px-3 py-2 text-[12px] leading-relaxed text-ink2">
-            The app has no <code>platform</code> ledger account at all. Escrow released{' '}
-            <strong>100% to the cook</strong>, so meals, stores and food requests
-            earned the business nothing — only the cash-on-delivery path took a cut,
-            through <code>COOK_PAYOUT_RATE = 0.85</code>.
+            A rate here is taken from the food value of an order, never from the
+            delivery fee. Set one to zero and that system earns the business
+            nothing.
           </div>
           <div className="space-y-3">
             {rateKeys.map((key) => (
@@ -163,7 +151,7 @@ export default async function SettingsPage() {
         >
           <div className="mb-3 rounded-[10px] border border-saffron-100 bg-saffron-50 px-3 py-2 text-[12px] leading-relaxed text-ink2">
             A cook selling four cakes a day can still set a tighter{' '}
-            <code>maxQty</code> on the product itself — the lower of the two
+            a lower limit of its own on the product itself — the lower of the two
             wins. This is the ceiling for everything that does not say.
           </div>
           <div className="space-y-3">
@@ -256,7 +244,7 @@ export default async function SettingsPage() {
       ) : null}
 
       <p className="mt-6 text-[11.5px] leading-relaxed text-ink3">
-        A category&rsquo;s <code>key</code> is the tag written on every dish and
+        A category&rsquo;s <strong>key</strong> is the tag written on every dish and
         kitchen, so it is never editable — renaming it would orphan the filter. That is
         also why retiring is not deleting.
       </p>

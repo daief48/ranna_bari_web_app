@@ -58,7 +58,7 @@ export default async function Dashboard({
   const deniedNote = denied ? (
     <div className="mb-5 rounded-[10px] border border-primary-100 bg-primary-50 px-3.5 py-2.5 text-[13px] text-ink2">
       <strong className="text-primary">That page is not open to your role.</strong>{' '}
-      It needs the <code>{denied}</code> capability. Roles and what each one may
+      It needs the <strong>{denied}</strong> capability. Roles and what each one may
       do are listed on the{' '}
       <Link href="/admins" className="font-semibold text-primary hover:underline">
         admin users page
@@ -81,10 +81,10 @@ export default async function Dashboard({
         <PageHeader title="Dashboard" />
         {deniedNote}
         <GapNote>
-          <strong>The backend is not reachable.</strong> Every counter and balance
-          on this page is read from <code>backend-node</code>, so there is nothing
-          honest to show until it answers. Start it with{' '}
-          <code>cd backend-node &amp;&amp; npm run dev</code>.
+          <strong>These figures cannot be loaded right now.</strong> The service that
+          holds them is not responding, and nothing here will be guessed at — an
+          approximate number on a money screen is worse than none. Try again in a
+          moment, and let your technical team know if it continues.
         </GapNote>
       </>
     );

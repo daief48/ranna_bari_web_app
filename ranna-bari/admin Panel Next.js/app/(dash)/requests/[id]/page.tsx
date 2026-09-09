@@ -101,7 +101,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         <div className="mb-5 rounded-[10px] border border-primary-100 bg-primary-50 px-3.5 py-2.5 text-[13px] text-ink2">
           <strong className="text-primary">This broadcast reached nobody.</strong> Every
           kitchen was either shut or out of range when it went out, so{' '}
-          <code>eligible</code> came back empty and no cook was ever told. The customer
+          <strong>eligible</strong> came back empty and no cook was ever told. The customer
           is waiting on a message that was never sent.
         </div>
       ) : null}
@@ -248,7 +248,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         On the app side a cook can only ever see their own offer — there is no function
         that returns a competitor&rsquo;s price to a cook. On a device that is a UI
         guarantee; on a server it has to be an authorisation one, and the endpoints
-        under <code>/api/app/v1</code> enforce it that way.
+        under the customer app enforce it that way.
       </p>
     </>
   );

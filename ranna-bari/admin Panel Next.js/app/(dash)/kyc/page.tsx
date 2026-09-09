@@ -75,15 +75,6 @@ export default async function KycPage() {
         subtitle={`${pending.length} ${pending.length === 1 ? 'cook' : 'cooks'} waiting on a decision`}
       />
 
-      <GapNote>
-        <strong>Why this screen exists.</strong> The app writes{' '}
-        <code>isVerified: false</code> on every kitchen it creates and there is no
-        code path anywhere in it that ever flips that back. The National ID is
-        collected at signup, stored, and never looked at by anybody. Until a
-        decision is made here, a real cook and an unchecked one are
-        indistinguishable to a customer.
-      </GapNote>
-
       {pending.length === 0 ? (
         <Card>
           <Empty>The queue is clear. Every cook has been reviewed.</Empty>

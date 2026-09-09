@@ -110,13 +110,6 @@ export default async function PayoutsPage({
         }
       />
 
-      <GapNote>
-        <strong>Why this screen exists.</strong> The app has{' '}
-        <code>pendingEarnings()</code> — a number a cook can look at — and no way for
-        anybody to actually pay it. There is no withdrawal flow, no payout record and
-        no reconciliation. A cook&rsquo;s balance was a promise with nothing behind it.
-      </GapNote>
-
       <Grid cols={4}>
         <Stat
           label="Due this run"
@@ -241,9 +234,8 @@ export default async function PayoutsPage({
       </div>
 
       <p className="mt-6 text-[11.5px] leading-relaxed text-ink3">
-        Marking a run paid posts one <code>payout</code> entry per cook, from{' '}
-        <code>cook</code> to <code>external</code>, each carrying an idempotency key
-        built from the run and the kitchen — so a double-clicked button pays once.
+        Marking a run paid posts one payout entry per cook, moving the money out of
+        the platform&rsquo;s books. A double-clicked button still pays once.
       </p>
     </>
   );

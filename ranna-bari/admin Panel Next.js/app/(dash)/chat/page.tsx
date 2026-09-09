@@ -70,15 +70,6 @@ export default async function ChatPage({
         subtitle="Support, and every conversation between a customer and a cook"
       />
 
-      <GapNote>
-        <strong>Why this screen exists.</strong> Until now the only way anybody
-        could reach anybody was a <code>tel:</code> link on the cook&rsquo;s order
-        screen — one direction, cook to customer, and nothing at all the other way
-        or to the platform. A customer whose food never arrived had no one to tell.
-        Every thread here is also the evidence a dispute gets settled on, which is
-        why a message can be hidden but never edited or deleted.
-      </GapNote>
-
       <Grid cols={3}>
         <Stat
           label="Waiting on the desk"

@@ -418,7 +418,7 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
             </div>
           ) : (
             <p className="mt-3 border-t border-line2 pt-3 text-[11.5px] leading-relaxed text-ink3">
-              Approving a kitchen needs the <code>kyc.decide</code> capability.
+              Approving a kitchen is not something your role can do.
             </p>
           )}
         </Card>

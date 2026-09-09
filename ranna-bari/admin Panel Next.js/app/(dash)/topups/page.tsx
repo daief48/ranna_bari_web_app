@@ -90,7 +90,7 @@ export default async function TopUpsPage({
 
       <GapNote>
         <strong>Why this screen exists.</strong> In the app,{' '}
-        <code>topUp(amount, &apos;bKash&apos;)</code> credits the wallet and posts a
+        a top-up credits the wallet and posts a
         ledger entry with <em>no payment behind it at all</em> — there is no gateway,
         no reference and nothing to check against. Every taka a customer spends
         entered the system this way. Until a real provider is wired in, this is where

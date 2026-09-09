@@ -137,19 +137,6 @@ export default async function LedgerPage({
 
       {view === 'aged' ? (
         <>
-          <GapNote>
-            <strong>Why this screen exists.</strong> Money is released only when the
-            customer confirms the food arrived. When they never do, it sits in escrow
-            forever — the customer has paid, the cook has cooked, and neither has what
-            they are owed. The app nudges once a day and then waits. Auto-release is
-            set to <strong>{aged.windowDays} days</strong> after
-            delivery; changing it is on the{' '}
-            <Link href="/settings" className="font-semibold text-primary hover:underline">
-              configuration page
-            </Link>
-            .
-          </GapNote>
-
           <Card
             /* `count` and not the length of the list: the table shows the oldest
                fifty, but the sweep below releases every aged order, and a

@@ -275,7 +275,7 @@ async function StockTable({ canWrite }: { canWrite: boolean }) {
     <>
       <GapNote>
         <strong>Why this list exists.</strong> These products are still{' '}
-        <code>active</code> — listed, visible, tappable — and hold zero stock, so every
+        <strong>active</strong> — listed, visible, tappable — and hold zero stock, so every
         customer who opens one is told it is unavailable. Nothing in the app watches
         for this. A shelf that has been empty for a fortnight looks exactly like a
         shelf that sold out an hour ago.
@@ -340,7 +340,7 @@ async function PreorderTable() {
     <>
       <GapNote>
         <strong>Why this list exists.</strong> A pre-order enters at{' '}
-        <code>pending</code> and waits for the cook to accept or decline it. Nothing
+        <strong>pending</strong> and waits for the cook to accept or decline it. Nothing
         chases them. The customer&rsquo;s money is already held, so a cook who never
         opens the app leaves a customer paid-up and waiting indefinitely.
       </GapNote>

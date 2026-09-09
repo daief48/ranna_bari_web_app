@@ -9,6 +9,7 @@ import {
   requestOtp,
   verifyOtp,
   type AppIdentity,
+  loginWithPassword,
 } from '../../../auth/app-auth.js';
 import { readSession } from '../../../auth/admin-auth.js';
 import { getFlags, getSettings } from '../../../logic/settings.js';
@@ -751,6 +752,34 @@ export async function appRoutes(app: FastifyInstance) {
    * The app calls it on launch: a token can be perfectly well-signed and
    * still dead, because the session was revoked or the account suspended.
    */
+  /**
+   * A cook signs in with an email and a password.
+   *
+   * A separate door from `/auth/verify-otp` rather than a branch inside it,
+   * because the two prove different things and fail differently. A customer
+   * proves they hold a handset; a cook proves they know a secret. Folding
+   * them together would mean one endpoint where the absence of a field
+   * decides which check runs, and that is how a path nobody meant to expose
+   * gets exposed.
+   */
+  app.post('/auth/cook-login', async (request, reply) => {
+    const body = z
+      .object({
+        email: z.string(),
+        password: z.string(),
+        device: z.object({ name: z.string().optional(), platform: z.string().optional() }).optional(),
+      })
+      .safeParse(request.body);
+    if (!body.success) return fail(reply, 'email-and-password-required');
+
+    const out = await loginWithPassword(body.data.email, body.data.password, body.data.device);
+    if (!out.ok) {
+      return reply.status(401).send({ error: 'credentials-invalid', message: out.error });
+    }
+
+    return { ok: true, token: out.token, expiresAt: out.expiresAt, account: out.account };
+  });
+
   app.get('/auth/me', async (request, reply) => {
     const caller = await callerOf(request);
     if (!caller) return fail(reply, 'unauthenticated', 401);

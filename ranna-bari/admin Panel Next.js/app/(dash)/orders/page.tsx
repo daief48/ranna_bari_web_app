@@ -98,10 +98,9 @@ export default async function OrdersPage({
               subtitle="Every order across all four systems, on one rail"
             />
             <GapNote>
-              <strong>The backend is not answering.</strong> Orders are served by{' '}
-              <code>backend-node</code>, and nothing on this board can be read without
-              it. Start it with <code>cd backend-node &amp;&amp; npm run dev</code>, then
-              reload.
+              <strong>Orders cannot be loaded right now.</strong> The service that
+              holds them is not responding. Try again in a moment, and let your
+              technical team know if it continues.
             </GapNote>
           </>
         );

@@ -81,7 +81,7 @@ export function KycDecision({
           </>
         ) : (
           <>
-            Approving writes <code>isVerified: true</code> and stamps who decided it.
+            Approving marks the kitchen verified and records who decided it.
             It is also the only thing that lets this cook open their kitchen, add
             dishes or take orders. Both outcomes notify the cook and land in the
             audit log.

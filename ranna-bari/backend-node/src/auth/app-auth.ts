@@ -120,6 +120,105 @@ async function verifyCode(code: string, stored: string): Promise<boolean> {
   return timingSafeEqual(expected, derived);
 }
 
+/* ------------------------------------------------------------------ *
+ * cook passwords
+ * ------------------------------------------------------------------ */
+
+/**
+ * A cook's password, hashed.
+ *
+ * Same scrypt as the one-time codes above, and for the same reasons: no
+ * native build step, and memory-hard where bcrypt is not. Stored `salt:hash`
+ * so the salt travels with what it salted.
+ */
+export async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString('hex');
+  return `${salt}:${(await scrypt(password, salt, 64)).toString('hex')}`;
+}
+
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const [salt, hash] = String(stored).split(':');
+  if (!salt || !hash) return false;
+  const derived = await scrypt(password, salt, 64);
+  const expected = Buffer.from(hash, 'hex');
+  if (expected.length !== derived.length) return false;
+  return timingSafeEqual(expected, derived);
+}
+
+/** Short enough to be typed on a phone, long enough to be worth hashing. */
+export const PASSWORD_MIN = 8;
+
+export function passwordProblem(password: unknown): string | null {
+  const value = String(password ?? '');
+  if (value.length < PASSWORD_MIN) {
+    return `A password needs at least ${PASSWORD_MIN} characters.`;
+  }
+  return null;
+}
+
+/**
+ * Sign a cook in with an email and a password.
+ *
+ * No one-time code anywhere in this path. A cook signs in to a business, from
+ * whatever device is to hand, and making that wait on an SMS reaching the
+ * handset the kitchen was registered on is the wrong shape for the job.
+ *
+ * Only a cook. A customer with an email on their account cannot come through
+ * here, because a customer has no password to come through with — the check
+ * below refuses before it looks at one, so there is nothing to guess against.
+ */
+export async function loginWithPassword(
+  rawEmail: string,
+  password: string,
+  device?: { name?: string; platform?: string },
+): Promise<VerifyResult> {
+  const email = String(rawEmail ?? '').trim().toLowerCase();
+
+  /* One message for every way this can fail: no such email, not a cook, no
+     password set, wrong password. Telling them apart is how somebody learns
+     which addresses have kitchens behind them. */
+  const generic = 'That email and password do not match.';
+  if (!email || !password) return { ok: false, error: generic };
+
+  /* `passwordHash` is `select: false`, so it has to be asked for. */
+  const account = await Account.findOne({ email }).select('+passwordHash');
+  if (!account?.passwordHash) return { ok: false, error: generic };
+  if (!(await verifyPassword(password, account.passwordHash))) {
+    return { ok: false, error: generic };
+  }
+
+  if (account.suspended) {
+    return { ok: false, error: 'This account is suspended. Contact support.' };
+  }
+
+  const identity = await toIdentity(account);
+  /* The kitchen is what makes somebody a cook, and this door is the cook's.
+     An account that once had one and no longer does is not refused vaguely —
+     there is nothing to guess here, they got the password right. */
+  if (identity.role !== 'cook' || !identity.kitchenId) {
+    return {
+      ok: false,
+      error: 'This account has no kitchen. Sign in as a customer, or register a kitchen.',
+    };
+  }
+
+  await Account.updateOne({ _id: account._id }, { signedInAt: new Date() });
+
+  const expiresAt = new Date(Date.now() + TOKEN_TTL_DAYS * 86_400_000);
+  const tokenId = randomBytes(16).toString('hex');
+
+  await AppSession.create({
+    accountId: String(account._id),
+    tokenId,
+    device: device?.name ?? '',
+    platform: device?.platform ?? '',
+    expiresAt,
+  });
+
+  const token = await mintToken(identity, tokenId, account.tokenVersion, expiresAt);
+  return { ok: true, token, account: identity, expiresAt };
+}
+
 export type OtpResult =
   | { ok: true; expiresAt: Date; devCode?: string }
   | { ok: false; error: string; retryAfterSeconds?: number };

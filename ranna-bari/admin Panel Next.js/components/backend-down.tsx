@@ -4,22 +4,27 @@ import { BackendError } from '@/lib/backend';
 import { PageHeader } from '@/components/ui';
 
 /**
- * What a migrated screen looks like when `backend-node` is not answering.
+ * What a screen looks like when the service behind it is not answering.
  *
- * The panel no longer opens a database of its own, so a dead backend is not a
- * degraded page — it is an empty one. An operator staring at a blank screen
- * with a redacted server-error digest has no way to know that the fix is one
- * command in another terminal, so the screen says so.
+ * The panel keeps no database of its own, so an unreachable service is not a
+ * degraded page — it is an empty one, and it says so rather than showing
+ * zeroes an operator might act on.
+ *
+ * It names no file, command or process. An operator at a desk cannot run a
+ * terminal command and should not be shown one; what they can do is wait,
+ * reload, or tell whoever keeps the service running. The details that used to
+ * be printed here belong in the log, where the person who can act on them
+ * looks.
  */
 export function BackendDown({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <>
       <PageHeader title={title} subtitle={subtitle} />
       <div className="rounded-[10px] border border-primary-100 bg-primary-50 px-3.5 py-3 text-[13px] leading-relaxed text-primary">
-        <strong>The backend is not reachable.</strong> Every figure on this screen is
-        folded by <code>backend-node</code>, and the panel will not guess at money it
-        cannot read. Start it with <code>cd backend-node &amp;&amp; npm run dev</code>,
-        then reload.
+        <strong>This screen cannot be loaded right now.</strong> The service that
+        holds these records is not responding, and nothing here will be guessed at
+        — an approximate figure on a money screen is worse than none. Try again in
+        a moment, and let your technical team know if it continues.
       </div>
     </>
   );

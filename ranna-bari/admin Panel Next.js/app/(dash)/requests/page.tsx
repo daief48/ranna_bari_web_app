@@ -93,17 +93,6 @@ export default async function RequestsPage({
         }
       />
 
-      {dead ? (
-        <GapNote>
-          <strong>Why this list exists.</strong> Each of these is a customer who
-          described what they wanted and heard nothing back. Either the broadcast
-          reached no eligible kitchen at all — every cook within range was shut, so{' '}
-          <code>eligible</code> came back empty — or it reached kitchens and none of
-          them answered. The first is a coverage bug and the fix is widening a
-          radius; the second is a supply problem. Nothing in the app surfaces either.
-        </GapNote>
-      ) : null}
-
       <Grid cols={4}>
         <Stat label="Requests" value={totalRequests} />
         <Stat label="Still open" value={openCount} tone="info" />
@@ -277,10 +266,9 @@ function BackendDown() {
         subtitle="Customers asking for what nobody listed, and the cooks bidding for it"
       />
       <div className="rounded-[10px] border border-primary-100 bg-primary-50 px-3.5 py-2.5 text-[13px] leading-relaxed text-ink2">
-        <strong className="text-primary">The backend is not answering.</strong> This
-        board is served by <code>backend-node</code>, which is not running or not
-        reachable. Start it with <code>cd backend-node &amp;&amp; npm run dev</code>,
-        then reload.
+        <strong className="text-primary">This board cannot be loaded right now.</strong>{' '}
+        The service that holds these requests is not responding. Try again in a
+        moment, and let your technical team know if it continues.
       </div>
     </>
   );

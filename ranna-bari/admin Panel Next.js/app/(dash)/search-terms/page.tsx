@@ -84,15 +84,6 @@ export default async function SearchTermsPage({
         subtitle="Searches that found nothing — the demand the catalogue is missing"
       />
 
-      <GapNote>
-        <strong>Why this screen exists.</strong> A customer who searches for
-        something the platform does not have places no order, so no other
-        collection on the platform ever hears they were here — they simply do not
-        appear in the numbers. This is the one place that records them. A term
-        with a high <em>miss</em> count and several distinct people behind it is
-        not a bug report; it is a list of which cook to recruit, and where.
-      </GapNote>
-
       <Grid cols={4}>
         <Stat label="Terms on this page" value={String(rows.length)} sub={`${data.total} in window`} />
         <Stat label="Searches" value={String(searches)} sub={`last ${data.days} days`} />

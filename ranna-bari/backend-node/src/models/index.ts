@@ -30,6 +30,25 @@ const accountSchema = new Schema(
     name: { type: String, default: '' },
     phone: { type: String, default: null, index: true },
     email: { type: String, default: null },
+
+    /**
+     * A cook's password, scrypt as `salt:hash`. Null for everybody else.
+     *
+     * Customers sign in with a phone and a one-time code, and that stays: an
+     * account keyed on a phone number does not need a second secret, and a
+     * password is one more thing for somebody ordering dinner to lose.
+     *
+     * A cook is not somebody ordering dinner. They sign in to a business from
+     * whatever device is nearest, often not the handset the kitchen was
+     * registered on, and waiting for an SMS to reach that handset before you
+     * can look at today's orders is the wrong shape for that job.
+     *
+     * Never selected by default — every read of an account that returns it
+     * over the wire is a hash somebody now has offline. The one query that
+     * needs it asks for it explicitly.
+     */
+    passwordHash: { type: String, default: null, select: false },
+
     kitchenName: { type: String, default: null },
     /**
      * The primary. Every card, list and search result shows one, and this is

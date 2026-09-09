@@ -92,9 +92,9 @@ export default async function KitchensPage({
 
       {unreachable ? (
         <div className="mb-5 rounded-[10px] border border-primary-100 bg-primary-50 px-3.5 py-2.5 text-[13px] text-primary">
-          <strong>The backend is not answering.</strong> This screen reads every kitchen
-          from it, so there is nothing to show until it is up. Start it with{' '}
-          <code>cd backend-node &amp;&amp; npm run dev</code>.
+          <strong>Kitchens cannot be loaded right now.</strong> The service that holds
+          them is not responding. Try again in a moment, and let your technical team
+          know if it continues.
         </div>
       ) : null}
 

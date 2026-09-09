@@ -71,10 +71,9 @@ export default async function MenuPage({
           subtitle="Every dish on every kitchen's menu, on one board"
         />
         <div className="rounded-[10px] border border-saffron-100 bg-saffron-50 px-3.5 py-3 text-[13px] leading-relaxed text-ink2">
-          <strong className="text-saffron">This board needs a newer backend.</strong>{' '}
-          It reads <code>GET /dishes</code>, and the backend answering right now does
-          not have that route — it is the one endpoint this screen cannot work
-          around. Nothing is broken: once <code>backend-node</code> redeploys, reload
+          <strong className="text-saffron">Menus are not available yet.</strong> The
+          service answering right now is an older version that does not serve them.
+          Nothing is broken and nothing has been lost — once it is updated, reload
           and the menus appear.
         </div>
       </>
@@ -104,16 +103,6 @@ export default async function MenuPage({
         title="Menus"
         subtitle="Every dish on every kitchen's menu, on one board"
       />
-
-      <GapNote>
-        <strong>What this is.</strong> The cook&rsquo;s app has a{' '}
-        <strong>Menu</strong> tab where they add dishes and flip each one available
-        or not for the day. Until now the panel could only see one kitchen&rsquo;s
-        menu at a time, through that kitchen&rsquo;s own page — so &ldquo;who sells
-        biryani&rdquo;, &ldquo;what is switched off right now&rdquo; and &ldquo;what
-        does a dish cost across the platform&rdquo; had no answer. The availability
-        switch belongs to the cook; nothing here writes it.
-      </GapNote>
 
       <Grid cols={3}>
         <Stat label="Dishes matching" value={total.toLocaleString('en-US')} />
