@@ -156,6 +156,55 @@ export function SessionProvider({ children }) {
     }
   }, []);
 
+  /**
+   * A cook signs in with an email and a password.
+   *
+   * No code, no waiting for an SMS. A cook opens their kitchen from whatever
+   * device is nearest — often not the handset it was registered on — and
+   * making that wait on a message reaching that handset is the wrong shape
+   * for the job. Customers keep the one-time code: an account keyed on a
+   * phone number does not need a second secret.
+   *
+   * Stores the same token the code path does, so everything downstream —
+   * `/auth/me`, the cook panel's own guard, every authenticated read — cannot
+   * tell which door was used, and should not be able to.
+   */
+  const signInAsCook = useCallback(async (email, password) => {
+    setChecking(true);
+    try {
+      const out = await api('/auth/cook-login', {
+        method: 'POST',
+        body: {
+          email: String(email ?? '').trim(),
+          password: String(password ?? ''),
+          device: { name: 'RannaBari', platform: 'expo' },
+        },
+      });
+
+      setToken(out.token);
+      setIdentity(out.account);
+      await Promise.all([
+        AsyncStorage.setItem(TOKEN_KEY, out.token),
+        AsyncStorage.setItem(IDENTITY_KEY, JSON.stringify(out.account)),
+      ]).catch(() => {});
+
+      return out.account;
+    } finally {
+      setChecking(false);
+    }
+  }, []);
+
+  /** Set or change the password this account signs in with. */
+  const setPassword = useCallback(
+    async (password, current) =>
+      api('/account/password', {
+        method: 'POST',
+        token: tokenRef.current,
+        body: { password, ...(current ? { current } : {}) },
+      }),
+    [],
+  );
+
   /* ---- the profile, on the server ---- */
 
   /**
@@ -272,6 +321,8 @@ export function SessionProvider({ children }) {
       getToken,
       requestCode,
       verifyCode,
+      signInAsCook,
+      setPassword,
       signOutServer,
       addresses,
       loadProfile,
@@ -288,6 +339,8 @@ export function SessionProvider({ children }) {
       getToken,
       requestCode,
       verifyCode,
+      signInAsCook,
+      setPassword,
       signOutServer,
       addresses,
       loadProfile,

@@ -81,7 +81,7 @@ export default function AuthScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { signIn, updateAccount } = useAuth();
-  const { requestCode, verifyCode, saveProfile, saveAddress } = useSession();
+  const { requestCode, verifyCode, signInAsCook, saveProfile, saveAddress } = useSession();
   const { ensureKitchen } = useKitchen();
   const alert = useAlert();
 
@@ -141,6 +141,10 @@ export default function AuthScreen() {
   const [siCode, setSiCode] = useState('');
   const [siStage, setSiStage] = useState('phone'); // 'phone' | 'code'
   const [siBusy, setSiBusy] = useState(false);
+  /* The cook's credentials, separate from the signup form's `email`/`pw`:
+     signing in and registering are two forms and must not share a field. */
+  const [siEmail, setSiEmail] = useState('');
+  const [siPw, setSiPw] = useState('');
 
   /* ---- sign up ---- */
   // Arriving from the cook funnel means the role question is already answered.
@@ -522,6 +526,40 @@ export default function AuthScreen() {
     }
   };
 
+  /**
+   * A cook signs in with an email and a password.
+   *
+   * One request, one answer. The server returns the same refusal for an
+   * unknown email, an account with no password and a wrong password — telling
+   * them apart is how somebody learns which addresses have kitchens behind
+   * them — so this shows what it is given rather than guessing at a friendlier
+   * cause.
+   */
+  const doCookSignIn = async () => {
+    if (!siEmail.trim()) return alert.error(t('Enter your email.'));
+    if (!siPw) return alert.error(t('Enter your password.'));
+
+    setSiBusy(true);
+    try {
+      const identity = await signInAsCook(siEmail.trim(), siPw);
+      const acct = await signIn({
+        role: identity.kitchenId ? 'cook' : 'user',
+        accountId: identity.accountId,
+        kitchenId: identity.kitchenId,
+        kitchen: identity.kitchenName ?? '',
+        name: identity.name ?? '',
+        phone: identity.phone,
+        email: siEmail.trim(),
+      });
+      alert.success(t('Signed in.'));
+      router.replace(nextAfterAuth ?? (acct.role === 'cook' ? '/cook' : '/profile'));
+    } catch (error) {
+      alert.error(error?.message ?? t('That email and password do not match.'));
+    } finally {
+      setSiBusy(false);
+    }
+  };
+
   const doSignIn = async () => {
     if (siStage === 'phone') return askCode();
 
@@ -785,6 +823,11 @@ export default function AuthScreen() {
             {tab === 'signin' ? (
               <SignInView
                 intent={intent}
+                email={siEmail}
+                setEmail={setSiEmail}
+                password={siPw}
+                setPassword={setSiPw}
+                onCookSubmit={doCookSignIn}
                 phone={siPhone}
                 setPhone={setSiPhone}
                 code={siCode}
@@ -927,7 +970,24 @@ function AsideTitle({ title, emphasis }) {
 /* ---------------------------------------------------------
    Sign in
    --------------------------------------------------------- */
-function SignInView({ phone, setPhone, code, setCode, stage, busy, note, onSubmit, onBack, onSwitch, intent }) {
+function SignInView({
+  phone,
+  setPhone,
+  code,
+  setCode,
+  stage,
+  busy,
+  note,
+  onSubmit,
+  onBack,
+  onSwitch,
+  intent,
+  email,
+  setEmail,
+  password,
+  setPassword,
+  onCookSubmit,
+}) {
   const { colors, shadow } = useTheme();
   const { t } = useLang();
 
@@ -971,6 +1031,77 @@ function SignInView({ phone, setPhone, code, setCode, stage, busy, note, onSubmi
         {/* No password field: the server has none. An account here is a
             handset that proved it holds its own number, so the whole of
             signing in is that number and the code sent to it. */}
+        {intent === 'cook' ? (
+          <>
+        {/*
+          * A cook signs in with what they know, not with what arrives on a
+          * handset. They open their kitchen from whatever device is nearest,
+          * often not the phone it was registered on, and waiting for an SMS
+          * to reach that phone before you can look at today's orders is the
+          * wrong shape for the job.
+          *
+          * No code step, no "or continue with": one form, and it either
+          * matches or it does not.
+          */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: 9,
+            padding: 12,
+            marginBottom: 16,
+            borderRadius: radius.sm,
+            backgroundColor: colors.sage50,
+          }}
+        >
+          <Icon name="chefHat" size={16} color={colors.sage} />
+          <Text
+            style={{
+              flex: 1,
+              fontFamily: font.ui,
+              fontSize: 12.5,
+              lineHeight: 19,
+              color: colors.textMuted,
+            }}
+          >
+            {t('Use the email and password for your kitchen.')}
+          </Text>
+        </View>
+
+        <FloatLabelInput
+          label={t('Email')}
+          value={email}
+          onChangeText={setEmail}
+          placeholder="you@example.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+          style={{ marginBottom: 16 }}
+        />
+
+        <FloatLabelInput
+          label={t('Password')}
+          value={password}
+          onChangeText={setPassword}
+          placeholder="••••••••"
+          secureTextEntry
+          autoCapitalize="none"
+          autoComplete="current-password"
+          style={{ marginBottom: 16 }}
+        />
+
+        <View style={{ marginBottom: 24 }} />
+
+        <Button
+          label={busy ? t('Just a moment…') : t('Sign in')}
+          icon="arrowRight"
+          block
+          disabled={busy}
+          onPress={onCookSubmit}
+        />
+          </>
+        ) : (
+          <>
         <View
           style={{
             flexDirection: 'row',
@@ -1057,6 +1188,8 @@ function SignInView({ phone, setPhone, code, setCode, stage, busy, note, onSubmi
           <SocialButton provider="google" label={t('Google')} />
           <SocialButton provider="phone" label={t('Phone OTP')} />
         </View>
+          </>
+        )}
       </View>
 
       <View

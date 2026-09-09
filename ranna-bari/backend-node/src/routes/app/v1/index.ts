@@ -10,6 +10,9 @@ import {
   verifyOtp,
   type AppIdentity,
   loginWithPassword,
+  hashPassword,
+  verifyPassword,
+  passwordProblem,
 } from '../../../auth/app-auth.js';
 import { readSession } from '../../../auth/admin-auth.js';
 import { getFlags, getSettings } from '../../../logic/settings.js';
@@ -820,6 +823,62 @@ export async function appRoutes(app: FastifyInstance) {
    * `suspended` and the kitchen link are the platform's, and a body naming
    * them is not rejected — it is not read.
    */
+  /**
+   * Set or change the password a cook signs in with.
+   *
+   * Requires a live session, so this is somebody who has already proved who
+   * they are — by holding the handset, or by knowing the password they are
+   * about to replace. It is deliberately not a public "reset by email": that
+   * needs a mail transport this service does not have, and a half-built one
+   * is a way in, not a convenience.
+   *
+   * `current` is required only when a password already exists. A cook setting
+   * one for the first time — during registration, or an account that predates
+   * passwords — has nothing to prove beyond the session they are holding.
+   */
+  app.post('/account/password', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    const body = z
+      .object({ password: z.string(), current: z.string().optional() })
+      .safeParse(request.body ?? {});
+    if (!body.success) return fail(reply, 'password-required');
+
+    const problem = passwordProblem(body.data.password);
+    if (problem) return reply.status(400).send({ error: 'password-weak', message: problem });
+
+    const account = await Account.findById(caller.accountId).select('+passwordHash');
+    if (!account) return fail(reply, 'unauthenticated', 401);
+
+    if (account.passwordHash) {
+      const ok =
+        !!body.data.current &&
+        (await verifyPassword(body.data.current, account.passwordHash));
+      if (!ok) {
+        return reply
+          .status(400)
+          .send({ error: 'current-password-wrong', message: 'That is not your current password.' });
+      }
+    }
+
+    /* An email is what the cook signs in with, so a password without one is a
+       credential with no name to go by. */
+    if (!account.email) {
+      return reply.status(400).send({
+        error: 'email-required',
+        message: 'Add an email to your profile first — it is what you sign in with.',
+      });
+    }
+
+    await Account.updateOne(
+      { _id: account._id },
+      { passwordHash: await hashPassword(body.data.password) },
+    );
+
+    return { ok: true };
+  });
+
   app.post('/account', async (request, reply) => {
     const caller = await callerOf(request);
     if (!caller) return fail(reply, 'unauthenticated', 401);
