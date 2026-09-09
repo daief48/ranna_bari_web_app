@@ -67,7 +67,7 @@ export default function StoreOrders() {
   };
 
   return (
-    <CookScreen>
+    <CookScreen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

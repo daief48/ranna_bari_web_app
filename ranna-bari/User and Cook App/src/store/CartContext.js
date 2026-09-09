@@ -8,6 +8,8 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { useMaxQtyPerItem } from './ConfigContext';
+
 const KEY = 'rannabari_cart';
 
 /** Matches the web build's fee lines on cart.html. */
@@ -19,6 +21,17 @@ const CartContext = createContext(null);
 export function CartProvider({ children }) {
   const [items, setItems] = useState([]);
   const [hydrated, setHydrated] = useState(false);
+
+  /*
+   * The platform's ceiling on one line, set from the admin panel.
+   *
+   * This basket is the device's own — no server round trip to refuse an
+   * add — so the limit has to be applied here or it is not applied at all on
+   * this side. `CartProvider` sits inside `ConfigProvider`, so the live value
+   * is available; it falls back to the shipped default when the server has
+   * not answered, because a cap that disappears offline is not a cap.
+   */
+  const maxQty = useMaxQtyPerItem();
 
   useEffect(() => {
     let alive = true;
@@ -45,8 +58,13 @@ export function CartProvider({ children }) {
   const add = useCallback((item, chef, qty = 1) => {
     setItems((prev) => {
       const found = prev.find((i) => i.id === item.id);
+      /* Adding the same dish again is a bigger quantity, never a second row —
+         it always was, and the clamp is what keeps that merge from walking
+         past the limit one tap at a time. */
       if (found) {
-        return prev.map((i) => (i.id === item.id ? { ...i, qty: i.qty + qty } : i));
+        return prev.map((i) =>
+          i.id === item.id ? { ...i, qty: Math.min(i.qty + qty, maxQty) } : i,
+        );
       }
       return [
         ...prev,
@@ -58,11 +76,11 @@ export function CartProvider({ children }) {
           image: item.image,
           chefId: chef?.id ?? null,
           chefName: chef?.name ?? '',
-          qty,
+          qty: Math.min(qty, maxQty),
         },
       ];
     });
-  }, []);
+  }, [maxQty]);
 
   /**
    * Put a past order back in the basket.
@@ -87,7 +105,8 @@ export function CartProvider({ children }) {
         if (!line?.id) continue;
         const at = next.findIndex((i) => i.id === line.id);
         const qty = Number(line.qty) || 1;
-        if (at >= 0) next[at] = { ...next[at], qty: next[at].qty + qty };
+        if (at >= 0)
+          next[at] = { ...next[at], qty: Math.min(next[at].qty + qty, maxQty) };
         else
           next.push({
             id: line.id,
@@ -99,35 +118,44 @@ export function CartProvider({ children }) {
                is the one being reordered from. */
             chefId: line.chefId ?? order.chefId ?? null,
             chefName: line.chefName ?? order.chefName ?? '',
-            qty,
+            qty: Math.min(qty, maxQty),
           });
       }
       return next;
     });
 
     return lines.length;
-  }, []);
+  }, [maxQty]);
 
   const remove = useCallback((id) => {
     setItems((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
-  const updateQty = useCallback((id, delta) => {
-    setItems((prev) =>
-      prev
-        .map((i) => (i.id === id ? { ...i, qty: i.qty + delta } : i))
-        .filter((i) => i.qty > 0),
-    );
-  }, []);
+  const updateQty = useCallback(
+    (id, delta) => {
+      setItems((prev) =>
+        prev
+          .map((i) => (i.id === id ? { ...i, qty: Math.min(i.qty + delta, maxQty) } : i))
+          .filter((i) => i.qty > 0),
+      );
+    },
+    [maxQty],
+  );
 
   const clear = useCallback(() => setItems([]), []);
 
   const value = useMemo(() => {
     const count = items.reduce((s, i) => s + i.qty, 0);
+    /* How many different things are in the basket, which is not the same
+       question as how many plates. The badge asks the first — "three items"
+       reads as three lines to look at, where the sum of the quantities reads
+       as a number nobody put there on purpose. */
+    const lineCount = items.length;
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     return {
       items,
       count,
+      lineCount,
       subtotal,
       deliveryFee: items.length ? DELIVERY_FEE : 0,
       platformFee: items.length ? PLATFORM_FEE : 0,
@@ -138,8 +166,9 @@ export function CartProvider({ children }) {
       updateQty,
       clear,
       hydrated,
+      maxQty,
     };
-  }, [items, add, reorder, remove, updateQty, clear, hydrated]);
+  }, [items, add, reorder, remove, updateQty, clear, hydrated, maxQty]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

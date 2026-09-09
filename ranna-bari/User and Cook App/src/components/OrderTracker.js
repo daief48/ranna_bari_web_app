@@ -66,7 +66,7 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
 
   if (!order) {
     return (
-      <Screen>
+      <Screen back={false}>
         <Container style={{ paddingTop: 30 }}>
           <EmptyState
             icon="alertCircle"
@@ -114,7 +114,7 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
   };
 
   return (
-    <Screen>
+    <Screen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

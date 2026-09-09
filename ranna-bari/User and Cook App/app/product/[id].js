@@ -89,7 +89,7 @@ export default function ProductScreen() {
        price — so nothing jumps when it arrives. */
     if (!asked) {
       return (
-        <Screen>
+        <Screen back={false}>
           <Container style={{ paddingTop: 30, gap: 16 }}>
             <Skeleton height={300} round={20} />
             <Skeleton height={24} width="70%" />
@@ -102,7 +102,7 @@ export default function ProductScreen() {
     }
 
     return (
-      <Screen>
+      <Screen back={false}>
         <Container style={{ paddingTop: 30 }}>
           <EmptyState
             icon="alertCircle"
@@ -133,7 +133,7 @@ export default function ProductScreen() {
   };
 
   return (
-    <Screen contentStyle={{ paddingTop: 0 }}>
+    <Screen back={false} contentStyle={{ paddingTop: 0 }}>
       {/* ---- gallery ---- */}
       <View>
         <ScrollView

@@ -44,7 +44,7 @@ export default function KitchenDetails() {
      nulls for good and leave a cook editing an empty form. */
   if (!hydrated || !kitchen) {
     return (
-      <CookScreen>
+      <CookScreen back={false}>
         <Container style={{ alignItems: 'center', gap: 18, paddingTop: 60 }}>
           <ActivityIndicator color={colors.sage} />
           <Heading size={20}>{t('Setting up your kitchen…')}</Heading>
@@ -100,7 +100,7 @@ function DetailsForm({ kitchen }) {
   };
 
   return (
-    <CookScreen>
+    <CookScreen back={false}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Container>
           <Pressable

@@ -80,7 +80,7 @@ export default function SavedShops() {
   };
 
   return (
-    <Screen>
+    <Screen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

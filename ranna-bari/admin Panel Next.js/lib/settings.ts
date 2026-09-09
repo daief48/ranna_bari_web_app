@@ -38,6 +38,15 @@ export type PlatformSettings = {
 
   /** Below this, a payout run skips the cook rather than paying pennies. */
   payoutMinimum: number;
+
+  /**
+   * The most of one item a single order may carry.
+   *
+   * A product's own `maxQty` still wins where it is tighter; this is the
+   * platform's ceiling over the top of it, and the limit a product with no
+   * opinion of its own inherits.
+   */
+  maxQtyPerItem: number;
 };
 
 export const DEFAULT_SETTINGS: PlatformSettings = {
@@ -54,11 +63,12 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   stockAlarmDays: 3,
   requestExpiryDays: 1,
   payoutMinimum: 100,
+  maxQtyPerItem: 10,
 };
 
 export const SETTING_META: Record<
   keyof PlatformSettings,
-  { label: string; help: string; kind: 'money' | 'rate' | 'days' }
+  { label: string; help: string; kind: 'money' | 'rate' | 'days' | 'count' }
 > = {
   deliveryFee: {
     label: 'Delivery fee',
@@ -109,6 +119,11 @@ export const SETTING_META: Record<
     label: 'Payout minimum',
     help: 'A cook owed less than this is carried to the next run.',
     kind: 'money',
+  },
+  maxQtyPerItem: {
+    label: 'Maximum quantity per item',
+    help: 'The most of one item a single order may carry. A product with a tighter limit of its own still wins.',
+    kind: 'count',
   },
 };
 

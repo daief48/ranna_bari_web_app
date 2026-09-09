@@ -56,7 +56,7 @@ export default function EditProfileScreen() {
 
   if (!hydrated) {
     return (
-      <Screen>
+      <Screen back={false}>
         <Container style={{ alignItems: 'center', paddingTop: 60 }}>
           <ActivityIndicator color={colors.primary} />
         </Container>
@@ -66,7 +66,7 @@ export default function EditProfileScreen() {
 
   if (!isSignedIn) {
     return (
-      <Screen>
+      <Screen back={false}>
         <Container style={{ alignItems: 'center', gap: 18, paddingTop: 40 }}>
           <IconTile name="user" large />
           <Heading size={20}>{t('Sign in first')}</Heading>
@@ -234,7 +234,7 @@ function EditProfileForm({ account }) {
     .toUpperCase();
 
   return (
-    <Screen glow="both">
+    <Screen back={false} glow="both">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Container>
           <SectionHeader

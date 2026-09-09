@@ -38,7 +38,7 @@ export default function DishScreen() {
 
   if (!found) {
     return (
-      <Screen>
+      <Screen back={false}>
         <Container style={{ alignItems: 'center', gap: 16, paddingTop: 40 }}>
           <Icon name="alertCircle" size={32} color={colors.primary} />
           <Heading size={20}>{t('Dish not found')}</Heading>
@@ -62,7 +62,7 @@ export default function DishScreen() {
   const alsoHere = menu.filter((d) => String(d.id) !== String(dish.id)).slice(0, 3);
 
   return (
-    <Screen footer={<CartBar />}>
+    <Screen back={false} footer={<CartBar />}>
       <Container>
         <Pressable
           accessibilityRole="link"

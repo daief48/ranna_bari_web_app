@@ -86,7 +86,7 @@ export default function WalletScreen() {
   };
 
   return (
-    <Screen>
+    <Screen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

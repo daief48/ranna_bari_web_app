@@ -41,7 +41,7 @@ export default function StoreSettings() {
      fields are never initialised from a document that has not loaded. */
   if (!store) {
     return (
-      <CookScreen>
+      <CookScreen back={false}>
         <Container style={{ paddingTop: 30 }}>
           <Heading size={20}>…</Heading>
         </Container>
@@ -120,7 +120,7 @@ function Form({ store, kitchenId }) {
   };
 
   return (
-    <CookScreen>
+    <CookScreen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

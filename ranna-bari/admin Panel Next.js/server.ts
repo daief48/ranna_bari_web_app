@@ -52,6 +52,27 @@ import { WebSocket, WebSocketServer } from 'ws';
    Next bundle. This file needs the token verifier and nothing else. */
 import { readSession, sessionCookieFrom } from './lib/auth-shared';
 
+/**
+ * Load `.env` before anything reads it.
+ *
+ * Next loads the file for the code it bundles, but this process is not that
+ * code — it starts before Next does. So `BACKEND_URL`, `BACKEND_SERVICE_TOKEN`
+ * and `ADMIN_AUTH_SECRET` were all undefined here while being perfectly well
+ * set for the app, and each one fails quietly rather than loudly: the relay
+ * fell back to the deployed Netlify backend instead of the local one, and the
+ * socket verified sessions with the hardcoded default secret.
+ *
+ * `loadEnvFile` throws when there is no file, which is the normal case in
+ * production — there the platform supplies the variables, so the catch is the
+ * expected path and not a swallowed error. Real environment variables still
+ * win over the file.
+ */
+try {
+  process.loadEnvFile();
+} catch {
+  /* No .env. The environment is expected to be set already. */
+}
+
 const port = parseInt(process.env.PORT || '3100', 10);
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });

@@ -11,7 +11,7 @@ import { requirePage } from '@/lib/guard';
 export const metadata = { title: 'Configuration · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
 
-type SettingMeta = { label: string; help: string; kind: 'money' | 'rate' | 'days' };
+type SettingMeta = { label: string; help: string; kind: 'money' | 'rate' | 'days' | 'count' };
 
 type Config = {
   settings: PlatformSettings;
@@ -99,6 +99,7 @@ export default async function SettingsPage() {
     'stockAlarmDays',
     'requestExpiryDays',
   ];
+  const limitKeys: (keyof PlatformSettings)[] = ['maxQtyPerItem'];
 
   return (
     <>
@@ -145,6 +146,28 @@ export default async function SettingsPage() {
           </div>
           <div className="space-y-3">
             {rateKeys.map((key) => (
+              <SettingField
+                key={key}
+                name={key}
+                value={settings[key]}
+                meta={config.meta[key]}
+                disabled={!canWrite}
+              />
+            ))}
+          </div>
+        </Card>
+
+        <Card
+          title="Ordering limits"
+          subtitle="What one basket is allowed to ask for"
+        >
+          <div className="mb-3 rounded-[10px] border border-saffron-100 bg-saffron-50 px-3 py-2 text-[12px] leading-relaxed text-ink2">
+            A cook selling four cakes a day can still set a tighter{' '}
+            <code>maxQty</code> on the product itself — the lower of the two
+            wins. This is the ceiling for everything that does not say.
+          </div>
+          <div className="space-y-3">
+            {limitKeys.map((key) => (
               <SettingField
                 key={key}
                 name={key}

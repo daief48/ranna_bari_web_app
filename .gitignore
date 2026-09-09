@@ -1,0 +1,28 @@
+# Build artefacts, not source.
+#
+# Three signed APKs, 161 MB between them. Git stores every version of a
+# binary forever, so a rebuilt APK does not replace the old one — it is added
+# next to it, and the clone gets slower for everybody permanently. Ship builds
+# through releases or EAS, where they can be replaced and deleted.
+apk-backup/
+*.apk
+*.aab
+
+# Dependencies. Each project's own .gitignore covers its node_modules; this
+# catches any that appear elsewhere.
+node_modules/
+
+# Secrets and machine-local configuration.
+#
+# The backend and admin .gitignore files already exclude their own .env — the
+# backend's carries a live Atlas password and must never be committed. This
+# adds the Expo app's, which was not covered: it holds no secret, but it
+# points at http://localhost:4000, and committing one developer's machine as
+# the API address breaks the app for everybody who clones it. .env.example is
+# committed on purpose, so it is spared.
+.env
+!.env.example
+
+# OS and editor noise.
+.DS_Store
+Thumbs.db

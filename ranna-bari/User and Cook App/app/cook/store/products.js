@@ -61,7 +61,7 @@ export default function StoreProducts() {
     store ? shop.categoriesOf(store.id).find((c) => c.id === id)?.name : null;
 
   return (
-    <CookScreen>
+    <CookScreen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

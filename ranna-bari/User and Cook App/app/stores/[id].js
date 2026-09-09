@@ -131,7 +131,7 @@ export default function StoreScreen() {
        the shape of what is coming and the page does not jump when it lands. */
     if (!asked) {
       return (
-        <Screen>
+        <Screen back={false}>
           <Container style={{ paddingTop: 30, gap: 16 }}>
             <Skeleton height={190} round={20} />
             <Skeleton height={22} width="60%" />
@@ -143,7 +143,7 @@ export default function StoreScreen() {
     }
 
     return (
-      <Screen>
+      <Screen back={false}>
         <Container style={{ paddingTop: 30 }}>
           <EmptyState
             icon="alertCircle"
@@ -191,7 +191,7 @@ export default function StoreScreen() {
   };
 
   return (
-    <Screen contentStyle={{ paddingTop: 0 }}>
+    <Screen back={false} contentStyle={{ paddingTop: 0 }}>
       {/* ---- cover ---- */}
       <View>
         <Image

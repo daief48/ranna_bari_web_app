@@ -70,7 +70,7 @@ export default function ChefScreen() {
 
   if (!chef) {
     return (
-      <Screen>
+      <Screen back={false}>
         <Container style={{ alignItems: 'center', gap: 16, paddingTop: 40 }}>
           <Icon name="alertCircle" size={32} color={colors.primary} />
           <Heading size={20}>{t('Kitchen not found')}</Heading>
@@ -106,7 +106,7 @@ export default function ChefScreen() {
   ].filter(Boolean);
 
   return (
-    <Screen footer={<CartBar />} contentStyle={{ paddingTop: 0 }}>
+    <Screen back={false} footer={<CartBar />} contentStyle={{ paddingTop: 0 }}>
       {/* ---- COVER ----
           Full bleed and taller than the old 200px inset image, because it is
           the only thing on the page that says what this kitchen feels like

@@ -48,7 +48,7 @@ export default function ProductEditor() {
      that has not finished loading. */
   if (!store || (!isNew && !existing)) {
     return (
-      <CookScreen>
+      <CookScreen back={false}>
         <Container style={{ paddingTop: 30 }}>
           <EmptyState
             icon="alertCircle"
@@ -137,7 +137,7 @@ function Form({ store, product, isNew }) {
   };
 
   return (
-    <CookScreen>
+    <CookScreen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

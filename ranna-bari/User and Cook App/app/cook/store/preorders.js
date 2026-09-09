@@ -76,7 +76,7 @@ export default function StorePreorders() {
   };
 
   return (
-    <CookScreen>
+    <CookScreen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

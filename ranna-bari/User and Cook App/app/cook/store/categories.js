@@ -64,7 +64,7 @@ export default function StoreCategories() {
   };
 
   return (
-    <CookScreen>
+    <CookScreen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

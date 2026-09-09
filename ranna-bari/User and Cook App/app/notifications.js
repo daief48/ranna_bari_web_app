@@ -152,7 +152,7 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <Screen>
+    <Screen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

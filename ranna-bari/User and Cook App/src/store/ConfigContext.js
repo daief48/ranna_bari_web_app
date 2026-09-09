@@ -26,6 +26,7 @@ const DEFAULTS = {
   fees: { deliveryFee: 40, platformFee: 10 },
   payoutRates: { cod: 0.85, meal: 0.85, store: 0.85, request: 0.80 },
   escrow: { autoReleaseDays: 3 },
+  limits: { maxQtyPerItem: 10 },
   areas: [],
   zoneFees: {},
   taxonomy: [],
@@ -92,6 +93,19 @@ export function usePlatformFee() {
 export function usePayoutRate(kind = 'cod') {
   const rates = useConfig().payoutRates;
   return rates?.[kind] ?? 0.85;
+}
+
+/**
+ * The most of one item a basket may carry — live from the admin panel.
+ *
+ * The server enforces this; the app reads it so the stepper can stop at the
+ * limit instead of letting somebody tap into a refusal. A missing or absurd
+ * value falls back to the shipped default rather than to "no limit": a cap
+ * that silently disappears when the server is unreachable is not a cap.
+ */
+export function useMaxQtyPerItem() {
+  const value = Number(useConfig().limits?.maxQtyPerItem);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 10;
 }
 
 /** Feature flag — false when the server hasn't spoken. */

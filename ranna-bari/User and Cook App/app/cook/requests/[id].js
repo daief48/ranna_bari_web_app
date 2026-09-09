@@ -70,7 +70,7 @@ export default function CookRequestScreen() {
 
   if (!request) {
     return (
-      <CookScreen>
+      <CookScreen back={false}>
         <Container style={{ paddingTop: 30 }}>
           <EmptyState
             icon="alertCircle"
@@ -160,7 +160,7 @@ export default function CookRequestScreen() {
   };
 
   return (
-    <CookScreen>
+    <CookScreen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

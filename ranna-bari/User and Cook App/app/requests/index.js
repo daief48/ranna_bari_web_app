@@ -38,7 +38,7 @@ export default function RequestsScreen() {
   );
 
   return (
-    <Screen>
+    <Screen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

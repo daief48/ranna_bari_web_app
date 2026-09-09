@@ -157,7 +157,7 @@ export default function NewRequest() {
   };
 
   return (
-    <Screen>
+    <Screen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

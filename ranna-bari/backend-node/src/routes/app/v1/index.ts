@@ -287,6 +287,10 @@ export async function appRoutes(app: FastifyInstance) {
         request: 1 - settings.commissionRequest,
       },
       escrow: { autoReleaseDays: settings.escrowAutoReleaseDays },
+      /* The cart's own ceiling, so the stepper can stop at the limit rather
+         than letting somebody tap into a refusal. The server still enforces
+         it — this is the number that makes the button grey, not the rule. */
+      limits: { maxQtyPerItem: settings.maxQtyPerItem },
       /* Longest first, which is what `normaliseArea` needs so "Old Dhaka" is
          matched before "Dhaka". */
       areas: zones.map((z) => z.name).sort((a, b) => b.length - a.length),

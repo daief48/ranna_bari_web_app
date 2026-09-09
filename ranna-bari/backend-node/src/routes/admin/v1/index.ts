@@ -1688,6 +1688,15 @@ export async function adminRoutes(app: FastifyInstance) {
     if (body.data.key.startsWith('commission') && body.data.value > 1) {
       return fail(reply as never, 'amount-invalid');
     }
+    /* A whole number, and at least one: zero would refuse every add to every
+       basket, which is a closed shop rather than a limit. Checked here too —
+       the panel is not the only thing that can reach this route. */
+    if (
+      body.data.key === 'maxQtyPerItem' &&
+      (!Number.isInteger(body.data.value) || body.data.value < 1)
+    ) {
+      return fail(reply as never, 'amount-invalid');
+    }
 
     const settings = await getSettings();
     const before = settings[body.data.key as keyof typeof settings];

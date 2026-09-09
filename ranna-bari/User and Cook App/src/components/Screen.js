@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
-import { ScrollView, View } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, usePathname } from 'expo-router';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -12,8 +12,13 @@ import Animated, {
 
 import FilmGrain from './FilmGrain';
 import Navbar, { useNavbarOffset } from './Navbar';
+import BackButton, { fallbackFor } from './BackButton';
+import AppFooter, { isTabRoute } from './AppFooter';
+import { BAR_HEIGHT, NavOffsetContext } from './NavPill';
 import { AmbientGlow, KineticBackground } from './Backdrop';
 import { useTheme } from '../theme/ThemeProvider';
+import { useCommerce } from '../store/CommerceContext';
+import useLiveRefresh from '../lib/useLiveRefresh';
 import useResponsive from '../theme/useResponsive';
 
 /** Clearance the floating app bar needs at the foot of a scroll. */
@@ -36,11 +41,45 @@ export default function Screen({
   scrollRef,
   /** Rendered over the scroll, not inside it -- for a bar that must stay put. */
   footer,
+  /**
+   * What a pull-down and the live timer should re-read. Defaults to the
+   * app-wide refresh, so a screen gets both for free; pass one to narrow it
+   * to this screen's own data, or `null` to opt out entirely.
+   */
+  onRefresh,
+  /** Set false on a screen where a background re-read would fight the user. */
+  live = true,
+  /**
+   * The bottom navigation. Drawn on every screen the tab navigator does not
+   * already own; pass false where the page is a takeover (checkout, auth).
+   */
+  nav = true,
+  /** The back affordance. `false` to suppress, or a route to fall back to. */
+  back,
   ...scrollProps
 }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const topOffset = useNavbarOffset();
+  const pathname = usePathname();
+  const commerce = useCommerce();
+
+  /*
+   * The bar is the tab navigator's job on its own seven routes, and this
+   * component's job everywhere else. Deciding by pathname rather than by a
+   * prop is what keeps 52 call sites from having to know which they are.
+   */
+  const onTab = isTabRoute(pathname);
+  const showNav = nav && !onTab;
+
+  /* A tab root is the bottom of its own stack, so there is nothing to go back
+     to and an arrow there reads as a bug. */
+  const showBack = back !== false && !onTab;
+
+  const { refreshing, onRefresh: pull } = useLiveRefresh(
+    onRefresh === null ? null : (onRefresh ?? commerce.refresh),
+    { enabled: live },
+  );
 
   /*
    * A page should arrive, not blink into place.
@@ -99,6 +138,7 @@ export default function Screen({
   );
 
   return (
+    <NavOffsetContext.Provider value={showNav ? BAR_HEIGHT : 0}>
     <View style={{ flex: 1, backgroundColor: colors.canvas }}>
       {body}
 
@@ -107,27 +147,71 @@ export default function Screen({
           <ScrollView
             ref={scrollRef}
             showsVerticalScrollIndicator={false}
+            /*
+             * Pull-to-refresh, on every scrolling screen at once.
+             *
+             * Placed before the `scrollProps` spread on purpose: a screen that
+             * already builds its own `refreshControl` — the chat list does —
+             * keeps it, because its spread lands after this and wins.
+             */
+            refreshControl={
+              pull ? (
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={pull}
+                  tintColor={colors.primary}
+                  colors={[colors.primary]}
+                  progressBackgroundColor={colors.surfaceSolid}
+                  /* Clear of the floating navbar, or the spinner appears
+                     underneath it and looks like nothing happened. */
+                  progressViewOffset={showNavbar ? topOffset - 24 : insets.top}
+                />
+              ) : undefined
+            }
             contentContainerStyle={[
               {
                 paddingTop: showNavbar ? topOffset : insets.top + 16,
-                paddingBottom: APP_BAR_CLEARANCE + insets.bottom,
+                /* The bar floats over the content, so the clearance is what
+                   keeps the last row reachable. A screen with its own footer
+                   *and* the nav needs room for both. */
+                paddingBottom:
+                  APP_BAR_CLEARANCE + insets.bottom + (showNav && footer ? BAR_HEIGHT : 0),
               },
               contentStyle,
             ]}
             {...scrollProps}
           >
+            {showBack ? (
+              <Container style={{ marginBottom: 12 }}>
+                <BackButton href={fallbackFor(pathname)} />
+              </Container>
+            ) : null}
             {children}
           </ScrollView>
         ) : (
-          <View style={{ flex: 1 }}>{children}</View>
+          <View style={{ flex: 1 }}>
+            {showBack ? (
+              <Container style={{ paddingTop: topOffset, paddingBottom: 12 }}>
+                <BackButton href={fallbackFor(pathname)} />
+              </Container>
+            ) : null}
+            {children}
+          </View>
         )}
       </Animated.View>
 
+      {/* Left exactly where it was. A footer may be a flow-laid button bar or
+          an absolutely positioned strip, and wrapping it would break the
+          first kind; the ones that float clear the navigation by reading
+          `useNavOffset` instead. */}
       {footer}
+
+      {showNav ? <AppFooter /> : null}
 
       <FilmGrain />
       {showNavbar ? <Navbar /> : null}
     </View>
+    </NavOffsetContext.Provider>
   );
 }
 

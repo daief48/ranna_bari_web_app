@@ -67,7 +67,7 @@ export default function RequestScreen() {
 
   if (!request) {
     return (
-      <Screen>
+      <Screen back={false}>
         <Container style={{ paddingTop: 30 }}>
           <EmptyState
             icon="alertCircle"
@@ -156,7 +156,7 @@ export default function RequestScreen() {
   };
 
   return (
-    <Screen>
+    <Screen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

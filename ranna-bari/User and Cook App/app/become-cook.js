@@ -98,7 +98,7 @@ export default function BecomeCookScreen() {
   };
 
   return (
-    <Screen glow="both">
+    <Screen back={false} glow="both">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {/* ---- Hero ---- */}
         <Container style={{ alignItems: 'center', paddingBottom: 40 }}>

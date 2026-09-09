@@ -1,11 +1,8 @@
 import React from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
 import { Redirect, Tabs } from 'expo-router';
-import { BlurView } from 'expo-blur';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
-import Icon from '../../src/components/Icon';
+import NavPill, { BAR_HEIGHT } from '../../src/components/NavPill';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useAuth } from '../../src/store/AuthContext';
 import { useCart } from '../../src/store/CartContext';
@@ -13,7 +10,6 @@ import LiveOrderStrip from '../../src/components/LiveOrderStrip';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/ledger';
 import { useLang } from '../../src/i18n/LanguageContext';
-import { font, radius } from '../../src/theme/tokens';
 
 /**
  * The seven destinations, in the order somebody moves through them.
@@ -60,16 +56,13 @@ const TABS = [
  * every destination; on a phone it *is* the navigation, which is why the
  * navbar up top only keeps the icon cluster.
  */
-/* The floating pill: 8 padding, a ~46 tall row, 8 padding, and the 12 it
-   sits above the home indicator by. */
-const BAR_HEIGHT = 74;
 
 function AppBar({ state, descriptors, navigation }) {
-  const { colors, shadow, isDark } = useTheme();
-  const insets = useSafeAreaInsets();
-  const { count } = useCart();
+  const { colors } = useTheme();
+  const { lineCount } = useCart();
   const { account } = useAuth();
-  const { orders } = useCommerce();
+  const commerce = useCommerce();
+  const { orders } = commerce;
   const { t, n: num } = useLang();
 
   const key = customerKeyOf(account);
@@ -77,149 +70,70 @@ function AppBar({ state, descriptors, navigation }) {
     (o) => o.customerKey === key && o.status === 'delivered',
   ).length;
 
-  return (
-    <View
-      style={[
-        {
-          position: 'absolute',
-          left: 12,
-          right: 12,
-          bottom: 12 + insets.bottom,
-          borderRadius: radius.md,
-          overflow: 'hidden',
-          borderWidth: 1,
-          borderColor: colors.line,
+  /*
+   * Both baskets, because the badge is about the tab and there are two carts
+   * behind it.
+   *
+   * `useCart` is the kitchen basket — dishes, cash on delivery. The shelf
+   * basket is Commerce's, wallet-paid and held on the server, and the cart
+   * screen already shows the two as separate sections. The badge read only
+   * the first, so a customer with three jars of pickle in their basket saw a
+   * bare cart icon and no reason to think anything was in it.
+   */
+  /* How many different things are in the basket, not how many plates. A
+     basket of ten of one pickle is one item to look at, and a badge reading
+     "10" for it is a number the customer never chose. Both baskets count:
+     the kitchen cart lives on the device, the shelf cart on the server. */
+  const shelfCount = commerce.priceCart(key).lines.length;
+  const cartCount = lineCount + shelfCount;
+
+  /* The pill itself lives in `NavPill`, shared with `AppFooter` — the same
+     bar has to appear on screens this navigator does not own, and drawing it
+     twice is how the two would drift apart. This half is only the adapter:
+     it turns tab state into items and a press into `navigation.navigate`. */
+  const items = state.routes
+    .map((route, i) => {
+      const meta = TABS.find((tab) => tab.name === route.name);
+      if (!meta) return null;
+
+      const focused = state.index === i;
+      const { options } = descriptors[route.key];
+      /* The two tabs whose contents change behind your back: what is in the
+         basket, and what has been delivered and is waiting on you to say so —
+         until you do, your money is held and the cook is not paid. */
+      const badge =
+        meta.name === 'cart' ? cartCount : meta.name === 'meals' ? toConfirm : 0;
+      const title = t(options.title ?? meta.label);
+
+      return {
+        key: route.key,
+        icon: meta.icon,
+        label: options.title ?? meta.label,
+        active: focused,
+        badge,
+        accessibilityLabel: !badge
+          ? title
+          : `${title}, ${
+              meta.name === 'meals'
+                ? t('{n} to confirm', { n: num(badge) })
+                : t(badge === 1 ? '{n} item' : '{n} items', { n: num(badge) })
+            }`,
+        onPress: () => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+          if (!focused && !event.defaultPrevented) {
+            Haptics.selectionAsync().catch(() => {});
+            navigation.navigate(route.name);
+          }
         },
-        shadow.lg,
-      ]}
-    >
-      <BlurView
-        intensity={Platform.OS === 'android' ? 40 : 26}
-        tint={isDark ? 'dark' : 'light'}
-      >
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            padding: 8,
-            backgroundColor: isDark
-              ? `rgba(${colors.rgbRaised}, 0.88)`
-              : 'rgba(250, 247, 240, 0.85)',
-          }}
-        >
-          {state.routes.map((route, i) => {
-            const meta = TABS.find((t) => t.name === route.name);
-            if (!meta) return null;
+      };
+    })
+    .filter(Boolean);
 
-            const focused = state.index === i;
-            const { options } = descriptors[route.key];
-            /* The two tabs whose contents change behind your back: what is in
-               the basket, and what has been delivered and is waiting on you to
-               say so -- until you do, your money is held and the cook is not
-               paid, so it belongs on the bar rather than one screen in. */
-            const badge =
-              meta.name === 'cart' ? count : meta.name === 'meals' ? toConfirm : 0;
-
-            const onPress = () => {
-              const event = navigation.emit({
-                type: 'tabPress',
-                target: route.key,
-                canPreventDefault: true,
-              });
-              if (!focused && !event.defaultPrevented) {
-                Haptics.selectionAsync().catch(() => {});
-                navigation.navigate(route.name);
-              }
-            };
-
-            return (
-              <Pressable
-                key={route.key}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: focused }}
-                accessibilityLabel={
-                  !badge
-                    ? t(options.title ?? meta.label)
-                    : `${t(options.title ?? meta.label)}, ${
-                        meta.name === 'meals'
-                          ? t('{n} to confirm', { n: num(badge) })
-                          : t(badge === 1 ? '{n} item' : '{n} items', { n: num(badge) })
-                      }`
-                }
-                onPress={onPress}
-                style={({ pressed }) => ({
-                  flex: 1,
-                  alignItems: 'center',
-                  gap: 4,
-                  paddingVertical: 8,
-                  borderRadius: 16,
-                  backgroundColor: focused ? colors.primary50 : 'transparent',
-                  transform: [{ scale: pressed ? 0.97 : 1 }],
-                })}
-              >
-                {/* Six tabs now, so the icon and label each give up a point
-                    to keep the labels off each other. */}
-                <View>
-                  <Icon
-                    name={meta.icon}
-                    size={20}
-                    color={focused ? colors.primary : colors.textMuted}
-                    strokeWidth={focused ? 2.1 : 1.75}
-                  />
-                  {badge > 0 ? (
-                    <View
-                      style={{
-                        position: 'absolute',
-                        top: -5,
-                        right: -9,
-                        minWidth: 16,
-                        height: 16,
-                        paddingHorizontal: 4,
-                        borderRadius: 8,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: colors.primary,
-                        borderWidth: 1.5,
-                        borderColor: colors.canvas,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontFamily: font.uiBold,
-                          fontSize: 9,
-                          lineHeight: 11,
-                          color: '#FFFFFF',
-                        }}
-                      >
-                        {num(badge)}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-                <Text
-                  /* Capped, not disabled. A large system font is an
-                     accessibility setting and content must honour it — but
-                     seven tab labels in a 50px cell have nowhere to grow, and
-                     unbounded scaling turns the bar into overlapping fragments.
-                     Content text elsewhere still scales freely. */
-                  maxFontSizeMultiplier={1.2}
-                  numberOfLines={1}
-                  style={{
-                    fontFamily: font.uiSemi,
-                    fontSize: 9,
-                    letterSpacing: 0.1,
-                    color: focused ? colors.primary : colors.textMuted,
-                  }}
-                >
-                  {t(meta.label)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </BlurView>
-    </View>
-  );
+  return <NavPill items={items} accent={colors.primary} accentSoft={colors.primary50} />;
 }
 
 export default function TabsLayout() {

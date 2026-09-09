@@ -14,6 +14,8 @@ import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useCart } from '../../src/store/CartContext';
 import { useCommerce } from '../../src/store/CommerceContext';
+import { useAlert } from '../../src/components/Alert';
+import { useMaxQtyPerItem } from '../../src/store/ConfigContext';
 import { customerKeyOf } from '../../src/lib/ledger';
 import { useAuth } from '../../src/store/AuthContext';
 import { useMenus } from '../../src/data';
@@ -51,10 +53,28 @@ export default function CartScreen() {
     updateQty,
     remove,
     add,
+    clear,
   } = useCart();
 
   const [instructions, setInstructions] = useState('');
   const { t, n } = useLang();
+  const alert = useAlert();
+
+  /**
+   * Empty a basket in one go.
+   *
+   * Behind a confirmation because it is the one action here that cannot be
+   * undone by tapping again — every other control on this screen is a step
+   * of one, and this is all of them at once.
+   */
+  const confirmClear = (title, body, onConfirm) =>
+    alert.confirm({
+      title: t(title),
+      body: t(body),
+      confirmLabel: t('Remove all'),
+      danger: true,
+      onConfirm,
+    });
   const pairing = usePairing(items);
 
   /* The shop basket, which is a different basket: wallet-paid, stock-checked
@@ -62,7 +82,11 @@ export default function CartScreen() {
      merging two payment rails into one list would make the totals a lie. */
   const { account, isSignedIn } = useAuth();
   const shop = useCommerce();
-  const shopPriced = shop.priceCart(customerKeyOf(account));
+  const shopKey = customerKeyOf(account);
+  const shopPriced = shop.priceCart(shopKey);
+  /* The platform ceiling, set from the admin panel. The server refuses past
+     it either way; this only decides when the plus goes grey. */
+  const maxQty = useMaxQtyPerItem();
   const shopCount = shopPriced.lines.reduce((sum, l) => sum + l.qty, 0);
 
   /* The cart badge on the navbar shows a single kitchen's order in the web
@@ -154,51 +178,135 @@ export default function CartScreen() {
                   {t('Paid from your wallet, and held until it reaches you.')}
                 </Text>
               </View>
+
+              <ClearButton
+                label={t('Remove all')}
+                onPress={() =>
+                  confirmClear(
+                    'Empty the shelf basket?',
+                    'Everything you have picked from the shops goes. Your kitchen basket stays.',
+                    () => shop.clearCart(),
+                  )
+                }
+              />
             </View>
 
             {/* The lines themselves, so nothing about this basket is hidden
                 behind a tap. */}
             <View style={{ gap: 8, marginTop: 14 }}>
-              {shopPriced.lines.map((line) => (
-                <View
-                  key={line.key ?? line.productId}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
-                >
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      fontFamily: font.ui,
-                      fontSize: type.sm,
-                      color: colors.text,
-                    }}
-                  >
-                    {/* The server's cart line carries the name; the local
-                        product lookup is empty for a shop the customer has
-                        not opened, which is most of them. */}
-                    {line.name ?? line.product?.name ?? t('Item')}
-                    <Text style={{ color: colors.textMuted }}>{`  ×${n(line.qty)}`}</Text>
-                  </Text>
-                  {line.preorder ? (
-                    <Text
-                      style={{ fontFamily: font.uiBold, fontSize: 10, color: colors.saffron }}
-                    >
-                      {t('Pre-order')}
-                    </Text>
-                  ) : null}
-                  <Text
-                    style={{
-                      fontFamily: font.uiSemi,
-                      fontSize: type.sm,
-                      color: colors.text,
-                      fontVariant: ['tabular-nums'],
-                    }}
-                  >
-                    ৳{n(line.lineTotal)}
-                  </Text>
-                </View>
-              ))}
+              {shopPriced.lines.map((line) => {
+                /* The line's own ceiling. A cook's `maxQty` and the stock on
+                   the shelf are both tighter than the platform limit when
+                   they are set, and a pre-order is not held to a stock level
+                   that is zero by definition. */
+                const caps = [maxQty];
+                if (line.product?.maxQty != null) caps.push(line.product.maxQty);
+                if (!line.preorder && line.availability === 'in-stock') {
+                  caps.push(line.product?.stock ?? maxQty);
+                }
+                const lineMax = Math.max(1, Math.min(...caps));
+                const atMax = line.qty >= lineMax;
+
+                return (
+                  <View key={line.key ?? line.productId} style={{ gap: 6 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          fontFamily: font.ui,
+                          fontSize: type.sm,
+                          color: colors.text,
+                        }}
+                      >
+                        {/* The server's cart line carries the name; the local
+                            product lookup is empty for a shop the customer has
+                            not opened, which is most of them. */}
+                        {line.name ?? line.product?.name ?? t('Item')}
+                      </Text>
+                      {line.preorder ? (
+                        <Text
+                          style={{ fontFamily: font.uiBold, fontSize: 10, color: colors.saffron }}
+                        >
+                          {t('Pre-order')}
+                        </Text>
+                      ) : null}
+                      <Text
+                        style={{
+                          fontFamily: font.uiSemi,
+                          fontSize: type.sm,
+                          color: colors.text,
+                          fontVariant: ['tabular-nums'],
+                        }}
+                      >
+                        ৳{n(line.lineTotal)}
+                      </Text>
+                    </View>
+
+                    {/* The quantity, changed here rather than by going back to
+                        the shop and adding the same thing again. Adding twice
+                        never made a second line — the server merges on
+                        product and option — so without this row the only way
+                        to go from two to three was to leave the basket. */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 12,
+                          paddingVertical: 4,
+                          paddingHorizontal: 10,
+                          borderRadius: radius.pill,
+                          backgroundColor: colors.sunken,
+                          borderWidth: 1,
+                          borderColor: colors.line2,
+                        }}
+                      >
+                        <QtyButton
+                          icon={line.qty <= 1 ? 'x' : 'minus'}
+                          label={line.qty <= 1 ? t('Remove') : t('Decrease quantity')}
+                          onPress={() =>
+                            line.qty <= 1
+                              ? shop.removeFromCart(shopKey, line.key)
+                              : shop.setCartQty(shopKey, line.key, line.qty - 1)
+                          }
+                        />
+                        <Text
+                          style={{
+                            minWidth: 18,
+                            textAlign: 'center',
+                            fontFamily: font.uiBold,
+                            fontSize: type.sm,
+                            color: colors.text,
+                            fontVariant: ['tabular-nums'],
+                          }}
+                        >
+                          {n(line.qty)}
+                        </Text>
+                        <QtyButton
+                          icon="plus"
+                          label={t('Increase quantity')}
+                          disabled={atMax}
+                          onPress={() => shop.setCartQty(shopKey, line.key, line.qty + 1)}
+                        />
+                      </View>
+
+                      {atMax ? (
+                        <Text
+                          style={{
+                            fontFamily: font.ui,
+                            fontSize: type.xs,
+                            color: colors.textMuted,
+                          }}
+                        >
+                          {t('Max {n}', { n: n(lineMax) })}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                );
+              })}
             </View>
 
             <View
@@ -317,6 +425,28 @@ export default function CartScreen() {
               </Reveal>
             ) : null}
 
+            {/* One control for the whole kitchen basket, next to the count it
+                empties, rather than a per-row × pressed six times. */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                marginBottom: 12,
+              }}
+            >
+              <ClearButton
+                label={t('Remove all')}
+                onPress={() =>
+                  confirmClear(
+                    'Empty your basket?',
+                    'Every dish here goes. Anything picked from the shops stays.',
+                    () => clear(),
+                  )
+                }
+              />
+            </View>
+
             {/* ---- Items, grouped by kitchen ---- */}
             {groups.map(([chefName, rows], gi) => (
               <View key={chefName} style={{ marginBottom: 8 }}>
@@ -424,6 +554,7 @@ export default function CartScreen() {
                         <QtyButton
                           icon="plus"
                           label={t('Increase quantity')}
+                          disabled={item.qty >= maxQty}
                           onPress={() => updateQty(item.id, 1)}
                         />
                       </View>
@@ -592,7 +723,14 @@ function SummaryRow({ label, value }) {
   );
 }
 
-function QtyButton({ icon, label, onPress }) {
+/**
+ * "Remove all", as a quiet control rather than a red button.
+ *
+ * It sits next to content somebody is still deciding about, so it has to be
+ * findable without being the thing the eye lands on — the confirmation is
+ * where the weight belongs, not here.
+ */
+function ClearButton({ label, onPress }) {
   const { colors } = useTheme();
   return (
     <Pressable
@@ -601,19 +739,55 @@ function QtyButton({ icon, label, onPress }) {
       onPress={onPress}
       hitSlop={8}
       style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingVertical: 5,
+        paddingHorizontal: 9,
+        borderRadius: radius.pill,
+        borderWidth: 1,
+        borderColor: colors.line2,
+        backgroundColor: pressed ? colors.sunken : 'transparent',
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <Icon name="x" size={12} color={colors.textMuted} strokeWidth={2} />
+      <Text
+        style={{ fontFamily: font.uiSemi, fontSize: type.xs, color: colors.textMuted }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function QtyButton({ icon, label, onPress, disabled = false }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
+      hitSlop={8}
+      style={({ pressed }) => ({
         width: 26,
         height: 26,
         borderRadius: 9,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: pressed ? colors.primary : 'transparent',
+        /* Dimmed rather than hidden: a plus that vanishes at the limit reads
+           as a broken row, where a greyed one reads as a limit. */
+        opacity: disabled ? 0.35 : 1,
+        backgroundColor: !disabled && pressed ? colors.primary : 'transparent',
       })}
     >
       {({ pressed }) => (
         <Icon
           name={icon}
           size={16}
-          color={pressed ? colors.onPrimary : colors.text}
+          color={!disabled && pressed ? colors.onPrimary : colors.text}
           strokeWidth={2}
         />
       )}

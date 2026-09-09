@@ -19,7 +19,7 @@ import Button from '../src/components/Button';
 import SectionHeader from '../src/components/SectionHeader';
 import { Body } from '../src/components/Typography';
 import { EmptyState, errorText } from '../src/components/MealBits';
-import { QtyStepper, Totals, Placeholder } from '../src/components/StoreBits';
+import { Totals, Placeholder } from '../src/components/StoreBits';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { font, radius, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
@@ -61,7 +61,7 @@ export default function StoreCheckoutScreen() {
   };
 
   return (
-    <Screen>
+    <Screen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"
@@ -104,13 +104,27 @@ export default function StoreCheckoutScreen() {
           />
         ) : (
           <>
+            {/* Says where the editing lives, because the controls that used
+                to be on these rows are gone and their absence should read as
+                a decision rather than as something missing. */}
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => router.push('/cart')}
+              style={{ marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+            >
+              <Icon name="arrowLeft" size={13} color={colors.textMuted} />
+              <Text
+                style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
+              >
+                {t('To change quantities or remove something, go back to your basket.')}
+              </Text>
+            </Pressable>
+
             <View style={{ gap: 12 }}>
               {priced.lines.map((line) => (
                 <Line
                   key={line.key}
                   line={line}
-                  onQty={(v) => shop.setCartQty(key, line.key, v)}
-                  onRemove={() => shop.removeFromCart(key, line.key)}
                   onOpen={() => router.push(`/product/${line.productId}`)}
                 />
               ))}
@@ -268,7 +282,7 @@ export default function StoreCheckoutScreen() {
  * rather than being removed for you -- someone who put four jars in a basket
  * should be told there are two left, not silently given two.
  */
-function Line({ line, onQty, onRemove, onOpen }) {
+function Line({ line, onOpen }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
 
@@ -333,14 +347,6 @@ function Line({ line, onQty, onRemove, onOpen }) {
           >
             {product?.name ?? t('That product is no longer listed.')}
           </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('Remove')}
-            onPress={onRemove}
-            hitSlop={8}
-          >
-            <Icon name="x" size={15} color={colors.textLight} />
-          </Pressable>
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -395,13 +401,20 @@ function Line({ line, onQty, onRemove, onOpen }) {
         ) : null}
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 2 }}>
-          <QtyStepper
-            small
-            value={line.qty}
-            min={product?.minQty ?? 1}
-            max={product?.maxQty ?? null}
-            onChange={onQty}
-          />
+          {/* Read-only here on purpose. This screen is the last look before
+              money moves, and a basket that can still be edited under a
+              running total invites the edit and the pay to race. Changing
+              quantities belongs one screen back, in the basket itself. */}
+          <Text
+            style={{
+              fontFamily: font.uiSemi,
+              fontSize: type.sm,
+              color: colors.textMuted,
+              fontVariant: ['tabular-nums'],
+            }}
+          >
+            {`×${n(line.qty)}`}
+          </Text>
           <Text
             style={{
               flex: 1,

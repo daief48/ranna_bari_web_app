@@ -67,7 +67,7 @@ export default function DishEditor() {
 
   if (!hydrated || (!kitchen && !isNew)) {
     return (
-      <CookScreen>
+      <CookScreen back={false}>
         <Container style={{ alignItems: 'center', gap: 18, paddingTop: 60 }}>
           <ActivityIndicator color={colors.sage} />
         </Container>
@@ -77,7 +77,7 @@ export default function DishEditor() {
 
   if (!kitchen || (!isNew && !existing)) {
     return (
-      <CookScreen>
+      <CookScreen back={false}>
         <Container style={{ alignItems: 'center', gap: 16, paddingTop: 40 }}>
           <Icon name="alertCircle" size={32} color={colors.sage} />
           <Heading size={20}>{t('Dish not found')}</Heading>
@@ -166,7 +166,7 @@ function DishForm({ isNew, existing }) {
   };
 
   return (
-    <CookScreen>
+    <CookScreen back={false}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Container>
           <Pressable

@@ -30,6 +30,16 @@ export type PlatformSettings = {
   requestExpiryDays: number;
   /** Below this, a payout run carries a cook to the next run. */
   payoutMinimum: number;
+
+  /**
+   * The most of any one item a single order may carry.
+   *
+   * A product can still set a tighter `maxQty` of its own — a cook who only
+   * bakes four of something a day means it. This is the platform's ceiling
+   * over the top of that, so the effective limit is whichever is lower, and
+   * a product that names no limit of its own inherits this one.
+   */
+  maxQtyPerItem: number;
 };
 
 export const DEFAULT_SETTINGS: PlatformSettings = {
@@ -46,11 +56,14 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   stockAlarmDays: 3,
   requestExpiryDays: 1,
   payoutMinimum: 100,
+  /* Ten is a basket, not a wholesale order. Home cooks were the constraint
+     this used to have and never stated. */
+  maxQtyPerItem: 10,
 };
 
 export const SETTING_META: Record<
   keyof PlatformSettings,
-  { label: string; help: string; kind: 'money' | 'rate' | 'days' }
+  { label: string; help: string; kind: 'money' | 'rate' | 'days' | 'count' }
 > = {
   deliveryFee: {
     label: 'Delivery fee',
@@ -101,6 +114,11 @@ export const SETTING_META: Record<
     label: 'Payout minimum',
     help: 'A cook owed less than this is carried to the next run.',
     kind: 'money',
+  },
+  maxQtyPerItem: {
+    label: 'Maximum quantity per item',
+    help: 'The most of one item a single order may carry. A product with a tighter limit of its own still wins.',
+    kind: 'count',
   },
 };
 

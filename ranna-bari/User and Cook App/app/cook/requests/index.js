@@ -70,7 +70,7 @@ export default function CookRequests() {
   const total = rows.open.length + rows.mine.length + rows.done.length;
 
   return (
-    <CookScreen>
+    <CookScreen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

@@ -50,7 +50,7 @@ export default function CookOrderScreen() {
 
   if (!order) {
     return (
-      <CookScreen>
+      <CookScreen back={false}>
         <Container style={{ alignItems: 'center', gap: 16, paddingTop: 40 }}>
           <Icon name="alertCircle" size={32} color={colors.sage} />
           <Heading size={20}>{hydrated ? t('Order not found') : t('Loading…')}</Heading>
@@ -77,7 +77,7 @@ export default function CookOrderScreen() {
   };
 
   return (
-    <CookScreen>
+    <CookScreen back={false}>
       <Container>
         <Pressable
           accessibilityRole="link"

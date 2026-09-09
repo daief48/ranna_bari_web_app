@@ -12,6 +12,7 @@ import { tx } from '../config/db.js';
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
 import { makeCode, taka } from '../lib/format.js';
 import { balanceFor, post, refundEscrow } from './ledger.js';
+import { getSettings } from './settings.js';
 
 /**
  * Cook stores: a shop per kitchen, with its own categories, products and
@@ -701,6 +702,28 @@ const writeCart = (customerKey: string, lines: CartLine[], session: ClientSessio
   Cart.updateOne({ customerKey }, { lines }, { upsert: true, session });
 
 /**
+ * The most of one item a single order may carry.
+ *
+ * Two limits, and the tighter one wins. `product.maxQty` is the cook's — they
+ * bake four a day and know it. `settings.maxQtyPerItem` is the platform's,
+ * set from the admin panel, and it is a ceiling rather than a default: a
+ * product naming no limit of its own inherits it, and a product naming a
+ * looser one is still held to it.
+ *
+ * Read here rather than at each call site so the three places that check a
+ * maximum — adding, changing the quantity, and pricing at checkout — cannot
+ * drift apart. They did not share a rule before; there was nothing to share.
+ */
+async function maxQtyFor(product: { maxQty?: number | null } | null): Promise<number | null> {
+  const platform = (await getSettings()).maxQtyPerItem;
+  const ceiling = Number.isFinite(platform) && platform > 0 ? platform : null;
+  const own = product?.maxQty ?? null;
+  if (own == null) return ceiling;
+  if (ceiling == null) return own;
+  return Math.min(own, ceiling);
+}
+
+/**
  * Put something in the basket.
  *
  * The quantity limits are enforced here as well as at checkout. Checkout is
@@ -741,7 +764,7 @@ export async function addToCart({
     const added = Math.max(1, Math.round(Number(qty)) || 1);
     const wanted = found ? found.qty + added : Math.max(added, min);
 
-    const max = product.maxQty ?? null;
+    const max = await maxQtyFor(product);
     if (max != null && wanted > max) return fail(ERR.ABOVE_MAX, { max });
     // A pre-order is not limited by a stock level that is, by definition, zero.
     if (avail === 'in-stock' && wanted > (product.stock ?? 0)) {
@@ -791,7 +814,7 @@ export async function setCartQty({
     if (!product) return fail(ERR.NO_PRODUCT);
     const store = await storeById(String(product.storeId), session);
 
-    const max = product.maxQty ?? null;
+    const max = await maxQtyFor(product);
     if (max != null && value > max) return fail(ERR.ABOVE_MAX, { max });
     if (availability(product, store) === 'in-stock' && value > (product.stock ?? 0)) {
       return fail(ERR.SHORT_STOCK, { stock: product.stock });
@@ -865,13 +888,24 @@ export async function priceCart(customerKey: string, session?: ClientSession) {
     : [];
   const byStore = new Map(stores.map((store) => [String(store._id), store]));
 
+  /* One read for the whole basket rather than one per line: the platform
+     ceiling is the same for every line, and `maxQtyFor` is only per-product
+     because the cook's own limit is. */
+  const platformMax = (await getSettings()).maxQtyPerItem;
+
   const lines = raw.map((line) => {
     const product = byProduct.get(String(line.productId)) ?? null;
     const store = product ? (byStore.get(String(product.storeId)) ?? null) : null;
     const avail = availability(product, store);
     const unitPrice = unitPriceOf(product, line.option);
     const min = product?.minQty ?? 1;
-    const max = product?.maxQty ?? null;
+    /* The tighter of the cook's limit and the platform's, matching
+       `maxQtyFor` — a basket that was legal when it was filled can be over
+       the line by the time it is paid for, and this is where that is
+       caught. */
+    const ceiling = Number.isFinite(platformMax) && platformMax > 0 ? platformMax : null;
+    const own = product?.maxQty ?? null;
+    const max = own == null ? ceiling : ceiling == null ? own : Math.min(own, ceiling);
 
     let problem: string | null = null;
     if (!product) problem = ERR.NO_PRODUCT;

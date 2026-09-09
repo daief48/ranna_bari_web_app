@@ -50,7 +50,7 @@ export default function Addresses() {
 
   if (!isSignedIn) {
     return (
-      <Screen>
+      <Screen back={false}>
         <Container style={{ paddingTop: 30 }}>
           <EmptyState
             icon="user"
@@ -103,7 +103,7 @@ export default function Addresses() {
   };
 
   return (
-    <Screen>
+    <Screen back={false}>
       <Container>
         <Back onPress={() => (router.canGoBack() ? router.back() : router.replace('/profile'))} />
 
@@ -269,7 +269,7 @@ function Editor({ entry, onCancel, onSave, busy }) {
   };
 
   return (
-    <Screen>
+    <Screen back={false}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Container>
           <Back onPress={onCancel} label={t('Your addresses')} />

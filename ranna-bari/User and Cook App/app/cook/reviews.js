@@ -48,7 +48,7 @@ export default function CookReviewsScreen() {
   const score = kitchen?.reviewCount ? kitchen.rating : 0;
 
   return (
-    <CookScreen>
+    <CookScreen back={false}>
       <Container>
         <Back />
 

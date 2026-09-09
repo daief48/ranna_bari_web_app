@@ -58,6 +58,12 @@ export async function updateSetting(
       if (key.startsWith('commission') && value > 1) {
         return bad('A commission rate is a fraction — 0.15 is fifteen per cent.');
       }
+      /* A limit of zero is not a limit, it is a closed shop, and half an item
+         is not orderable. Refused here rather than left to surface as a cart
+         that silently refuses every add. */
+      if (key === 'maxQtyPerItem' && (!Number.isInteger(value) || value < 1)) {
+        return bad('A maximum quantity is a whole number, and at least one.');
+      }
 
       await patch('/settings', { key, value });
 

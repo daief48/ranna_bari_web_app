@@ -1,7 +1,7 @@
 import React from 'react';
-import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Platform, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
@@ -12,10 +12,15 @@ import LanguageSwitch from './LanguageSwitch';
 import FilmGrain from './FilmGrain';
 import { AmbientGlow, KineticBackground } from './Backdrop';
 import { NAVBAR_HEIGHT, NAVBAR_TOP } from './Navbar';
-import { APP_BAR_CLEARANCE } from './Screen';
+
+import BackButton, { fallbackFor } from './BackButton';
+import CookFooter, { isCookTabRoute } from './CookFooter';
+import { BAR_HEIGHT, NavOffsetContext } from './NavPill';
+import { APP_BAR_CLEARANCE, Container } from './Screen';
 import { useTheme } from '../theme/ThemeProvider';
 import { useKitchen } from '../store/KitchenContext';
 import { useCommerce } from '../store/CommerceContext';
+import useLiveRefresh from '../lib/useLiveRefresh';
 import { useLang } from '../i18n/LanguageContext';
 import { font, radius } from '../theme/tokens';
 
@@ -242,13 +247,42 @@ export default function CookScreen({
   glow = 'both',
   contentStyle,
   scrollRef,
+  /** What a pull-down and the live timer re-read. `null` opts out. */
+  onRefresh,
+  live = true,
+  /** The bottom bar, on every cook screen the panel navigator does not own. */
+  nav = true,
+  /** The back affordance. `false` to suppress. */
+  back,
+  footer,
   ...scrollProps
 }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const topOffset = insets.top + NAVBAR_TOP + NAVBAR_HEIGHT + 24;
+  const pathname = usePathname();
+  const { reload } = useKitchen();
+  const commerce = useCommerce();
+
+  const onPanelTab = isCookTabRoute(pathname);
+  const showNav = nav && !onPanelTab;
+  const showBack = back !== false && !onPanelTab;
+
+  /* A cook's page is their kitchen and their orders, so both are re-read.
+     `Promise.all` rather than two awaits: they are independent, and the
+     refresh should take as long as the slower one, not the sum. */
+  const refreshAll = React.useCallback(
+    () => Promise.all([reload?.(), commerce.refresh?.()]),
+    [reload, commerce],
+  );
+
+  const { refreshing, onRefresh: pull } = useLiveRefresh(
+    onRefresh === null ? null : (onRefresh ?? refreshAll),
+    { enabled: live },
+  );
 
   return (
+    <NavOffsetContext.Provider value={showNav ? BAR_HEIGHT : 0}>
     <View style={{ flex: 1, backgroundColor: colors.canvas }}>
       <KineticBackground />
       {glow === 'top-right' || glow === 'both' ? (
@@ -261,20 +295,44 @@ export default function CookScreen({
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
+        /* Before the spread, so a screen that builds its own control keeps
+           it — the spread lands after this and wins. */
+        refreshControl={
+          pull ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={pull}
+              tintColor={colors.sage}
+              colors={[colors.sage]}
+              progressBackgroundColor={colors.surfaceSolid}
+              progressViewOffset={showNavbar ? topOffset - 24 : insets.top}
+            />
+          ) : undefined
+        }
         contentContainerStyle={[
           {
             paddingTop: showNavbar ? topOffset : insets.top + 16,
-            paddingBottom: APP_BAR_CLEARANCE + insets.bottom,
+            paddingBottom:
+              APP_BAR_CLEARANCE + insets.bottom + (showNav && footer ? BAR_HEIGHT : 0),
           },
           contentStyle,
         ]}
         {...scrollProps}
       >
+        {showBack ? (
+          <Container style={{ marginBottom: 12 }}>
+            <BackButton href={fallbackFor(pathname)} />
+          </Container>
+        ) : null}
         {children}
       </ScrollView>
+
+      {footer}
+      {showNav ? <CookFooter /> : null}
 
       <FilmGrain />
       {showNavbar ? <CookNavbar /> : null}
     </View>
+    </NavOffsetContext.Provider>
   );
 }

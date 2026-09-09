@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import Icon from './Icon';
+import { useNavOffset } from './NavPill';
 import { useTheme } from '../theme/ThemeProvider';
 import { useCart } from '../store/CartContext';
 import { useLang } from '../i18n/LanguageContext';
@@ -28,6 +29,9 @@ export default function CartBar() {
   const router = useRouter();
   const { count, subtotal } = useCart();
   const { t, n } = useLang();
+  /* The bottom navigation reaches these screens now, and it anchors to the
+     same 12px this does. Clearing it keeps both readable. */
+  const navOffset = useNavOffset();
 
   if (!count) return null;
 
@@ -40,7 +44,7 @@ export default function CartBar() {
         position: 'absolute',
         left: 12,
         right: 12,
-        bottom: 12 + insets.bottom,
+        bottom: 12 + insets.bottom + navOffset,
       }}
     >
       <Pressable
