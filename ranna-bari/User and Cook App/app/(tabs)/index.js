@@ -374,6 +374,27 @@ export default function HomeScreen() {
           * this is empty for most people most of the time — which is what
           * makes it worth looking at on the days it is not.
           */}
+        {/*
+          * The way in, for somebody who has not taken it.
+          *
+          * This was one row inside "Waiting on you", drawn exactly like the
+          * others — same height, same chevron, same weight as "add an
+          * address". But the other rows are chores for somebody already
+          * inside; this one is the door, and it was the only thing on the
+          * screen that could not be understood by reading the row next to it.
+          *
+          * So it comes out of the list and says what it is: what signing in
+          * gets you, in the three words each, and a button that looks like a
+          * button. It is the only card on this screen with a filled
+          * background, which is the whole point — a guest should not have to
+          * hunt for the difference between browsing and ordering.
+          */}
+        {!token ? (
+          <Reveal delay={2}>
+            <SignInInvite onPress={() => router.push('/auth')} />
+          </Reveal>
+        ) : null}
+
         <NextUp
           title={t('Waiting on you')}
           steps={[
@@ -388,16 +409,6 @@ export default function HomeScreen() {
                 ),
                 sub: t('Your cook is not paid until you do'),
                 onPress: () => router.push('/orders'),
-              },
-
-              !token && {
-                key: 'signin',
-                urgent: true,
-                icon: 'user',
-                tone: 'primary',
-                title: t('Sign in to order'),
-                sub: t('Browsing is open to everyone; ordering needs an account'),
-                onPress: () => router.push('/auth'),
               },
 
               token && addresses.length === 0 && {
@@ -1215,6 +1226,138 @@ function DotGrid({ color }) {
       style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.05 }}
     >
       {dots}
+    </View>
+  );
+}
+
+/**
+ * The invitation, for somebody who has not signed in.
+ *
+ * It replaces a row that sat inside "Waiting on you" looking exactly like
+ * "add a delivery address" — same height, same chevron, same weight. Those
+ * rows are chores for somebody already inside; this is the door, and drawn as
+ * a chore it read as one more thing to get around to rather than the thing
+ * everything else depends on.
+ *
+ * Three decisions, each doing a job:
+ *
+ *   - **It says what you get, not what you lack.** "Ordering needs an
+ *     account" is a refusal. Three short lines naming what opens up — order,
+ *     track, save — is an offer, and an offer is what makes somebody tap.
+ *   - **A filled button, not a chevron.** A chevron is how every other row on
+ *     this screen ends, so it carries no signal. This is the only filled
+ *     control in the column.
+ *   - **It never says browsing is blocked**, because it is not. Somebody who
+ *     wants to look around first should be able to, and being told to sign in
+ *     to do what they are already doing is how a guest decides the app is
+ *     lying to them.
+ */
+function SignInInvite({ onPress }) {
+  const { colors, shadow } = useTheme();
+  const { t } = useLang();
+
+  const perks = [
+    { icon: 'cart', text: 'Order from any kitchen' },
+    { icon: 'delivery', text: 'Track your food to the door' },
+    { icon: 'pin', text: 'Save your address and favourites' },
+  ];
+
+  return (
+    <View
+      style={[
+        {
+          marginBottom: 24,
+          borderRadius: radius.lg,
+          overflow: 'hidden',
+          borderWidth: 1,
+          borderColor: colors.primary100,
+        },
+        shadow.sm,
+      ]}
+    >
+      {/* A wash rather than a solid fill: the card has to stand out from the
+          cards around it without turning into an advertisement. */}
+      <LinearGradient
+        colors={[colors.primary50, 'transparent']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+      />
+
+      <View style={{ padding: 18, gap: 14 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 15,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: colors.primary,
+            }}
+          >
+            <Icon name="user" size={20} color={colors.onPrimary} strokeWidth={2} />
+          </View>
+
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text
+              style={{
+                fontFamily: font.displayExtra,
+                fontSize: type.body + 4,
+                lineHeight: (type.body + 4) * 1.2,
+                letterSpacing: (type.body + 4) * tracking.tight,
+                color: colors.text,
+              }}
+            >
+              {t('Ready to order?')}
+            </Text>
+            <Text
+              style={{
+                marginTop: 2,
+                fontFamily: font.ui,
+                fontSize: type.sm,
+                color: colors.textMuted,
+              }}
+            >
+              {t('Keep browsing as long as you like — an account is only for ordering.')}
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ gap: 9 }}>
+          {perks.map((perk) => (
+            <View
+              key={perk.icon}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+            >
+              <View
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 8,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: colors.primary50,
+                }}
+              >
+                <Icon name={perk.icon} size={12} color={colors.primary} strokeWidth={2.1} />
+              </View>
+              <Text
+                style={{
+                  flex: 1,
+                  fontFamily: font.uiSemi,
+                  fontSize: type.sm,
+                  color: colors.text,
+                }}
+              >
+                {t(perk.text)}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        <Button label={t('Sign in or join')} onPress={onPress} block />
+      </View>
     </View>
   );
 }
