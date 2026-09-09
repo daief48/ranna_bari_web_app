@@ -57,10 +57,14 @@ export default function BusinessScreen() {
             <ActionRow
               icon="chefHat"
               title={t('Kitchen')}
+              /* Says the account lives here too. Logging out is at the foot
+                 of that screen and nothing named it, so a cook looking for it
+                 had no reason to open a row about whether the kitchen is
+                 open. */
               sub={
                 kitchen?.isOpen
-                  ? t('Open for orders')
-                  : t('Closed — nothing can be ordered')
+                  ? t('Open for orders · account and sign out')
+                  : t('Closed — nothing can be ordered · account and sign out')
               }
               onPress={() => router.push('/cook/kitchen')}
             />

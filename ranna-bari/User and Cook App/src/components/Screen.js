@@ -13,7 +13,7 @@ import Animated, {
 import FilmGrain from './FilmGrain';
 import Navbar, { useNavbarOffset } from './Navbar';
 import BackButton, { fallbackFor } from './BackButton';
-import AppFooter, { isTabRoute } from './AppFooter';
+import AppFooter, { useInTabGroup, shouldDrawAppFooter } from './AppFooter';
 import { STRIP_HEIGHT, useLiveOrder } from './LiveOrderStrip';
 import { BAR_HEIGHT, NavOffsetContext } from './NavPill';
 import { AmbientGlow, KineticBackground } from './Backdrop';
@@ -70,8 +70,11 @@ export default function Screen({
    * component's job everywhere else. Deciding by pathname rather than by a
    * prop is what keeps 52 call sites from having to know which they are.
    */
-  const onTab = isTabRoute(pathname);
-  const showNav = nav && !onTab;
+  const inTabGroup = useInTabGroup();
+  const onTab = inTabGroup;
+  /* Not merely "is this a tab" — a cook screen built on this shell must not
+     be handed the customer's bar either. */
+  const showNav = nav && shouldDrawAppFooter(pathname, inTabGroup);
 
   /*
    * Room for the live-order strip.

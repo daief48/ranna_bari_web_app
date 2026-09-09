@@ -1,5 +1,5 @@
 import React from 'react';
-import { usePathname, useRouter } from 'expo-router';
+import { usePathname, useRouter, useSegments } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import NavPill from './NavPill';
@@ -30,18 +30,18 @@ export const COOK_FOOTER_TABS = [
   { key: 'business', icon: 'banknote', label: 'Business', href: '/cook/business' },
 ];
 
-/** The routes the cook tab navigator already draws a bar for. */
-export const COOK_TAB_ROUTES = [
-  '/cook',
-  '/cook/orders',
-  '/cook/listings',
-  '/cook/business',
-  '/cook/meals',
-];
-
-export function isCookTabRoute(pathname) {
-  const p = String(pathname ?? '').replace(/\/+$/, '') || '/';
-  return COOK_TAB_ROUTES.includes(p);
+/**
+ * Whether the cook panel's own navigator is already drawing a bar here.
+ *
+ * The group registers nine screens and shows four in the bar — Kitchen, Menu,
+ * Shop, Earnings and Meals are reachable but deliberately not tabs. They
+ * still belong to the navigator, so it still draws its bar on them. Listing
+ * the four visible ones and calling that "the tab routes" put a second pill
+ * on top of the navigator's own across the other five, and the one at the
+ * bottom of Kitchen that it covered was Log out.
+ */
+export function useInCookPanel() {
+  return useSegments().includes('(panel)');
 }
 
 export default function CookFooter() {

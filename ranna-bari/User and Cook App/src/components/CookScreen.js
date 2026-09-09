@@ -14,7 +14,7 @@ import { AmbientGlow, KineticBackground } from './Backdrop';
 import { NAVBAR_HEIGHT, NAVBAR_TOP } from './Navbar';
 
 import BackButton, { fallbackFor } from './BackButton';
-import CookFooter, { isCookTabRoute } from './CookFooter';
+import CookFooter, { useInCookPanel } from './CookFooter';
 import { BAR_HEIGHT, NavOffsetContext } from './NavPill';
 import { APP_BAR_CLEARANCE, Container } from './Screen';
 import { useTheme } from '../theme/ThemeProvider';
@@ -264,7 +264,7 @@ export default function CookScreen({
   const { reload } = useKitchen();
   const commerce = useCommerce();
 
-  const onPanelTab = isCookTabRoute(pathname);
+  const onPanelTab = useInCookPanel();
   const showNav = nav && !onPanelTab;
   const showBack = back !== false && !onPanelTab;
 

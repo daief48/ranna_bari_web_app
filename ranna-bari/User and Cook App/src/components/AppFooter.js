@@ -1,5 +1,5 @@
 import React from 'react';
-import { usePathname, useRouter } from 'expo-router';
+import { usePathname, useRouter, useSegments } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import NavPill from './NavPill';
@@ -35,17 +35,34 @@ export const FOOTER_TABS = [
 ];
 
 /**
- * The routes the tab navigator already owns.
+ * Whether the tab navigator is already drawing a bar for this screen.
  *
- * A screen on one of these draws its bar from `Tabs`, so this component must
- * stay out of the way — two pills stacked on the same 12px would be the same
- * bar drawn twice.
+ * Asked of the route group rather than of a list of paths, and that is the
+ * whole point. A list has to be kept in step with the navigator by hand, and
+ * it will not be: the cook panel registers nine screens and only five are in
+ * its bar, so a list written from the bar was short by four — and on those
+ * four this component drew a second pill directly on top of the navigator's
+ * own. Group membership is what the navigator itself goes by, so it cannot
+ * fall out of step.
  */
-export const TAB_ROUTES = ['/', '/browse', '/meals', '/cart', '/profile', '/stores', '/map'];
+export function useInTabGroup() {
+  return useSegments().includes('(tabs)');
+}
 
-export function isTabRoute(pathname) {
-  const p = String(pathname ?? '').replace(/\/+$/, '') || '/';
-  return TAB_ROUTES.includes(p);
+/**
+ * Sections of the app with a bar of their own.
+ *
+ * The cook panel and the mess have their own navigation, and a cook halfway
+ * through their menu should not be handed the customer's Home/Browse/Cart.
+ * Their shells draw the right bar; this one stays out.
+ */
+function inAnotherSection(pathname) {
+  const p = String(pathname ?? '');
+  return p.startsWith('/cook') || p.startsWith('/meal-management');
+}
+
+export function shouldDrawAppFooter(pathname, inTabGroup) {
+  return !inTabGroup && !inAnotherSection(pathname);
 }
 
 export default function AppFooter() {
