@@ -32,6 +32,16 @@ const TABS = [
   { name: 'orders', icon: 'receipt', label: 'Orders' },
   { name: 'listings', icon: 'utensils', label: 'Listings' },
   { name: 'business', icon: 'banknote', label: 'Business' },
+  /*
+   * The cook's own page, and the only route out of the app.
+   *
+   * `kitchen` was reachable but not a tab: Business, then a row about whether
+   * the kitchen was open, then the foot of that screen. Signing out was three
+   * taps down a path that named none of them, which is how a cook came to ask
+   * where the log out button had gone. The customer side has always had this
+   * as a tab; the cook side now matches.
+   */
+  { name: 'kitchen', icon: 'user', label: 'Profile' },
 ];
 
 /**

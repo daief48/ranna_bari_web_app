@@ -211,8 +211,6 @@ export const bn = {
   'Increase quantity': 'সংখ্যা বাড়ান',
   'Decrease quantity': 'সংখ্যা কমান',
   'Max {n}': 'সর্বোচ্চ {n}',
-  'Open for orders · account and sign out': 'অর্ডারের জন্য খোলা · অ্যাকাউন্ট ও লগআউট',
-  'Closed — nothing can be ordered · account and sign out': 'বন্ধ — অর্ডার নেওয়া যাবে না · অ্যাকাউন্ট ও লগআউট',
   'Updates': 'আপডেট',
   'Remove all': 'সব সরান',
   'Empty the shelf basket?': 'দোকানের ঝুড়ি খালি করবেন?',

@@ -22,12 +22,13 @@ import { useLang } from '../i18n/LanguageContext';
  * says which side you are standing on.
  */
 
-/** The four destinations, matching `TABS` in `app/cook/(panel)/_layout.js`. */
+/** The five destinations, matching `TABS` in `app/cook/(panel)/_layout.js`. */
 export const COOK_FOOTER_TABS = [
   { key: 'index', icon: 'activity', label: 'Today', href: '/cook' },
   { key: 'orders', icon: 'receipt', label: 'Orders', href: '/cook/orders' },
   { key: 'listings', icon: 'utensils', label: 'Listings', href: '/cook/listings' },
   { key: 'business', icon: 'banknote', label: 'Business', href: '/cook/business' },
+  { key: 'kitchen', icon: 'user', label: 'Profile', href: '/cook/kitchen' },
 ];
 
 /**
