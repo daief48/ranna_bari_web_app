@@ -15,6 +15,7 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
 import { useSession } from '../../src/store/SessionContext';
+import { isVerifiedCook } from '../../src/lib/access';
 import { useCart } from '../../src/store/CartContext';
 import { useOrders } from '../../src/store/OrdersContext';
 import { useKitchen } from '../../src/store/KitchenContext';
@@ -34,7 +35,18 @@ export default function ProfileScreen() {
   /* Signing out has to drop the server session too, or the next person on
      this handset inherits a token that can still spend the last one's
      wallet. */
-  const { signOutServer, addresses } = useSession();
+  const session = useSession();
+  const { signOutServer, addresses } = session;
+  /*
+   * The door to the kitchen opens only for a cook the server calls a cook.
+   *
+   * `isCook` below is the role on the cached account, which is right for
+   * wording — "I cook" stays true while the network is down — but wrong for
+   * this: a kitchen suspended or removed server-side leaves the cached role
+   * behind, and offering the door to somebody the kitchen's own guard will
+   * turn away is a visible bounce out and back.
+   */
+  const canOpenKitchen = isVerifiedCook(session);
   const { count } = useCart();
   const { orders, activeOrders } = useOrders();
   const { wallet, unreadFor, requestsForCustomer, savedStoresList } = useCommerce();
@@ -98,7 +110,7 @@ export default function ProfileScreen() {
             a flat list identical to a customer's hides that. Their kitchen
             gets its own block at the top, with the numbers that decide
             whether they need to go back to it right now. */}
-        {isCook ? (
+        {canOpenKitchen ? (
           <Reveal delay={2}>
             <View style={{ marginTop: 24 }}>
               <GroupLabel icon="chefHat" text={t('Your kitchen')} />

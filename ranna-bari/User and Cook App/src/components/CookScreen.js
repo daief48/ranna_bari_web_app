@@ -7,7 +7,6 @@ import * as Haptics from 'expo-haptics';
 
 import Brand from './Brand';
 import Icon from './Icon';
-import ModeSwitch from './ModeSwitch';
 import LanguageSwitch from './LanguageSwitch';
 import FilmGrain from './FilmGrain';
 import { AmbientGlow, KineticBackground } from './Backdrop';
@@ -161,8 +160,15 @@ export function CookNavbar() {
               </Text>
             </Pressable>
 
-            {/* The way back to the shop, reachable from every cook screen. */}
-            <ModeSwitch compact />
+            {/* The mode switch used to sit here.
+                A chip in the header that silently swaps which half of the app
+                you are in is a large action in a small control: it was next
+                to the language toggle and the theme toggle, both of which are
+                settings you can undo by tapping again, and it read as one of
+                them. Tapping it moved the whole app.
+                Both directions are still one screen away and named: the
+                customer's Profile has "Your kitchen", and the cook's Profile
+                has "Switch to ordering". */}
             <LanguageSwitch />
 
             <Pressable

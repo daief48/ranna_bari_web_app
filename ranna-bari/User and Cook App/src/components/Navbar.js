@@ -7,7 +7,6 @@ import * as Haptics from 'expo-haptics';
 
 import Brand from './Brand';
 import Icon from './Icon';
-import ModeSwitch from './ModeSwitch';
 import LanguageSwitch from './LanguageSwitch';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAuth } from '../store/AuthContext';
@@ -267,9 +266,15 @@ export default function Navbar() {
               flexShrink: 0,
             }}
           >
-            {/* A destination, not a setting — so it keeps its own colour and
-                its own outline instead of joining the rail. */}
-            <ModeSwitch compact={!roomy} />
+            {/* The mode switch used to sit here.
+                A chip in the header that silently swaps which half of the app
+                you are in is a large action in a small control: it was next
+                to the language toggle and the theme toggle, both of which are
+                settings you can undo by tapping again, and it read as one of
+                them. Tapping it moved the whole app.
+                Both directions are still one screen away and named: the
+                customer's Profile has "Your kitchen", and the cook's Profile
+                has "Switch to ordering". */}
 
             <Rail>
               {[

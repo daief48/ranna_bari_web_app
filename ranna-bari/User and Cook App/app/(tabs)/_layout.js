@@ -5,6 +5,8 @@ import * as Haptics from 'expo-haptics';
 import NavPill, { BAR_HEIGHT } from '../../src/components/NavPill';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useAuth } from '../../src/store/AuthContext';
+import { useSession } from '../../src/store/SessionContext';
+import { accessSettled, isVerifiedCook } from '../../src/lib/access';
 import { useCart } from '../../src/store/CartContext';
 import LiveOrderStrip from '../../src/components/LiveOrderStrip';
 import { useCommerce } from '../../src/store/CommerceContext';
@@ -137,12 +139,24 @@ function AppBar({ state, descriptors, navigation }) {
 }
 
 export default function TabsLayout() {
-  const { isCookMode, hydrated } = useAuth();
+  const auth = useAuth();
+  const session = useSession();
 
-  /* The customer tabs are the app's front door, so a cook arrives here first
-     and is handed straight over. Waiting on `hydrated` is what keeps that
-     from flashing the wrong panel for a frame on a cold start. */
-  if (hydrated && isCookMode) return <Redirect href="/cook" />;
+  /*
+   * The customer tabs are the app's front door, so a cook arrives here first
+   * and is handed straight over.
+   *
+   * Asked of the server for the same reason the kitchen's own door is: the
+   * two guards decide the same question from opposite sides, and if one
+   * trusted the cached role while the other trusted `/auth/me` they could
+   * both answer "not you" and bounce somebody between the two forever.
+   * `viewMode` no longer takes part — the account is what decides, not a
+   * preference the app wrote for itself.
+   */
+  if (!accessSettled(auth, session)) return null;
+  if (isVerifiedCook(session) && auth.viewMode === 'cook') {
+    return <Redirect href="/cook" />;
+  }
 
   return (
     <Tabs

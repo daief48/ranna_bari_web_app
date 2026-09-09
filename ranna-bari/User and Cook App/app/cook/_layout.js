@@ -3,6 +3,8 @@ import { Redirect, Stack } from 'expo-router';
 
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useAuth } from '../../src/store/AuthContext';
+import { useSession } from '../../src/store/SessionContext';
+import { accessSettled, isVerifiedCook } from '../../src/lib/access';
 
 /**
  * The cook panel's own stack, a peer of the customer one.
@@ -13,11 +15,29 @@ import { useAuth } from '../../src/store/AuthContext';
  */
 export default function CookLayout() {
   const { colors } = useTheme();
-  const { isCookMode, hydrated } = useAuth();
+  const auth = useAuth();
+  const session = useSession();
 
-  /* Nobody reaches the kitchen by typing the URL. The customer tabs bounce a
-     cook in here; this bounces everyone else back out. */
-  if (hydrated && !isCookMode) return <Redirect href="/" />;
+  /*
+   * The door to the kitchen, and the only one.
+   *
+   * This used to ask `isCookMode`, which is `role === 'cook'` on the account
+   * cached in AsyncStorage, and'd on with a `viewMode` string the app writes
+   * itself. Neither is a credential. The cached role outlives the thing that
+   * granted it — a kitchen suspended or deleted on the server leaves the
+   * device still believing — and the view mode is a preference that anything
+   * able to write storage can set.
+   *
+   * It asks the server now: a cook is somebody `/auth/me` calls a cook, which
+   * the backend only says when a live kitchen belongs to their account.
+   *
+   * Rendering nothing until both stores have settled is the other half. The
+   * old guard was `hydrated && !isCookMode`, so before hydration it fell
+   * through and mounted the panel — a frame of somebody else's kitchen for
+   * anyone who opened the URL, and a redirect cannot be taken back.
+   */
+  if (!accessSettled(auth, session)) return null;
+  if (!isVerifiedCook(session)) return <Redirect href="/" />;
 
   return (
     <Stack
