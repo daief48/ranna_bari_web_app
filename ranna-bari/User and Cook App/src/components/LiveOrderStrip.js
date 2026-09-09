@@ -108,15 +108,27 @@ function progressOf(order) {
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
-export default function LiveOrderStrip({ bottom = 0 }) {
-  const { colors, shadow, isDark } = useTheme();
-  const { t, n } = useLang();
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
+/**
+ * How much room the strip needs, including the 8px it floats above the bar by.
+ *
+ * Exported because the scroll above it has to reserve the space: the strip is
+ * absolutely positioned, so it takes no layout room and simply covers
+ * whatever the page ends with. The profile page ends with Log out, which is
+ * how this was found — the button was there and unreachable.
+ */
+export const STRIP_HEIGHT = 66;
+
+/**
+ * The order this strip would show, or none.
+ *
+ * Split out from the component because two callers need the same answer for
+ * different reasons: the strip draws it, and `Screen` has to know whether to
+ * leave room for it. Duplicating the selection would let the two disagree,
+ * and the disagreement is invisible until a page ends in something important.
+ */
+export function useLiveOrder() {
   const { account, isSignedIn } = useAuth();
   const { orders } = useCommerce();
-  const reduced = useReducedMotion();
-
   const key = customerKeyOf(account);
 
   /*
@@ -126,7 +138,7 @@ export default function LiveOrderStrip({ bottom = 0 }) {
    * being cooked: the first is a job for them, the second is a job for the
    * kitchen. Otherwise the most recent wins.
    */
-  const { live, extra } = useMemo(() => {
+  return useMemo(() => {
     if (!isSignedIn) return { live: null, extra: 0 };
 
     const mine = (orders ?? []).filter(
@@ -143,6 +155,16 @@ export default function LiveOrderStrip({ bottom = 0 }) {
 
     return { live: sorted[0], extra: sorted.length - 1 };
   }, [orders, key, isSignedIn]);
+}
+
+export default function LiveOrderStrip({ bottom = 0 }) {
+  const { colors, shadow, isDark } = useTheme();
+  const { t, n } = useLang();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
+
+  const { live, extra } = useLiveOrder();
 
   const waiting = live ? awaitingReceipt(live) : false;
   const flow = live ? progressOf(live) : null;

@@ -14,6 +14,7 @@ import FilmGrain from './FilmGrain';
 import Navbar, { useNavbarOffset } from './Navbar';
 import BackButton, { fallbackFor } from './BackButton';
 import AppFooter, { isTabRoute } from './AppFooter';
+import { STRIP_HEIGHT, useLiveOrder } from './LiveOrderStrip';
 import { BAR_HEIGHT, NavOffsetContext } from './NavPill';
 import { AmbientGlow, KineticBackground } from './Backdrop';
 import { useTheme } from '../theme/ThemeProvider';
@@ -71,6 +72,19 @@ export default function Screen({
    */
   const onTab = isTabRoute(pathname);
   const showNav = nav && !onTab;
+
+  /*
+   * Room for the live-order strip.
+   *
+   * It is absolutely positioned above the bar, so it reserves no layout space
+   * and simply covers whatever the page ends with — which on Profile is the
+   * Log out button, sitting under it and unreachable. The strip is drawn by
+   * the tab navigator, so it is only ever over a tab route.
+   */
+  /* `liveOrder`, not `live` — `live` is already this component's
+     auto-refresh switch, and the two mean entirely different things. */
+  const { live: liveOrder } = useLiveOrder();
+  const stripRoom = onTab && liveOrder ? STRIP_HEIGHT : 0;
 
   /* A tab root is the bottom of its own stack, so there is nothing to go back
      to and an arrow there reads as a bug. */
@@ -175,7 +189,10 @@ export default function Screen({
                    keeps the last row reachable. A screen with its own footer
                    *and* the nav needs room for both. */
                 paddingBottom:
-                  APP_BAR_CLEARANCE + insets.bottom + (showNav && footer ? BAR_HEIGHT : 0),
+                  APP_BAR_CLEARANCE +
+                  insets.bottom +
+                  (showNav && footer ? BAR_HEIGHT : 0) +
+                  stripRoom,
               },
               contentStyle,
             ]}
