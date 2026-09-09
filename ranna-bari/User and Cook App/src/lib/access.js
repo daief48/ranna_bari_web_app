@@ -44,6 +44,22 @@ export function isVerifiedCook(session) {
 }
 
 /**
+ * Somebody the server has answered for.
+ *
+ * The bottom bar hangs on this. A guest is browsing, not navigating a place
+ * they belong to, and the bar is the furniture of the place — five
+ * destinations, two of which (Cart, Profile) only mean anything once there is
+ * an account behind them.
+ *
+ * The session rather than `useAuth().isSignedIn`, which is `!!account` on the
+ * cached copy: the same reason the kitchen's door moved off it. A cached
+ * account outlives the credential that made it.
+ */
+export function isSignedIn(session) {
+  return !!session?.isVerified;
+}
+
+/**
  * Whether the app knows enough to decide yet.
  *
  * Both stores have to have finished restoring. Until then the honest answer

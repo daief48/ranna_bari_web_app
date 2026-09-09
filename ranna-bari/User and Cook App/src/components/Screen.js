@@ -14,6 +14,8 @@ import FilmGrain from './FilmGrain';
 import Navbar, { useNavbarOffset } from './Navbar';
 import BackButton, { fallbackFor } from './BackButton';
 import AppFooter, { useInTabGroup, shouldDrawAppFooter } from './AppFooter';
+import { useSession } from '../store/SessionContext';
+import { isSignedIn } from '../lib/access';
 import { STRIP_HEIGHT, useLiveOrder } from './LiveOrderStrip';
 import { BAR_HEIGHT, NavOffsetContext } from './NavPill';
 import { AmbientGlow, KineticBackground } from './Backdrop';
@@ -72,9 +74,21 @@ export default function Screen({
    */
   const inTabGroup = useInTabGroup();
   const onTab = inTabGroup;
+  const session = useSession();
+  const signedIn = isSignedIn(session);
   /* Not merely "is this a tab" — a cook screen built on this shell must not
-     be handed the customer's bar either. */
-  const showNav = nav && shouldDrawAppFooter(pathname, inTabGroup);
+     be handed the customer's bar either, and a guest gets no bar at all. */
+  const showNav = nav && signedIn && shouldDrawAppFooter(pathname, inTabGroup);
+
+  /*
+   * Whether anything is actually floating at the foot of this screen.
+   *
+   * On a tab route the navigator draws the bar, and it too is hidden from a
+   * guest — so the clearance has to follow the same rule or a signed-out page
+   * ends in 110px of nothing.
+   */
+  const barPresent = onTab ? signedIn : showNav;
+  const bottomClearance = barPresent ? APP_BAR_CLEARANCE : 32;
 
   /*
    * Room for the live-order strip.
@@ -192,7 +206,7 @@ export default function Screen({
                    keeps the last row reachable. A screen with its own footer
                    *and* the nav needs room for both. */
                 paddingBottom:
-                  APP_BAR_CLEARANCE +
+                  bottomClearance +
                   insets.bottom +
                   (showNav && footer ? BAR_HEIGHT : 0) +
                   stripRoom,

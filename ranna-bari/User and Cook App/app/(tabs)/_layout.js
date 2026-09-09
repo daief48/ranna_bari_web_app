@@ -6,7 +6,7 @@ import NavPill, { BAR_HEIGHT } from '../../src/components/NavPill';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useAuth } from '../../src/store/AuthContext';
 import { useSession } from '../../src/store/SessionContext';
-import { accessSettled, isVerifiedCook } from '../../src/lib/access';
+import { accessSettled, isSignedIn, isVerifiedCook } from '../../src/lib/access';
 import { useCart } from '../../src/store/CartContext';
 import LiveOrderStrip from '../../src/components/LiveOrderStrip';
 import { useCommerce } from '../../src/store/CommerceContext';
@@ -61,6 +61,7 @@ const TABS = [
 
 function AppBar({ state, descriptors, navigation }) {
   const { colors } = useTheme();
+  const session = useSession();
   const { lineCount } = useCart();
   const { account } = useAuth();
   const commerce = useCommerce();
@@ -134,6 +135,16 @@ function AppBar({ state, descriptors, navigation }) {
       };
     })
     .filter(Boolean);
+
+  /*
+   * Nothing until somebody is actually in.
+   *
+   * Three of the five destinations are about an account — the basket, the
+   * profile, the meals somebody has booked — so for a guest the bar is mostly
+   * doors onto a sign-in prompt. The way in is on the top bar instead, where
+   * it is the one thing being offered rather than the fourth of five.
+   */
+  if (!isSignedIn(session)) return null;
 
   return <NavPill items={items} accent={colors.primary} accentSoft={colors.primary50} />;
 }

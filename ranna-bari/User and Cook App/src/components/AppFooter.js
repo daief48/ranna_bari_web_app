@@ -7,6 +7,8 @@ import { useCart } from '../store/CartContext';
 import { useCommerce } from '../store/CommerceContext';
 import { useAuth } from '../store/AuthContext';
 import { customerKeyOf } from '../lib/ledger';
+import { useSession } from '../store/SessionContext';
+import { isSignedIn } from '../lib/access';
 import { useLang } from '../i18n/LanguageContext';
 
 /**
@@ -66,6 +68,7 @@ export function shouldDrawAppFooter(pathname, inTabGroup) {
 }
 
 export default function AppFooter() {
+  const session = useSession();
   const pathname = usePathname();
   const router = useRouter();
   const { lineCount } = useCart();
@@ -110,6 +113,10 @@ export default function AppFooter() {
       },
     };
   });
+
+  /* The same rule the tab bar follows, so the bar does not appear and
+     disappear depending on which kind of screen a guest is standing on. */
+  if (!isSignedIn(session)) return null;
 
   return <NavPill items={items} />;
 }
