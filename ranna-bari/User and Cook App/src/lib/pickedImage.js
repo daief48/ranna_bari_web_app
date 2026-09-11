@@ -74,6 +74,19 @@ export const approxBytes = (dataUri) =>
  */
 export const GALLERY_BUDGET_BYTES = 3 * 1024 * 1024;
 
+/**
+ * What one documents submission may weigh — both NID faces, the portrait and
+ * the gallery together.
+ *
+ * Same scarcity as the gallery budget: the set is posted in one body through
+ * the same serverless function, and NID scans can be PDFs, which no
+ * manipulator can shrink — a two-megabyte scan arrives as a two-megabyte
+ * string. Four megabytes holds two of those plus a full gallery, and the
+ * screen counts before it sends rather than discovering the platform's
+ * refusal the hard way.
+ */
+export const DOC_BUDGET_BYTES = 4 * 1024 * 1024;
+
 /** Already an address rather than a handle: leave it exactly as it is. */
 const isDurable = (uri) =>
   typeof uri === 'string' && /^(?:https?:\/\/|data:image\/)/i.test(uri);

@@ -85,6 +85,25 @@ export const ERR = {
   /** A real kitchen, but one an operator has not approved yet. */
   KITCHEN_UNAPPROVED: 'kitchen-unapproved',
 
+  /*
+   * The cook flow. Each refusal is its own code because each routes to its
+   * own screen: an unverified email goes back to the code entry, a cooldown
+   * runs the resend countdown, and an existing account goes to sign-in.
+   */
+  PHONE_REQUIRED: 'phone-required',
+  ACCOUNT_EXISTS: 'account-exists',
+  ACCOUNT_MISSING: 'account-missing',
+  EMAIL_INVALID: 'email-invalid',
+  EMAIL_UNVERIFIED: 'email-unverified',
+  ALREADY_VERIFIED: 'already-verified',
+  PASSWORD_WEAK: 'password-weak',
+  INVALID_CREDENTIALS: 'invalid-credentials',
+  OTP_COOLDOWN: 'otp-cooldown',
+  OTP_RATE_LIMITED: 'otp-rate-limited',
+  OTP_SEND_FAILED: 'otp-send-failed',
+  DOC_INVALID: 'attachment-invalid',
+  DOC_MISSING: 'document-missing',
+
   // admin-only, not in the app
   NO_KITCHEN: 'kitchen-missing',
   FORBIDDEN: 'admin-forbidden',
@@ -147,6 +166,20 @@ export const ERR_TEXT: Record<string, string> = {
   [ERR.PROMO_NO_VALUE]: 'That code takes nothing off this basket.',
   [ERR.KITCHEN_UNAPPROVED]:
     'Your kitchen is waiting to be approved. You can finish setting it up, but you cannot list food or take orders until then.',
+  [ERR.PHONE_REQUIRED]: 'Enter a Bangladeshi mobile number, like 01712 345678.',
+  [ERR.ACCOUNT_EXISTS]:
+    'That email or mobile number already has a RannaBari account. Sign in instead.',
+  [ERR.ACCOUNT_MISSING]: 'No account was found for that email.',
+  [ERR.EMAIL_INVALID]: 'That email address does not look right.',
+  [ERR.EMAIL_UNVERIFIED]: 'Verify your email to finish signing in.',
+  [ERR.ALREADY_VERIFIED]: 'That email is already verified. Sign in instead.',
+  [ERR.PASSWORD_WEAK]: 'Use at least 8 characters for your password.',
+  [ERR.INVALID_CREDENTIALS]: 'That email and password do not match an account.',
+  [ERR.OTP_COOLDOWN]: 'Please wait a minute before asking for another code.',
+  [ERR.OTP_RATE_LIMITED]: 'Too many codes requested. Try again in an hour.',
+  [ERR.OTP_SEND_FAILED]: 'We could not send the email right now. Try again in a minute.',
+  [ERR.DOC_INVALID]: 'That file is not something we can accept.',
+  [ERR.DOC_MISSING]: 'Both sides of the National ID and at least one photo of the kitchen are required.',
   [ERR.NO_KITCHEN]: 'That kitchen no longer exists.',
   [ERR.FORBIDDEN]: 'Your role cannot do that.',
   [ERR.NO_DISPUTE]: 'That dispute no longer exists.',

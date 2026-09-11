@@ -50,6 +50,16 @@ const schema = z.object({
      dev branch, and the dev branch is the one that hands the code back. */
   SMS_PROVIDER: z.string().default('none'),
 
+  /* Email, for the cook flow's verification and password-reset codes. All
+     defaulted for the same reason as SMS_PROVIDER: an unset host means
+     `mailIsLive()` is false and the dev branch hands the code back, rather
+     than a boot failure on a machine that never sends mail. */
+  SMTP_HOST: z.string().default(''),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASS: z.string().default(''),
+  MAIL_FROM: z.string().default('RannaBari <no-reply@rannabari.app>'),
+
   ADMIN_ORIGIN: z.string().default('http://localhost:3100'),
 });
 
@@ -85,4 +95,9 @@ export const isProd = () => loadEnv().NODE_ENV === 'production';
 export const smsIsLive = () => {
   const provider = loadEnv().SMS_PROVIDER;
   return !!provider && provider !== 'none';
+};
+/** True once SMTP is configured end to end — until then the dev branch hands codes back. */
+export const mailIsLive = () => {
+  const env = loadEnv();
+  return !!(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
 };

@@ -21,6 +21,7 @@ import {
   Table,
   EmptyRow,
   LinkButton,
+  KycDocument,
 } from '@/components/ui';
 import { KitchenControls } from './controls';
 import { KycDecision } from '../../kyc/decision';
@@ -119,6 +120,8 @@ type KitchenView = {
     kycNote: string | null;
     kycDecidedAt: Date | string | null;
     kycDecidedBy: string | null;
+    /** When the cook handed in the NID faces and kitchen photographs, if they have. */
+    documentsSubmittedAt: Date | string | null;
     createdAt: Date | string;
     updatedAt: Date | string;
     account: { name: string; phone: string | null; email: string | null; nid: string | null } | null;
@@ -205,6 +208,24 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
   if (!data) notFound();
 
   const { kitchen, orders, gmv, cancelled, owed, released } = data;
+
+  /* What the cook handed in — metadata here, the bytes one document at a time
+     through the panel's own proxy route, because a two-megabyte data URI does
+     not belong in this page's server-rendered HTML. A kitchen answered by the
+     Prisma fallback has nothing on the backend, and that failure reads as
+     "none" rather than breaking the page. */
+  const documents = await get<{
+    documents: { id: string; kind: string; seq: number; mime: string; size: number; at: string }[];
+  }>(`/kitchens/${id}/documents`)
+    .then((r) => r.documents)
+    .catch(() => []);
+
+  const documentLabel = (kind: string, seq: number) =>
+    ({
+      'nid-front': 'NID — front',
+      'nid-back': 'NID — back',
+      'profile-pic': 'Profile photo',
+    })[kind] ?? `Kitchen photo ${seq + 1}`;
 
   /* Prisma keeps tags as a JSON string; Mongo hands back a real array. Passing
      an array to `parseJson` would stringify it into `JSON.parse`, fail, and
@@ -408,6 +429,35 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
               It used to sit inside it, which meant a kitchen whose owner
               failed to load could not be approved at all — the decision is
               about the kitchen, and it must not depend on a join. */}
+          {/* The papers themselves. The text NID above is what was typed; this
+              is what the decision actually rests on, and it did not exist
+              before the cook flow grew a document step. */}
+          <div className="mt-3 border-t border-line2 pt-3">
+            <div className="label mb-2">
+              Submitted papers
+              {kitchen.documentsSubmittedAt
+                ? ` · ${timeAgo(kitchen.documentsSubmittedAt as Date | string)}`
+                : ''}
+            </div>
+            {documents.length === 0 ? (
+              <p className="text-[12px] leading-relaxed text-ink3">
+                No documents have been submitted yet — approve on the strength of the
+                photographs above, or reject with a note asking for them.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {documents.map((doc) => (
+                  <KycDocument
+                    key={doc.id}
+                    label={documentLabel(doc.kind, doc.seq)}
+                    mime={doc.mime}
+                    docUrl={`/api/admin/v1/kitchens/${kitchen.id}/documents/${doc.id}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
           {canDecideKyc ? (
             <div className="mt-3 border-t border-line2 pt-3">
               <KycDecision

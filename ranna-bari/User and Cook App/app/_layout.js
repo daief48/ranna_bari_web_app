@@ -120,6 +120,12 @@ function Root() {
         <Stack.Screen name="order/[id]" options={{ animation: 'fade' }} />
         <Stack.Screen name="auth" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="become-cook" />
+        {/* ---- the cook flow's own steps ----
+            The emailed code and the document step that follows it. They sit
+            beside `auth` because they are part of the same door, not screens
+            inside the signed-in app. */}
+        <Stack.Screen name="cook-verify" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="cook-documents" />
         <Stack.Screen name="edit-profile" />
         {/* ---- monthly meals ----
             A kitchen's calendar, the months bought off it, and one meal's

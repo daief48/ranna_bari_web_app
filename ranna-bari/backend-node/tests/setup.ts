@@ -30,6 +30,13 @@ export async function startTestDb(): Promise<string> {
   process.env.APP_AUTH_SECRET ??= 'test-app-secret-at-least-32-characters-yyyy';
   process.env.BACKEND_SERVICE_TOKEN ??= 'test-service-token-at-least-32-characters';
   process.env.SMS_PROVIDER = 'none';
+  /* A developer's .env may carry live SMTP credentials; a suite must never
+     mail anybody. Cleared so `mailIsLive()` is false and the email-code path
+     hands codes back in the response — the offline branch the phone path has
+     always used. */
+  delete process.env.SMTP_HOST;
+  delete process.env.SMTP_USER;
+  delete process.env.SMTP_PASS;
   process.env.NODE_ENV = 'test';
   resetEnv();
 

@@ -9,19 +9,16 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
-
-import { fitGallery, toStorableImages } from '../src/lib/pickedImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import Icon from '../src/components/Icon';
 import Button from '../src/components/Button';
 import FloatLabelInput, { FormNote } from '../src/components/FloatLabelInput';
 import LocationPicker from '../src/components/LocationPicker';
+import KitchenPhotoField from '../src/components/KitchenPhotoField';
 import { IconTile } from '../src/components/Surfaces';
 import { useTheme } from '../src/theme/ThemeProvider';
 import useResponsive from '../src/theme/useResponsive';
@@ -31,7 +28,11 @@ import { useSession } from '../src/store/SessionContext';
 import { useAlert } from '../src/components/Alert';
 import { useLang } from '../src/i18n/LanguageContext';
 import { normaliseArea } from '../src/lib/areas';
-import { useKitchen, useSpecialties } from '../src/store/KitchenContext';
+import { useSpecialties } from '../src/store/KitchenContext';
+import {
+  cookRegister,
+  cookSignIn,
+} from '../src/lib/cookAuth';
 
 /* The aside imagery and copy follow the chosen path, so the screen keeps
    talking about the thing the visitor picked. */
@@ -78,9 +79,8 @@ export default function AuthScreen() {
   const r = useResponsive();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { signIn, updateAccount } = useAuth();
-  const { requestCode, verifyCode, saveProfile, saveAddress } = useSession();
-  const { ensureKitchen } = useKitchen();
+  const { signIn } = useAuth();
+  const { requestCode, verifyCode, adoptSession, saveProfile, saveAddress } = useSession();
   const alert = useAlert();
 
   /* become-cook.js is step 1 of the same funnel: it collects a name, a phone,
@@ -109,12 +109,15 @@ export default function AuthScreen() {
   const [tab, setTab] = useState(fromCookFunnel ? 'signup' : 'signin');
 
   /* ---- sign in ---- */
-  /* Sign in is a phone and a code now, not an id and a password: the server
-     has no passwords, and an account here is a handset that proved it holds
-     its own number. */
+  /* A customer signs in with a phone and a code. A cook — who now holds a
+     password and a verified address — signs in with those, and the toggle
+     below picks between the two doors. */
+  const [siMode, setSiMode] = useState('phone'); // 'phone' | 'email'
   const [siPhone, setSiPhone] = useState('');
   const [siCode, setSiCode] = useState('');
   const [siStage, setSiStage] = useState('phone'); // 'phone' | 'code'
+  const [siEmail, setSiEmail] = useState('');
+  const [siPw, setSiPw] = useState('');
   const [siBusy, setSiBusy] = useState(false);
 
   /* ---- sign up ---- */
@@ -133,15 +136,15 @@ export default function AuthScreen() {
   const [phone, setPhone] = useState(param('phone', ''));
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
+  /* Typed twice, like every form that has ever made somebody lock themselves
+     out. The comparison runs on continue, with its own sentence — a mismatch
+     is not a weak password and must not say that it is. */
+  const [pw2, setPw2] = useState('');
   const [kitchen, setKitchen] = useState('');
   /* Several, in the order chosen. The first is the primary — it is what the
      kitchen card shows and what Kitchen.specialty stores. */
   const [specialties, setSpecialties] = useState([]);
   const [nid, setNid] = useState(param('nid', ''));
-  /* The room the food is cooked in — as many views of it as the cook wants.
-     Optional here, and the one thing on this form an operator can actually
-     look at when deciding. */
-  const [kitchenPhotos, setKitchenPhotos] = useState([]);
   const [terms, setTerms] = useState(false);
   /* Marks the one field on this step that cannot be "highlighted" by being
      empty, because it is a box rather than a box of text. */
@@ -191,24 +194,12 @@ export default function AuthScreen() {
               [kitchen, 'kitchen name'],
               [specialties.join(''), 'specialty'],
               [nid, 'National ID'],
-              /* A kitchen with no picture cannot be approved: it is the only
-                 evidence on this form about where the food is cooked. Joined
-                 so the empty list reads as a missing field to the check
-                 below, which tests strings. */
-              [kitchenPhotos.join(''), 'kitchen photo'],
             ]
           : []),
       ];
 
       if (required.some(([v]) => !String(v).trim())) {
-        /* The photo is not a text input and nothing about it highlights, so
-           "fill in the highlighted fields" would send a cook hunting through
-           the form for a box that is already filled. */
-        setDetailsNote(
-          role === 'cook' && !kitchenPhotos.length
-            ? t('Add at least one photo of your kitchen to continue.')
-            : t('Fill in the highlighted fields to continue.'),
-        );
+        setDetailsNote(t('Fill in the highlighted fields to continue.'));
         return;
       }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
@@ -217,6 +208,10 @@ export default function AuthScreen() {
       }
       if (pw.length < 8) {
         setDetailsNote(t('Use at least 8 characters for your password.'));
+        return;
+      }
+      if (pw2 !== pw) {
+        setDetailsNote(t('The two passwords do not match.'));
         return;
       }
       /*
@@ -260,6 +255,67 @@ export default function AuthScreen() {
     }
     setLocNote('');
 
+    /*
+     * The cook's door.
+     *
+     * Everything they typed goes up as it is — password and NID included,
+     * which this form used to collect and silently drop — and the account is
+     * created waiting on one emailed code. The code, the documents and the
+     * queue are the screens that follow; this screen's job ends at handing
+     * over. No `signIn` here: there is no token until the code is spent, and
+     * inventing a local one would let `KitchenSync` create a kitchen the
+     * server has not agreed to.
+     */
+    if (role === 'cook') {
+      setSuBusy(true);
+      try {
+        const out = await cookRegister({
+          name: name.trim(),
+          phone: phone.trim(),
+          email: email.trim(),
+          password: pw,
+          kitchenName: kitchen.trim(),
+          specialties,
+          nid: nid.trim(),
+          area: normaliseArea(place.address),
+          lat: place.lat,
+          lng: place.lng,
+          deliveryRadiusKm: radiusKm,
+          addressDetail: detail.trim(),
+          device: { name: 'RannaBari', platform: Platform.OS },
+        });
+
+        if (!out.ok) {
+          if (out.error === 'account-exists') {
+            const said = t('That email or mobile number already has an account. Sign in instead.');
+            setLocNote(said);
+            alert.error(said);
+            return;
+          }
+          alert.error(out.message ?? t('We could not create the account right now.'));
+          return;
+        }
+
+        /* A refused send still opens the code screen — the countdown arrives
+           as a param, already running, and the resend button is there. */
+        router.push({
+          pathname: '/cook-verify',
+          params: {
+            email: email.trim(),
+            flow: 'register',
+            cooldown: String(
+              out.ok ? (out.result?.cooldownSeconds ?? 60) : (out.retryAfterSeconds ?? 60),
+            ),
+          },
+        });
+      } catch (error) {
+        alert.error(error?.message ?? t('We could not create the account right now.'));
+      } finally {
+        setSuBusy(false);
+      }
+      return;
+    }
+
     if (suStage === 'form') {
       setSuBusy(true);
       try {
@@ -282,30 +338,20 @@ export default function AuthScreen() {
     try {
       const identity = await verifyCode(phone.trim(), suCode.trim(), name.trim());
 
-      /* Everything the three steps collected, in one shape: it is what this
-         device stores, what the server is told, and what a cook's kitchen is
-         built from. */
+      /* Everything the steps collected, in one shape: it is what this device
+         stores and what the server is told. A cook never reaches this path
+         any more — their account was made by `/auth/cook/register` before the
+         code was even sent — so the kitchen fields are gone from it. */
       const profile = {
         role,
         name: name.trim(),
         phone: identity.phone ?? phone.trim(),
         email: email.trim(),
-        kitchen: kitchen.trim(),
-        /* The primary, for everything that reads a single specialty, and the
-           whole set beside it. */
-        specialty: specialties[0] ?? '',
-        specialties,
-        /* The first picture is the banner and the whole set is the gallery.
-           Undefined rather than empty so registerKitchen falls back to what is
-           stored instead of writing a blank over an existing picture. */
-        coverImage: kitchenPhotos[0] || undefined,
-        photos: kitchenPhotos.length ? kitchenPhotos : undefined,
         area: place.address,
         lat: place.lat,
         lng: place.lng,
         addressDetail: detail.trim(),
         addressLabel,
-        deliveryRadiusKm: role === 'cook' ? radiusKm : null,
         accountId: identity.accountId,
         kitchenId: identity.kitchenId,
       };
@@ -374,67 +420,6 @@ export default function AuthScreen() {
         );
       }
 
-      /*
-       * A cook's kitchen, created here rather than by a later effect.
-       *
-       * `KitchenSync` in the root layout does this too, but only while the
-       * *local* account says `role: 'cook'` — a flag that lives on the phone.
-       * Close the app before that effect runs and the kitchen is never made;
-       * the server then reports the account as a customer, and on the next
-       * install the local flag is restored from the server as `user`, so the
-       * effect never fires again and the kitchen is lost for good. Measured
-       * on a real signup: `role: "user"`, `kitchen: null`.
-       *
-       * `ensureKitchen` asks the server before it writes, so running here as
-       * well as there is safe — the second caller finds the kitchen and stops.
-       */
-      if (role === 'cook') {
-        const made = await ensureKitchen(profile).catch(() => null);
-
-        /*
-         * Say again, now that it is true on the server.
-         *
-         * `signIn` above set `role: 'cook'` from what this form collected —
-         * but the account is only a cook's account once a kitchen exists, and
-         * `registerKitchen` is what does that, here, several round trips
-         * later. In between, `SessionContext` fetches `/account` (it fires on
-         * every token change) and merges the answer over this one. Measured
-         * against the running server: that answer is `role: "user"` until the
-         * line above runs, and `role: "cook"` immediately after.
-         *
-         * So the profile the app held said cook, the server's said user, and
-         * the merge won. `isCookMode` went false, and "Go to my kitchen"
-         * landed on `/cook` where the gate bounced it straight back to the
-         * customer home — which looked like a broken button, and came right
-         * on a manual refresh because by then `/account` had caught up.
-         *
-         * Asserting it from the kitchen rather than re-fetching: the kitchen
-         * coming back *is* the server agreeing, so there is nothing left to
-         * ask and no second round trip to lose a race with.
-         */
-        if (made) await updateAccount({ role: 'cook', kitchenId: made.id });
-
-        /*
-         * And check that the gallery actually landed.
-         *
-         * `ensureKitchen` retries without the photographs when the body is
-         * refused, which is the right call — a kitchen with no pictures still
-         * trades — but it did it behind a `console.warn`, so the cook was
-         * told nothing. They picked five, the server kept whatever a smaller
-         * retry managed, and every screen afterwards agreed with the server.
-         * Asking what was stored is the only honest way to know.
-         */
-        const stored = (made?.photos ?? []).length;
-        if (kitchenPhotos.length && stored < kitchenPhotos.length) {
-          alert.error(
-            t('{stored} of your {picked} kitchen photos were saved. Contact support to add the rest.', {
-              stored: n(stored),
-              picked: n(kitchenPhotos.length),
-            }),
-          );
-        }
-      }
-
       setStep(4);
     } catch (error) {
       alert.error(error?.message ?? t('That code did not work.'));
@@ -476,6 +461,59 @@ export default function AuthScreen() {
   };
 
   const doSignIn = async () => {
+    /*
+     * The cook's door.
+     *
+     * Email and password against the account the cook flow created. An
+     * unverified address is refused — and the way out it is handed is the
+     * code screen itself, where the resend button lives, rather than an
+     * error with nothing under it.
+     */
+    if (siMode === 'email') {
+      if (!siEmail.trim() || !siPw) {
+        return alert.error(t('Enter your email and password.'));
+      }
+      setSiBusy(true);
+      try {
+        const out = await cookSignIn({
+          email: siEmail.trim(),
+          password: siPw,
+          device: { name: 'RannaBari', platform: Platform.OS },
+        });
+
+        if (!out.ok) {
+          if (out.error === 'email-unverified') {
+            router.push({
+              pathname: '/cook-verify',
+              params: { email: siEmail.trim(), flow: 'register' },
+            });
+            return;
+          }
+          alert.error(out.message ?? t('That email and password do not match an account.'));
+          return;
+        }
+
+        /* The same two writes the phone path makes: the server session, then
+           the local profile the rest of the app reads. */
+        await adoptSession(out.result.token, out.result.account);
+        const acct = await signIn({
+          role: out.result.account.kitchenId ? 'cook' : 'user',
+          accountId: out.result.account.accountId,
+          kitchenId: out.result.account.kitchenId,
+          kitchen: out.result.account.kitchenName ?? '',
+          name: out.result.account.name ?? '',
+          phone: out.result.account.phone,
+        });
+        alert.success(t('Signed in.'));
+        router.replace(nextAfterAuth ?? (acct.role === 'cook' ? '/cook' : '/profile'));
+      } catch (error) {
+        alert.error(error?.message ?? t('That did not work.'));
+      } finally {
+        setSiBusy(false);
+      }
+      return;
+    }
+
     if (siStage === 'phone') return askCode();
 
     if (!siCode.trim()) {
@@ -709,17 +747,26 @@ export default function AuthScreen() {
 
             {tab === 'signin' ? (
               <SignInView
+                mode={siMode}
+                setMode={setSiMode}
                 phone={siPhone}
                 setPhone={setSiPhone}
                 code={siCode}
                 setCode={setSiCode}
                 stage={siStage}
+                email={siEmail}
+                setEmail={setSiEmail}
+                pw={siPw}
+                setPw={setSiPw}
                 busy={siBusy}
                 onSubmit={doSignIn}
                 onBack={() => {
                   setSiStage('phone');
                   setSiCode('');
                 }}
+                onForgot={() =>
+                  router.push({ pathname: '/cook-verify', params: { flow: 'reset' } })
+                }
                 onSwitch={() => setTab('signup')}
               />
             ) : (
@@ -749,14 +796,14 @@ export default function AuthScreen() {
                   setEmail,
                   pw,
                   setPw,
+                  pw2,
+                  setPw2,
                   kitchen,
                   setKitchen,
                   specialties,
                   setSpecialties,
                   nid,
                   setNid,
-                  kitchenPhotos,
-                  setKitchenPhotos,
                   terms,
                   setTerms,
                   termsInvalid,
@@ -849,7 +896,25 @@ function AsideTitle({ title, emphasis }) {
 /* ---------------------------------------------------------
    Sign in
    --------------------------------------------------------- */
-function SignInView({ phone, setPhone, code, setCode, stage, busy, note, onSubmit, onBack, onSwitch }) {
+function SignInView({
+  mode,
+  setMode,
+  phone,
+  setPhone,
+  code,
+  setCode,
+  stage,
+  email,
+  setEmail,
+  pw,
+  setPw,
+  busy,
+  note,
+  onSubmit,
+  onBack,
+  onForgot,
+  onSwitch,
+}) {
   const { colors, shadow } = useTheme();
   const { t } = useLang();
 
@@ -883,95 +948,158 @@ function SignInView({ phone, setPhone, code, setCode, stage, busy, note, onSubmi
       <View style={[cardStyle(colors), shadow.md]}>
         <FormNote text={note} />
 
-        {/* No password field: the server has none. An account here is a
-            handset that proved it holds its own number, so the whole of
-            signing in is that number and the code sent to it. */}
+        {/* Two doors, one screen. A customer proves a handset; a cook — who
+            holds a password and a verified address — signs in with those.
+            The toggle is text rather than a second tab: this is the same
+            person choosing a method, not two kinds of visitor. */}
         <View
           style={{
             flexDirection: 'row',
-            alignItems: 'flex-start',
-            gap: 9,
-            padding: 12,
-            marginBottom: 16,
-            borderRadius: radius.sm,
-            backgroundColor: colors.sage50,
+            justifyContent: 'flex-end',
+            marginBottom: 14,
           }}
         >
-          <Icon name="sparkles" size={16} color={colors.sage} />
-          <Text
-            style={{
-              flex: 1,
-              fontFamily: font.ui,
-              fontSize: 12.5,
-              lineHeight: 19,
-              color: colors.textMuted,
-            }}
-          >
-            {stage === 'phone'
-              ? t('We send a six-digit code to your phone. No password to remember.')
-              : t('We sent a six-digit code to {phone}.', { phone })}
-          </Text>
-        </View>
-
-        <FloatLabelInput
-          label={t('Mobile number')}
-          value={phone}
-          onChangeText={setPhone}
-          placeholder="01712 345678"
-          keyboardType="phone-pad"
-          autoCapitalize="none"
-          autoComplete="tel"
-          editable={stage === 'phone'}
-          style={{ marginBottom: 16 }}
-        />
-
-        {stage === 'code' ? (
-          <FloatLabelInput
-            label={t('Six-digit code')}
-            value={code}
-            onChangeText={setCode}
-            placeholder="000000"
-            keyboardType="number-pad"
-            maxLength={6}
-            autoComplete="one-time-code"
-            style={{ marginBottom: 16 }}
-          />
-        ) : null}
-
-        <View style={{ marginBottom: 24 }} />
-
-        <Button
-          label={
-            busy
-              ? t('Just a moment…')
-              : stage === 'phone'
-                ? t('Send code')
-                : t('Sign in')
-          }
-          icon="arrowRight"
-          block
-          disabled={busy}
-          onPress={onSubmit}
-        />
-
-        {stage === 'code' ? (
           <Pressable
             accessibilityRole="button"
-            onPress={onBack}
-            style={{ marginTop: 14, alignItems: 'center' }}
+            onPress={() =>
+              setMode(mode === 'email' ? 'phone' : 'email')
+            }
+            hitSlop={8}
           >
-            <Text style={{ fontFamily: font.uiSemi, fontSize: 13.5, color: colors.primary }}>
-              {t('Use a different number')}
+            <Text style={{ fontFamily: font.uiSemi, fontSize: 13, color: colors.primary }}>
+              {mode === 'email' ? t('Sign in with phone') : t('Sign in with email')}
             </Text>
           </Pressable>
-        ) : null}
-
-        <Divider label={t('or continue with')} />
-
-        <View style={{ gap: 12 }}>
-          <SocialButton provider="google" label={t('Google')} />
-          <SocialButton provider="phone" label={t('Phone OTP')} />
         </View>
+
+        {mode === 'email' ? (
+          <>
+            <FloatLabelInput
+              label={t('Email')}
+              value={email}
+              onChangeText={setEmail}
+              placeholder={t('you@example.com')}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              style={{ marginBottom: 16 }}
+            />
+            <FloatLabelInput
+              label={t('Password')}
+              value={pw}
+              onChangeText={setPw}
+              placeholder="••••••••"
+              secureTextEntry
+              autoComplete="current-password"
+              style={{ marginBottom: 16 }}
+            />
+
+            <View style={{ marginBottom: 24 }} />
+
+            <Button
+              label={busy ? t('Just a moment…') : t('Sign in')}
+              icon="arrowRight"
+              block
+              disabled={busy}
+              onPress={onSubmit}
+            />
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={onForgot}
+              style={{ marginTop: 14, alignItems: 'center' }}
+            >
+              <Text style={{ fontFamily: font.uiSemi, fontSize: 13.5, color: colors.primary }}>
+                {t('Forgot password?')}
+              </Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            {/* No password field: the phone path has none. An account here is
+                a handset that proved it holds its own number, so the whole of
+                signing in is that number and the code sent to it. */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                gap: 9,
+                padding: 12,
+                marginBottom: 16,
+                borderRadius: radius.sm,
+                backgroundColor: colors.sage50,
+              }}
+            >
+              <Icon name="sparkles" size={16} color={colors.sage} />
+              <Text
+                style={{
+                  flex: 1,
+                  fontFamily: font.ui,
+                  fontSize: 12.5,
+                  lineHeight: 19,
+                  color: colors.textMuted,
+                }}
+              >
+                {stage === 'phone'
+                  ? t('We send a six-digit code to your phone. No password to remember.')
+                  : t('We sent a six-digit code to {phone}.', { phone })}
+              </Text>
+            </View>
+
+            <FloatLabelInput
+              label={t('Mobile number')}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="01712 345678"
+              keyboardType="phone-pad"
+              autoCapitalize="none"
+              autoComplete="tel"
+              editable={stage === 'phone'}
+              style={{ marginBottom: 16 }}
+            />
+
+            {stage === 'code' ? (
+              <FloatLabelInput
+                label={t('Six-digit code')}
+                value={code}
+                onChangeText={setCode}
+                placeholder="000000"
+                keyboardType="number-pad"
+                maxLength={6}
+                autoComplete="one-time-code"
+                style={{ marginBottom: 16 }}
+              />
+            ) : null}
+
+            <View style={{ marginBottom: 24 }} />
+
+            <Button
+              label={
+                busy
+                  ? t('Just a moment…')
+                  : stage === 'phone'
+                    ? t('Send code')
+                    : t('Sign in')
+              }
+              icon="arrowRight"
+              block
+              disabled={busy}
+              onPress={onSubmit}
+            />
+
+            {stage === 'code' ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onBack}
+                style={{ marginTop: 14, alignItems: 'center' }}
+              >
+                <Text style={{ fontFamily: font.uiSemi, fontSize: 13.5, color: colors.primary }}>
+                  {t('Use a different number')}
+                </Text>
+              </Pressable>
+            ) : null}
+          </>
+        )}
       </View>
 
       <View
@@ -1167,6 +1295,18 @@ function SignUpView({
 
             <PasswordStrength level={pwLevel} />
 
+            {/* Typed twice: a typo in a password is a lockout discovered the
+                next time they sign in, on a screen that cannot help. */}
+            <FloatLabelInput
+              label={t('Re-type password')}
+              value={fields.pw2}
+              onChangeText={fields.setPw2}
+              placeholder={t('Same password again')}
+              secureTextEntry
+              autoComplete="new-password"
+              style={{ marginBottom: 16 }}
+            />
+
             {role === 'cook' ? (
               <>
                 <FloatLabelInput
@@ -1195,11 +1335,6 @@ function SignUpView({
                 <FieldHint
                   icon="shieldCheck"
                   text="Encrypted at rest and used once, for the verification badge. It is never shown to customers."
-                />
-
-                <KitchenPhotoField
-                  value={fields.kitchenPhotos}
-                  onChange={fields.setKitchenPhotos}
                 />
               </>
             ) : null}
@@ -1321,10 +1456,11 @@ function SignUpView({
               />
             )}
 
-            {/* The number has to be proved before any of this becomes an
-                account — everything the new user does next is a write the
-                server refuses without a token. */}
-            {suStage === 'code' ? (
+            {/* The number has to be proved before a customer account exists —
+                everything they do next is a write the server refuses without a
+                token. A cook leaves from here instead: their proof is the
+                emailed code on the screen that follows. */}
+            {role === 'user' && suStage === 'code' ? (
               <View style={{ marginTop: 18 }}>
                 <FloatLabelInput
                   label={t('Six-digit code')}
@@ -1353,13 +1489,17 @@ function SignUpView({
               next={{
                 label: suBusy
                   ? 'Just a moment…'
-                  : suStage === 'form'
-                    ? 'Send code'
-                    : 'Create account',
+                  : role === 'cook'
+                    ? 'Create account'
+                    : suStage === 'form'
+                      ? 'Send code'
+                      : 'Create account',
                 onPress: submit,
               }}
               backLabel="Back"
-              onBack={() => (suStage === 'code' ? setSuStage('form') : goStep(2))}
+              onBack={() =>
+                role === 'user' && suStage === 'code' ? setSuStage('form') : goStep(2)
+              }
             />
           </Animated.View>
         ) : null}
@@ -1673,266 +1813,6 @@ function PasswordStrength({ level }) {
  * A select is never empty, so the float label would sit on top of the value;
  * the CSS pins it up permanently. Same here: the label always rides high.
  */
-/**
- * One photograph of the kitchen.
- *
- * Shown as the wide banner it will become on the kitchen's card, and cropped
- * to that shape at pick time rather than letting the card do it later — a cook
- * choosing the picture should see what customers will see.
- *
- * At least one is required — it is the only evidence on this form about where
- * the food is actually cooked, and an operator cannot approve a kitchen
- * without seeing it.
- *
- * Refusing photo access still is not an error state: the field says what it
- * needs and the cook can grant access and come back. A permission dialog is
- * not a reason to throw away everything else they typed.
- */
-/**
- * How many pictures a kitchen is registered with.
- *
- * Five is what the operator needs to approve a room and about as many as a
- * customer scrolls before deciding. It is also a size rule wearing a friendly
- * face: the gallery travels to the server in one request, and a ceiling the
- * cook can see is a better way to hold that line than a request that fails
- * once they are past it.
- */
-const MAX_KITCHEN_PHOTOS = 5;
-
-function KitchenPhotoField({ value, onChange }) {
-  const { colors } = useTheme();
-  const { t, n } = useLang();
-  const [note, setNote] = useState('');
-
-  const photos = Array.isArray(value) ? value : [];
-
-  const pick = async () => {
-    const room = MAX_KITCHEN_PHOTOS - photos.length;
-    if (room <= 0) {
-      setNote(t('A kitchen shows up to {max} photos. Remove one to add another.', {
-        max: n(MAX_KITCHEN_PHOTOS),
-      }));
-      return;
-    }
-
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      setNote(t('RannaBari needs photo access to add a kitchen picture.'));
-      return;
-    }
-    /* Multiple in one go, and no cropping: a gallery is a set of views of a
-       room, and forcing each through a 3:1 crop would make every one of them
-       a banner. The first is used as the banner and the card crops it there,
-       where the shape is actually needed. */
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      /* These two are the fallback, not the mechanism. `toStorableImages`
-         downscales and re-encodes every frame itself, at the size the
-         gallery is actually drawn at — the picker only applies `quality`,
-         which is why relying on it left full-resolution photographs in the
-         kitchen document. They stay so a device whose manipulator refuses a
-         picture still has bytes to offer rather than losing it. */
-      quality: 0.6,
-      base64: true,
-    });
-    if (res.canceled) return;
-
-    setNote(t('Preparing your photos…'));
-
-    /* Converted before they are stored, never after. The picker's `uri` is a
-       blob handle that dies with this tab — see `toStorableImages`. */
-    const { images, failed } = await toStorableImages(res.assets, 'gallery');
-    if (!images.length) {
-      setNote(t('Those photos could not be read. Please try different ones.'));
-      return;
-    }
-
-    /* Appended, and de-duplicated: opening the picker twice and tapping the
-       same photograph should not put it in the list twice. */
-    const fresh = images.filter((uri) => !photos.includes(uri));
-    /* Counted before the slice, so the ones over the ceiling can be spoken
-       about rather than just vanishing off the end. */
-    const overflow = Math.max(0, fresh.length - room);
-
-    /* The whole gallery is posted in one request, so the budget is over the
-       whole gallery — not over this batch. */
-    const { images: next, dropped } = fitGallery([...photos, ...fresh.slice(0, room)]);
-    onChange(next);
-
-    /*
-     * And if anything was lost, say so.
-     *
-     * This is the entire bug the gallery had: photographs that could not be
-     * converted were dropped and the count never mentioned again, so a cook
-     * who picked five and got two had no way to know it had happened, let
-     * alone why. A number that does not match what they chose has to be
-     * spoken out loud.
-     */
-    const lost = failed + dropped;
-    setNote(
-      /* The ceiling first when both apply: it is the deliberate rule, and a
-         cook who picked eight needs to hear about the limit before they hear
-         about a photograph that would not encode. */
-      overflow
-        ? t('A kitchen shows up to {max} photos, so {over} were not added.', {
-            max: n(MAX_KITCHEN_PHOTOS),
-            over: n(overflow),
-          })
-        : lost
-          ? t('{lost} could not be added, so your gallery has {kept}. Try smaller photos.', {
-              lost: n(lost),
-              kept: n(next.length),
-            })
-          : '',
-    );
-  };
-
-  const removeAt = (index) => onChange(photos.filter((_, i) => i !== index));
-
-  return (
-    <View style={{ marginTop: 14 }}>
-      {photos.length === 0 ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('Add photos of your kitchen')}
-          onPress={pick}
-          style={({ pressed }) => ({
-            height: 104,
-            borderRadius: radius.sm,
-            borderWidth: 1,
-            borderStyle: 'dashed',
-            borderColor: colors.primary200,
-            backgroundColor: colors.sunken,
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-            opacity: pressed ? 0.85 : 1,
-          })}
-        >
-          <Icon name="chefHat" size={22} color={colors.primary} />
-          <Text style={{ fontFamily: font.uiSemi, fontSize: type.xs, color: colors.textMuted }}>
-            {t('Add photos of your kitchen')}
-          </Text>
-        </Pressable>
-      ) : (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {photos.map((uri, i) => (
-            <View key={uri} style={{ width: 92, height: 92 }}>
-              <Image
-                source={{ uri }}
-                contentFit="cover"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  borderRadius: radius.xs,
-                  borderWidth: 1,
-                  borderColor: colors.line,
-                }}
-              />
-              {/* The first is the banner, and saying so is the difference
-                  between an ordered list and an arbitrary one. */}
-              {i === 0 ? (
-                <View
-                  style={{
-                    position: 'absolute',
-                    left: 4,
-                    bottom: 4,
-                    paddingHorizontal: 6,
-                    paddingVertical: 2,
-                    borderRadius: radius.pill,
-                    backgroundColor: colors.primary,
-                  }}
-                >
-                  <Text
-                    style={{ fontFamily: font.uiBold, fontSize: 9, color: colors.onPrimary }}
-                  >
-                    {t('COVER')}
-                  </Text>
-                </View>
-              ) : null}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('Remove this photo')}
-                onPress={() => removeAt(i)}
-                hitSlop={8}
-                style={{
-                  position: 'absolute',
-                  top: -6,
-                  right: -6,
-                  width: 22,
-                  height: 22,
-                  borderRadius: 11,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: colors.surfaceSolid,
-                  borderWidth: 1,
-                  borderColor: colors.line,
-                }}
-              >
-                <Icon name="x" size={12} color={colors.textMuted} />
-              </Pressable>
-            </View>
-          ))}
-
-          {/* Gone at the ceiling rather than disabled: a tile that is still
-              there and does nothing reads as a broken button, and the count
-              below already says why it left. */}
-          {photos.length < MAX_KITCHEN_PHOTOS ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('Add more photos')}
-            onPress={pick}
-            style={({ pressed }) => ({
-              width: 92,
-              height: 92,
-              borderRadius: radius.xs,
-              borderWidth: 1,
-              borderStyle: 'dashed',
-              borderColor: colors.primary200,
-              backgroundColor: colors.sunken,
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            <Icon name="plus" size={20} color={colors.primary} />
-          </Pressable>
-          ) : null}
-        </View>
-      )}
-
-      {photos.length ? (
-        <Text
-          style={{
-            marginTop: 8,
-            fontFamily: font.ui,
-            fontSize: type.xs,
-            color: colors.textLight,
-          }}
-        >
-          {t('{n} of {max} · the first one is your cover', {
-            n: n(photos.length),
-            max: n(MAX_KITCHEN_PHOTOS),
-          })}
-        </Text>
-      ) : null}
-
-      {note ? (
-        <Text
-          style={{
-            marginTop: 8,
-            fontFamily: font.ui,
-            fontSize: type.xs,
-            color: colors.textMuted,
-          }}
-        >
-          {note}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
 
 /**
  * What a kitchen cooks best — as many as apply.
@@ -2645,91 +2525,5 @@ function FieldHint({ icon, text }) {
         {text}
       </Text>
     </View>
-  );
-}
-
-/** `.auth-divider` — a centred label with a rule running out of both sides. */
-function Divider({ label }) {
-  const { colors } = useTheme();
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 14,
-        marginVertical: 20,
-      }}
-    >
-      <View style={{ flex: 1, height: 1, backgroundColor: colors.line }} />
-      <Text
-        style={{
-          fontFamily: font.uiSemi,
-          fontSize: 11,
-          letterSpacing: 11 * tracking.label,
-          textTransform: 'uppercase',
-          color: colors.textLight,
-        }}
-      >
-        {label}
-      </Text>
-      <View style={{ flex: 1, height: 1, backgroundColor: colors.line }} />
-    </View>
-  );
-}
-
-function SocialButton({ provider, label }) {
-  const { colors } = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Continue with ${label}`}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 9,
-        paddingVertical: 13,
-        paddingHorizontal: 16,
-        borderRadius: radius.pill,
-        borderWidth: 1,
-        borderColor: pressed ? colors.primary200 : colors.line,
-        backgroundColor: pressed ? colors.surfaceSolid : colors.sunken,
-      })}
-    >
-      {provider === 'google' ? (
-        <GoogleMark />
-      ) : (
-        <Icon name="phone" size={18} color={colors.text} />
-      )}
-      <Text
-        style={{ fontFamily: font.uiSemi, fontSize: 14, color: colors.text }}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-/** Google's four-colour G, copied from the inline SVG in auth.html. */
-function GoogleMark() {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24">
-      <Path
-        fill="#4285F4"
-        d="M23.5 12.27c0-.86-.08-1.5-.24-2.16H12v3.92h6.6c-.13 1.08-.85 2.72-2.45 3.82l-.02.15 3.56 2.76.25.02c2.26-2.09 3.56-5.17 3.56-8.51Z"
-      />
-      <Path
-        fill="#34A853"
-        d="M12 24c3.24 0 5.96-1.07 7.94-2.9l-3.79-2.93c-1 .7-2.36 1.19-4.15 1.19a7.2 7.2 0 0 1-6.81-4.97l-.14.01-3.7 2.86-.05.13A11.99 11.99 0 0 0 12 24Z"
-      />
-      <Path
-        fill="#FBBC05"
-        d="M5.19 14.39a7.4 7.4 0 0 1-.4-2.39c0-.83.15-1.64.39-2.39l-.01-.16-3.75-2.9-.12.06A11.99 11.99 0 0 0 0 12c0 1.94.47 3.77 1.3 5.39l3.89-3Z"
-      />
-      <Path
-        fill="#EB4335"
-        d="M12 4.64c2.27 0 3.8.98 4.67 1.8l3.41-3.33C18 1.17 15.24 0 12 0 7.31 0 3.26 2.69 1.3 6.61l3.88 3.01A7.23 7.23 0 0 1 12 4.64Z"
-      />
-    </Svg>
   );
 }

@@ -22,6 +22,10 @@ import {
 import { getFlags, getSettings, saveSetting, SETTING_META } from '../../../logic/settings.js';
 import { advanceOrder } from '../../../logic/orders.js';
 import { pendingPreorders } from '../../../logic/stores.js';
+import {
+  listKitchenDocuments,
+  readKitchenDocument,
+} from '../../../logic/kitchen-documents.js';
 import { notify } from '../../../logic/wallet.js';
 import { taka } from '../../../lib/format.js';
 import {
@@ -1234,6 +1238,39 @@ export async function adminRoutes(app: FastifyInstance) {
     });
 
     return { ok: true };
+  });
+
+  /* ---------------- the cook's KYC documents ---------------- */
+
+  /**
+   * What the cook handed in — metadata only. The panel's queue page shows the
+   * flag; the bytes are fetched one document at a time by the route below,
+   * when a page actually draws one.
+   */
+  app.get('/kitchens/:id/documents', async (request, reply) => {
+    const actor = await require(request, reply as never, 'kitchen.read');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const kitchen = await Kitchen.findById(id).select({ _id: 1 }).catch(() => null);
+    if (!kitchen) return fail(reply as never, 'kitchen-missing', 404);
+
+    return { documents: await listKitchenDocuments(String(kitchen._id)) };
+  });
+
+  /**
+   * One document, bytes and all — an `<img>` for a photograph, an
+   * open-in-new-tab link for a PDF.
+   */
+  app.get('/kitchens/:id/documents/:docId', async (request, reply) => {
+    const actor = await require(request, reply as never, 'kitchen.read');
+    if (!actor) return;
+
+    const { id, docId } = request.params as { id: string; docId: string };
+    const out = await readKitchenDocument(id, docId);
+    if (!out.ok) return fail(reply as never, out.error, 404);
+
+    return out.result;
   });
 
   /* ---------------- orders ---------------- */

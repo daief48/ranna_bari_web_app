@@ -130,6 +130,24 @@ export function SessionProvider({ children }) {
    * already has for a returning number, so signing in cannot rename somebody
    * by typing something else into the field.
    */
+  /**
+   * Take hold of a session the server has just minted.
+   *
+   * `verifyCode` used to be the only writer, and the cook flow's email code
+   * does exactly the same thing on exactly the same terms. One path, for the
+   * reason the token ref exists at all: the caller needs the session usable
+   * in the same tick, not after a render.
+   */
+  const adoptSession = useCallback(async (nextToken, nextIdentity) => {
+    setToken(nextToken);
+    setIdentity(nextIdentity);
+    await Promise.all([
+      AsyncStorage.setItem(TOKEN_KEY, nextToken),
+      AsyncStorage.setItem(IDENTITY_KEY, JSON.stringify(nextIdentity)),
+    ]).catch(() => {});
+    return nextIdentity;
+  }, []);
+
   const verifyCode = useCallback(async (phone, code, name) => {
     setChecking(true);
     try {
@@ -143,18 +161,13 @@ export function SessionProvider({ children }) {
         },
       });
 
-      setToken(out.token);
-      setIdentity(out.account);
-      await Promise.all([
-        AsyncStorage.setItem(TOKEN_KEY, out.token),
-        AsyncStorage.setItem(IDENTITY_KEY, JSON.stringify(out.account)),
-      ]).catch(() => {});
+      await adoptSession(out.token, out.account);
 
       return out.account;
     } finally {
       setChecking(false);
     }
-  }, []);
+  }, [adoptSession]);
 
   /* ---- the profile, on the server ---- */
 
@@ -288,6 +301,7 @@ export function SessionProvider({ children }) {
       getToken,
       requestCode,
       verifyCode,
+      adoptSession,
       signOutServer,
       addresses,
       loadProfile,

@@ -41,6 +41,9 @@ type Applicant = {
   createdAt: string;
   /** Only on the waiting half — a decided row does not reopen the documents. */
   account?: { name: string; phone: string | null; email: string | null; nid: string | null } | null;
+  /** Whether the cook has handed in the NID faces at all — a flag, not the bytes. */
+  hasDocuments?: boolean;
+  documentsSubmittedAt?: string | null;
 };
 
 export default async function KycPage() {
@@ -117,6 +120,15 @@ export default async function KycPage() {
                       </Badge>
                       <Badge>{kitchen.area}</Badge>
                       <Badge>{kitchen.deliveryRadiusKm} km</Badge>
+                      {/* A queue row that cannot say whether the ID photos
+                          landed is one that invites approving an application
+                          nobody finished. The papers themselves are one click
+                          away on the kitchen page. */}
+                      <Badge tone={kitchen.hasDocuments ? 'good' : 'warn'}>
+                        {kitchen.hasDocuments
+                          ? `documents${kitchen.documentsSubmittedAt ? ` · ${timeAgo(kitchen.documentsSubmittedAt)}` : ''}`
+                          : 'no documents yet'}
+                      </Badge>
                     </div>
 
                     <p className="mt-3 text-[12px] leading-relaxed text-ink2">

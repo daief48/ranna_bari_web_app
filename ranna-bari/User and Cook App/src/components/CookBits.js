@@ -570,12 +570,17 @@ export function KycBanner({ status, note, onContact, style }) {
  * Pending is "wait"; rejected is "here is what was wrong, and you can fix it",
  * so it leads with the reason an operator wrote.
  */
-export function KitchenPending({ kitchen, onOpenDetails, onBack }) {
+export function KitchenPending({ kitchen, onOpenDetails, onCompleteDocuments, onBack }) {
   const { colors, shadow } = useTheme();
   const { t } = useLang();
 
   const rejected = kitchen?.kycStatus === 'rejected';
   const note = String(kitchen?.kycNote ?? '').trim();
+  /* The document step of registration has not happened yet — either the cook
+     closed the app part-way through it, or they became a cook through the
+     profile editor, which never asked. Either way this screen is where they
+     landed, so this screen is where the step is offered. */
+  const needsDocuments = kitchen?.documentsSubmittedAt == null;
 
   return (
     <View
@@ -683,12 +688,26 @@ export function KitchenPending({ kitchen, onOpenDetails, onBack }) {
               )}
         </Text>
 
+        {/* The documents, while there is still something to hand in. Once they
+            are in, this button has nothing to do and the details are the one
+            thing left worth opening. */}
+        {needsDocuments && onCompleteDocuments ? (
+          <Button
+            label={t('Complete your documents')}
+            icon="shieldCheck"
+            block
+            onPress={onCompleteDocuments}
+            style={{ marginTop: 4 }}
+          />
+        ) : null}
+
         {/* The one thing still worth doing while waiting, and on a rejection
             the thing that fixes it. */}
         <Button
           label={t('Your kitchen details')}
           icon="chefHat"
           block
+          variant={needsDocuments && onCompleteDocuments ? 'glass' : 'primary'}
           onPress={onOpenDetails}
           style={{ marginTop: 4 }}
         />

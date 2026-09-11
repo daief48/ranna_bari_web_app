@@ -850,6 +850,61 @@ export function KitchenPhotos({
   );
 }
 
+/**
+ * One KYC document the cook submitted — an ID face, or the optional portrait.
+ *
+ * Images draw; PDFs are documents, not pictures, so they offer themselves as
+ * a link instead. Both go through an ordinary `/`-rooted URL that the
+ * panel's own route proxies onto the backend, which is also what keeps the
+ * two-megabyte string out of this page's server-rendered HTML.
+ */
+export function KycDocument({
+  label,
+  mime,
+  docUrl,
+}: {
+  label: string;
+  mime: string;
+  docUrl: string;
+}) {
+  const isPdf = mime === 'application/pdf';
+
+  return (
+    <div className="w-[132px]">
+      {isPdf ? (
+        <a
+          href={docUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="flex h-[88px] flex-col items-center justify-center gap-1 rounded-[10px] border border-line bg-sunken text-center hover:border-primary-200"
+          title={`Open ${label} (PDF)`}
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-primary">
+            PDF
+          </span>
+          <span className="px-2 text-[10.5px] text-ink3">Open document</span>
+        </a>
+      ) : (
+        <a
+          href={docUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="group block overflow-hidden rounded-[10px] border border-line hover:border-primary-200"
+          title={`Open ${label}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={docUrl}
+            alt={label}
+            className="size-[88px] object-cover transition-transform group-hover:scale-105"
+          />
+        </a>
+      )}
+      <p className="mt-1 truncate text-center text-[10.5px] text-ink3">{label}</p>
+    </div>
+  );
+}
+
 export function Avatar({ src, name, size = 28 }: { src?: string | null; name: string; size?: number }) {
   const initials = name
     .split(' ')

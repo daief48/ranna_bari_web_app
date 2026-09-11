@@ -105,6 +105,14 @@ const accountSchema = new Schema(
 
     /** Null until somebody proves they hold the handset. */
     phoneVerifiedAt: { type: Date, default: null },
+    /**
+     * scrypt `salt:hash`, from the same helpers the admin realm uses. Null for
+     * a phone-OTP account — the majority — and for a cook still inside the
+     * email-verification step of registration.
+     */
+    passwordHash: { type: String, default: null },
+    /** Stamped by the emailed code. Email + password sign-in waits for it. */
+    emailVerifiedAt: { type: Date, default: null },
     /** Bumped to revoke every token this account holds at once. */
     tokenVersion: { type: Number, default: 0 },
 
@@ -112,6 +120,14 @@ const accountSchema = new Schema(
   },
   opts,
 );
+
+/* Two cooks cannot share an inbox, or a password reset would hand one kitchen
+   the other's sign-in. Partial, not bare: every row this schema ever shipped
+   has `email: null`, and Mongo's unique indexes collide on repeated nulls. */
+accountSchema.index({ email: 1 }, {
+  unique: true,
+  partialFilterExpression: { email: { $type: 'string' } },
+});
 
 export const Account = model('Account', accountSchema);
 export type AccountDoc = InferSchemaType<typeof accountSchema>;
@@ -135,6 +151,33 @@ otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 3600 });
 otpSchema.index({ phone: 1, createdAt: -1 });
 
 export const OtpChallenge = model('OtpChallenge', otpSchema);
+
+/**
+ * The emailed twin of `OtpChallenge`, for the cook flow.
+ *
+ * Keyed on the address rather than the handset, and carrying `purpose` so a
+ * registration code can never be spent resetting a password — the two flows
+ * share a delivery channel and must not share a capability.
+ */
+const emailOtpSchema = new Schema(
+  {
+    email: { type: String, required: true, index: true },
+    purpose: { type: String, default: 'register' },
+    /** scrypt of the six digits. Never the digits. */
+    codeHash: { type: String, required: true },
+    attempts: { type: Number, default: 0 },
+    expiresAt: { type: Date, required: true },
+    consumedAt: { type: Date, default: null },
+    ip: { type: String, default: null },
+  },
+  { versionKey: false, timestamps: { createdAt: true, updatedAt: false } },
+);
+
+/* Same cleanup and same newest-first read as the phone collection. */
+emailOtpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 3600 });
+emailOtpSchema.index({ email: 1, purpose: 1, createdAt: -1 });
+
+export const EmailOtpChallenge = model('EmailOtpChallenge', emailOtpSchema);
 
 const sessionSchema = new Schema(
   {
@@ -222,6 +265,9 @@ const kitchenSchema = new Schema(
     kycDecidedAt: { type: Date, default: null },
     kycDecidedBy: { type: String, default: null },
 
+    /** Stamped when the cook hands in NID photos and kitchen pictures. */
+    documentsSubmittedAt: { type: Date, default: null },
+
     nextDishSeq: { type: Number, default: 1 },
   },
   opts,
@@ -235,6 +281,37 @@ kitchenSchema.index({ accountId: 1 }, { unique: true, partialFilterExpression: {
 
 export const Kitchen = model('Kitchen', kitchenSchema);
 export type KitchenDoc = InferSchemaType<typeof kitchenSchema>;
+
+/**
+ * KYC evidence, one file per row — a NID face, its back, a portrait, a
+ * picture of the kitchen.
+ *
+ * Own collection rather than fields on the kitchen for the same reason the
+ * meal-management receipts are: the bytes are megabytes and every list that
+ * touches the kitchen would otherwise drag them along. Kept forever (no TTL)
+ * — this is the record an approval was based on.
+ */
+const kitchenDocumentSchema = new Schema(
+  {
+    kitchenId: { type: String, required: true, index: true },
+    accountId: { type: String, default: null, index: true },
+    /** 'nid-front' | 'nid-back' | 'profile-pic' | 'kitchen-photo' */
+    kind: { type: String, required: true },
+    /** Order inside 'kitchen-photo'; 0 for the single-file kinds. */
+    seq: { type: Number, default: 0 },
+    mime: { type: String, default: 'image/jpeg' },
+    size: { type: Number, default: 0 },
+    /** The data URI itself. Capped by the route, never by the schema. */
+    data: { type: String, required: true },
+    at: { type: Date, default: Date.now },
+  },
+  opts,
+);
+
+kitchenDocumentSchema.index({ kitchenId: 1, kind: 1, seq: 1 });
+
+export const KitchenDocument = model('KitchenDocument', kitchenDocumentSchema, 'kitchen_documents');
+export type KitchenDocumentDoc = InferSchemaType<typeof kitchenDocumentSchema>;
 
 /* A menu grows and dishes are queried on their own, so a collection rather
    than an array on the kitchen. */

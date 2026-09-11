@@ -48,6 +48,7 @@ import {
   Cart,
   Dish,
   Kitchen,
+  KitchenDocument,
   LedgerEntry,
   MealBooking,
   MealCategory,
@@ -829,10 +830,22 @@ export async function operationRoutes(app: FastifyInstance) {
       .catch(() => []);
     const byId = new Map(accounts.map((a) => [String(a._id), a]));
 
+    /* Which waiting kitchens have actually handed in documents — a flag, not
+       the bytes. The bytes wait for the kitchen's own page, which draws one
+       document at a time. */
+    const withDocs = new Set(
+      (
+        await KitchenDocument.distinct('kitchenId', {
+          kitchenId: { $in: pending.map((k) => String(k._id)) },
+        }).catch(() => [])
+      ).map(String),
+    );
+
     return {
       pending: pending.map((row) => ({
         ...withId(row),
         account: byId.get(String(row.accountId ?? '')) ?? null,
+        hasDocuments: withDocs.has(String(row._id)),
       })),
       decided: decided.map(withId),
     };

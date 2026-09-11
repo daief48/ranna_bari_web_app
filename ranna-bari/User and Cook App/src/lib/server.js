@@ -71,7 +71,7 @@ export const hasServer = !!API_BASE;
 const TIMEOUT_MS = 12_000;
 
 export class ApiError extends Error {
-  constructor(message, { status, code, detail } = {}) {
+  constructor(message, { status, code, detail, retryAfterSeconds } = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status ?? 0;
@@ -86,6 +86,11 @@ export class ApiError extends Error {
      * comment on `MEAL_COUNT` says this field exists to prevent.
      */
     this.detail = detail ?? null;
+    /**
+     * How long the server says to wait before asking again — the cooldown
+     * behind a 429. The OTP screens count their resend button down from it.
+     */
+    this.retryAfterSeconds = retryAfterSeconds ?? null;
     /* Anything that never reached the server can be retried by the outbox.
        A 4xx cannot — replaying a refused message just refuses again. */
     this.retryable = !status || status >= 500;
@@ -124,7 +129,42 @@ const notifyExpired = () => {
   });
 };
 
-export async function api(path, { method = 'GET', token, body, signal } = {}) {
+/**
+ * One in-flight read per path, shared by everyone who asks for it at once.
+ *
+ * Opening any screen fires the same reads from several providers at the same
+ * moment — three copies of `/chat/threads`, two of `/orders`, two of
+ * `/preorders`, two of `/stores` — because each context fetches on mount and
+ * none of them knows the others exist. They are byte-identical requests
+ * racing each other for the six connections a browser will open to one host,
+ * so a duplicate does not only waste its own round trip: it delays everything
+ * queued behind it. Measured on the cook's order board, that queueing turned
+ * calls that answer in 150ms on their own into 750–1720ms.
+ *
+ * Keyed by token as well as path, so two accounts can never be handed each
+ * other's reply. Writes are never shared — two identical POSTs are two
+ * deliberate writes — and neither is a request carrying a caller's own
+ * `signal`, because one screen cancelling on unmount must not abort the
+ * request another screen is still waiting on.
+ */
+const inFlightReads = new Map();
+
+export async function api(path, options = {}) {
+  const { method = 'GET', token, signal } = options;
+  if (method !== 'GET' || signal) return apiOnce(path, options);
+
+  const key = `${token ?? 'anon'} ${path}`;
+  const existing = inFlightReads.get(key);
+  if (existing) return existing;
+
+  const pending = apiOnce(path, options).finally(() => {
+    inFlightReads.delete(key);
+  });
+  inFlightReads.set(key, pending);
+  return pending;
+}
+
+async function apiOnce(path, { method = 'GET', token, body, signal } = {}) {
   if (!API_BASE) {
     throw new ApiError('No server is configured.', {});
   }
@@ -174,6 +214,7 @@ export async function api(path, { method = 'GET', token, body, signal } = {}) {
         status: response.status,
         code: payload.error,
         detail: payload.detail,
+        retryAfterSeconds: payload.retryAfterSeconds,
       });
     }
 
@@ -223,6 +264,8 @@ export async function call(path, options = {}) {
       /* Carried through so `errorText` can fill in a templated refusal. */
       detail: error instanceof ApiError ? error.detail : null,
       status: error instanceof ApiError ? error.status : 0,
+      /* The countdown behind a 429, when the server named one. */
+      retryAfterSeconds: error instanceof ApiError ? error.retryAfterSeconds : null,
       retryable: error instanceof ApiError ? error.retryable : true,
     };
   }

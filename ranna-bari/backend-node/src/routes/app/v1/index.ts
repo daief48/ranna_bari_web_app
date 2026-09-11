@@ -6,11 +6,18 @@ import { randomUUID } from 'node:crypto';
 import {
   bearerFrom,
   identify,
+  issueSession,
   requestOtp,
+  revokeAllSessions,
   verifyOtp,
   type AppIdentity,
 } from '../../../auth/app-auth.js';
-import { readSession } from '../../../auth/admin-auth.js';
+import { hashPassword, readSession, verifyPassword } from '../../../auth/admin-auth.js';
+import {
+  normaliseEmail,
+  requestEmailOtp,
+  verifyEmailOtp,
+} from '../../../auth/cook-auth.js';
 import { getFlags, getSettings } from '../../../logic/settings.js';
 import {
   markRead,
@@ -33,6 +40,13 @@ import {
   recordOrder,
   registerKitchen,
 } from '../../../logic/sync.js';
+import { registerCook } from '../../../logic/cook-signup.js';
+import {
+  listKitchenDocuments,
+  readKitchenDocument,
+  saveKitchenDocuments,
+  type DocumentInput,
+} from '../../../logic/kitchen-documents.js';
 import { publish, isOnline } from '../../../realtime/hub.js';
 import {
   Account,
@@ -527,6 +541,10 @@ export async function appRoutes(app: FastifyInstance) {
            wrote for exactly this purpose and it was going nowhere. */
         kycNote: kitchen.kycNote,
         kycDecidedAt: kitchen.kycDecidedAt,
+        /* Null until the cook has handed in the NID faces and kitchen
+           pictures — the pending screen offers the documents step until it
+           is set. */
+        documentsSubmittedAt: kitchen.documentsSubmittedAt ?? null,
         area: kitchen.area,
         lat: kitchen.lat,
         lng: kitchen.lng,
@@ -535,6 +553,73 @@ export async function appRoutes(app: FastifyInstance) {
       },
       dishes: dishes.map(shapeDish),
     };
+  });
+
+  /* ---------------- the cook's KYC documents ---------------- */
+
+  /**
+   * Hand in the document set: both NID faces, an optional portrait, and at
+   * least one picture of the kitchen.
+   *
+   * This is the step between the email code and the KYC queue — the queue
+   * existed before it and was reviewing kitchens that had handed in nothing
+   * at all. Pending is fine as a trading gate here: the whole point is that
+   * an unapproved cook must still be able to finish applying.
+   */
+  app.post('/kitchens/mine/documents', async (request, reply) => {
+    const cook = await cookOf(request, reply);
+    if (!cook) return null;
+
+    /* Shape only — what is *mandatory* (both NID faces, one kitchen photo) is
+       the logic's answer, not the schema's, so the refusal can name it. */
+    const body = z
+      .object({
+        nidFront: z.string().optional(),
+        nidBack: z.string().optional(),
+        profilePic: z.string().optional(),
+        kitchenPhotos: z.array(z.string()).max(5).optional(),
+      })
+      .safeParse(request.body);
+    if (!body.success) return fail(reply, ERR.BAD_REQUEST);
+
+    const inputs: DocumentInput[] = [
+      ...(body.data.nidFront ? [{ kind: 'nid-front' as const, dataUri: body.data.nidFront }] : []),
+      ...(body.data.nidBack ? [{ kind: 'nid-back' as const, dataUri: body.data.nidBack }] : []),
+      ...(body.data.profilePic ? [{ kind: 'profile-pic' as const, dataUri: body.data.profilePic }] : []),
+      ...(body.data.kitchenPhotos ?? []).map((dataUri, seq) => ({ kind: 'kitchen-photo' as const, seq, dataUri })),
+    ];
+
+    const out = await saveKitchenDocuments(cook.kitchenId, cook.accountId, inputs);
+    if (!out.ok) return fail(reply, out.error, out.error === ERR.NO_KITCHEN ? 404 : 400);
+
+    return {
+      ok: true,
+      kitchen: {
+        id: cook.kitchenId,
+        documentsSubmittedAt: out.result.documentsSubmittedAt,
+        kycStatus: out.result.kycStatus,
+      },
+    };
+  });
+
+  /** The set, without the bytes — enough to show what already landed. */
+  app.get('/kitchens/mine/documents', async (request, reply) => {
+    const cook = await cookOf(request, reply);
+    if (!cook) return null;
+
+    return { documents: await listKitchenDocuments(cook.kitchenId) };
+  });
+
+  /** One document, bytes and all, scoped to the caller's own kitchen. */
+  app.get('/kitchens/mine/documents/:id', async (request, reply) => {
+    const cook = await cookOf(request, reply);
+    if (!cook) return null;
+
+    const { id } = request.params as { id: string };
+    const out = await readKitchenDocument(cook.kitchenId, id);
+    if (!out.ok) return fail(reply, out.error, 404);
+
+    return out.result;
   });
 
   /**
@@ -751,6 +836,267 @@ export async function appRoutes(app: FastifyInstance) {
     const caller = await callerOf(request);
     if (!caller) return fail(reply, 'unauthenticated', 401);
     return { account: caller };
+  });
+
+  /* ---------------- cook sign-up and email codes ---------------- */
+
+  /**
+   * The cook flow's own door.
+   *
+   * The customer path proves a handset; this path proves an address, and a
+   * registration is not finished — nor a kitchen reviewable — until the
+   * documents step that follows it. Everything here keys on the email, so a
+   * cook's phone-OTP sign-in (which finds the account by its `phone` column)
+   * and this flow land on the same account rather than two.
+   *
+   * Register writes the account **before** the code is mailed: a send that
+   * fails must leave a resumable registration, not a refusal that welds the
+   * door shut. Resuming is the unverified branch of `registerCook`.
+   */
+
+  const cookDevice = z
+    .object({ name: z.string().optional(), platform: z.string().optional() })
+    .optional();
+
+  /** An auth response always carries the kitchen, so the app knows which screen is next. */
+  const kitchenSummary = async (accountId: string) => {
+    const kitchen = await Kitchen.findOne({ accountId })
+      .select({ kycStatus: 1, documentsSubmittedAt: 1 })
+      .lean();
+    return kitchen
+      ? {
+          id: String(kitchen._id),
+          kycStatus: kitchen.kycStatus ?? 'pending',
+          documentsSubmittedAt: kitchen.documentsSubmittedAt ?? null,
+        }
+      : null;
+  };
+
+  const emailOtpFailure = (
+    reply: Parameters<typeof fail>[0],
+    out: { code: string; error: string; retryAfterSeconds?: number },
+  ) => {
+    const status =
+      out.code === 'otp-cooldown' || out.code === 'otp-rate-limited'
+        ? 429
+        : out.code === 'email-invalid'
+          ? 400
+          : 502;
+    /* Sent by hand rather than through `fail` so the retry window rides along
+       — the app counts its resend button down from it. */
+    return reply.status(status).send({
+      error: out.code,
+      message: out.error,
+      ...(out.retryAfterSeconds ? { retryAfterSeconds: out.retryAfterSeconds } : {}),
+    });
+  };
+
+  const ipOf = (request: FastifyRequest) =>
+    (request.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
+    request.ip;
+
+  app.post('/auth/cook/register', async (request, reply) => {
+    const body = z
+      .object({
+        name: z.string().trim().min(2).max(120),
+        phone: z.string(),
+        email: z.string(),
+        password: z.string().max(200),
+        kitchenName: z.string().trim().min(2).max(120),
+        specialties: z.array(z.string().trim().min(1)).min(1).max(6),
+        nid: z.string().trim().min(4).max(30),
+        area: z.string().optional(),
+        lat: z.number().optional(),
+        lng: z.number().optional(),
+        deliveryRadiusKm: z.number().min(1).max(50).optional(),
+        addressDetail: z.string().optional(),
+        device: cookDevice,
+      })
+      .safeParse(request.body);
+    if (!body.success) return fail(reply, ERR.BAD_REQUEST);
+    if (body.data.password.length < 8) return fail(reply, ERR.PASSWORD_WEAK);
+
+    const out = await registerCook(body.data);
+    if (!out.ok) {
+      return fail(reply, out.error, out.error === ERR.ACCOUNT_EXISTS ? 409 : 400);
+    }
+
+    const otp = await requestEmailOtp(body.data.email, 'register', ipOf(request));
+    if (!otp.ok) return emailOtpFailure(reply, otp);
+
+    return {
+      ok: true,
+      email: normaliseEmail(body.data.email),
+      expiresAt: otp.expiresAt,
+      cooldownSeconds: otp.cooldownSeconds,
+      ...(otp.devCode ? { devCode: otp.devCode } : {}),
+    };
+  });
+
+  app.post('/auth/cook/verify-email', async (request, reply) => {
+    const body = z
+      .object({ email: z.string(), code: z.string(), device: cookDevice })
+      .safeParse(request.body);
+    if (!body.success) return fail(reply, ERR.BAD_REQUEST);
+
+    const out = await verifyEmailOtp(body.data.email, body.data.code, 'register');
+    if (!out.ok) return reply.status(401).send({ error: 'otp-invalid', message: out.error });
+
+    const email = normaliseEmail(body.data.email);
+    const account = email
+      ? await Account.findOne({ $or: [{ customerKey: email }, { email }] })
+      : null;
+    if (!account) return fail(reply, ERR.ACCOUNT_MISSING, 404);
+    if (account.suspended) {
+      return reply
+        .status(403)
+        .send({ error: 'account-suspended', message: 'This account is suspended. Contact support.' });
+    }
+
+    /* The email is what this code proves — the phone is still only claimed. */
+    await Account.updateOne({ _id: account._id }, { emailVerifiedAt: new Date() });
+    account.emailVerifiedAt = new Date();
+
+    const session = await issueSession(account, body.data.device);
+    return {
+      ok: true,
+      token: session.token,
+      expiresAt: session.expiresAt,
+      account: session.account,
+      kitchen: await kitchenSummary(String(account._id)),
+    };
+  });
+
+  app.post('/auth/cook/resend-otp', async (request, reply) => {
+    const body = z
+      .object({ email: z.string(), purpose: z.enum(['register', 'reset']).default('register') })
+      .safeParse(request.body);
+    if (!body.success) return fail(reply, ERR.BAD_REQUEST);
+
+    const email = normaliseEmail(body.data.email);
+    if (!email) return fail(reply, ERR.EMAIL_INVALID);
+
+    if (body.data.purpose === 'register') {
+      const account = await Account.findOne({ $or: [{ customerKey: email }, { email }] });
+      if (!account) return fail(reply, ERR.ACCOUNT_MISSING, 404);
+      if (account.emailVerifiedAt) return fail(reply, ERR.ALREADY_VERIFIED, 409);
+    }
+
+    const otp = await requestEmailOtp(email, body.data.purpose, ipOf(request));
+    if (!otp.ok) return emailOtpFailure(reply, otp);
+
+    return {
+      ok: true,
+      email,
+      expiresAt: otp.expiresAt,
+      cooldownSeconds: otp.cooldownSeconds,
+      ...(otp.devCode ? { devCode: otp.devCode } : {}),
+    };
+  });
+
+  app.post('/auth/cook/sign-in', async (request, reply) => {
+    const body = z
+      .object({ email: z.string(), password: z.string(), device: cookDevice })
+      .safeParse(request.body);
+    if (!body.success) {
+      return reply
+        .status(400)
+        .send({ error: ERR.INVALID_CREDENTIALS, message: 'Enter your email and password.' });
+    }
+
+    const email = normaliseEmail(body.data.email);
+    const account = email
+      ? await Account.findOne({ $or: [{ customerKey: email }, { email }] })
+      : null;
+
+    /* One answer for "no such account" and "wrong password" — the same rule
+       the code paths use, for the same reason: telling them apart invites
+       somebody to find out which addresses are worth guessing for. */
+    if (!account || !account.passwordHash) {
+      return reply
+        .status(401)
+        .send({ error: ERR.INVALID_CREDENTIALS, message: errText(ERR.INVALID_CREDENTIALS) });
+    }
+    if (!(await verifyPassword(body.data.password, account.passwordHash))) {
+      return reply
+        .status(401)
+        .send({ error: ERR.INVALID_CREDENTIALS, message: errText(ERR.INVALID_CREDENTIALS) });
+    }
+
+    if (account.suspended) {
+      return reply
+        .status(403)
+        .send({ error: 'account-suspended', message: 'This account is suspended. Contact support.' });
+    }
+    /* An unverified cook still exists — this refusal routes them to the code
+       entry screen, where the resend button is, rather than to an error. */
+    if (!account.emailVerifiedAt) {
+      return reply
+        .status(403)
+        .send({ error: ERR.EMAIL_UNVERIFIED, message: errText(ERR.EMAIL_UNVERIFIED) });
+    }
+
+    const session = await issueSession(account, body.data.device);
+    return {
+      ok: true,
+      token: session.token,
+      expiresAt: session.expiresAt,
+      account: session.account,
+      kitchen: await kitchenSummary(String(account._id)),
+    };
+  });
+
+  app.post('/auth/cook/forgot-password', async (request, reply) => {
+    const body = z.object({ email: z.string() }).safeParse(request.body);
+    if (!body.success) return fail(reply, ERR.BAD_REQUEST);
+
+    const email = normaliseEmail(body.data.email);
+    if (!email) return fail(reply, ERR.EMAIL_INVALID);
+
+    /* Sent regardless of whether the address holds an account, and the 429s
+       and cooldowns fire identically either way — an endpoint whose answers
+       depend on existence is an account inventory for anyone with a list of
+       addresses. A code mailed to an address with no account resets nothing. */
+    const otp = await requestEmailOtp(email, 'reset', ipOf(request));
+    if (!otp.ok) return emailOtpFailure(reply, otp);
+
+    return {
+      ok: true,
+      expiresAt: otp.expiresAt,
+      cooldownSeconds: otp.cooldownSeconds,
+      ...(otp.devCode ? { devCode: otp.devCode } : {}),
+    };
+  });
+
+  app.post('/auth/cook/reset-password', async (request, reply) => {
+    const body = z
+      .object({ email: z.string(), code: z.string(), newPassword: z.string().max(200) })
+      .safeParse(request.body);
+    if (!body.success) return fail(reply, ERR.BAD_REQUEST);
+    if (body.data.newPassword.length < 8) return fail(reply, ERR.PASSWORD_WEAK);
+
+    const email = normaliseEmail(body.data.email);
+    if (!email) return fail(reply, ERR.EMAIL_INVALID);
+
+    const out = await verifyEmailOtp(email, body.data.code, 'reset');
+    if (!out.ok) return reply.status(401).send({ error: 'otp-invalid', message: out.error });
+
+    const account = await Account.findOne({ $or: [{ customerKey: email }, { email }] });
+    if (!account) return fail(reply, ERR.ACCOUNT_MISSING, 404);
+
+    await Account.updateOne(
+      { _id: account._id },
+      {
+        passwordHash: await hashPassword(body.data.newPassword),
+        /* A reset that follows a never-finished registration is also the
+           inbox proof that registration was waiting on. */
+        ...(account.emailVerifiedAt ? {} : { emailVerifiedAt: new Date() }),
+      },
+    );
+    /* Every device holding the old password's sessions loses them at once. */
+    await revokeAllSessions(String(account._id));
+
+    return { ok: true };
   });
 
   /* ---------------- the account's own profile ---------------- */

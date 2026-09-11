@@ -448,3 +448,354 @@ describe('admin', () => {
     expect(res.statusCode).toBe(200);
   });
 });
+
+describe('cook registration', () => {
+  const NID_IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
+  const NID_PDF = 'data:application/pdf;base64,JVBERi0xLjQK';
+
+  const register = (email: string, overrides: Record<string, unknown> = {}) =>
+    app.inject({
+      method: 'POST',
+      url: '/api/app/v1/auth/cook/register',
+      payload: {
+        name: 'Rashida Begum',
+        phone: '01812345678',
+        email,
+        password: 'a-honest-password',
+        kitchenName: "Rashida's Rannaghor",
+        specialties: ['Biryani'],
+        nid: '1990123456789',
+        area: 'Dhanmondi',
+        lat: 23.7,
+        lng: 90.4,
+        deliveryRadiusKm: 4,
+        ...overrides,
+      },
+    });
+
+  /** Register + verify a fresh address, handing back the session. */
+  async function cookSession(email: string, phone: string) {
+    const reg = json(await register(email, { phone }));
+    expect(reg.ok).toBe(true);
+    const verify = json(
+      await app.inject({
+        method: 'POST',
+        url: '/api/app/v1/auth/cook/verify-email',
+        payload: { email, code: reg.devCode },
+      }),
+    );
+    expect(verify.ok).toBe(true);
+    return verify as {
+      token: string;
+      kitchen: { id: string; kycStatus: string; documentsSubmittedAt: string | null };
+    };
+  }
+
+  const adminActor = Buffer.from(
+    JSON.stringify({ email: 'ops@rannabari.app', role: 'ops', name: 'Ops' }),
+  ).toString('base64');
+  const adminHeaders = {
+    'x-actor': adminActor,
+    'x-service-token': process.env.BACKEND_SERVICE_TOKEN!,
+  };
+
+  it('hands a code back in dev and verifies it into a session', async () => {
+    const reg = json(await register('cook-one@example.com'));
+    expect(reg.ok).toBe(true);
+    expect(reg.devCode).toMatch(/^\d{6}$/);
+    expect(reg.cooldownSeconds).toBe(60);
+
+    const wrong = await app.inject({
+      method: 'POST',
+      url: '/api/app/v1/auth/cook/verify-email',
+      payload: { email: 'cook-one@example.com', code: '000000' },
+    });
+    expect(wrong.statusCode).toBe(401);
+
+    const verify = json(
+      await app.inject({
+        method: 'POST',
+        url: '/api/app/v1/auth/cook/verify-email',
+        payload: { email: 'cook-one@example.com', code: reg.devCode },
+      }),
+    );
+    expect(verify.ok).toBe(true);
+    expect(verify.account.role).toBe('cook');
+    expect(verify.kitchen.kycStatus).toBe('pending');
+    expect(verify.kitchen.documentsSubmittedAt).toBeNull();
+  });
+
+  it('refuses a second code inside the cooldown', async () => {
+    await register('cook-two@example.com', { phone: '01812345679' });
+    const again = await app.inject({
+      method: 'POST',
+      url: '/api/app/v1/auth/cook/resend-otp',
+      payload: { email: 'cook-two@example.com' },
+    });
+    expect(again.statusCode).toBe(429);
+    expect(json(again).error).toBe('otp-cooldown');
+    expect(json(again).retryAfterSeconds).toBeGreaterThan(0);
+    expect(json(again).retryAfterSeconds).toBeLessThanOrEqual(60);
+  });
+
+  it('reopens an unfinished registration instead of refusing it', async () => {
+    const first = json(await register('cook-three@example.com', { phone: '01812345671' }));
+    expect(first.ok).toBe(true);
+
+    // No verification yet — the same person submits again with a new name.
+    // The immediate resend is refused by the cooldown, and that is right: the
+    // first code is still in the inbox and still good.
+    const second = await register('cook-three@example.com', {
+      phone: '01812345671',
+      name: 'Second Name',
+      kitchenName: 'Second Rannaghor',
+    });
+    expect(second.statusCode).toBe(429);
+
+    const verify = json(
+      await app.inject({
+        method: 'POST',
+        url: '/api/app/v1/auth/cook/verify-email',
+        payload: { email: 'cook-three@example.com', code: first.devCode },
+      }),
+    );
+    expect(verify.ok).toBe(true);
+
+    // The resume wrote the newer answers over the first attempt.
+    const mine = json(
+      await app.inject({
+        method: 'GET',
+        url: '/api/app/v1/kitchens/mine',
+        headers: auth(verify.token),
+      }),
+    );
+    expect(mine.kitchen.name).toBe('Second Rannaghor');
+  });
+
+  it('refuses a verified email with account-exists', async () => {
+    await cookSession('cook-four@example.com', '01812345672');
+    const again = await register('cook-four@example.com', { phone: '01812345673' });
+    expect(again.statusCode).toBe(409);
+    expect(json(again).error).toBe('account-exists');
+  });
+
+  it('signs in with email and password, refusing everything else', async () => {
+    await cookSession('cook-five@example.com', '01812345674');
+
+    const badPassword = await app.inject({
+      method: 'POST',
+      url: '/api/app/v1/auth/cook/sign-in',
+      payload: { email: 'cook-five@example.com', password: 'not-the-password' },
+    });
+    expect(badPassword.statusCode).toBe(401);
+    expect(json(badPassword).error).toBe('invalid-credentials');
+
+    const nobody = await app.inject({
+      method: 'POST',
+      url: '/api/app/v1/auth/cook/sign-in',
+      payload: { email: 'stranger@example.com', password: 'whatever-it-is' },
+    });
+    expect(nobody.statusCode).toBe(401);
+    // The two refusals must not be tellable apart.
+    expect(json(nobody).error).toBe(json(badPassword).error);
+
+    const ok = json(
+      await app.inject({
+        method: 'POST',
+        url: '/api/app/v1/auth/cook/sign-in',
+        payload: { email: 'cook-five@example.com', password: 'a-honest-password' },
+      }),
+    );
+    expect(ok.ok).toBe(true);
+    expect(ok.account.role).toBe('cook');
+  });
+
+  it('takes the document set, and only a valid one', async () => {
+    const session = await cookSession('cook-six@example.com', '01812345675');
+    const documents = auth(session.token);
+
+    // A PDF belongs to an NID, not to a kitchen gallery.
+    const pdfGallery = await app.inject({
+      method: 'POST',
+      url: '/api/app/v1/kitchens/mine/documents',
+      headers: documents,
+      payload: {
+        nidFront: NID_IMAGE,
+        nidBack: NID_PDF,
+        kitchenPhotos: [NID_PDF],
+      },
+    });
+    expect(pdfGallery.statusCode).toBe(400);
+    expect(json(pdfGallery).error).toBe('attachment-invalid');
+
+    // Both NID faces are mandatory.
+    const noBack = await app.inject({
+      method: 'POST',
+      url: '/api/app/v1/kitchens/mine/documents',
+      headers: documents,
+      payload: { nidFront: NID_IMAGE, kitchenPhotos: [NID_IMAGE] },
+    });
+    expect(noBack.statusCode).toBe(400);
+    expect(json(noBack).error).toBe('document-missing');
+
+    const handed = json(
+      await app.inject({
+        method: 'POST',
+        url: '/api/app/v1/kitchens/mine/documents',
+        headers: documents,
+        payload: {
+          nidFront: NID_IMAGE,
+          nidBack: NID_PDF,
+          kitchenPhotos: [NID_IMAGE, NID_IMAGE],
+        },
+      }),
+    );
+    expect(handed.ok).toBe(true);
+    expect(handed.kitchen.documentsSubmittedAt).toBeTruthy();
+    expect(handed.kitchen.kycStatus).toBe('pending');
+
+    const listed = json(
+      await app.inject({
+        method: 'GET',
+        url: '/api/app/v1/kitchens/mine/documents',
+        headers: documents,
+      }),
+    );
+    expect(listed.documents.map((d: { kind: string }) => d.kind).sort()).toEqual([
+      'kitchen-photo',
+      'kitchen-photo',
+      'nid-back',
+      'nid-front',
+    ]);
+  });
+
+  it('walks the whole queue: admin sees the documents, approves, the cook trades', async () => {
+    const session = await cookSession('cook-seven@example.com', '01812345676');
+    const kitchenId = session.kitchen.id;
+
+    const handed = json(
+      await app.inject({
+        method: 'POST',
+        url: '/api/app/v1/kitchens/mine/documents',
+        headers: auth(session.token),
+        payload: { nidFront: NID_IMAGE, nidBack: NID_PDF, kitchenPhotos: [NID_IMAGE] },
+      }),
+    );
+    expect(handed.ok).toBe(true);
+
+    const queue = json(
+      await app.inject({
+        method: 'GET',
+        url: '/api/admin/v1/kyc',
+        headers: adminHeaders,
+      }),
+    );
+    const row = queue.pending.find((k: { id: string }) => k.id === kitchenId);
+    expect(row?.hasDocuments).toBe(true);
+
+    const listed = json(
+      await app.inject({
+        method: 'GET',
+        url: `/api/admin/v1/kitchens/${kitchenId}/documents`,
+        headers: adminHeaders,
+      }),
+    );
+    const back = listed.documents.find((d: { kind: string }) => d.kind === 'nid-back');
+    expect(back?.mime).toBe('application/pdf');
+
+    // The bytes are a separate fetch, scoped to the kitchen.
+    const full = json(
+      await app.inject({
+        method: 'GET',
+        url: `/api/admin/v1/kitchens/${kitchenId}/documents/${back.id}`,
+        headers: adminHeaders,
+      }),
+    );
+    expect(full.data).toBe(NID_PDF);
+
+    const decided = await app.inject({
+      method: 'POST',
+      url: `/api/admin/v1/kitchens/${kitchenId}/kyc`,
+      headers: adminHeaders,
+      payload: { decision: 'approved', note: 'Documents check out.' },
+    });
+    expect(decided.statusCode).toBe(200);
+
+    const mine = json(
+      await app.inject({
+        method: 'GET',
+        url: '/api/app/v1/kitchens/mine',
+        headers: auth(session.token),
+      }),
+    );
+    expect(mine.kitchen.kycStatus).toBe('approved');
+    expect(mine.kitchen.documentsSubmittedAt).toBeTruthy();
+  });
+
+  it('resets the password by emailed code and kills the old sessions', async () => {
+    const session = await cookSession('cook-eight@example.com', '01812345677');
+
+    const forgot = json(
+      await app.inject({
+        method: 'POST',
+        url: '/api/app/v1/auth/cook/forgot-password',
+        payload: { email: 'cook-eight@example.com' },
+      }),
+    );
+    expect(forgot.ok).toBe(true);
+    expect(forgot.devCode).toMatch(/^\d{6}$/);
+
+    const short = await app.inject({
+      method: 'POST',
+      url: '/api/app/v1/auth/cook/reset-password',
+      payload: { email: 'cook-eight@example.com', code: forgot.devCode, newPassword: 'short' },
+    });
+    expect(short.statusCode).toBe(400);
+
+    const reset = await app.inject({
+      method: 'POST',
+      url: '/api/app/v1/auth/cook/reset-password',
+      payload: {
+        email: 'cook-eight@example.com',
+        code: forgot.devCode,
+        newPassword: 'a-brand-new-password',
+      },
+    });
+    expect(reset.statusCode).toBe(200);
+
+    // The old token was minted before the version bump.
+    const oldSession = await app.inject({
+      method: 'GET',
+      url: '/api/app/v1/auth/me',
+      headers: auth(session.token),
+    });
+    expect(oldSession.statusCode).toBe(401);
+
+    const reSignIn = json(
+      await app.inject({
+        method: 'POST',
+        url: '/api/app/v1/auth/cook/sign-in',
+        payload: { email: 'cook-eight@example.com', password: 'a-brand-new-password' },
+      }),
+    );
+    expect(reSignIn.ok).toBe(true);
+  });
+
+  it('answers forgot-password identically for an address with no account', async () => {
+    const stranger = json(
+      await app.inject({
+        method: 'POST',
+        url: '/api/app/v1/auth/cook/forgot-password',
+        payload: { email: 'no-such-cook@example.com' },
+      }),
+    );
+    expect(stranger.ok).toBe(true);
+    expect(stranger.cooldownSeconds).toBe(60);
+  });
+
+  it('still signs a customer up by phone, untouched', async () => {
+    const out = await signInApp('01912345678');
+    expect(out.account.role).toBe('user');
+    expect(out.account.customerKey).toBe('+8801912345678');
+  });
+});

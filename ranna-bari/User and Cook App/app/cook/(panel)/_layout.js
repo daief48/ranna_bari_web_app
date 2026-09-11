@@ -313,6 +313,7 @@ export default function CookPanelLayout() {
     return (
       <KitchenPending
         kitchen={kitchen}
+        onCompleteDocuments={() => router.push('/cook-documents')}
         onOpenDetails={() => router.push('/cook/kitchen-details')}
         onBack={() => router.replace('/')}
       />

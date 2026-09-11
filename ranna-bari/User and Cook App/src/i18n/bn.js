@@ -2457,4 +2457,78 @@ export const bn = {
   'Message the cook': 'রাঁধুনিকে বার্তা পাঠান',
   'Nothing releases on its own. A meal you never received stays held — message the cook above, or open the meal to raise it with support.':
     'কোনো টাকা নিজে থেকে ছাড়া হয় না। যে মিল আপনি পাননি তার টাকা জমাই থাকে — উপরে রাঁধুনিকে বার্তা পাঠান, অথবা মিলটি খুলে সাপোর্টে জানান।',
+
+  /* ---------------- the cook flow: email code and documents ---------------- */
+  'Re-type password': 'পাসওয়ার্ড আবার লিখুন',
+  'Same password again': 'একই পাসওয়ার্ড আবার',
+  'The two passwords do not match.': 'দুটি পাসওয়ার্ড মিলছে না।',
+  'Sign in with email': 'ইমেইল দিয়ে সাইন ইন',
+  'Sign in with phone': 'ফোন দিয়ে সাইন ইন',
+  'Forgot password?': 'পাসওয়ার্ড ভুলে গেছেন?',
+  'Enter your email and password.': 'আপনার ইমেইল ও পাসওয়ার্ড লিখুন।',
+  'That email and password do not match an account.':
+    'এই ইমেইল ও পাসওয়ার্ডে কোনো অ্যাকাউন্ট মেলেনি।',
+  'Check your email.': 'ইমেইল দেখুন।',
+  'Forgot your password?': 'পাসওয়ার্ড ভুলে গেছেন?',
+  'Enter the email you registered with and we will send a code.':
+    'যে ইমেইল দিয়ে রেজিস্ট্রেশন করেছেন সেটি লিখুন, আমরা কোড পাঠাব।',
+  'We sent a code to {email}. It expires in five minutes.':
+    '{email} ঠিকানায় কোড পাঠানো হয়েছে। এটি পাঁচ মিনিটে শেষ হবে।',
+  'Choose something at least 8 characters long.': 'কমপক্ষে ৮ অক্ষরের কিছু দিন।',
+  'We sent a six-digit code to {email}. It expires in five minutes.':
+    '{email} ঠিকানায় ছয় সংখ্যার কোড পাঠানো হয়েছে। এটি পাঁচ মিনিটে শেষ হবে।',
+  'Enter your email address.': 'আপনার ইমেইল ঠিকানা লিখুন।',
+  'Enter the six-digit code.': 'ছয় সংখ্যার কোডটি লিখুন।',
+  'Verify': 'যাচাই করুন',
+  'Resend code': 'কোড আবার পাঠান',
+  'Resend code in {s}s': '{s} সেকেন্ড পরে আবার পাঠানো যাবে',
+  'Use a different email': 'অন্য ইমেইল ব্যবহার করুন',
+  'Set a new password': 'নতুন পাসওয়ার্ড দিন',
+  'New password': 'নতুন পাসওয়ার্ড',
+  'Save new password': 'নতুন পাসওয়ার্ড সেভ করুন',
+  'Password updated. Sign in with your new password.':
+    'পাসওয়ার্ড বদলেছে। নতুন পাসওয়ার্ড দিয়ে সাইন ইন করুন।',
+  'That code did not work.': 'কোডটি কাজ করছে না।',
+  'Please wait a minute before asking for another code.':
+    'আরেকটি কোড চাওয়ার আগে এক মিনিট অপেক্ষা করুন।',
+  'We could not send the email right now.': 'এই মুহূর্তে ইমেইল পাঠানো যায়নি।',
+  'That email is already verified. Sign in instead.':
+    'এই ইমেইল আগেই যাচাই হয়ে গেছে। সাইন ইন করুন।',
+  'That email or mobile number already has an account. Sign in instead.':
+    'এই ইমেইল বা মোবাইল নম্বরে আগে থেকেই অ্যাকাউন্ট আছে। সাইন ইন করুন।',
+  'We could not create the account right now.': 'এই মুহূর্তে অ্যাকাউন্ট তৈরি করা যায়নি।',
+  'Your documents.': 'আপনার কাগজপত্র।',
+  'Both sides of your National ID and a photo of your kitchen. An operator reads these to verify you — customers never see them.':
+    'জাতীয় পরিচয়পত্রের দুই পাশের ছবি এবং রান্নাঘরের একটি ছবি দিন। যাচাইয়ের জন্য একজন অ্যাডমিন এগুলো দেখেন — ক্রেতারা কখনো দেখে না।',
+  'Upload the front of your National ID': 'জাতীয় পরিচয়পত্রের সামনের পাশের ছবি দিন',
+  'Upload the back of your National ID': 'জাতীয় পরিচয়পত্রের পেছনের পাশের ছবি দিন',
+  'Add a profile photo': 'প্রোফাইল ছবি দিন',
+  'Shown on your kitchen page, next to your name.':
+    'আপনার রান্নাঘরের পাতায় নামের পাশে এটি দেখা যাবে।',
+  'PDF or image, up to 2 MB': 'পিডিএফ বা ছবি, সর্বোচ্চ ২ এমবি',
+  'That PDF is larger than 2 MB — photograph the card instead.':
+    'পিডিএফটি ২ এমবির বেশি — বরং কার্ডের ছবি তুলুন।',
+  'That file could not be read. Try again, or use a photo.':
+    'ফাইলটি পড়া যায়নি। আবার চেষ্টা করুন, বা ছবি ব্যবহার করুন।',
+  'Use an image, or a PDF for the ID.': 'ছবি দিন, বা পরিচয়পত্রের জন্য পিডিএফ দিন।',
+  'PDF · {size}': 'পিডিএফ · {size}',
+  'Image · {size}': 'ছবি · {size}',
+  'Remove this file': 'ফাইলটি সরান',
+  'optional': 'ঐচ্ছিক',
+  'Complete your documents': 'কাগজপত্র জমা দিয়ে শেষ করুন',
+  'Documents submitted. We will check them and let you know.':
+    'কাগজপত্র জমা হয়েছে। আমরা দেখে জানাব।',
+  'Submitting…': 'জমা হচ্ছে…',
+  'Submit for verification': 'যাচাইয়ের জন্য জমা দিন',
+  'Still needed: {list}.': 'এখনো দরকার: {list}।',
+  'the front of your National ID': 'পরিচয়পত্রের সামনের পাশ',
+  'the back of your National ID': 'পরিচয়পত্রের পেছনের পাশ',
+  'at least one photo of your kitchen': 'রান্নাঘরের অন্তত একটি ছবি',
+  'That is too much to send at once — use a smaller PDF or fewer photos.':
+    'একসাথে এত বড় ফাইল পাঠানো যাবে না — ছোট পিডিএফ বা কম ছবি দিন।',
+  '{used} of {max} ready to send': '{max} এর মধ্যে {used} পাঠানোর জন্য প্রস্তুত',
+  'National ID — front': 'জাতীয় পরিচয়পত্র — সামনের পাশ',
+  'National ID — back': 'জাতীয় পরিচয়পত্র — পেছনের পাশ',
+  'Profile photo': 'প্রোফাইল ছবি',
+  'Kitchen photo': 'রান্নাঘরের ছবি',
 };
