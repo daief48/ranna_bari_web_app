@@ -968,9 +968,12 @@ export async function appRoutes(app: FastifyInstance) {
       .safeParse(request.body);
     if (!body.success) return fail(reply, ERR.BAD_REQUEST);
 
-    const out = await verifyEmailOtp(body.data.email, body.data.code, 'register');
-    if (!out.ok) return reply.status(401).send({ error: 'otp-invalid', message: out.error });
-
+    /* The account is read before the code is spent, so the permanent refusals
+       answer first: a cook whose email was already verified must hear that,
+       not "the code is wrong" about a code that was never going to be right —
+       every register attempt spends the previous challenge, so the code they
+       are holding is dead the moment an already-verified account refuses to
+       re-register. The same checks the resend route makes, in the same order. */
     const email = normaliseEmail(body.data.email);
     const account = email
       ? await Account.findOne({ $or: [{ customerKey: email }, { email }] })
@@ -980,6 +983,16 @@ export async function appRoutes(app: FastifyInstance) {
       return reply
         .status(403)
         .send({ error: 'account-suspended', message: 'This account is suspended. Contact support.' });
+    }
+    if (account.emailVerifiedAt) return fail(reply, ERR.ALREADY_VERIFIED, 409);
+
+    const out = await verifyEmailOtp(body.data.email, body.data.code, 'register');
+    if (!out.ok) {
+      /* Two different dead ends: a code to retype, and a code to replace. */
+      const exhausted = out.error.startsWith('Too many');
+      return reply
+        .status(401)
+        .send({ error: exhausted ? 'otp-exhausted' : 'otp-invalid', message: out.error });
     }
 
     /* The email is what this code proves — the phone is still only claimed. */

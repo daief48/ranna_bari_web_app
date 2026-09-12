@@ -13,6 +13,7 @@ import { useAuth } from '../src/store/AuthContext';
 import { useSession } from '../src/store/SessionContext';
 import { useAlert } from '../src/components/Alert';
 import { useLang } from '../src/i18n/LanguageContext';
+import { errorText } from '../src/lib/errors';
 import {
   cookForgotPassword,
   cookResendOtp,
@@ -97,7 +98,7 @@ export default function CookVerifyScreen() {
          button is, with the window, rather than as an alert over the screen. */
       if (out.error === 'otp-cooldown' || out.error === 'otp-rate-limited') {
         startCooldown(out.retryAfterSeconds ?? 60);
-        setNote(out.message ?? t('Please wait a minute before asking for another code.'));
+        setNote(errorText(out.error, t, n, out));
         return;
       }
       if (out.error === 'already-verified') {
@@ -156,7 +157,9 @@ export default function CookVerifyScreen() {
       });
 
       if (!out.ok) {
-        setNote(out.message ?? t('That code did not work.'));
+        /* errorText, not the server's English sentence — "already verified"
+           routes a cook to sign-in, and it reads that way in either language. */
+        setNote(errorText(out.error, t, n, out));
         return;
       }
 
@@ -196,7 +199,7 @@ export default function CookVerifyScreen() {
         newPassword: newPw,
       });
       if (!out.ok) {
-        setNote(out.message ?? t('That code did not work.'));
+        setNote(errorText(out.error, t, n, out));
         return;
       }
       alert.success(t('Password updated. Sign in with your new password.'));

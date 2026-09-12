@@ -285,6 +285,7 @@ export function SessionProvider({ children }) {
       getToken,
       requestCode,
       verifyCode,
+      adoptSession,
       signOutServer,
       addresses,
       loadProfile,

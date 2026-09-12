@@ -200,6 +200,14 @@ export function errorText(error, t, n, extra = {}) {
       return t('Too many codes were requested. Try again in an hour.');
     case 'otp-send-failed':
       return t('We could not send the email right now. Try again in a minute.');
+    /* A code to retype, and a code to replace — the two ways an emailed code
+       fails, and the two sentences that send the cook to different repairs. */
+    case 'otp-invalid':
+      return t('That code is wrong or has expired. Check it or send a new one.');
+    case 'otp-exhausted':
+      return t('Too many wrong tries. Ask for a new code.');
+    case 'account-suspended':
+      return t('This account is suspended. Contact support.');
 
     /* ---- refusals only a server can make ----
        The transitions these come from used to run on the device, where there

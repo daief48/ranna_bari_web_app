@@ -318,9 +318,23 @@ export default function AuthScreen() {
 
         if (!out.ok) {
           if (out.error === 'account-exists') {
+            /* The refusal comes with its repair as a button: this email is
+               finished registering, so the way forward is the sign-in tab
+               with the address already in it — not a sentence the cook has
+               to carry across to a tab the dialog never mentions. */
             const said = t('That email or mobile number already has an account. Sign in instead.');
             setLocNote(said);
-            alert.error(said);
+            alert.confirm({
+              title: t('That email already has an account'),
+              body: t('Nothing was overwritten. Sign in with it, or register with a different email.'),
+              confirmLabel: t('Sign in instead'),
+              onConfirm: () => {
+                setTab('signin');
+                setSiMode('email');
+                setSiEmail(email.trim());
+                setSiPw('');
+              },
+            });
             return;
           }
           /* `errorText`, not the server's raw sentence: a 400 arrives with the

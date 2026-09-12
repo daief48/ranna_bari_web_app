@@ -737,6 +737,18 @@ export const bn = {
   'Yes, continue': 'হ্যাঁ, এগোন',
   'Just a moment…': 'এক মুহূর্ত…',
 
+  /* An email that already finished registering — the way out is sign-in. */
+  'That email already has an account': 'এই ইমেইলে আগে থেকেই অ্যাকাউন্ট আছে',
+  'Nothing was overwritten. Sign in with it, or register with a different email.':
+    'কিছুই বদলায়নি। এটি দিয়ে সাইন ইন করুন, বা অন্য ইমেইল দিয়ে রেজিস্টার করুন।',
+  'Sign in instead': 'বদলে সাইন ইন করুন',
+
+  /* The two ways an emailed code dies, and the account behind it. */
+  'That code is wrong or has expired. Check it or send a new one.':
+    'কোডটি ভুল, অথবা মেয়াদ শেষ। মিলিয়ে নিন বা নতুন কোড পাঠান।',
+  'Too many wrong tries. Ask for a new code.': 'অনেকবার ভুল হয়েছে। নতুন কোড নিন।',
+  'This account is suspended. Contact support.': 'এই অ্যাকাউন্ট স্থগিত। সাপোর্টে যোগাযোগ করুন।',
+
   /* ---------------- odds and ends ---------------- */
   Order: 'অর্ডার',
   'The kitchen': 'রান্নাঘর',
