@@ -580,7 +580,17 @@ export async function appRoutes(app: FastifyInstance) {
         kitchenPhotos: z.array(z.string()).max(5).optional(),
       })
       .safeParse(request.body);
-    if (!body.success) return fail(reply, ERR.BAD_REQUEST);
+    if (!body.success) {
+      /* The same named refusal the register route gives — a documents post is
+         the heaviest body in the app, and "some of that" is no answer at all. */
+      const issues = bodyIssues(body.error);
+      request.log.warn({ issues }, 'kitchen documents refused');
+      return reply.status(400).send({
+        error: ERR.BAD_REQUEST,
+        message: `Some of that was not valid — check: ${issues.map((i) => i.path).join(', ')}.`,
+        detail: issues,
+      });
+    }
 
     const inputs: DocumentInput[] = [
       ...(body.data.nidFront ? [{ kind: 'nid-front' as const, dataUri: body.data.nidFront }] : []),
@@ -895,6 +905,15 @@ export async function appRoutes(app: FastifyInstance) {
     (request.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
     request.ip;
 
+  /* The fields a body can carry in the wrong shape — a coordinate that crossed
+     a bridge as a string, a radius from a slider that stores text. Coerced
+     rather than refused: the values read as numbers to everybody but the
+     schema, and a refusal here cost an afternoon of guessing which field. */
+  const numeric = z.coerce.number();
+
+  const bodyIssues = (error: z.ZodError) =>
+    error.issues.map((i) => ({ path: i.path.join('.'), code: i.code, message: i.message }));
+
   app.post('/auth/cook/register', async (request, reply) => {
     const body = z
       .object({
@@ -906,14 +925,24 @@ export async function appRoutes(app: FastifyInstance) {
         specialties: z.array(z.string().trim().min(1)).min(1).max(6),
         nid: z.string().trim().min(4).max(30),
         area: z.string().optional(),
-        lat: z.number().optional(),
-        lng: z.number().optional(),
-        deliveryRadiusKm: z.number().min(1).max(50).optional(),
+        lat: numeric.optional(),
+        lng: numeric.optional(),
+        deliveryRadiusKm: numeric.min(1).max(50).optional(),
         addressDetail: z.string().optional(),
         device: cookDevice,
       })
       .safeParse(request.body);
-    if (!body.success) return fail(reply, ERR.BAD_REQUEST);
+    if (!body.success) {
+      /* Named, in the response and the log — "some of that" sent a cook away
+         with no field to look at, and cost an afternoon to place. */
+      const issues = bodyIssues(body.error);
+      request.log.warn({ issues }, 'cook register refused');
+      return reply.status(400).send({
+        error: ERR.BAD_REQUEST,
+        message: `Some of that was not valid — check: ${issues.map((i) => i.path).join(', ')}.`,
+        detail: issues,
+      });
+    }
     if (body.data.password.length < 8) return fail(reply, ERR.PASSWORD_WEAK);
 
     const out = await registerCook(body.data);
