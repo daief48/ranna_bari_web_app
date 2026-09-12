@@ -284,7 +284,7 @@ export default function CookDashboard() {
               shadow.md,
             ]}
           >
-            <View style={{ height: 148 }}>
+            <View style={{ height: 168 }}>
               {/* A kitchen that has not uploaded a banner yet is the ordinary
                   state of a new one, and `{ uri: undefined }` renders a real
                   <img> with no src for it — a broken-image glyph rather than
