@@ -10,10 +10,10 @@
  * Each row carries its own count, so the hub answers "what do I have out
  * there" without being opened three times.
  *
- * Meals is now three rows rather than one. The per-plate board it used to open
- * was replaced by the monthly system, where offering meals is genuinely three
- * decisions — the service, the calendar and the dish list — and a single row
- * hid two of them behind a screen nobody had a reason to open.
+ * Meals is one row again — but to a place built for it, not to the old
+ * per-plate board. The monthly system is genuinely three decisions plus the
+ * bookings they produce, and no single editor shows all four; `/cook/meal-hub`
+ * is the one overview that does, and the editors sit one tap inside it.
  */
 import React, { useCallback, useState } from 'react';
 import { Text, View } from 'react-native';
@@ -32,7 +32,7 @@ import { useSession } from '../../../src/store/SessionContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 import { GroupLabel } from '../../../src/features/meal-plan/components';
-import { fetchMyDishes, fetchMyPlan, fetchMyService } from '../../../src/features/meal-plan/api';
+import { fetchMyPlan, fetchMyService } from '../../../src/features/meal-plan/api';
 
 export default function ListingsScreen() {
   const router = useRouter();
@@ -59,21 +59,17 @@ export default function ListingsScreen() {
    */
   const [service, setService] = useState(undefined);
   const [plan, setPlan] = useState(null);
-  const [mealDishes, setMealDishes] = useState(null);
 
   useFocusEffect(
     useCallback(() => {
       if (!token) return;
       let alive = true;
 
-      Promise.all([fetchMyService(token), fetchMyPlan(token), fetchMyDishes(token)]).then(
-        ([svc, cal, lib]) => {
-          if (!alive) return;
-          setService(svc.ok ? svc.result.service : null);
-          setPlan(cal.ok ? cal.result : null);
-          setMealDishes(lib.ok ? lib.result : null);
-        },
-      );
+      Promise.all([fetchMyService(token), fetchMyPlan(token)]).then(([svc, cal]) => {
+        if (!alive) return;
+        setService(svc.ok ? svc.result.service : null);
+        setPlan(cal.ok ? cal.result : null);
+      });
 
       return () => {
         alive = false;
@@ -81,45 +77,23 @@ export default function ListingsScreen() {
     }, [token]),
   );
 
-  /** Which month is live for this kitchen, and whether it needs finishing. */
-  const calendarSub = !service
-    ? t('Start a meal service first')
-    : plan === null
-      ? t('Checking…')
-      : plan.cookPlan
-        ? plan.cookPlan.status === 'published'
-          ? t('Your own menu is live')
-          : t('Your menu is a draft — publish it')
-        : plan.systemPlan
-          ? t('Cooking the platform’s menu')
-          : t('No menu published for this month');
+  /* One line for the whole system — the two facts a cook acts on: is it on,
+     and is there a menu behind it. The hub carries the rest. */
+  const menuLive =
+    plan === null ? null : !!(plan.cookPlan?.status === 'published' || plan.systemPlan);
 
-  /** How much of the library is actually doing work. */
-  const dishesSub = !service
-    ? t('Start a meal service first')
-    : mealDishes === null
-      ? t('Checking…')
-      : (mealDishes.mine?.length ?? 0) > 0
-        ? t('{n} of your own', { n: n(mealDishes.mine.length) })
-        : t('None yet — add the ones you cook most');
-
-  /* `undefined` while it is still being read, `null` when there is none —
-     different sentences, and a hub that says "not started" for half a second
-     on every visit is a hub that lies. */
-  const serviceSub =
+  const mealsSub =
     service === undefined
       ? t('Checking…')
       : !service
         ? t('Not started yet')
-        : service.active
-          ? t('{label} · ৳{rate} a meal · open', {
-              label: t(service.categoryLabel || service.categoryKey),
-              rate: n(service.effectiveRate),
-            })
-          : t('{label} · ৳{rate} a meal · not offered', {
-              label: t(service.categoryLabel || service.categoryKey),
-              rate: n(service.effectiveRate),
-            });
+        : !service.active
+          ? t('Service set — not switched on')
+          : menuLive === null
+            ? t('Checking…')
+            : menuLive
+              ? t('Open for bookings')
+              : t('Open, but no menu for this month');
 
   return (
     <CookScreen>
@@ -226,29 +200,9 @@ export default function ListingsScreen() {
             <ActionRow
               icon="pot"
               tone="saffron"
-              title={t('Meal service')}
-              sub={serviceSub}
-              onPress={() => router.push('/cook/meal-service')}
-            />
-          </Reveal>
-
-          <Reveal delay={4}>
-            <ActionRow
-              icon="calendar"
-              title={t('Monthly menu')}
-              sub={calendarSub}
-              locked={!service}
-              onPress={() => router.push('/cook/meal-plan')}
-            />
-          </Reveal>
-
-          <Reveal delay={5}>
-            <ActionRow
-              icon="utensils"
-              title={t('My dishes')}
-              sub={dishesSub}
-              locked={!service}
-              onPress={() => router.push('/cook/meal-dishes')}
+              title={t('Monthly meals')}
+              sub={mealsSub}
+              onPress={() => router.push('/cook/meal-hub')}
             />
           </Reveal>
         </View>

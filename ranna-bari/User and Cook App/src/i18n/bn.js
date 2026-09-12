@@ -2265,6 +2265,19 @@ export const bn = {
   'Checking…': 'দেখা হচ্ছে…',
   '{label} · ৳{rate} a meal · open': '{label} · প্রতি মিল ৳{rate} · চালু',
   '{label} · ৳{rate} a meal · not offered': '{label} · প্রতি মিল ৳{rate} · বন্ধ',
+  'The whole meal system — service, menu, dishes and bookings — in one place.':
+    'মাসিক খাবারের পুরো ব্যবস্থা — সার্ভিস, মেনু, পদ ও বুকিং — এক জায়গায়।',
+  'Checking your meal system…': 'আপনার মিল সিস্টেম দেখা হচ্ছে…',
+  'Open the cooking board': 'রান্নার বোর্ড খুলুন',
+  'Set things up or change them': 'সেট আপ করুন বা বদলান',
+  'No meal service yet': 'এখনো মিল সার্ভিস নেই',
+  'Set your category, price and meal range, then switch the service on.':
+    'ক্যাটাগরি, দাম ও খাবারের সংখ্যা ঠিক করুন, তারপর সার্ভিস চালু করুন।',
+  'Free today — next cooking day {date}': 'আজ ফাঁকা — পরের রান্নার দিন {date}',
+  'Nothing booked right now': 'এই মুহূর্তে কোনো বুকিং নেই',
+  '{done} of {total} handed over today': 'আজ {total}-এর মধ্যে {done}টি হস্তান্তর হয়েছে',
+  'Service set — not switched on': 'সার্ভিস ঠিক আছে — চালু হয়নি',
+  'Open, but no menu for this month': 'বুকিং খোলা, কিন্তু এই মাসের মেনু নেই',
 
   /* ---- refusals the server sends as templates ---- */
 

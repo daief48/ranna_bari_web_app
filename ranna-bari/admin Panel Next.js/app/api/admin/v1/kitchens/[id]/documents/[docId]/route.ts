@@ -13,12 +13,12 @@ export const dynamic = 'force-dynamic';
  * shared secret that cannot travel to a browser, so the browser needs a
  * server of its own to ask.
  *
- * The alternative — inlining the data URI into the page's server-rendered
- * tree — would ship a two-megabyte string inside the HTML of the whole
- * kitchen page per document, and a PDF is not something an `<img>` can draw
- * anyway. This route gives both renderers an ordinary `/`-rooted URL: the
- * image renders from it, the PDF opens from it, and the operator's session
- * stays the only key to it.
+ * The backend answers with a data URI; a browser — an `<img src>`, an
+ * open-in-new-tab — was promised bytes. So this route splits the URI and
+ * re-serves the base64 as the body with the document's own content type,
+ * which is also what keeps the two-megabyte string out of the page's
+ * server-rendered HTML: it travels once per view, on demand, and never as
+ * part of the tree.
  */
 export async function GET(
   _request: Request,
@@ -31,7 +31,26 @@ export async function GET(
 
   const { id, docId } = await params;
   try {
-    return NextResponse.json(await get(`/kitchens/${id}/documents/${docId}`));
+    const doc = await get<{ mime?: string; data?: string }>(
+      `/kitchens/${id}/documents/${docId}`,
+    );
+
+    const data = typeof doc.data === 'string' ? doc.data : '';
+    const comma = data.indexOf(',');
+    const bytes = Buffer.from(comma >= 0 ? data.slice(comma + 1) : data, 'base64');
+    if (!bytes.length) {
+      return NextResponse.json({ error: 'document-empty' }, { status: 404 });
+    }
+
+    return new NextResponse(new Uint8Array(bytes), {
+      headers: {
+        'content-type': doc.mime || 'application/octet-stream',
+        'content-length': String(bytes.byteLength),
+        /* The evidence never changes once submitted; the operator's session
+            keeps it private. */
+        'cache-control': 'private, max-age=300',
+      },
+    });
   } catch (error) {
     if (error instanceof BackendError) {
       return NextResponse.json({ error: error.code }, { status: error.status || 502 });
