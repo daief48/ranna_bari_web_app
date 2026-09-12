@@ -221,14 +221,17 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
     .catch(() => []);
 
   /* What the cook submitted lives in two places. Kitchens registered before
-     the document step carry the gallery on the kitchen row itself; every
-     registration since carries it as kitchen-photo documents, and the row's
-     own `photos` stays empty. The card shows both in one row — an operator
-     deciding on the photographs should not have to know which store a
-     kitchen's gallery uses. */
+     the document step carry the gallery on the kitchen row itself; newer ones
+     carry it as kitchen-photo documents until a submission mirrors it back as
+     URLs. The card shows the row's gallery when it has one, and falls back to
+     the submitted documents when it does not — an operator deciding on the
+     photographs should not have to know which store a kitchen's gallery uses,
+     nor see the same rooms twice. */
+  const rowPhotos = kitchen.photos ?? [];
   const documentPhotoUrls = documents
     .filter((d) => d.kind === 'kitchen-photo')
     .map((d) => `/api/admin/v1/kitchens/${kitchen.id}/documents/${d.id}`);
+  const galleryPhotos = rowPhotos.length ? rowPhotos : documentPhotoUrls;
 
   const documentLabel = (kind: string, seq: number) =>
     ({
@@ -324,7 +327,7 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
       >
         <KitchenPhotos
           cover={kitchen.coverImage}
-          photos={[...(kitchen.photos ?? []), ...documentPhotoUrls]}
+          photos={galleryPhotos}
           empty="No photographs on this kitchen."
         />
       </Card>

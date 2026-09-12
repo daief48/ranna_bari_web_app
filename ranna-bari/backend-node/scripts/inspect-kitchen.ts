@@ -26,13 +26,13 @@ if (account) {
 const docs = await KitchenDocument.find({
   $or: [{ kitchenId: id }, ...(kitchen ? [{ kitchenId: String(kitchen._id) }] : [])],
 })
-  .select('kind filename mimeType size uploadedAt data')
+  .select('kind seq mime size data')
   .lean();
 
 console.log('\ndocuments:', docs.length);
 for (const d of docs) {
   console.log(
-    `  ${d.kind} · ${d.filename} · ${d.mimeType} · ${d.size} bytes · has data: ${!!d.data} · len: ${d.data?.length ?? 0}`,
+    `  ${d.kind} #${d.seq} · ${d.mime} · ${d.size} bytes · has data: ${!!d.data} · len: ${d.data?.length ?? 0}`,
   );
 }
 

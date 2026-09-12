@@ -61,6 +61,11 @@ const schema = z.object({
   MAIL_FROM: z.string().default('RannaBari <no-reply@rannabari.app>'),
 
   ADMIN_ORIGIN: z.string().default('http://localhost:3100'),
+
+  /* The address the outside world uses for this service, for URLs that get
+     baked into stored rows (a kitchen's gallery). Empty in development, where
+     localhost is the truth; set in production, where it is not. */
+  PUBLIC_BASE_URL: z.string().default(''),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -92,6 +97,10 @@ export function resetEnv() {
 }
 
 export const isProd = () => loadEnv().NODE_ENV === 'production';
+
+/** The outside address of this service, for URLs it stores on rows. */
+export const publicBaseUrl = () =>
+  loadEnv().PUBLIC_BASE_URL || `http://localhost:${loadEnv().PORT}`;
 export const smsIsLive = () => {
   const provider = loadEnv().SMS_PROVIDER;
   return !!provider && provider !== 'none';

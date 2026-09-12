@@ -1,6 +1,7 @@
 import { Kitchen, KitchenDocument } from '../models/index.js';
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
 import { tx } from '../config/db.js';
+import { publicBaseUrl } from '../config/env.js';
 
 /**
  * KYC evidence for a kitchen — the NID faces, the optional portrait, the
@@ -108,12 +109,39 @@ export async function saveKitchenDocuments(
   const submittedAt = new Date();
   await tx(async (session) => {
     await KitchenDocument.deleteMany({ kitchenId }, { session });
-    await KitchenDocument.insertMany(vetted, { session });
+    const inserted = (await KitchenDocument.insertMany(vetted, { session })) as {
+      _id: unknown;
+      kind: string;
+      seq: number;
+    }[];
+
+    /* The gallery mirrors into the kitchen row — as URLs into the public photo
+       endpoint, not as bytes. A data URI per field would put half a megabyte
+       into every payload that carries a kitchen, which is exactly why the
+       bytes live in their own collection; the URL keeps the card images
+       loading like any other image while the row stays small. The first
+       submitted kitchen photo is the cover — what registration promised — and
+       the portrait becomes the avatar when the cook sent one. */
+    const base = publicBaseUrl();
+    const urlOf = (row: { _id: unknown }) =>
+      `${base}/api/app/v1/kitchens/${kitchenId}/photos/${String(row._id)}`;
+    const gallery = inserted
+      .filter((row) => row.kind === 'kitchen-photo')
+      .sort((a, b) => a.seq - b.seq);
+    const portrait = inserted.find((row) => row.kind === 'profile-pic');
+
     await Kitchen.updateOne(
       { _id: kitchenId },
       {
         documentsSubmittedAt: submittedAt,
         ...(kitchen.kycStatus === 'rejected' ? { kycStatus: 'pending', kycNote: null } : {}),
+        ...(gallery.length
+          ? {
+              coverImage: urlOf(gallery[0]),
+              photos: gallery.map(urlOf),
+            }
+          : {}),
+        ...(portrait ? { avatar: urlOf(portrait) } : {}),
       },
       { session },
     );
@@ -157,4 +185,26 @@ export async function readKitchenDocument(kitchenId: string, documentId: string)
     data: row.data,
     at: row.at,
   });
+}
+
+/**
+ * One storefront image, decoded and ready to serve — kitchen photographs and
+ * the portrait, and deliberately nothing else. The NID faces share this
+ * collection and must never answer an unauthenticated request, so the kind is
+ * checked here rather than at the route, where a new kind could be added
+ * without remembering why this check exists.
+ */
+export async function readPublicPhoto(
+  kitchenId: string,
+  documentId: string,
+): Promise<{ mime: string; bytes: Buffer } | null> {
+  const row = await KitchenDocument.findOne({ _id: documentId, kitchenId }).lean();
+  if (!row || (row.kind !== 'kitchen-photo' && row.kind !== 'profile-pic')) return null;
+
+  const data = String(row.data ?? '');
+  const comma = data.indexOf(',');
+  const bytes = Buffer.from(comma >= 0 ? data.slice(comma + 1) : data, 'base64');
+  if (!bytes.length) return null;
+
+  return { mime: row.mime || 'application/octet-stream', bytes };
 }

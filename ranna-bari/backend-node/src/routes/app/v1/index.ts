@@ -44,6 +44,7 @@ import { registerCook } from '../../../logic/cook-signup.js';
 import {
   listKitchenDocuments,
   readKitchenDocument,
+  readPublicPhoto,
   saveKitchenDocuments,
   type DocumentInput,
 } from '../../../logic/kitchen-documents.js';
@@ -630,6 +631,25 @@ export async function appRoutes(app: FastifyInstance) {
     if (!out.ok) return fail(reply, out.error, 404);
 
     return out.result;
+  });
+
+  /**
+   * One storefront photograph, bytes and all — no session, because this is
+   * what a kitchen's card shows customers, and a customer is not signed in as
+   * the cook. `readPublicPhoto` refuses everything but kitchen photographs
+   * and the portrait, so the NID faces sharing the collection never answer
+   * here however this route is called.
+   */
+  app.get('/kitchens/:id/photos/:docId', async (request, reply) => {
+    const { id, docId } = request.params as { id: string; docId: string };
+    const out = await readPublicPhoto(id, docId);
+    if (!out) return reply.status(404).send({ error: 'document-missing' });
+
+    reply.header('content-type', out.mime);
+    /* The bytes of a submitted set never change — a resubmission replaces the
+       rows, which changes the ids and therefore the URLs. */
+    reply.header('cache-control', 'public, max-age=86400');
+    return reply.send(out.bytes);
   });
 
   /**
