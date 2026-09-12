@@ -2279,6 +2279,15 @@ export const bn = {
   'Service set — not switched on': 'সার্ভিস ঠিক আছে — চালু হয়নি',
   'Open, but no menu for this month': 'বুকিং খোলা, কিন্তু এই মাসের মেনু নেই',
 
+  /* The cook dashboard's greeting and its two-day count. */
+  'Good morning': 'শুভ সকাল',
+  'Good afternoon': 'শুভ অপরাহ্ন',
+  'Good evening': 'শুভ সন্ধ্যা',
+  '{name}’s kitchen': '{name}-এর রান্নাঘর',
+  'Plates tomorrow': 'আগামীকালের প্লেট',
+  'Kitchen profile': 'রান্নাঘরের প্রোফাইল',
+  'Cover, photos and where you are': 'কভার, ছবি ও আপনার অবস্থান',
+
   /* ---- refusals the server sends as templates ---- */
 
   'Pick between {min} and {max} meals. You picked {count}.':

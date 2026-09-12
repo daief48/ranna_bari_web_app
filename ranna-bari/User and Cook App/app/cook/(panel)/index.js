@@ -10,7 +10,6 @@ import { Container } from '../../../src/components/Screen';
 import Icon from '../../../src/components/Icon';
 import Reveal from '../../../src/components/Reveal';
 import Button from '../../../src/components/Button';
-import SectionHeader from '../../../src/components/SectionHeader';
 import NextUp from '../../../src/components/NextUp';
 import { BentoBox, IconTile } from '../../../src/components/Surfaces';
 import { ActionRow, RowHeading, StatTile } from '../../../src/components/CookBits';
@@ -28,7 +27,12 @@ import {
 import { tomorrowKey, useCommerce } from '../../../src/store/CommerceContext';
 import { useChat } from '../../../src/store/ChatContext';
 import { useSession } from '../../../src/store/SessionContext';
-import { fetchMealOrders } from '../../../src/features/meal-plan/api';
+import {
+  fetchMealOrders,
+  fetchMyPlan,
+  fetchMyService,
+} from '../../../src/features/meal-plan/api';
+import { todayKey } from '../../../src/features/meal-plan/format';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 /**
@@ -71,23 +75,44 @@ export default function CookDashboard() {
   const run = useAction();
 
   /*
-   * Tomorrow's plates — the number a cook needs before they go shopping.
+   * The two days a cook plans around, read straight off the meal orders.
    *
-   * Counted off tomorrow's meal orders rather than off published meals. Under
-   * the monthly system there is nothing to publish per day: a plate exists
-   * because somebody booked a month that includes tomorrow, so the orders
-   * *are* the count. The old reading came from the per-plate board and its
-   * endpoints are gone, which made this quietly zero on every kitchen.
+   * Counted off meal orders rather than off published meals. Under the monthly
+   * system there is nothing to publish per day: a plate exists because somebody
+   * booked a month that includes that date, so the orders *are* the count. The
+   * old reading came from the per-plate board and its endpoints are gone, which
+   * made this quietly zero on every kitchen.
    */
   const [platesTomorrow, setPlatesTomorrow] = useState(0);
+  const [mealsToday, setMealsToday] = useState(null);
+  /* The meal system's two switches, so the dashboard can say how it stands
+     without making a cook open the hub to find out. */
+  const [service, setService] = useState(undefined);
+  const [plan, setPlan] = useState(null);
 
   useFocusEffect(
     useCallback(() => {
       if (!token) return;
       let alive = true;
-      fetchMealOrders(token, tomorrowKey()).then((out) => {
-        if (alive) setPlatesTomorrow(out.ok ? (out.result.orders?.length ?? 0) : 0);
+
+      Promise.all([
+        fetchMealOrders(token, tomorrowKey()),
+        fetchMealOrders(token, todayKey()),
+        fetchMyService(token),
+        fetchMyPlan(token),
+      ]).then(([tomorrow, today, svc, cal]) => {
+        if (!alive) return;
+        setPlatesTomorrow(tomorrow.ok ? (tomorrow.result.orders?.length ?? 0) : 0);
+        const todays = today.ok ? (today.result.orders ?? []) : [];
+        setMealsToday({
+          plates: todays.length,
+          done: todays.filter((o) => o.status === 'delivered' || o.status === 'completed')
+            .length,
+        });
+        setService(svc.ok ? svc.result.service : null);
+        setPlan(cal.ok ? cal.result : null);
       });
+
       return () => {
         alive = false;
       };
@@ -196,6 +221,29 @@ export default function CookDashboard() {
 
   const open = kitchen.isOpen;
 
+  /* How the meal system stands, in the same sentences the hub says it — the
+     dashboard and the hub can never disagree about what "on" means. */
+  const menuLive =
+    plan === null ? null : !!(plan.cookPlan?.status === 'published' || plan.systemPlan);
+  const mealsSub =
+    service === undefined
+      ? t('Checking…')
+      : !service
+        ? t('Not started yet')
+        : !service.active
+          ? t('Service set — not switched on')
+          : menuLive === null
+            ? t('Checking…')
+            : menuLive
+              ? t('Open for bookings')
+              : t('Open, but no menu for this month');
+
+  /* Greeted the way a kitchen is greeted, by the part of the day it is. */
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? t('Good morning') : hour < 17 ? t('Good afternoon') : t('Good evening');
+  const cookName = (kitchen.ownerName || kitchen.name || '').trim().split(' ')[0];
+
   /* One handler for the card and the button inside it, so the two controls
      can never drift into meaning different things. */
   const setShutter = () => {
@@ -211,18 +259,183 @@ export default function CookDashboard() {
   return (
     <CookScreen>
       <Container>
-        <SectionHeader
-          lead={t('YOUR')}
-          accent={t('KITCHEN')}
-          /* Only two states here now: the panel does not open at all unless
-             the kitchen is approved, so "waiting" is a screen rather than a
-             subtitle. */
-          subtitle={
-            open
-              ? t('{name} is taking orders.', { name: kitchen.name })
-              : t('{name} is closed. Nothing can be ordered.', { name: kitchen.name })
-          }
-        />
+        {/* ---- The pass ----
+            The screen opens on the kitchen itself, the way a cook meets it:
+            the room, the greeting, and whether the shutter is up. Tapping it
+            goes to the page that edits what it shows. */}
+        <Reveal delay={0}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('Your kitchen photos')}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              router.push('/cook/kitchen');
+            }}
+            style={({ pressed }) => [
+              {
+                marginTop: 8,
+                marginBottom: 16,
+                borderRadius: 24,
+                overflow: 'hidden',
+                backgroundColor: colors.surfaceSolid,
+                borderWidth: 1,
+                borderColor: pressed ? colors.primary200 : colors.line,
+              },
+              shadow.md,
+            ]}
+          >
+            <View style={{ height: 148 }}>
+              {/* A kitchen that has not uploaded a banner yet is the ordinary
+                  state of a new one, and `{ uri: undefined }` renders a real
+                  <img> with no src for it — a broken-image glyph rather than
+                  the tinted panel underneath. `null` shows the panel. */}
+              <Image
+                source={kitchen.coverImage ? { uri: kitchen.coverImage } : null}
+                contentFit="cover"
+                transition={200}
+                style={{ width: '100%', height: '100%', backgroundColor: colors.sunken }}
+              />
+              <LinearGradient
+                colors={['transparent', `rgba(${colors.scrim}, 0.72)`]}
+                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+              />
+
+              {/* The one chip a cook looks for across the room: is the pass
+                  taking orders right now. */}
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 13,
+                  left: 14,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingVertical: 4.5,
+                  paddingHorizontal: 10,
+                  borderRadius: radius.pill,
+                  backgroundColor: open ? 'rgba(255, 255, 255, 0.16)' : 'rgba(16, 12, 10, 0.5)',
+                  borderWidth: 1,
+                  borderColor: open ? 'rgba(255, 255, 255, 0.35)' : 'transparent',
+                }}
+              >
+                <View
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: 4,
+                    backgroundColor: open ? colors.sage : colors.textLight,
+                  }}
+                />
+                <Text
+                  style={{
+                    fontFamily: font.uiBold,
+                    fontSize: 10,
+                    letterSpacing: 0.8,
+                    textTransform: 'uppercase',
+                    color: '#FFFFFF',
+                  }}
+                >
+                  {open ? t('Open for orders') : t('Closed')}
+                </Text>
+              </View>
+
+              {/* Greeted the way a kitchen is greeted — by the hour, by name,
+                  over the room itself. */}
+              <View style={{ position: 'absolute', left: 16, right: 16, bottom: 14 }}>
+                <Text
+                  style={{
+                    fontFamily: font.displayItalic,
+                    fontSize: 13.5,
+                    color: '#F0A88F',
+                  }}
+                >
+                  {greeting},
+                </Text>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    fontFamily: font.displayExtra,
+                    fontSize: 24,
+                    letterSpacing: -0.5,
+                    color: '#FFF6F1',
+                    marginTop: 1,
+                  }}
+                >
+                  {t('{name}’s kitchen', { name: cookName })}
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13 }}>
+              <Image
+                source={kitchen.avatar ? { uri: kitchen.avatar } : null}
+                contentFit="cover"
+                transition={200}
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 15,
+                  marginTop: -34,
+                  borderWidth: 2.5,
+                  borderColor: colors.surfaceSolid,
+                  backgroundColor: colors.sunken,
+                }}
+              />
+
+              {/* The gallery itself, as far as it fits. Four is what a 412pt
+                  phone holds beside the avatar without the row wrapping. */}
+              <View style={{ flex: 1, flexDirection: 'row', gap: 6, minWidth: 0 }}>
+                {(kitchen.photos ?? []).slice(0, 4).map((uri) => (
+                  <Image
+                    key={uri}
+                    source={{ uri }}
+                    contentFit="cover"
+                    transition={150}
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 11,
+                      backgroundColor: colors.sunken,
+                      borderWidth: 1,
+                      borderColor: colors.line,
+                    }}
+                  />
+                ))}
+
+                {/* Said plainly. A cook whose photographs never saved sees an
+                    empty strip and no reason, which is exactly the state this
+                    platform was in for every kitchen on it. */}
+                {(kitchen.photos ?? []).length === 0 ? (
+                  <Text
+                    style={{
+                      fontFamily: font.ui,
+                      fontSize: type.xs,
+                      color: colors.textMuted,
+                      alignSelf: 'center',
+                    }}
+                  >
+                    {t('No kitchen photos yet')}
+                  </Text>
+                ) : null}
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                {(kitchen.photos ?? []).length > 4 ? (
+                  <Text
+                    style={{
+                      fontFamily: font.uiSemi,
+                      fontSize: type.xs,
+                      color: colors.textMuted,
+                    }}
+                  >
+                    +{n((kitchen.photos ?? []).length - 4)}
+                  </Text>
+                ) : null}
+                <Icon name="chevronRight" size={15} color={colors.textMuted} />
+              </View>
+            </View>
+          </Pressable>
+        </Reveal>
 
         {/*
           * What is actually waiting on this cook.
@@ -599,16 +812,67 @@ export default function CookDashboard() {
           </Pressable>
         </Reveal>
 
-        {/* ---- Today ---- */}
+        {/* ---- Today ----
+            Both halves of the cooking, counted where they happen: à la carte
+            orders on one row, the month's plates on the other. Each tile
+            opens the board it is counted from. */}
         <Reveal delay={2}>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-            <StatTile icon="receipt" value={n(stats.today)} label={t('Orders today')} />
-            <StatTile
-              icon="banknote"
-              value={`৳${n(stats.earned)}`}
-              label={t('Earned today')}
-              variant="saffron"
-            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('Orders today')}
+              onPress={() => router.push('/cook/orders')}
+              style={{ flex: 1 }}
+            >
+              <StatTile
+                icon="receipt"
+                value={n(stats.today)}
+                label={t('Orders today')}
+                variant="primary"
+              />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('Earned today')}
+              onPress={() => router.push('/cook/earnings')}
+              style={{ flex: 1 }}
+            >
+              <StatTile
+                icon="banknote"
+                value={`৳${n(stats.earned)}`}
+                label={t('Earned today')}
+                variant="saffron"
+              />
+            </Pressable>
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('Plates today')}
+              onPress={() => router.push('/cook/meals')}
+              style={{ flex: 1 }}
+            >
+              <StatTile
+                icon="pot"
+                value={n(mealsToday?.plates ?? 0)}
+                label={t('Plates today')}
+                variant="sage"
+              />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('Plates tomorrow')}
+              onPress={() => router.push('/cook/meals')}
+              style={{ flex: 1 }}
+            >
+              <StatTile
+                icon="calendar"
+                value={n(platesTomorrow)}
+                label={t('Plates tomorrow')}
+                variant={platesTomorrow ? 'primary' : 'sage'}
+              />
+            </Pressable>
           </View>
 
           {/* ---- Money that is earned but not yours yet ----
@@ -894,20 +1158,15 @@ export default function CookDashboard() {
             they open first. */}
         <Reveal delay={5}>
           <View style={{ gap: 12, marginTop: 28 }}>
+            {/* The month in one tap: the hub carries the service, the menu,
+                the dish library and the bookings — everything the tiles above
+                only count. */}
             <ActionRow
               icon="pot"
-              tone={platesTomorrow ? 'primary' : 'sage'}
-              title={
-                platesTomorrow
-                  ? t('Prepare {n} plates tomorrow', { n: n(platesTomorrow) })
-                  : t('Nothing booked for tomorrow')
-              }
-              sub={
-                platesTomorrow
-                  ? t('All paid for in advance — go shopping for this many')
-                  : t('Publish a month and let people book meals off it')
-              }
-              onPress={() => router.push('/cook/meals')}
+              tone={service?.active ? 'saffron' : 'sage'}
+              title={t('Monthly meals')}
+              sub={mealsSub}
+              onPress={() => router.push('/cook/meal-hub')}
             />
             <ActionRow
               icon="sparkles"
@@ -973,7 +1232,7 @@ export default function CookDashboard() {
 
         {/* ---- Quick actions ---- */}
         <Reveal delay={6}>
-          <View style={{ gap: 12, marginTop: 12 }}>
+          <View style={{ gap: 12, marginTop: 12, marginBottom: 26 }}>
             <ActionRow
               icon="plus"
               title={t('Add a dish')}
@@ -985,6 +1244,12 @@ export default function CookDashboard() {
               title={t('Your menu')}
               sub={t('{dishes} dishes, {live} available', { dishes: n(kitchen.dishes.length), live: n(liveDishes.length) })}
               onPress={() => router.push('/cook/menu')}
+            />
+            <ActionRow
+              icon="gem"
+              title={t('Kitchen profile')}
+              sub={t('Cover, photos and where you are')}
+              onPress={() => router.push('/cook/kitchen')}
             />
           </View>
         </Reveal>
