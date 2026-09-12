@@ -69,6 +69,52 @@ const DISHES = [
   ...new Set(WEEK.flatMap((day) => [day.breakfast, day.lunch, day.dinner])),
 ];
 
+/**
+ * The rest of the platform's categories, each with a week of its own.
+ *
+ * The demo used to file one calendar under Business Meal and leave Student
+ * and Regular empty — which on the panel's meal-plans page read as a system
+ * that only half works. These are the same month, cooked to what the price
+ * says: a student plate and a regular home plate are not the business tray
+ * with the portions quietly shrunk.
+ */
+const OTHER_CATEGORIES: [
+  key: string,
+  week: { breakfast: string; lunch: string; dinner: string }[],
+][] = [
+  [
+    'student',
+    [
+      { breakfast: 'পরোটা + ডিম', lunch: 'ভাত + ডাল + সয়া কারি', dinner: 'খিচুড়ি + ডিম' },
+      { breakfast: 'রুটি + ডাল', lunch: 'ভাত + মুরগির ঝোল', dinner: 'ভাত + আলু ভাজি + ডাল' },
+      { breakfast: 'খিচুড়ি', lunch: 'পাস্তা', dinner: 'ভাত + সবজি কারি' },
+      { breakfast: 'পুরি + সবজি', lunch: 'ভাত + ডিম কারি', dinner: 'পাস্তা' },
+      { breakfast: 'ভাত + ডিম ভাজি', lunch: 'খিচুড়ি + ডিম', dinner: 'ভাত + ডিম ভুনা' },
+      { breakfast: 'রুটি + সবজি', lunch: 'ভাত + শাক ভাজি + ডাল', dinner: 'কুমড়া ভাজি + ভাত' },
+      { breakfast: 'সেমাই', lunch: 'ভাত + সয়া কারি', dinner: 'ভাত + ডাল + ডিম' },
+    ],
+  ],
+  [
+    'regular',
+    [
+      { breakfast: 'রুটি + ডাল', lunch: 'ভাত + ডাল + মাছ', dinner: 'ভাত + সবজি' },
+      { breakfast: 'ভাত + ভর্তা', lunch: 'ভাত + মুরগির কারি', dinner: 'খিচুড়ি' },
+      { breakfast: 'পরোটা + সবজি', lunch: 'ভাত + ডিম কারি', dinner: 'ভাত + পটল + ডাল' },
+      { breakfast: 'রুটি + ডিম', lunch: 'খিচুড়ি + আচার', dinner: 'ভাত + লাউ + ডাল' },
+      { breakfast: 'খিচুড়ি', lunch: 'ভাত + শুকনো মাছ', dinner: 'ভাত + ডাল + ভর্তা' },
+      { breakfast: 'রুটি + কলা', lunch: 'ভাত + গরুর মাংস', dinner: 'ভাত + সবজি + ডিম' },
+      { breakfast: 'পায়েস', lunch: 'ভাত + ডাল + ভর্তা', dinner: 'ভাত + মাছের ঝোল' },
+    ],
+  ],
+];
+
+/** The month after this one, so the panel is not empty when it turns over. */
+function nextMonth(): string {
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+  const d = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 const say = (line: string) => console.log(`${apply ? '·' : '  would'} ${line}`);
 
 async function main() {
@@ -124,6 +170,65 @@ async function main() {
         status: 'published',
         updatedBy: 'seed-meal-demo',
       });
+    }
+  }
+
+  /* ---- the other platform calendars ----
+
+     Every seeded category gets a published month — this one and the next, so
+     the panel does not go empty when the month turns over. The panel's
+     calendar reads per category, and a row with nothing in it looks like the
+     system is broken rather than like a demo stopped at Business. Same dish
+     library, same idempotence: an existing plan is never touched. */
+  const weeks: [string, { breakfast: string; lunch: string; dinner: string }[]][] = [
+    ['business', WEEK],
+    ...OTHER_CATEGORIES,
+  ];
+  for (const calMonth of [month, nextMonth()]) {
+    for (const [key, week] of weeks) {
+      const dishNames = [...new Set(week.flatMap((d) => [d.breakfast, d.lunch, d.dinner]))];
+
+      let dishesAdded = 0;
+      for (const name of dishNames) {
+        const type = week.some((d) => d.breakfast === name)
+          ? 'breakfast'
+          : week.some((d) => d.lunch === name)
+            ? 'lunch'
+            : 'dinner';
+
+        const exists = await MealDish.findOne({ scope: 'system', categoryKey: key, name }).lean();
+        if (exists) continue;
+        dishesAdded += 1;
+        if (apply) {
+          await MealDish.create({ scope: 'system', kitchenId: '', categoryKey: key, name, type });
+        }
+      }
+      if (dishesAdded) say(`add ${dishesAdded} platform dishes under ${key}`);
+
+      const plan = await MealPlan.findOne({
+        scope: 'system',
+        kitchenId: '',
+        categoryKey: key,
+        month: calMonth,
+      }).lean();
+
+      if (plan) {
+        say(`leave the ${key} calendar for ${calMonth} alone (${plan.status})`);
+        continue;
+      }
+
+      say(`publish a ${key} calendar for ${calMonth} — ${monthDays(calMonth).length} days`);
+      if (apply) {
+        await MealPlan.create({
+          scope: 'system',
+          kitchenId: '',
+          categoryKey: key,
+          month: calMonth,
+          days: monthDays(calMonth).map((date, i) => ({ date, ...week[i % week.length] })),
+          status: 'published',
+          updatedBy: 'seed-meal-demo',
+        });
+      }
     }
   }
 
