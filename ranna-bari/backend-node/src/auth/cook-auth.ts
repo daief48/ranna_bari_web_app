@@ -132,7 +132,8 @@ export async function requestEmailOtp(
     ip: ip ?? null,
   });
 
-  if (mailIsLive()) {
+  const mailSent = mailIsLive();
+  if (mailSent) {
     try {
       await sendEmailOtp(email, code);
     } catch (err) {
@@ -146,11 +147,18 @@ export async function requestEmailOtp(
         error: 'We could not send the email right now. Try again in a minute.',
       };
     }
-  } else {
-    if (isProd()) {
-      throw new Error('SMTP is not configured, so no mail can leave this service.');
-    }
-    console.log(`[otp:email] ${email} → ${code} (dev mode; no SMTP configured)`);
+  } else if (isProd()) {
+    throw new Error('SMTP is not configured, so no mail can leave this service.');
+  }
+
+  /* Every code that actually left also says itself in the terminal, SMTP
+     configured or not — in development the developer is the one waiting on
+     it, and opening the inbox once per test run is not a workflow. Production
+     never logs codes: a log is exactly where six-digit codes leak from. */
+  if (!isProd()) {
+    console.log(
+      `[otp:email] ${email} → ${code}${mailSent ? '' : ' (dev mode; no SMTP configured)'}`,
+    );
   }
 
   return {

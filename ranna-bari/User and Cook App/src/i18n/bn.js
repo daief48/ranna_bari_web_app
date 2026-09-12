@@ -696,6 +696,47 @@ export const bn = {
   'Loading…': 'আসছে…',
   'Placing…': 'পাঠানো হচ্ছে…',
 
+  /* ---------------- cook registration refusals ----------------
+     The server sends its field names (kitchenName, specialties); the dialog
+     shows these instead — the label the form used, then the repair. */
+  'Mobile number': 'মোবাইল নম্বর',
+  Specialties: 'বিশেষত্ব',
+  'Address details': 'ঠিকানার বিবরণ',
+  'Pin location': 'ম্যাপের পিন',
+  '{field}: {fix}': '{field}: {fix}',
+  'enter at least 2 characters': 'অন্তত ২টি অক্ষর লিখুন',
+  'enter a Bangladeshi mobile number, like 01712 345678':
+    'বাংলাদেশি মোবাইল নম্বর দিন, যেমন 01712 345678',
+  'that address does not look right': 'ইমেইলটি ঠিক মনে হচ্ছে না',
+  'use at least 8 characters': 'অন্তত ৮টি অক্ষর দিন',
+  'give it a name of at least 2 characters': 'অন্তত ২ অক্ষরের নাম দিন',
+  'pick 1 to 6 — remove one to add another': '১টি থেকে ৬টি বাছুন — একটি সরিয়ে আরেকটি নিন',
+  'enter 4 to 30 characters': '৪ থেকে ৩০ অক্ষরের হতে হবে',
+  'drop your pin on the map': 'ম্যাপে পিন বসান',
+  'set it between 1 and 50 km': '১ থেকে ৫০ কিমি-এর মধ্যে দিন',
+  'Pick at least one specialty — what you cook best.':
+    'অন্তত একটি বিশেষত্ব বাছুন — আপনি সবচেয়ে ভালো কী রাঁধেন।',
+  'You can list up to {n} specialties — remove one and try again.':
+    'সর্বোচ্চ {n}টি বিশেষত্ব দেওয়া যায় — একটি সরিয়ে আবার চেষ্টা করুন।',
+  'Six is the most the list holds — remove one to add another.':
+    'তালিকায় সর্বোচ্চ ৬টি রাখা যায় — একটি সরিয়ে আরেকটি যোগ করুন।',
+  '{n} of {m} chosen': '{m}-এর মধ্যে {n}টি বাছা হয়েছে',
+  'Enter a Bangladeshi mobile number, like 01712 345678.':
+    'বাংলাদেশি মোবাইল নম্বর দিন, যেমন 01712 345678।',
+  'No account was found for that email.': 'এই ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি।',
+  'Verify your email to finish signing in.': 'সাইন ইন শেষ করতে ইমেইলটি যাচাই করুন।',
+  'Too many codes were requested. Try again in an hour.':
+    'অনেক বেশি কোড চাওয়া হয়েছে। এক ঘণ্টা পর চেষ্টা করুন।',
+  'We could not send the email right now. Try again in a minute.':
+    'এখন ইমেইল পাঠানো যাচ্ছে না। এক মিনিট পর চেষ্টা করুন।',
+
+  /* The alert dialog's own chrome, which used to stay English in bn mode. */
+  'That did not work': 'কাজটি হয়নি',
+  'Got it': 'বুঝেছি',
+  'Are you sure?': 'নিশ্চিত?',
+  'Yes, continue': 'হ্যাঁ, এগোন',
+  'Just a moment…': 'এক মুহূর্ত…',
+
   /* ---------------- odds and ends ---------------- */
   Order: 'অর্ডার',
   'The kitchen': 'রান্নাঘর',

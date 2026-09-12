@@ -51,12 +51,19 @@ export default function CookVerifyScreen() {
   const flow = params.flow === 'reset' ? 'reset' : 'register';
   const paramEmail = typeof params.email === 'string' ? params.email.trim() : '';
   const paramCooldown = Number(params.cooldown) || 0;
+  /* The code itself, when the server answered with one (`devCode` — dev only,
+     never sent once SMTP is live). Arriving with the field already full beats
+     copying six digits over from a log, and typing an older code from a
+     previous attempt is the usual way "wrong or expired" happens: every new
+     send spends the last one. */
+  const paramCode =
+    typeof params.code === 'string' ? params.code.replace(/\D/g, '').slice(0, 6) : '';
 
   /* Reset starts at the address — nobody is emailed a code they did not ask
      for — while register arrives with one already on its way. */
   const [stage, setStage] = useState(flow === 'reset' ? 'email' : 'code'); // 'email' | 'code' | 'new'
   const [email, setEmail] = useState(paramEmail);
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(paramCode);
   const [newPw, setNewPw] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);

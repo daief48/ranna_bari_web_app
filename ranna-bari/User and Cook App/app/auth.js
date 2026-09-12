@@ -28,6 +28,7 @@ import { useSession } from '../src/store/SessionContext';
 import { useAlert } from '../src/components/Alert';
 import { useLang } from '../src/i18n/LanguageContext';
 import { normaliseArea } from '../src/lib/areas';
+import { errorText } from '../src/lib/errors';
 import { useSpecialties } from '../src/store/KitchenContext';
 import {
   cookRegister,
@@ -62,6 +63,15 @@ const ASIDE = {
    up disagreeing. */
 
 const PW_WORDS = ['Strength', 'Weak', 'Fair', 'Good', 'Strong'];
+
+/**
+ * The ceiling `/auth/cook/register` enforces, said here rather than only in
+ * the backend's schema. The picker offers twenty-four options with no visible
+ * limit, so a cook cooking many things tapped a seventh and heard about it
+ * only at the last step, as "check: specialties" — a field name, a screen
+ * away from the field.
+ */
+const MAX_SPECIALTIES = 6;
 
 /** The exact scoring in js/auth.js: length, length again, mixed case, digit+symbol. */
 function passwordScore(v) {
@@ -184,6 +194,14 @@ export default function AuthScreen() {
     }
 
     if (step === 2) {
+      /* Named on its own, before the generic sweep: "fill in the highlighted
+         fields" gives a cook eight places to look when the empty one is the
+         picker. */
+      if (role === 'cook' && specialties.length < 1) {
+        setDetailsNote(t('Pick at least one specialty — what you cook best.'));
+        return;
+      }
+
       const required = [
         [name, 'name'],
         [phone, 'phone'],
@@ -267,6 +285,19 @@ export default function AuthScreen() {
      * server has not agreed to.
      */
     if (role === 'cook') {
+      /* Answered here rather than by the server: these two are the form's own
+         knowledge, and a round trip is a poor way to hear them. */
+      if (!Array.isArray(specialties) || specialties.length < 1) {
+        return alert.error(t('Pick at least one specialty — what you cook best.'));
+      }
+      if (specialties.length > MAX_SPECIALTIES) {
+        return alert.error(
+          t('You can list up to {n} specialties — remove one and try again.', {
+            n: n(MAX_SPECIALTIES),
+          }),
+        );
+      }
+
       setSuBusy(true);
       try {
         const out = await cookRegister({
@@ -292,12 +323,21 @@ export default function AuthScreen() {
             alert.error(said);
             return;
           }
-          alert.error(out.message ?? t('We could not create the account right now.'));
+          /* `errorText`, not the server's raw sentence: a 400 arrives with the
+             field names it refused and this app is two languages wide. The
+             generic default falls back to whatever message rode along. */
+          const said = errorText(out.error, t, n, out);
+          setLocNote(said);
+          alert.error(said);
           return;
         }
 
         /* A refused send still opens the code screen — the countdown arrives
-           as a param, already running, and the resend button is there. */
+           as a param, already running, and the resend button is there. The
+           code itself rides along when the server answered with one: `devCode`
+           exists only while SMTP is unconfigured (in production the field is
+           never sent), so the field is filled on arrival instead of the code
+           being copied across from a console log. */
         router.push({
           pathname: '/cook-verify',
           params: {
@@ -306,6 +346,7 @@ export default function AuthScreen() {
             cooldown: String(
               out.ok ? (out.result?.cooldownSeconds ?? 60) : (out.retryAfterSeconds ?? 60),
             ),
+            ...(out.ok && out.result?.devCode ? { code: String(out.result.devCode) } : {}),
           },
         });
       } catch (error) {
@@ -1827,15 +1868,30 @@ function PasswordStrength({ level }) {
  */
 function SpecialtyPicker({ value, onChange }) {
   const { colors } = useTheme();
-  const { t } = useLang();
+  const { t, n } = useLang();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  /* Set the moment a seventh tap is refused, cleared the moment a slot
+     frees — a note that outlives its cause is how a picker ends up warning
+     somebody who is already under the limit. */
+  const [capped, setCapped] = useState(false);
   const options = useSpecialties();
 
   const chosen = Array.isArray(value) ? value : [];
 
-  const toggle = (name) =>
-    onChange(chosen.includes(name) ? chosen.filter((s) => s !== name) : [...chosen, name]);
+  const toggle = (name) => {
+    if (chosen.includes(name)) {
+      setCapped(false);
+      onChange(chosen.filter((s) => s !== name));
+      return;
+    }
+    if (chosen.length >= MAX_SPECIALTIES) {
+      setCapped(true);
+      return;
+    }
+    setCapped(false);
+    onChange([...chosen, name]);
+  };
 
   /* Promote to primary by moving it to the front — the order *is* the
      ranking, so there is no second field to keep in step. */
@@ -1922,18 +1978,32 @@ function SpecialtyPicker({ value, onChange }) {
             overflow: 'hidden',
           }}
         >
-          {/* What you have picked, all of it, without scrolling for it. */}
+          {/* What you have picked, all of it, without scrolling for it — and
+              how much room the list has left, so the limit is something read
+              before it is hit rather than refused after. */}
           {chosen.length ? (
             <View
               style={{
-                flexDirection: 'row',
-                flexWrap: 'wrap',
-                gap: 6,
                 padding: 10,
+                paddingBottom: 8,
+                gap: 8,
                 borderBottomWidth: 1,
                 borderBottomColor: colors.line2,
               }}
             >
+              <Text
+                style={{
+                  fontFamily: font.uiSemi,
+                  fontSize: 10.5,
+                  letterSpacing: 10.5 * tracking.label,
+                  textTransform: 'uppercase',
+                  color:
+                    chosen.length >= MAX_SPECIALTIES ? colors.saffron : colors.textMuted,
+                }}
+              >
+                {t('{n} of {m} chosen', { n: n(chosen.length), m: n(MAX_SPECIALTIES) })}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
               {chosen.map((s, i) => {
                 const main = i === 0;
                 const ink = main ? colors.onPrimary : colors.primary;
@@ -2000,6 +2070,35 @@ function SpecialtyPicker({ value, onChange }) {
                   </View>
                 );
               })}
+              </View>
+            </View>
+          ) : null}
+
+          {/* The refusal the server would give, said where the tap that
+              provoked it just happened. */}
+          {capped ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 7,
+                paddingHorizontal: 12,
+                paddingVertical: 9,
+                backgroundColor: colors.saffron100,
+              }}
+            >
+              <Icon name="alertCircle" size={13} color={colors.saffron} />
+              <Text
+                style={{
+                  flex: 1,
+                  fontFamily: font.ui,
+                  fontSize: 12.5,
+                  lineHeight: 18,
+                  color: colors.text,
+                }}
+              >
+                {t('Six is the most the list holds — remove one to add another.')}
+              </Text>
             </View>
           ) : null}
 
