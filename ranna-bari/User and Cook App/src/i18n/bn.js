@@ -1417,6 +1417,7 @@ export const bn = {
   'Move down': 'নিচে নিন',
   Rename: 'নাম বদলান',
   Delete: 'মুছুন',
+  Accept: 'গ্রহণ করুন',
   Decline: 'ফিরিয়ে দিন',
   'and up': 'থেকে শুরু',
   'Active orders': 'চলমান অর্ডার',
@@ -2287,6 +2288,7 @@ export const bn = {
   'Plates tomorrow': 'আগামীকালের প্লেট',
   'Kitchen profile': 'রান্নাঘরের প্রোফাইল',
   'Cover, photos and where you are': 'কভার, ছবি ও আপনার অবস্থান',
+  'Menu & kitchen': 'মেনু ও রান্নাঘর',
 
   /* ---- refusals the server sends as templates ---- */
 

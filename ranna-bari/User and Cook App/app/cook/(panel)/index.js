@@ -381,18 +381,10 @@ export default function CookDashboard() {
         <NextUp
           style={{ marginTop: 6, marginBottom: 18 }}
           steps={[
-            stats.waiting > 0 && {
-              key: 'accept',
-              urgent: true,
-              icon: 'receipt',
-              tone: 'primary',
-              title: t(
-                stats.waiting === 1 ? 'Accept 1 order' : 'Accept {n} orders',
-                { n: n(stats.waiting) },
-              ),
-              sub: t('Somebody has paid and is waiting to hear from you'),
-              onPress: () => router.push('/cook/orders'),
-            },
+            /* New orders are deliberately not a step here: they get their own
+               section below, with the accept button on the card — a task that
+               can be finished where it stands does not need a second entry
+               pointing at a board. */
 
             stats.disputed > 0 && {
               key: 'disputed',
@@ -472,118 +464,6 @@ export default function CookDashboard() {
             },
           ]}
         />
-
-        {/* ---- The shopfront ----
-            What a customer sees, on the screen the cook starts on. Tapping
-            anything here goes to the page that edits it rather than editing
-            in place: two editors for one gallery is how they disagree. */}
-        <Reveal delay={1}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('Your kitchen photos')}
-            onPress={() => {
-              Haptics.selectionAsync().catch(() => {});
-              router.push('/cook/kitchen');
-            }}
-            style={({ pressed }) => [
-              {
-                marginTop: 4,
-                marginBottom: 18,
-                borderRadius: 24,
-                overflow: 'hidden',
-                backgroundColor: colors.surfaceSolid,
-                borderWidth: 1,
-                borderColor: pressed ? colors.primary200 : colors.line,
-              },
-            ]}
-          >
-            <View style={{ height: 92 }}>
-              {/* A kitchen that has not uploaded a banner yet is the ordinary
-                  state of a new one, and `{ uri: undefined }` renders a real
-                  <img> with no src for it — a broken-image glyph rather than
-                  the tinted panel underneath. `null` shows the panel. */}
-              <Image
-                source={kitchen.coverImage ? { uri: kitchen.coverImage } : null}
-                contentFit="cover"
-                transition={200}
-                style={{ width: '100%', height: '100%', backgroundColor: colors.sunken }}
-              />
-              <LinearGradient
-                colors={['transparent', `rgba(${colors.scrim}, 0.5)`]}
-                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
-              />
-            </View>
-
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13 }}>
-              <Image
-                source={kitchen.avatar ? { uri: kitchen.avatar } : null}
-                contentFit="cover"
-                transition={200}
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 15,
-                  marginTop: -34,
-                  borderWidth: 2.5,
-                  borderColor: colors.surfaceSolid,
-                  backgroundColor: colors.sunken,
-                }}
-              />
-
-              {/* The gallery itself, as far as it fits. Four is what a 412pt
-                  phone holds beside the avatar without the row wrapping. */}
-              <View style={{ flex: 1, flexDirection: 'row', gap: 6, minWidth: 0 }}>
-                {(kitchen.photos ?? []).slice(0, 4).map((uri) => (
-                  <Image
-                    key={uri}
-                    source={{ uri }}
-                    contentFit="cover"
-                    transition={150}
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 11,
-                      backgroundColor: colors.sunken,
-                      borderWidth: 1,
-                      borderColor: colors.line,
-                    }}
-                  />
-                ))}
-
-                {/* Said plainly. A cook whose photographs never saved sees an
-                    empty strip and no reason, which is exactly the state this
-                    platform was in for every kitchen on it. */}
-                {(kitchen.photos ?? []).length === 0 ? (
-                  <Text
-                    style={{
-                      fontFamily: font.ui,
-                      fontSize: type.xs,
-                      color: colors.textMuted,
-                      alignSelf: 'center',
-                    }}
-                  >
-                    {t('No kitchen photos yet')}
-                  </Text>
-                ) : null}
-              </View>
-
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                {(kitchen.photos ?? []).length > 4 ? (
-                  <Text
-                    style={{
-                      fontFamily: font.uiSemi,
-                      fontSize: type.xs,
-                      color: colors.textMuted,
-                    }}
-                  >
-                    +{n((kitchen.photos ?? []).length - 4)}
-                  </Text>
-                ) : null}
-                <Icon name="chevronRight" size={15} color={colors.textMuted} />
-              </View>
-            </View>
-          </Pressable>
-        </Reveal>
 
         {/* ---- The shutter ----
             Everything else on this screen is a readout. This is the one
@@ -748,7 +628,8 @@ export default function CookDashboard() {
             orders on one row, the month's plates on the other. Each tile
             opens the board it is counted from. */}
         <Reveal delay={2}>
-          <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+          <RowHeading icon="banknote" title={t('Today')} />
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('Orders today')}
@@ -1084,11 +965,13 @@ export default function CookDashboard() {
           </Reveal>
         ) : null}
 
-        {/* ---- Tomorrow ----
-            The number a cook needs before they go shopping, on the screen
-            they open first. */}
+        {/* ---- Manage ----
+            The standing parts of the business, each with its state on the
+            row. Nothing here is urgent — that is NextUp's job — but all of
+            it is one tap from being so. */}
         <Reveal delay={5}>
-          <View style={{ gap: 12, marginTop: 28 }}>
+          <RowHeading icon="settings" title={t('Manage')} />
+          <View style={{ gap: 12, marginTop: 12 }}>
             {/* The month in one tap: the hub carries the service, the menu,
                 the dish library and the bookings — everything the tiles above
                 only count. */}
@@ -1161,8 +1044,10 @@ export default function CookDashboard() {
           </View>
         </Reveal>
 
-        {/* ---- Quick actions ---- */}
+        {/* ---- Menu & kitchen ----
+            The listing work: what customers order from, and what they see. */}
         <Reveal delay={6}>
+          <RowHeading icon="utensils" title={t('Menu & kitchen')} />
           <View style={{ gap: 12, marginTop: 12, marginBottom: 26 }}>
             <ActionRow
               icon="plus"
