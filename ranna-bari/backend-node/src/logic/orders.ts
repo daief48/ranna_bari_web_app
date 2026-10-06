@@ -306,7 +306,13 @@ export async function cancelOrder(args: {
   if (order.status === 'delivering' || order.status === 'delivered') {
     return fail(ERR.WRONG_STATE);
   }
-  if (order.payment !== 'held') return fail(ERR.ALREADY_SETTLED);
+  /* Cash never touched the wallet, so there is nothing here to refund — but
+     that is not the same as settled, which is what this used to answer: a
+     cash order nobody wanted could be accepted and advanced yet never
+     withdrawn by either side, and it sat in the New lane forever. Before
+     the kitchen has taken it, either side may still walk it back. */
+  const held = order.payment === 'held';
+  if (!held && order.status !== 'placed') return fail(ERR.WRONG_STATE);
 
   const orderId = idOf(order);
   const by = args.by ?? 'customer';
@@ -314,7 +320,9 @@ export async function cancelOrder(args: {
   const tell = by === 'cook' ? 'customer' : 'cook';
 
   return tx(async (session) => {
-    const back = await refundEscrow(session, orderId, { note: reason });
+    const back = held
+      ? await refundEscrow(session, orderId, { note: reason })
+      : ok({ refunded: 0 });
     if (!back.ok) return back;
 
     await Order.updateOne(
@@ -337,7 +345,9 @@ export async function cancelOrder(args: {
       kind: 'order-cancelled',
       key: `${tell}:order-cancelled:${orderId}`,
       title: 'Order cancelled',
-      body: `${order.title} was cancelled. ${taka(back.result.refunded)} was refunded.`,
+      body: held
+        ? `${order.title} was cancelled. ${taka(back.result.refunded)} was refunded.`
+        : `${order.title} was cancelled. Nothing was charged.`,
       customerKey: tell === 'customer' ? order.customerKey : null,
       kitchenId: tell === 'cook' ? order.kitchenId : null,
       mealId: order.mealId,
