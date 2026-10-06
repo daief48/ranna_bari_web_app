@@ -4,6 +4,7 @@ import { Redirect, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../src/components/Screen';
 import Button from '../src/components/Button';
+import BackButton from '../src/components/BackButton';
 import { FormNote } from '../src/components/FloatLabelInput';
 import KitchenPhotoField from '../src/components/KitchenPhotoField';
 import DocumentField from '../src/components/DocumentField';
@@ -147,7 +148,7 @@ export default function CookDocumentsScreen() {
   };
 
   if (hydrated && !token) {
-    return <Redirect href="/auth" />;
+    return <Redirect href="/join" />;
   }
 
   return (
@@ -158,7 +159,13 @@ export default function CookDocumentsScreen() {
         contentContainerStyle={{ paddingBottom: 48 }}
       >
         <Container style={{ maxWidth: 520, paddingTop: 32 }}>
-          <Heading style={{ marginBottom: 6 }}>{t('Your documents.')}</Heading>
+          {/* Leaving mid-KYC is safe — the server keeps every page already
+              uploaded, and the pending gate in the panel leads back here. */}
+          <BackButton fallback="/" />
+
+          <Heading style={{ marginTop: 22, marginBottom: 6 }}>
+            {t('Your documents.')}
+          </Heading>
           <Text
             style={{
               fontFamily: font.ui,

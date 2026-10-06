@@ -6,6 +6,7 @@ import Screen, { Container } from '../src/components/Screen';
 import Icon from '../src/components/Icon';
 import Reveal from '../src/components/Reveal';
 import Button from '../src/components/Button';
+import BackButton from '../src/components/BackButton';
 import FloatLabelInput, { FormNote } from '../src/components/FloatLabelInput';
 import { BentoBox, IconTile } from '../src/components/Surfaces';
 import {
@@ -291,25 +292,7 @@ export default function BecomeCookScreen() {
                 }}
               >
                 <Button label={t('Continue')} icon="arrowRight" block onPress={submit} />
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() =>
-                    router.canGoBack() ? router.back() : router.replace('/')
-                  }
-                  style={{ alignItems: 'center', paddingVertical: 10 }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: font.uiBold,
-                      fontSize: type.xs + 1,
-                      letterSpacing: 1,
-                      textTransform: 'uppercase',
-                      color: colors.textMuted,
-                    }}
-                  >
-                    {t('Cancel')}
-                  </Text>
-                </Pressable>
+                <BackButton label={t('Cancel')} style={{ alignSelf: 'center' }} />
               </View>
             </View>
           </Reveal>

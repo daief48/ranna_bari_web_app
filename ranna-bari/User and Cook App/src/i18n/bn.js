@@ -398,6 +398,7 @@ export const bn = {
     'আপনার পাড়ার রান্নাঘর থেকে ঘরোয়া খাবার অর্ডার করুন।',
   'Turn your kitchen into a business. Cook, list, deliver.':
     'রান্নাঘরকে ব্যবসায় রূপ দিন। রাঁধুন, তালিকায় দিন, পৌঁছে দিন।',
+  'Register your kitchen': 'রান্নাঘর নিবন্ধন করুন',
   'You can always add the other side later from your profile.':
     'অন্য দিকটি পরে প্রোফাইল থেকে যোগ করতে পারবেন।',
   'Your details': 'আপনার তথ্য',

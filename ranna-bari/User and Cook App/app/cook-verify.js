@@ -4,6 +4,7 @@ import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../src/components/Screen';
 import Button from '../src/components/Button';
+import BackButton from '../src/components/BackButton';
 import FloatLabelInput, { FormNote } from '../src/components/FloatLabelInput';
 import { IconTile } from '../src/components/Surfaces';
 import { Heading } from '../src/components/Typography';
@@ -203,14 +204,14 @@ export default function CookVerifyScreen() {
         return;
       }
       alert.success(t('Password updated. Sign in with your new password.'));
-      router.replace('/auth');
+      router.replace('/auth?tab=signin&door=cook');
     } finally {
       setBusy(false);
     }
   };
 
   if (flow === 'register' && !paramEmail) {
-    return <Redirect href="/auth" />;
+    return <Redirect href="/join" />;
   }
 
   return (
@@ -331,24 +332,22 @@ export default function CookVerifyScreen() {
 
         {/* Back is a way to correct a mistyped address, not a way out — a code
             already sent stays valid in the inbox whether this screen is open
-            or not. */}
-        <Pressable
-          accessibilityRole="button"
-          onPress={() =>
-            flow === 'reset' && stage !== 'email'
-              ? setStage('email')
-              : router.canGoBack()
-                ? router.back()
-                : router.replace('/auth')
-          }
+            or not. On the reset flow that means stepping back to the address
+            field; otherwise it means leaving, through the shared back pill. */}
+        <BackButton
           style={{ marginTop: 16, alignSelf: 'center' }}
-        >
-          <Text style={{ fontFamily: font.uiSemi, fontSize: 13.5, color: colors.textMuted }}>
-            {flow === 'reset' && stage !== 'email'
+          label={
+            flow === 'reset' && stage !== 'email'
               ? t('Use a different email')
-              : t('Back to RannaBari')}
-          </Text>
-        </Pressable>
+              : undefined
+          }
+          onPress={
+            flow === 'reset' && stage !== 'email'
+              ? () => setStage('email')
+              : undefined
+          }
+          fallback="/join"
+        />
       </Container>
     </Screen>
   );

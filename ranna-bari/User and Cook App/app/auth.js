@@ -16,6 +16,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import Icon from '../src/components/Icon';
 import Button from '../src/components/Button';
+import BackButton from '../src/components/BackButton';
 import FloatLabelInput, { FormNote } from '../src/components/FloatLabelInput';
 import LocationPicker from '../src/components/LocationPicker';
 import KitchenPhotoField from '../src/components/KitchenPhotoField';
@@ -116,13 +117,19 @@ export default function AuthScreen() {
   const param = (key, fallback) =>
     typeof params[key] === 'string' && params[key] ? params[key] : fallback;
 
-  const [tab, setTab] = useState(fromCookFunnel ? 'signup' : 'signin');
+  /* The door screen (/join) sends people here with the questions answered:
+     which side (`tab`), and — for sign-in — which credential (`door`).
+     Anything that links here directly (the checkout guards) gets the
+     customer defaults, same as before the door existed. */
+  const initTab = param('tab', fromCookFunnel ? 'signup' : 'signin');
+  const [tab, setTab] = useState(initTab === 'signup' ? 'signup' : 'signin');
 
   /* ---- sign in ---- */
   /* A customer signs in with a phone and a code. A cook — who now holds a
      password and a verified address — signs in with those, and the toggle
-     below picks between the two doors. */
-  const [siMode, setSiMode] = useState('phone'); // 'phone' | 'email'
+     below picks between the two doors. The cook door opens on the password
+     form; the customer door, and every plain `/auth` link, on the phone. */
+  const [siMode, setSiMode] = useState(param('door', '') === 'cook' ? 'email' : 'phone'); // 'phone' | 'email'
   const [siPhone, setSiPhone] = useState('');
   const [siCode, setSiCode] = useState('');
   const [siStage, setSiStage] = useState('phone'); // 'phone' | 'code'
@@ -131,10 +138,14 @@ export default function AuthScreen() {
   const [siBusy, setSiBusy] = useState(false);
 
   /* ---- sign up ---- */
-  // Arriving from the cook funnel means the role question is already answered.
-  const [step, setStep] = useState(fromCookFunnel ? 2 : 1);
-  const [role, setRole] = useState(fromCookFunnel ? 'cook' : 'user');
-  const [roleNote, setRoleNote] = useState('');
+  /* The role question moved to the door screen (/join), so signup always
+     opens on the details step with the role already pinned: `?role=cook` —
+     the become-cook funnel or the door's registration card — for a kitchen,
+     `user` for everybody else. Step 1 is gone; the numbering keeps its old
+     values so the rail and the step guards stay untouched. */
+  const [step, setStep] = useState(2);
+  /* Pinned by the door: nothing inside this screen flips it any more. */
+  const [role] = useState(fromCookFunnel ? 'cook' : 'user');
   const [detailsNote, setDetailsNote] = useState('');
   const [locNote, setLocNote] = useState('');
   /* The last step of signing up is proving the number, same as signing in. */
@@ -183,14 +194,6 @@ export default function AuthScreen() {
     if (target < step) {
       setStep(target);
       return;
-    }
-
-    if (step === 1) {
-      if (!role) {
-        setRoleNote(t('Pick one to continue.'));
-        return;
-      }
-      setRoleNote('');
     }
 
     if (step === 2) {
@@ -695,35 +698,7 @@ export default function AuthScreen() {
                 marginBottom: 18,
               }}
             >
-              <Pressable
-                accessibilityRole="link"
-                onPress={() =>
-                  router.canGoBack() ? router.back() : router.replace('/')
-                }
-                style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 8,
-                  paddingVertical: 9,
-                  paddingLeft: 12,
-                  paddingRight: 16,
-                  borderRadius: radius.pill,
-                  borderWidth: 1,
-                  borderColor: pressed ? colors.primary200 : colors.line,
-                  backgroundColor: colors.surfaceSolid,
-                })}
-              >
-                <Icon name="arrowLeft" size={16} color={colors.textMuted} />
-                <Text
-                  style={{
-                    fontFamily: font.uiSemi,
-                    fontSize: 13,
-                    color: colors.textMuted,
-                  }}
-                >
-                  {t('Back to RannaBari')}
-                </Text>
-              </Pressable>
+              <BackButton />
 
               <Pressable
                 accessibilityRole="button"
@@ -828,11 +803,6 @@ export default function AuthScreen() {
               <SignUpView
                 step={step}
                 role={role}
-                setRole={(r) => {
-                  setRole(r);
-                  setRoleNote('');
-                }}
-                roleNote={roleNote}
                 detailsNote={detailsNote}
                 locNote={locNote}
                 suStage={suStage}
@@ -1192,8 +1162,6 @@ function SignInView({
 function SignUpView({
   step,
   role,
-  setRole,
-  roleNote,
   detailsNote,
   locNote,
   suStage,
@@ -1213,10 +1181,6 @@ function SignUpView({
   const { t } = useLang();
 
   const heads = {
-    1: {
-      h1: t('Join RannaBari.'),
-      sub: t('Three short steps. The last one puts you on the map — literally.'),
-    },
     2: { h1: t('Join RannaBari.'), sub: t('Three short steps.') },
     3: { h1: t('Join RannaBari.'), sub: t('Almost there.') },
     4: { h1: '', sub: '' },
@@ -1256,48 +1220,6 @@ function SignUpView({
       ) : null}
 
       <View style={[cardStyle(colors), shadow.md]}>
-        {step === 1 ? (
-          <Animated.View entering={FadeInDown.duration(400)}>
-            <StepHead
-              title={t('What brings you here?')}
-              sub="You can always add the other side later from your profile."
-            />
-
-            <View style={{ gap: 14 }}>
-              <RoleCard
-                selected={role === 'user'}
-                onPress={() => setRole('user')}
-                icon="utensils"
-                variant="primary"
-                title={t("I'm here to eat")}
-                desc={t('Order home-cooked meals from kitchens on your street.')}
-                perks={['Free', 'Order in 2 taps']}
-              />
-              <RoleCard
-                selected={role === 'cook'}
-                onPress={() => setRole('cook')}
-                icon="chefHat"
-                variant="sage"
-                title={t("I'm here to cook")}
-                desc={t('Turn your kitchen into a business. Cook, list, deliver.')}
-                perks={[t('Keep 85%'), t('Your schedule')]}
-              />
-            </View>
-
-            {roleNote ? (
-              <View style={{ marginTop: 16 }}>
-                <FormNote text={roleNote} tone="info" />
-              </View>
-            ) : null}
-
-            <Actions
-              next={{ label: 'Continue', onPress: () => goStep(2) }}
-              backLabel="Cancel"
-              onBack={null}
-            />
-          </Animated.View>
-        ) : null}
-
         {step === 2 ? (
           <Animated.View entering={FadeInDown.duration(400)}>
             <StepHead
@@ -1409,7 +1331,6 @@ function SignUpView({
             <Actions
               next={{ label: 'Continue', onPress: () => goStep(3) }}
               backLabel="Back"
-              onBack={() => goStep(1)}
             />
           </Animated.View>
         ) : null}
@@ -1700,117 +1621,6 @@ function StepHead({ title, sub }) {
         {sub}
       </Text>
     </View>
-  );
-}
-
-/**
- * `.role-card` — the fork in the flow: cook or eat.
- * Sunken, not surface-solid: in dark mode surface-solid is the same colour as
- * the card behind it, so the control disappeared into it.
- */
-function RoleCard({ selected, onPress, icon, variant, title, desc, perks }) {
-  const { colors, shadow } = useTheme();
-
-  return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={[
-        {
-          padding: 18,
-          paddingHorizontal: 16,
-          borderRadius: radius.md,
-          borderWidth: 1.5,
-          borderColor: selected ? colors.primary : colors.line,
-          backgroundColor: selected ? colors.surfaceSolid : colors.sunken,
-        },
-        selected ? shadow.md : null,
-      ]}
-    >
-      <View
-        style={{
-          position: 'absolute',
-          top: 14,
-          right: 14,
-          width: 22,
-          height: 22,
-          borderRadius: 11,
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderWidth: 1.5,
-          borderColor: selected ? 'transparent' : colors.line,
-          backgroundColor: selected ? colors.primary : 'transparent',
-        }}
-      >
-        {selected ? (
-          <Icon name="check" size={13} color="#FFFFFF" strokeWidth={3} />
-        ) : null}
-      </View>
-
-      <IconTile
-        name={icon}
-        variant={variant}
-        style={{ width: 48, height: 48, borderRadius: 15, marginBottom: 12 }}
-      />
-
-      <Text
-        style={{
-          fontFamily: font.displayExtra,
-          fontSize: 18,
-          lineHeight: 22,
-          letterSpacing: -0.27,
-          color: colors.text,
-          marginBottom: 5,
-        }}
-      >
-        {title}
-      </Text>
-      <Text
-        style={{
-          fontFamily: font.ui,
-          fontSize: 13,
-          lineHeight: 20,
-          color: colors.textMuted,
-        }}
-      >
-        {desc}
-      </Text>
-
-      <View
-        style={{
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          gap: 6,
-          marginTop: 14,
-          paddingTop: 14,
-          borderTopWidth: 1,
-          borderTopColor: colors.line2,
-        }}
-      >
-        {perks.map((p) => (
-          <View
-            key={p}
-            style={{
-              paddingVertical: 4,
-              paddingHorizontal: 9,
-              borderRadius: radius.pill,
-              backgroundColor: colors.sunken,
-            }}
-          >
-            <Text
-              style={{
-                fontFamily: font.uiSemi,
-                fontSize: 11,
-                color: colors.textMuted,
-              }}
-            >
-              {p}
-            </Text>
-          </View>
-        ))}
-      </View>
-    </Pressable>
   );
 }
 

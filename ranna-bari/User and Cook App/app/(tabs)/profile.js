@@ -87,7 +87,7 @@ export default function ProfileScreen() {
                 label={t('Sign in or join')}
                 icon="arrowRight"
                 block
-                onPress={() => router.push('/auth')}
+                onPress={() => router.push('/join')}
               />
             </BentoBox>
           </Reveal>

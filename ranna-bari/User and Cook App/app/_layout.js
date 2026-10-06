@@ -118,6 +118,9 @@ function Root() {
         {/* Replacing the cart with the receipt is a one-way step: the back
             gesture should not walk into a checkout whose cart is now empty. */}
         <Stack.Screen name="order/[id]" options={{ animation: 'fade' }} />
+        {/* The door that asks eat-or-cook before either auth screen opens;
+            same family, same slide, one step ahead of `auth`. */}
+        <Stack.Screen name="join" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="auth" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="become-cook" />
         {/* ---- the cook flow's own steps ----

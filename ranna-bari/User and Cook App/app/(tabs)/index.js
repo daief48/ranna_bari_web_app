@@ -397,7 +397,7 @@ export default function HomeScreen() {
                 tone: 'primary',
                 title: t('Sign in to order'),
                 sub: t('Browsing is open to everyone; ordering needs an account'),
-                onPress: () => router.push('/auth'),
+                onPress: () => router.push('/join'),
               },
 
               token && addresses.length === 0 && {
