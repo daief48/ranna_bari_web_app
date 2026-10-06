@@ -15,6 +15,7 @@ import Screen, { Container } from '../src/components/Screen';
 import Icon from '../src/components/Icon';
 import Reveal from '../src/components/Reveal';
 import Button from '../src/components/Button';
+import BackButton from '../src/components/BackButton';
 import FloatLabelInput, { FormNote } from '../src/components/FloatLabelInput';
 import LocationPicker from '../src/components/LocationPicker';
 import SectionHeader from '../src/components/SectionHeader';
@@ -233,6 +234,8 @@ function EditProfileForm({ account }) {
     <Screen glow="both">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Container>
+          <BackButton fallback="/profile" style={{ marginBottom: 14 }} />
+
           <SectionHeader
             lead={t('EDIT')}
             accent={t('PROFILE')}
