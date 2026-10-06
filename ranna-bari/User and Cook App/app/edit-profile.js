@@ -26,15 +26,6 @@ import { useAuth } from '../src/store/AuthContext';
 import { useSession } from '../src/store/SessionContext';
 import { useLang } from '../src/i18n/LanguageContext';
 
-const SPECIALTIES = [
-  'Traditional Heritage',
-  'Coastal Seafood',
-  'Street & Snacks',
-  'Biryani & Rice',
-  'Vegetarian & Bhorta',
-  'Desserts & Pitha',
-];
-
 const LABELS = [
   ['Home', 'home'],
   ['Work', 'box'],
@@ -99,10 +90,6 @@ function EditProfileForm({ account }) {
   const [name, setName] = useState(account?.name ?? '');
   const [phone, setPhone] = useState(account?.phone ?? '');
   const [email, setEmail] = useState(account?.email ?? '');
-  const [role, setRole] = useState(account?.role ?? 'user');
-  const [kitchen, setKitchen] = useState(account?.kitchen ?? '');
-  const [specialty, setSpecialty] = useState(account?.specialty ?? '');
-  const [specialtyOpen, setSpecialtyOpen] = useState(false);
   const [line, setLine] = useState(account?.addressDetail ?? '');
   const [area, setArea] = useState(account?.area ?? '');
   const [label, setLabel] = useState(account?.addressLabel ?? 'Home');
@@ -194,10 +181,6 @@ function EditProfileForm({ account }) {
       setNote('That phone number looks too short to call.');
       return;
     }
-    if (role === 'cook' && !kitchen.trim()) {
-      setNote(t('Your kitchen needs a name for customers to find it.'));
-      return;
-    }
 
     setNote('');
     /* To the server first, then the device. The profile used to stop at
@@ -213,9 +196,6 @@ function EditProfileForm({ account }) {
       name: name.trim(),
       phone: phone.trim(),
       email: email.trim(),
-      role,
-      kitchen: kitchen.trim(),
-      specialty,
       addressDetail: line.trim(),
       area: area.trim(),
       addressLabel: label,
@@ -389,160 +369,6 @@ function EditProfileForm({ account }) {
                 multiline
                 style={{ marginBottom: 0 }}
               />
-            </View>
-          </Reveal>
-
-          {/* ---- Role ----
-                  Signup promises "you can always add the other side later
-                  from your profile", so this is where that happens. */}
-          <Reveal delay={3}>
-            <View style={[card(colors), shadow.sm, { marginTop: 16 }]}>
-              <CardHeading icon="chefHat" title={t('How you use RannaBari')} />
-
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                {[
-                  ['user', 'utensils', 'I eat'],
-                  ['cook', 'chefHat', 'I cook'],
-                ].map(([key, icon, title]) => {
-                  const on = role === key;
-                  return (
-                    <Pressable
-                      key={key}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: on }}
-                      onPress={() => setRole(key)}
-                      style={[
-                        {
-                          flex: 1,
-                          alignItems: 'center',
-                          gap: 10,
-                          paddingVertical: 18,
-                          borderRadius: radius.md,
-                          borderWidth: 1.5,
-                          borderColor: on ? colors.primary : colors.line,
-                          backgroundColor: on ? colors.surfaceSolid : colors.sunken,
-                        },
-                        on ? shadow.md : null,
-                      ]}
-                    >
-                      <IconTile
-                        name={icon}
-                        variant={key === 'cook' ? 'sage' : 'primary'}
-                        style={{ width: 44, height: 44, borderRadius: 14 }}
-                      />
-                      <Text
-                        style={{
-                          fontFamily: font.uiSemi,
-                          fontSize: type.sm + 1,
-                          color: on ? colors.text : colors.textMuted,
-                        }}
-                      >
-                        {t(title)}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              {role === 'cook' ? (
-                <View style={{ marginTop: 20 }}>
-                  <FloatLabelInput
-                    label={t('Kitchen name')}
-                    value={kitchen}
-                    onChangeText={setKitchen}
-                    placeholder="e.g. Fatema's Heritage Kitchen"
-                  />
-
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${t('What you cook best, currently')} ${specialty ? t(specialty) : '—'}`}
-                    onPress={() => setSpecialtyOpen((v) => !v)}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: specialtyOpen ? colors.primary : colors.line,
-                      borderRadius: radius.sm,
-                      backgroundColor: specialtyOpen ? colors.raised : colors.sunken,
-                      paddingTop: 24,
-                      paddingBottom: 9,
-                      paddingLeft: 14,
-                      paddingRight: 40,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        position: 'absolute',
-                        left: 14,
-                        top: 9,
-                        fontFamily: font.uiSemi,
-                        fontSize: 10.5,
-                        letterSpacing: 0.95,
-                        textTransform: 'uppercase',
-                        color: specialtyOpen ? colors.primary : colors.textMuted,
-                      }}
-                    >
-                      {t('What you cook best')}
-                    </Text>
-                    <Text
-                      style={{
-                        fontFamily: font.ui,
-                        fontSize: 16,
-                        color: specialty ? colors.text : colors.textLight,
-                      }}
-                    >
-                      {specialty ? t(specialty) : t('Choose a specialty')}
-                    </Text>
-                    <Icon
-                      name="chevronDown"
-                      size={16}
-                      color={colors.textLight}
-                      style={{ position: 'absolute', right: 14, top: 22 }}
-                    />
-                  </Pressable>
-
-                  {specialtyOpen ? (
-                    <View
-                      style={{
-                        marginTop: 6,
-                        padding: 6,
-                        borderRadius: radius.sm,
-                        backgroundColor: colors.surfaceSolid,
-                        borderWidth: 1,
-                        borderColor: colors.line,
-                      }}
-                    >
-                      {SPECIALTIES.map((s) => (
-                        <Pressable
-                          key={s}
-                          accessibilityRole="button"
-                          onPress={() => {
-                            setSpecialty(s);
-                            setSpecialtyOpen(false);
-                          }}
-                          style={({ pressed }) => ({
-                            paddingVertical: 12,
-                            paddingHorizontal: 10,
-                            borderRadius: radius.xs,
-                            backgroundColor:
-                              pressed || specialty === s
-                                ? colors.primary50
-                                : 'transparent',
-                          })}
-                        >
-                          <Text
-                            style={{
-                              fontFamily: specialty === s ? font.uiSemi : font.ui,
-                              fontSize: 15,
-                              color: specialty === s ? colors.primary : colors.text,
-                            }}
-                          >
-                            {t(s)}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
             </View>
           </Reveal>
 
