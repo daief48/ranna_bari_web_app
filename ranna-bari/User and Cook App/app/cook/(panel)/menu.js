@@ -149,17 +149,32 @@ function DishRow({ dish, onOpen, onToggle }) {
           backgroundColor: pressed ? colors.sunken : 'transparent',
         })}
       >
-        <Image
-          source={{ uri: dish.image }}
-          contentFit="cover"
-          transition={200}
-          style={{
-            width: 62,
-            height: 62,
-            borderRadius: 18,
-            backgroundColor: colors.sunken,
-          }}
-        />
+        {dish.image ? (
+          <Image
+            source={{ uri: dish.image }}
+            contentFit="cover"
+            transition={200}
+            style={{
+              width: 62,
+              height: 62,
+              borderRadius: 18,
+              backgroundColor: colors.sunken,
+            }}
+          />
+        ) : (
+          <View
+            style={{
+              width: 62,
+              height: 62,
+              borderRadius: 18,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: colors.sunken,
+            }}
+          >
+            <IconTile name="utensils" variant="primary" />
+          </View>
+        )}
 
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text

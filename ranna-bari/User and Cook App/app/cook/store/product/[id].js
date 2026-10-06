@@ -29,9 +29,6 @@ import { useCommerce } from '../../../../src/store/CommerceContext';
 import { useLang } from '../../../../src/i18n/LanguageContext';
 import { useAlert } from '../../../../src/components/Alert';
 
-const PLACEHOLDER =
-  'https://images.unsplash.com/photo-1486427944299-d1955d23e34d?w=800&h=600&fit=crop';
-
 export default function ProductEditor() {
   const { id } = useLocalSearchParams();
   const { kitchen } = useKitchen();
@@ -81,7 +78,9 @@ function Form({ store, product, isNew }) {
   const [minQty, setMinQty] = useState(String(product?.minQty ?? 1));
   const [maxQty, setMaxQty] = useState(product?.maxQty == null ? '' : String(product.maxQty));
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? categories[0]?.id ?? null);
-  const [images, setImages] = useState(product?.images?.length ? product.images : [PLACEHOLDER]);
+  /* No stranger's stock cake published as the cook's own baking: an empty
+     shelf renders the tinted name placeholder the product list already uses. */
+  const [images, setImages] = useState(product?.images ?? []);
   const [preorder, setPreorder] = useState(!!product?.preorder);
   const [active, setActive] = useState(product ? product.active : true);
   const [prepTime, setPrepTime] = useState(product?.prepTime ?? '');
@@ -103,9 +102,7 @@ function Form({ store, product, isNew }) {
       quality: 0.8,
     });
     if (!res.canceled && res.assets?.[0]?.uri) {
-      setImages((prev) =>
-        prev[0] === PLACEHOLDER ? [res.assets[0].uri] : [...prev, res.assets[0].uri],
-      );
+      setImages((prev) => [...prev, res.assets[0].uri]);
     }
   };
 

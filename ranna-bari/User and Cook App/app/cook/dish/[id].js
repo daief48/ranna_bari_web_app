@@ -44,10 +44,9 @@ const TAGS = [
   'seafood',
 ];
 
-/* A dish with no photo is a dish nobody orders, so a new one starts on a
-   stock plate rather than an empty frame. The cook can replace it. */
-const PLACEHOLDER =
-  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&h=200&fit=crop';
+/* A dish with no photo is a dish nobody orders — but a stranger's stock
+   plate published as the cook's food was the worse half of that truth, so
+   a new dish starts with no photo and the row shows its own placeholder. */
 
 /**
  * The kitchen arrives from AsyncStorage a render or two late, so the form
@@ -102,7 +101,7 @@ function DishForm({ isNew, existing }) {
   const [name, setName] = useState(existing?.name ?? '');
   const [description, setDescription] = useState(existing?.description ?? '');
   const [price, setPrice] = useState(existing ? String(existing.price) : '');
-  const [image, setImage] = useState(existing?.image ?? PLACEHOLDER);
+  const [image, setImage] = useState(existing?.image ?? null);
   const [tags, setTags] = useState(existing?.tags ?? []);
   const [note, setNote] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -154,7 +153,7 @@ function DishForm({ isNew, existing }) {
       name: name.trim(),
       description: description.trim() || t('Cooked to order.'),
       price: Math.round(value),
-      image,
+      image: image || null,
       tags,
     };
 
@@ -269,7 +268,7 @@ function DishForm({ isNew, existing }) {
                     color: colors.onDark,
                   }}
                 >
-                  {image !== PLACEHOLDER ? t('Change photo') : t('Add a photo')}
+                  {image ? t('Change photo') : t('Add a photo')}
                 </Text>
               </View>
             </Pressable>
