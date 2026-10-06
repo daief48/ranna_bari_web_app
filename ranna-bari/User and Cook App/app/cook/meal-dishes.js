@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import Screen, { Container } from '../../src/components/Screen';
+import { Container } from '../../src/components/Screen';
+import CookScreen from '../../src/components/CookScreen';
+import BackButton from '../../src/components/BackButton';
 import SectionHeader from '../../src/components/SectionHeader';
 import Button from '../../src/components/Button';
 import Reveal from '../../src/components/Reveal';
@@ -104,8 +106,9 @@ export default function CookMealDishes() {
   const has = (dishName) => mine.some((d) => d.name === dishName);
 
   return (
-    <Screen>
+    <CookScreen>
       <Container>
+        <BackButton fallback="/cook" style={{ marginBottom: 14 }} />
         <SectionHeader
           lead={t('MY')}
           accent={t('DISHES')}
@@ -273,6 +276,6 @@ export default function CookMealDishes() {
           </>
         )}
       </Container>
-    </Screen>
+    </CookScreen>
   );
 }

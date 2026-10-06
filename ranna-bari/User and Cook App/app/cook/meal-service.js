@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Switch, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import Screen, { Container } from '../../src/components/Screen';
+import { Container } from '../../src/components/Screen';
+import CookScreen from '../../src/components/CookScreen';
+import BackButton from '../../src/components/BackButton';
 import SectionHeader from '../../src/components/SectionHeader';
 import Button from '../../src/components/Button';
 import Reveal from '../../src/components/Reveal';
@@ -134,8 +136,9 @@ export default function CookMealService() {
   };
 
   return (
-    <Screen>
+    <CookScreen>
       <Container>
+        <BackButton fallback="/cook" style={{ marginBottom: 14 }} />
         <SectionHeader
           lead={t('MEAL')}
           accent={t('SERVICE')}
@@ -407,6 +410,6 @@ export default function CookMealService() {
           </>
         )}
       </Container>
-    </Screen>
+    </CookScreen>
   );
 }

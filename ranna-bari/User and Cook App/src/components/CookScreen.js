@@ -242,6 +242,9 @@ export default function CookScreen({
   glow = 'both',
   contentStyle,
   scrollRef,
+  /** Rendered over the scroll, not inside it — a save bar that must stay
+      put while the form it saves moves. */
+  footer,
   ...scrollProps
 }) {
   const { colors } = useTheme();
@@ -272,6 +275,8 @@ export default function CookScreen({
       >
         {children}
       </ScrollView>
+
+      {footer}
 
       <FilmGrain />
       {showNavbar ? <CookNavbar /> : null}

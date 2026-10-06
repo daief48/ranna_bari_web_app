@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import Screen, { Container } from '../../src/components/Screen';
+import { Container } from '../../src/components/Screen';
+import CookScreen from '../../src/components/CookScreen';
+import BackButton from '../../src/components/BackButton';
 import SectionHeader from '../../src/components/SectionHeader';
 import Button from '../../src/components/Button';
 import Reveal from '../../src/components/Reveal';
@@ -294,8 +296,9 @@ export default function CookMealPlan() {
     );
 
   return (
-    <Screen footer={saveBar} contentStyle={{ paddingBottom: 210 }}>
+    <CookScreen footer={saveBar} contentStyle={{ paddingBottom: 210 }}>
       <Container>
+        <BackButton fallback="/cook" style={{ marginBottom: 14 }} />
         <SectionHeader
           lead={t('MONTHLY')}
           accent={t('MENU')}
@@ -415,6 +418,6 @@ export default function CookMealPlan() {
         onClose={() => setEditing(null)}
         t={t}
       />
-    </Screen>
+    </CookScreen>
   );
 }
