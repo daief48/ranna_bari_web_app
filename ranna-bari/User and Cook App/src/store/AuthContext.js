@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,13 +28,25 @@ export function AuthProvider({ children }) {
   const [account, setAccount] = useState(null);
   const [viewMode, setViewModeState] = useState('cook');
   const [hydrated, setHydrated] = useState(false);
+  /* The mirror merges read from, and the epoch that retires writes. React
+     does not promise a state updater runs when dispatch is called — skip the
+     eager evaluation once and a merge computed inside it never reaches
+     storage — so the ref, not the updater, is what a merge reads. The epoch
+     is what stops an answer that lands after sign-out from writing a ghost
+     back over it. */
+  const accountRef = useRef(null);
+  const epochRef = useRef(0);
 
   useEffect(() => {
     let alive = true;
     Promise.all([AsyncStorage.getItem(KEY), AsyncStorage.getItem(VIEW_KEY)])
       .then(([raw, view]) => {
         if (!alive) return;
-        if (raw) setAccount(JSON.parse(raw));
+        if (raw) {
+          const restored = JSON.parse(raw);
+          accountRef.current = restored;
+          setAccount(restored);
+        }
         if (view === 'cook' || view === 'customer') setViewModeState(view);
       })
       .catch(() => {})
@@ -50,7 +63,11 @@ export function AuthProvider({ children }) {
 
   const signIn = useCallback(
     async (profile) => {
+      /* Whatever profile write is still in flight belongs to whoever was on
+         the screen before — this account replaces them. */
+      epochRef.current += 1;
       const next = { ...profile, signedInAt: new Date().toISOString() };
+      accountRef.current = next;
       setAccount(next);
       await AsyncStorage.setItem(KEY, JSON.stringify(next)).catch(() => {});
       // A cook lands in their kitchen; anybody else lands in the shop.
@@ -65,25 +82,30 @@ export function AuthProvider({ children }) {
    * editor, which owns every field signup and sign-in collected.
    */
   const updateAccount = useCallback(async (patch) => {
-    let next = null;
-    setAccount((prev) => {
-      /* Adopted wholesale when there is nothing to merge over. The server is
-         the source of the profile now, and it answers before the local copy
-         necessarily exists — a fresh sign-in, or a reinstall restoring a
-         token. Returning `prev` there would throw the real profile away and
-         leave the app running on whatever the token happened to carry. */
-      next = prev
-        ? { ...prev, ...patch, updatedAt: new Date().toISOString() }
-        : { ...patch, updatedAt: new Date().toISOString() };
-      return next;
-    });
-    // setAccount's updater runs synchronously here, so `next` is populated
-    // by the time this line is reached.
-    if (next) await AsyncStorage.setItem(KEY, JSON.stringify(next)).catch(() => {});
+    const epoch = epochRef.current;
+    /* Adopted wholesale when there is nothing to merge over. The server is
+       the source of the profile now, and it answers before the local copy
+       necessarily exists — a fresh sign-in, or a reinstall restoring a
+       token. Merging over `null` there would throw the real profile away
+       and leave the app running on whatever the token happened to carry. */
+    const next = {
+      ...(accountRef.current ?? {}),
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    };
+    /* Signed out — or signed in as somebody else — while this was in
+       flight: the answer belongs to a session that no longer exists, and
+       writing it would resurrect an account over a sign-out. */
+    if (epoch !== epochRef.current) return null;
+    accountRef.current = next;
+    setAccount(next);
+    await AsyncStorage.setItem(KEY, JSON.stringify(next)).catch(() => {});
     return next;
   }, []);
 
   const signOut = useCallback(async () => {
+    epochRef.current += 1;
+    accountRef.current = null;
     setAccount(null);
     await AsyncStorage.removeItem(KEY).catch(() => {});
   }, []);
