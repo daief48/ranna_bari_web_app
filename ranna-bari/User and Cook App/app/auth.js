@@ -144,8 +144,7 @@ export default function AuthScreen() {
      `user` for everybody else. Step 1 is gone; the numbering keeps its old
      values so the rail and the step guards stay untouched. */
   const [step, setStep] = useState(2);
-  /* Pinned by the door: nothing inside this screen flips it any more. */
-  const [role] = useState(fromCookFunnel ? 'cook' : 'user');
+  const [role, setRole] = useState(fromCookFunnel ? 'cook' : 'user');
   const [detailsNote, setDetailsNote] = useState('');
   const [locNote, setLocNote] = useState('');
   /* The last step of signing up is proving the number, same as signing in. */
@@ -189,6 +188,14 @@ export default function AuthScreen() {
   const aside = ASIDE[tab === 'signup' && role ? role : 'none'];
   const pwLevel = passwordScore(pw);
 
+  /* Crossing to signup keeps the door's answer: a cook who came in through
+     the cook door and found no account yet must land on the kitchen form,
+     not the customer one — the tab switch used to drop the door's choice. */
+  const goTab = (key) => {
+    if (key === 'signup' && param('door', '') === 'cook') setRole('cook');
+    setTab(key);
+  };
+
   /* ---- validation, port of js/auth.js validate() ---- */
   const goStep = (target) => {
     if (target < step) {
@@ -209,9 +216,9 @@ export default function AuthScreen() {
         [name, 'name'],
         [phone, 'phone'],
         [email, 'email'],
-        [pw, 'password'],
         ...(role === 'cook'
           ? [
+              [pw, 'password'],
               [kitchen, 'kitchen name'],
               [specialties.join(''), 'specialty'],
               [nid, 'National ID'],
@@ -227,11 +234,13 @@ export default function AuthScreen() {
         setDetailsNote(t('That email address does not look right.'));
         return;
       }
-      if (pw.length < 8) {
+      /* A customer's account answers to a phone and a code — the sign-in
+         card says so — so a password is a cook's paperwork, not theirs. */
+      if (role === 'cook' && pw.length < 8) {
         setDetailsNote(t('Use at least 8 characters for your password.'));
         return;
       }
-      if (pw2 !== pw) {
+      if (role === 'cook' && pw2 !== pw) {
         setDetailsNote(t('The two passwords do not match.'));
         return;
       }
@@ -396,15 +405,23 @@ export default function AuthScreen() {
     try {
       const identity = await verifyCode(phone.trim(), suCode.trim(), name.trim());
 
+      /* An OTP that answers for a phone that already has an account signs
+         that account in; the server creates one with an empty name only
+         when there was nothing to sign into. So a name standing on the
+         identity is somebody's profile already living there — write
+         nothing over it, say who they now are, and let the map step end
+         the flow. */
+      const existed = !!String(identity?.name ?? '').trim();
+
       /* Everything the steps collected, in one shape: it is what this device
          stores and what the server is told. A cook never reaches this path
          any more — their account was made by `/auth/cook/register` before the
          code was even sent — so the kitchen fields are gone from it. */
       const profile = {
         role,
-        name: name.trim(),
+        name: existed ? identity.name : name.trim(),
         phone: identity.phone ?? phone.trim(),
-        email: email.trim(),
+        email: existed ? String(identity.email ?? '') : email.trim(),
         area: place.address,
         lat: place.lat,
         lng: place.lng,
@@ -449,25 +466,35 @@ export default function AuthScreen() {
         return send();
       };
 
-      const written = await Promise.all([
-        persist(() => saveProfile({ name: name.trim(), email: email.trim() })),
-        place
-          ? persist(() =>
-              saveAddress({
-                label: addressLabel,
-                /* The picker hands back a full postal address — 'Lane 11
-                   East, 1212 Dhaka'. An area is a neighbourhood, and that is
-                   what the filters, the cards and the shop directory match
-                   on. */
-                area: normaliseArea(place.address),
-                detail: detail.trim(),
-                lat: place.lat,
-                lng: place.lng,
-                select: true,
-              }),
-            )
-          : { ok: true },
-      ]);
+      const written = existed
+        ? [{ ok: true }]
+        : await Promise.all([
+            persist(() => saveProfile({ name: name.trim(), email: email.trim() })),
+            place
+              ? persist(() =>
+                  saveAddress({
+                    label: addressLabel,
+                    /* The picker hands back a full postal address — 'Lane 11
+                       East, 1212 Dhaka'. An area is a neighbourhood, and that is
+                       what the filters, the cards and the shop directory match
+                       on. */
+                    area: normaliseArea(place.address),
+                    detail: detail.trim(),
+                    lat: place.lat,
+                    lng: place.lng,
+                    select: true,
+                  }),
+                )
+              : { ok: true },
+          ]);
+
+      if (existed) {
+        alert.success(
+          t('This phone already had an account, so you are signed in as {name}. Your details were left as they were.', {
+            name: identity.name,
+          }),
+        );
+      }
 
       /* The account exists either way, so this does not block the last step —
          but it is said out loud rather than swallowed, because a profile that
@@ -748,7 +775,7 @@ export default function AuthScreen() {
                     key={key}
                     accessibilityRole="tab"
                     accessibilityState={{ selected: on }}
-                    onPress={() => setTab(key)}
+                    onPress={() => goTab(key)}
                     style={[
                       {
                         flex: 1,
@@ -797,7 +824,7 @@ export default function AuthScreen() {
                 onForgot={() =>
                   router.push({ pathname: '/cook-verify', params: { flow: 'reset' } })
                 }
-                onSwitch={() => setTab('signup')}
+                onSwitch={() => goTab('signup')}
               />
             ) : (
               <SignUpView
@@ -1260,29 +1287,38 @@ function SignUpView({
               autoComplete="email"
               style={{ marginBottom: 16 }}
             />
-            <FloatLabelInput
-              label={t('Password')}
-              value={fields.pw}
-              onChangeText={fields.setPw}
-              placeholder={t('At least 8 characters')}
-              secureTextEntry
-              autoComplete="new-password"
-              style={{ marginBottom: 6 }}
-            />
+            {/* A password is the cook door's paperwork: a kitchen's account
+                answers to an email and a password, while a customer's answers
+                to a phone and a six-digit code — the sign-in card below says
+                exactly that, so asking for one here was a credential the app
+                itself would never use. */}
+            {role === 'cook' ? (
+              <>
+                <FloatLabelInput
+                  label={t('Password')}
+                  value={fields.pw}
+                  onChangeText={fields.setPw}
+                  placeholder={t('At least 8 characters')}
+                  secureTextEntry
+                  autoComplete="new-password"
+                  style={{ marginBottom: 6 }}
+                />
 
-            <PasswordStrength level={pwLevel} />
+                <PasswordStrength level={pwLevel} />
 
-            {/* Typed twice: a typo in a password is a lockout discovered the
-                next time they sign in, on a screen that cannot help. */}
-            <FloatLabelInput
-              label={t('Re-type password')}
-              value={fields.pw2}
-              onChangeText={fields.setPw2}
-              placeholder={t('Same password again')}
-              secureTextEntry
-              autoComplete="new-password"
-              style={{ marginBottom: 16 }}
-            />
+                {/* Typed twice: a typo in a password is a lockout discovered the
+                    next time they sign in, on a screen that cannot help. */}
+                <FloatLabelInput
+                  label={t('Re-type password')}
+                  value={fields.pw2}
+                  onChangeText={fields.setPw2}
+                  placeholder={t('Same password again')}
+                  secureTextEntry
+                  autoComplete="new-password"
+                  style={{ marginBottom: 16 }}
+                />
+              </>
+            ) : null}
 
             {role === 'cook' ? (
               <>

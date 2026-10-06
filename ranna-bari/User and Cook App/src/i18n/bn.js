@@ -406,6 +406,8 @@ export const bn = {
     'সেটা সার্ভারে পৌঁছায়নি। সংযোগ দেখে আবার সেভ করুন।',
   'Saving…': 'সেভ হচ্ছে…',
   'The order did not go through. Try again.': 'অর্ডারটা হয়নি। আবার চেষ্টা করুন।',
+  'This phone already had an account, so you are signed in as {name}. Your details were left as they were.':
+    'এই নম্বরে আগে থেকেই অ্যাকাউন্ট ছিল, তাই আপনি {name} হিসেবেই সাইন ইন হয়েছেন। আগের তথ্যগুলো যেমন ছিল তেমনই রাখা হয়েছে।',
   'You can always add the other side later from your profile.':
     'অন্য দিকটি পরে প্রোফাইল থেকে যোগ করতে পারবেন।',
   'Your details': 'আপনার তথ্য',
