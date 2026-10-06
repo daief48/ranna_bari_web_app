@@ -373,6 +373,7 @@ export const bn = {
 
   /* ---------------- auth ---------------- */
   'Sign in': 'সাইন ইন',
+  'In': 'ইন',
   'Create account': 'অ্যাকাউন্ট খুলুন',
   'Create an account': 'অ্যাকাউন্ট খুলুন',
   'Welcome back.': 'আবার স্বাগতম।',

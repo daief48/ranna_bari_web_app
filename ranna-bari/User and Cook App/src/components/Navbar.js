@@ -11,7 +11,10 @@ import ModeSwitch from './ModeSwitch';
 import LanguageSwitch from './LanguageSwitch';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAuth } from '../store/AuthContext';
+import { useSession } from '../store/SessionContext';
+import { isSignedIn } from '../lib/access';
 import { useCommerce } from '../store/CommerceContext';
+import { useLang } from '../i18n/LanguageContext';
 import { font, radius } from '../theme/tokens';
 
 /** Height of the bar itself, from `.navbar .container { height: 58px }`. */
@@ -192,7 +195,10 @@ export default function Navbar() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { isCook, isCookMode } = useAuth();
+  const session = useSession();
   const { unreadFor } = useCommerce();
+  const signedIn = isSignedIn(session);
+  const { t } = useLang();
 
   const audience = isCookMode ? 'cook' : 'customer';
   const unreadCount = unreadFor(audience) ?? 0;
@@ -267,9 +273,66 @@ export default function Navbar() {
               flexShrink: 0,
             }}
           >
-            {/* A destination, not a setting — so it keeps its own colour and
-                its own outline instead of joining the rail. */}
-            <ModeSwitch compact={!roomy} />
+            {/*
+              * The way in, for somebody who is not in yet.
+              *
+              * The bottom bar is gone for a guest — three of its seven
+              * destinations are about an account — so this is the only door,
+              * and it has to be a door rather than a hint. It takes the slot
+              * the mode switch holds for a signed-in user, which is the one
+              * place on this bar that carries its own colour instead of
+              * joining the rail — and a guest has no other side to switch to
+              * anyway.
+              */}
+            {!signedIn ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('Sign in or join')}
+                onPress={() => {
+                  Haptics.selectionAsync().catch(() => {});
+                  router.push('/join');
+                }}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 5,
+                  paddingVertical: 7,
+                  paddingHorizontal: roomy ? 12 : 9,
+                  borderRadius: radius.pill,
+                  backgroundColor: pressed ? colors.primary : colors.primary50,
+                  borderWidth: 1,
+                  borderColor: colors.primary100,
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
+                })}
+              >
+                {({ pressed }) => (
+                  <>
+                    <Icon
+                      name="user"
+                      size={14}
+                      color={pressed ? colors.onPrimary : colors.primary}
+                      strokeWidth={2}
+                    />
+                    <Text
+                      numberOfLines={1}
+                      maxFontSizeMultiplier={1.2}
+                      style={{
+                        fontFamily: font.uiBold,
+                        fontSize: 11,
+                        letterSpacing: 0.2,
+                        color: pressed ? colors.onPrimary : colors.primary,
+                      }}
+                    >
+                      {roomy ? t('Sign in') : t('In')}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            ) : (
+              /* A destination, not a setting — so it keeps its own colour and
+                 its own outline instead of joining the rail. */
+              <ModeSwitch compact={!roomy} />
+            )}
 
             <Rail>
               {[

@@ -15,6 +15,8 @@ import Navbar, { useNavbarOffset } from './Navbar';
 import { AmbientGlow, KineticBackground } from './Backdrop';
 import { useTheme } from '../theme/ThemeProvider';
 import useResponsive from '../theme/useResponsive';
+import { useSession } from '../store/SessionContext';
+import { isSignedIn } from '../lib/access';
 
 /** Clearance the floating app bar needs at the foot of a scroll. */
 export const APP_BAR_CLEARANCE = 110;
@@ -41,6 +43,10 @@ export default function Screen({
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const topOffset = useNavbarOffset();
+  /* The clearance follows the bar: the tab bar is drawn only for somebody
+     the server has answered for, so a signed-out page ends in content, not
+     in the hole the floating bar would have floated over. */
+  const signedIn = isSignedIn(useSession());
 
   /*
    * A page should arrive, not blink into place.
@@ -110,7 +116,7 @@ export default function Screen({
             contentContainerStyle={[
               {
                 paddingTop: showNavbar ? topOffset : insets.top + 16,
-                paddingBottom: APP_BAR_CLEARANCE + insets.bottom,
+                paddingBottom: (signedIn ? APP_BAR_CLEARANCE : 32) + insets.bottom,
               },
               contentStyle,
             ]}

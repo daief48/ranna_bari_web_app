@@ -8,10 +8,12 @@ import * as Haptics from 'expo-haptics';
 import Icon from '../../src/components/Icon';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useAuth } from '../../src/store/AuthContext';
+import { useSession } from '../../src/store/SessionContext';
 import { useCart } from '../../src/store/CartContext';
 import LiveOrderStrip from '../../src/components/LiveOrderStrip';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/ledger';
+import { isSignedIn } from '../../src/lib/access';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { font, radius } from '../../src/theme/tokens';
 
@@ -67,6 +69,7 @@ const BAR_HEIGHT = 74;
 function AppBar({ state, descriptors, navigation }) {
   const { colors, shadow, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const session = useSession();
   const { count } = useCart();
   const { account } = useAuth();
   const { orders } = useCommerce();
@@ -76,6 +79,16 @@ function AppBar({ state, descriptors, navigation }) {
   const toConfirm = orders.filter(
     (o) => o.customerKey === key && o.status === 'delivered',
   ).length;
+
+  /*
+   * Nothing until somebody is actually in.
+   *
+   * Three of the seven destinations are about an account — the basket, the
+   * profile, the meals somebody has booked — so for a guest the bar is mostly
+   * doors onto a sign-in prompt. The way in is on the top bar instead, where
+   * it is the one thing being offered rather than the seventh of seven.
+   */
+  if (!isSignedIn(session)) return null;
 
   return (
     <View
