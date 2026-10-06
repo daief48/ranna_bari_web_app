@@ -397,9 +397,10 @@ export default function CookOrderScreen() {
                 }}
               >
                 <Line label={t('Food total')} value={`৳${n(order.subtotal)}`} />
+                <Line label={t('Delivery fee')} value={`+ ৳${n(order.deliveryFee ?? 0)}`} />
                 <Line
                   label={t('Platform share ({pct}%)', { pct: n(Math.round((1 - COOK_PAYOUT_RATE) * 100)) })}
-                  value={`− ৳${n(order.subtotal - cookPayout(order))}`}
+                  value={`− ৳${n((order.amount ?? order.subtotal ?? 0) - cookPayout(order))}`}
                 />
                 <View style={{ height: 1, backgroundColor: colors.line }} />
                 <Line label={t('You receive')} value={`৳${n(cookPayout(order))}`} strong />

@@ -112,9 +112,18 @@ export const PAYMENT_METHODS = [
 /** The cut a cook keeps, as promised on the become-a-cook page. */
 export const COOK_PAYOUT_RATE = 0.85;
 
-/** A cook is paid on the food, never on the delivery or platform lines. */
-export const cookPayout = (order) =>
-  Math.round((order.subtotal ?? 0) * COOK_PAYOUT_RATE);
+/**
+ * What the ledger actually pays: the order's amount — delivery and platform
+ * lines included, which is the base `splitCommission` works on — minus the
+ * platform's rounded share. Every rail writes `amount` (meal plates carry
+ * only `price`/`amount`, no subtotal), so the old subtotal-only math read
+ * every meal plate as ৳0 and every screen quoting it low by the fees.
+ */
+export const cookPayout = (order) => {
+  const amount = order.amount ?? order.subtotal ?? order.price ?? 0;
+  const platform = Math.round(amount * (1 - COOK_PAYOUT_RATE));
+  return amount - platform;
+};
 
 /**
  * Human-readable order code. Ambiguous glyphs (I, O, 0, 1) are left out so a

@@ -56,9 +56,15 @@ export default function CookEarnings() {
   const mealLedger = meals.ledger.filter((tx) => tx.to === 'cook').slice().reverse();
 
   /* Only a delivered order is money. Anything still moving is a promise, and
-     a payout screen that counts promises is lying to the cook. */
+     a payout screen that counts promises is lying to the cook. Cash only —
+     escrow money is still held until the customer confirms, and this card
+     used to show the same wallet order as cash-in-hand here and as held in
+     the wallet card one screen below. */
   const paid = useMemo(
-    () => ordersForKitchen(kitchen?.id).filter((o) => o.status === 'delivered'),
+    () =>
+      ordersForKitchen(kitchen?.id).filter(
+        (o) => o.status === 'delivered' && o.payment === 'cod',
+      ),
     [ordersForKitchen, kitchen],
   );
 
