@@ -39,7 +39,7 @@ export default function NewRequest() {
   const r = useResponsive();
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { account } = useAuth();
+  const { account, isSignedIn } = useAuth();
   const chefs = useChefs();
   const shop = useCommerce();
 
@@ -121,6 +121,14 @@ export default function NewRequest() {
      */
     const pending = title.trim();
     const list = pending ? [...items, { name: pending, qty: 1 }] : items;
+
+    /* The CTA that leads here already asks, but a link can open this screen
+       cold — and the toast `createRequest` would raise comes only after the
+       whole form is filled. Ask before the typing, not after it. */
+    if (!isSignedIn) {
+      router.push('/auth?next=/requests/new');
+      return;
+    }
 
     if (!list.length) {
       alert.error(t('Say what you are looking for.'));

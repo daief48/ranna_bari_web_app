@@ -1361,7 +1361,12 @@ export default function BrowseScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t('Ask a cook to make {q}', { q: query.trim() })}
                 onPress={() =>
-                  router.push({ pathname: '/requests/new', params: { title: query.trim() } })
+                  /* A request is an account's — the same rule the request
+                     list applies. Asking after the form is filled is how the
+                     form gets thrown away. */
+                  isSignedIn
+                    ? router.push({ pathname: '/requests/new', params: { title: query.trim() } })
+                    : router.push('/auth?next=/requests/new')
                 }
                 style={({ pressed }) => ({
                   flexDirection: 'row',

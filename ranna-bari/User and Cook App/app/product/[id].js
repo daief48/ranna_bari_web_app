@@ -76,6 +76,18 @@ export default function ProductScreen() {
   const [shot, setShot] = useState(0);
   const [error, setError] = useState(null);
 
+  /* On a cold link the product lands after the first frame, so the default
+     option and the minimum quantity are seeded when it arrives rather than
+     at mount — quantity 1 against a minimum of 5 showed a total the basket
+     would silently quintuple. Keyed on the id, so a refresh never resets
+     what the customer has already chosen. */
+  useEffect(() => {
+    if (!product) return;
+    setOption(choices[0]?.label ?? null);
+    setQty(product.minQty ?? 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id]);
+
   const category = useMemo(
     () =>
       product && store
