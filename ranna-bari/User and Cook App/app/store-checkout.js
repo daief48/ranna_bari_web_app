@@ -57,7 +57,13 @@ export default function StoreCheckoutScreen() {
     setBusy(false);
 
     if (!out.ok) return alert.error(errorText(out.error, t, n, out));
-    router.replace(`/store-order/${out.result[0].id}`);
+    /* The answer lists the orders it created; an empty list is ok-shaped but
+       says nothing happened, and [0] of nothing is a crash, not an error. */
+    const placed = out.result ?? [];
+    if (!placed.length) {
+      return alert.error(t('The order did not go through. Try again.'));
+    }
+    router.replace(`/store-order/${placed[0].id}`);
   };
 
   return (

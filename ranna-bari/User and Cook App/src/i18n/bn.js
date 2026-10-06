@@ -402,6 +402,10 @@ export const bn = {
   'Register your kitchen': 'রান্নাঘর নিবন্ধন করুন',
   '{name} could not take this order: {reason}. Their food is still in your basket — everything else was placed and is in your orders.':
     '{name} এই অর্ডারটা নিতে পারেনি: {reason}। ওদের খাবার ঝুড়িতেই আছে — বাকিগুলো অর্ডার হয়ে গেছে, আপনার অর্ডারগুলোর তালিকায় পাবেন।',
+  'That did not reach the server. Check the connection and save again.':
+    'সেটা সার্ভারে পৌঁছায়নি। সংযোগ দেখে আবার সেভ করুন।',
+  'Saving…': 'সেভ হচ্ছে…',
+  'The order did not go through. Try again.': 'অর্ডারটা হয়নি। আবার চেষ্টা করুন।',
   'You can always add the other side later from your profile.':
     'অন্য দিকটি পরে প্রোফাইল থেকে যোগ করতে পারবেন।',
   'Your details': 'আপনার তথ্য',
