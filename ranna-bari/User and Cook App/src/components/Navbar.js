@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
@@ -198,6 +198,10 @@ export default function Navbar() {
   const session = useSession();
   const { unreadFor } = useCommerce();
   const signedIn = isSignedIn(session);
+  const pathname = usePathname();
+  /* A guest away from home walks without the tab bar, so every page they can
+     wander onto needs a way back that lives on the page itself. */
+  const guestAwayFromHome = !signedIn && pathname !== '/';
   const { t } = useLang();
 
   const audience = isCookMode ? 'cook' : 'customer';
@@ -250,19 +254,57 @@ export default function Navbar() {
             backgroundColor: colors.glass,
           }}
         >
-          {/* The brand yields first and truncates rather than pushing. */}
-          <Pressable
-            onPress={() => router.push('/')}
-            accessibilityRole="link"
-            accessibilityLabel="RannaBari home"
-            style={({ pressed }) => ({
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: COST.gap,
               flexShrink: 1,
               minWidth: 0,
-              transform: [{ scale: pressed ? 0.98 : 1 }],
-            })}
+            }}
           >
-            <Brand size={18} markSize={32} markOnly={markOnly} />
-          </Pressable>
+            {/* The way back, for somebody the bottom bar cannot carry. A guest
+                who wandered out of home has no rail to return through, so the
+                arrow lives here, before the brand, where a back control is
+                expected to sit. */}
+            {guestAwayFromHome ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('Back to RannaBari')}
+                onPress={() =>
+                  router.canGoBack() ? router.back() : router.replace('/')
+                }
+                style={({ pressed }) => ({
+                  width: 34,
+                  height: 34,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  borderWidth: 1,
+                  borderColor: pressed ? colors.primary200 : colors.line,
+                  backgroundColor: colors.surfaceSolid,
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
+                })}
+              >
+                <Icon name="arrowLeft" size={16} color={colors.text} strokeWidth={2} />
+              </Pressable>
+            ) : null}
+
+            {/* The brand yields first and truncates rather than pushing. */}
+            <Pressable
+              onPress={() => router.push('/')}
+              accessibilityRole="link"
+              accessibilityLabel="RannaBari home"
+              style={({ pressed }) => ({
+                flexShrink: 1,
+                minWidth: 0,
+                transform: [{ scale: pressed ? 0.98 : 1 }],
+              })}
+            >
+              <Brand size={18} markSize={32} markOnly={markOnly} />
+            </Pressable>
+          </View>
 
           {/* Controls never shrink and never wrap. */}
           <View
