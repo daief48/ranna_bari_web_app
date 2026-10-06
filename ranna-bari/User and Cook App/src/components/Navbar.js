@@ -396,14 +396,26 @@ export default function Navbar() {
               {[
                 <LanguageSwitch key="lang" segment first />,
 
-                <Segment
-                  key="bell"
-                  accessibilityLabel="Notifications"
-                  onPress={() => router.push('/notifications')}
-                >
-                  <Icon name="bell" size={17} color={colors.text} strokeWidth={1.85} />
-                  <Badge count={unreadCount} />
-                </Segment>,
+                /* Notifications belong to an account — orders and kitchen
+                   news are what they announce — so a guest's rail skips it
+                   rather than offering a bell that rings to an empty room. */
+                ...(signedIn
+                  ? [
+                      <Segment
+                        key="bell"
+                        accessibilityLabel="Notifications"
+                        onPress={() => router.push('/notifications')}
+                      >
+                        <Icon
+                          name="bell"
+                          size={17}
+                          color={colors.text}
+                          strokeWidth={1.85}
+                        />
+                        <Badge count={unreadCount} />
+                      </Segment>,
+                    ]
+                  : []),
 
                 <Segment
                   key="theme"
