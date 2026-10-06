@@ -10,6 +10,8 @@ import { Heading } from '../src/components/Typography';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { font, radius } from '../src/theme/tokens';
 import { useLang } from '../src/i18n/LanguageContext';
+import { useSession } from '../src/store/SessionContext';
+import { isSignedIn } from '../src/lib/access';
 
 /**
  * The door.
@@ -56,6 +58,10 @@ export default function JoinScreen() {
   const { colors, shadow } = useTheme();
   const router = useRouter();
   const { t } = useLang();
+  /* For a guest this screen is the start — there is nothing behind it, so
+     the back pill would point at the door it is standing in. A signed-in
+     visitor keeps the way out. */
+  const started = isSignedIn(useSession());
 
   return (
     <Screen>
@@ -65,7 +71,7 @@ export default function JoinScreen() {
         contentContainerStyle={{ paddingBottom: 48 }}
       >
         <Container style={{ maxWidth: 520, paddingTop: 32 }}>
-          <BackButton />
+          {started ? <BackButton /> : null}
 
           <Heading style={{ marginTop: 22, marginBottom: 6 }}>
             {t('What brings you here?')}

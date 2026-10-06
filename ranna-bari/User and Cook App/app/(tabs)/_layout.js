@@ -13,7 +13,7 @@ import { useCart } from '../../src/store/CartContext';
 import LiveOrderStrip from '../../src/components/LiveOrderStrip';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/ledger';
-import { isSignedIn } from '../../src/lib/access';
+import { isSignedIn, accessSettled } from '../../src/lib/access';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { font, radius } from '../../src/theme/tokens';
 
@@ -237,11 +237,20 @@ function AppBar({ state, descriptors, navigation }) {
 
 export default function TabsLayout() {
   const { isCookMode, hydrated } = useAuth();
+  const session = useSession();
 
   /* The customer tabs are the app's front door, so a cook arrives here first
      and is handed straight over. Waiting on `hydrated` is what keeps that
      from flashing the wrong panel for a frame on a cold start. */
   if (hydrated && isCookMode) return <Redirect href="/cook" />;
+
+  /* The app starts at the door: until the session verifies there is no
+     customer home to stand on — every tab route lands on the partition,
+     because a start page of cards and search bars presumes an account the
+     visitor has not made yet. */
+  if (accessSettled({ hydrated }, session) && !isSignedIn(session)) {
+    return <Redirect href="/join" />;
+  }
 
   return (
     <Tabs
