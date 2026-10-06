@@ -128,7 +128,11 @@ export default function JoinScreen() {
                   {t(door.desc)}
                 </Text>
 
-                <View style={{ flexDirection: 'row', gap: 10 }}>
+                {/* Stacked, not side by side: a pill that has to share the
+                    card's width with another truncates exactly the words a
+                    first-time visitor needs — "Create account" became
+                    "CREATE ACC…", which is a door with no name on it. */}
+                <View style={{ gap: 10 }}>
                   {door.actions.map((action) => (
                     <Button
                       key={action.label}
@@ -136,7 +140,6 @@ export default function JoinScreen() {
                       label={t(action.label)}
                       small
                       block
-                      style={{ flex: 1 }}
                       onPress={() => router.push(action.href)}
                     />
                   ))}

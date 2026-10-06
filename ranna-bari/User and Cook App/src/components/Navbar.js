@@ -175,6 +175,7 @@ const COST = {
   modeLabelled: 90,
   modeCompact: 36,
   rail: SEGMENT_W * 3 + 2 + 2,
+  backArrow: 34,
   gap: 7,
 };
 
@@ -212,8 +213,18 @@ export default function Navbar() {
      the other way, and the first paint is a frame. */
   const [inner, setInner] = useState(null);
 
+  /* A guest's bar is a different set of furniture, not the signed-in set
+     minus a piece: the back arrow and the sign-in door both ride where the
+     mode switch would, and both cost real width — so a guest's sum counts
+     them, and the compact tier actually gets a chance to run. */
   const need = (brand, mode) =>
-    brand + COST.gap + mode + COST.gap + COST.rail + (isCook ? 0 : -(mode + COST.gap));
+    brand +
+    COST.gap +
+    mode +
+    COST.gap +
+    COST.rail +
+    (guestAwayFromHome ? COST.backArrow + COST.gap : 0) +
+    (isCook || guestAwayFromHome ? 0 : -(mode + COST.gap));
 
   const roomy = inner == null || need(COST.brand, COST.modeLabelled) <= inner;
   const tight = !roomy && need(COST.brand, COST.modeCompact) <= inner;
