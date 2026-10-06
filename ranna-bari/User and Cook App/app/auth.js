@@ -970,6 +970,7 @@ function AsideTitle({ title, emphasis }) {
    Sign in
    --------------------------------------------------------- */
 function SignInView({
+  locked,
   mode,
   setMode,
   phone,
