@@ -187,6 +187,9 @@ export default function AuthScreen() {
 
   const aside = ASIDE[tab === 'signup' && role ? role : 'none'];
   const pwLevel = passwordScore(pw);
+  /* The specialty dropdown's openness lives here so a scroll of the form
+     can close it — the picker alone could not see the scroll. */
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   /* Crossing to signup keeps the door's answer: a cook who came in through
      the cook door and found no account yet must land on the kitchen form,
@@ -638,6 +641,7 @@ export default function AuthScreen() {
         <ScrollView
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          onScrollBeginDrag={() => setPickerOpen(false)}
           contentContainerStyle={{ paddingBottom: 48 + insets.bottom }}
         >
           {/* =========================================================
@@ -1333,6 +1337,8 @@ function SignUpView({
                 <SpecialtyPicker
                   value={fields.specialties}
                   onChange={fields.setSpecialties}
+                  open={pickerOpen}
+                  onOpenChange={setPickerOpen}
                 />
 
                 <FloatLabelInput
@@ -1726,10 +1732,13 @@ function PasswordStrength({ level }) {
  * The list comes from the backend, where an operator edits it. The constant in
  * KitchenContext is only what shows before the first response lands.
  */
-function SpecialtyPicker({ value, onChange }) {
-  const { colors } = useTheme();
+function SpecialtyPicker({ value, onChange, open, onOpenChange }) {
+  const { colors, shadow } = useTheme();
   const { t, n } = useLang();
-  const [open, setOpen] = useState(false);
+  /* Openness belongs to the screen: a dropdown that only its own state can
+     close stays open while the form scrolls under it, which reads as a
+     broken overlay rather than a picker. */
+  const setOpen = (v) => onOpenChange(v);
   const [query, setQuery] = useState('');
   /* Set the moment a seventh tap is refused, cleared the moment a slot
      frees — a note that outlives its cause is how a picker ends up warning
@@ -1782,7 +1791,7 @@ function SpecialtyPicker({ value, onChange }) {
         accessibilityLabel={`${t('What you cook best, currently')} ${
           chosen.length ? chosen.map((s) => t(s)).join(', ') : '—'
         }`}
-        onPress={() => setOpen((v) => !v)}
+        onPress={() => setOpen(!open)}
         style={{
           borderWidth: 1,
           borderColor: open ? colors.primary : colors.line,
@@ -1829,14 +1838,20 @@ function SpecialtyPicker({ value, onChange }) {
 
       {open ? (
         <View
-          style={{
-            marginTop: 6,
-            borderRadius: radius.sm,
-            backgroundColor: colors.surfaceSolid,
-            borderWidth: 1,
-            borderColor: colors.line,
-            overflow: 'hidden',
-          }}
+          style={[
+            {
+              marginTop: 6,
+              borderRadius: radius.sm,
+              /* Raised, not surface-solid: in dark mode the two are the same
+                 colour, and the panel melted into the card — chips floating
+                 on nothing. The shadow gives the boundary back. */
+              backgroundColor: colors.raised,
+              borderWidth: 1,
+              borderColor: colors.line,
+              overflow: 'hidden',
+            },
+            shadow.md,
+          ]}
         >
           {/* What you have picked, all of it, without scrolling for it — and
               how much room the list has left, so the limit is something read
