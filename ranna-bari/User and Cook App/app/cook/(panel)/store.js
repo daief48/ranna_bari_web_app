@@ -78,7 +78,10 @@ export default function CookStoreHub() {
                     deliveryRadiusKm: kitchen.deliveryRadiusKm,
                   });
                   setBusy(false);
-                  if (out.ok) router.push('/cook/store/settings');
+                  /* The store's first empty shelf, not its delivery-fee
+                     form: the next job is filling it, and the product form
+                     asks for a category mid-fill if nobody made one. */
+                  if (out.ok) router.push('/cook/store/categories');
                 }}
               />
             }

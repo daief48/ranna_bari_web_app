@@ -855,7 +855,7 @@ export default function CookDashboard() {
                         style={{ flex: 1 }}
                         onPress={() => {
                           Haptics.selectionAsync().catch(() => {});
-                          run(() => advanceOrder(order.id));
+                          run(() => advanceOrder(order.id), t('Accepted. It is in the cooking queue.'));
                         }}
                       />
                     </View>
