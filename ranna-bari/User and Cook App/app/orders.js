@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 
 import Screen, { Container } from '../src/components/Screen';
+import BackButton from '../src/components/BackButton';
 import Icon from '../src/components/Icon';
 import Reveal from '../src/components/Reveal';
 import Button from '../src/components/Button';
@@ -73,6 +74,7 @@ export default function OrdersScreen() {
   return (
     <Screen glow="both">
       <Container>
+        <BackButton fallback="/" style={{ marginBottom: 14 }} />
         <SectionHeader
           lead={t('YOUR')}
           accent={t('ORDERS')}

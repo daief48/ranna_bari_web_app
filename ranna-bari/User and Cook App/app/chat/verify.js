@@ -3,6 +3,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import Screen, { Container } from '../../src/components/Screen';
+import BackButton from '../../src/components/BackButton';
 import SectionHeader from '../../src/components/SectionHeader';
 import Button from '../../src/components/Button';
 import { useTheme } from '../../src/theme/ThemeProvider';
@@ -88,6 +89,7 @@ export default function VerifyNumber() {
   return (
     <Screen>
       <Container>
+        <BackButton fallback="/" style={{ marginBottom: 14 }} />
         <SectionHeader
           lead={stage === 'phone' ? t('VERIFY') : t('ENTER')}
           accent={stage === 'phone' ? t('YOUR NUMBER') : t('THE CODE')}

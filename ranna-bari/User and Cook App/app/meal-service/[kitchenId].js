@@ -23,6 +23,7 @@ import { Pressable, Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../../src/components/Screen';
+import BackButton from '../../src/components/BackButton';
 import Icon from '../../src/components/Icon';
 import Button from '../../src/components/Button';
 import SectionHeader from '../../src/components/SectionHeader';
@@ -268,6 +269,7 @@ export default function MealServiceScreen() {
     return (
       <Screen>
         <Container>
+          <BackButton fallback="/" style={{ marginBottom: 14 }} />
           <Loading label={t('Reading the calendar…')} />
         </Container>
       </Screen>

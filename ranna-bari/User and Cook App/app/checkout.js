@@ -11,6 +11,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../src/components/Screen';
+import BackButton from '../src/components/BackButton';
 import Icon from '../src/components/Icon';
 import Reveal from '../src/components/Reveal';
 import Button from '../src/components/Button';
@@ -42,6 +43,7 @@ export default function CheckoutScreen() {
     return (
       <Screen>
         <Container style={{ alignItems: 'center', paddingTop: 60 }}>
+          <BackButton fallback="/" style={{ marginBottom: 14 }} />
           <ActivityIndicator color={colors.primary} />
         </Container>
       </Screen>

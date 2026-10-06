@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
+import BackButton from '../../../src/components/BackButton';
 import SectionHeader from '../../../src/components/SectionHeader';
 import Button from '../../../src/components/Button';
 import Icon from '../../../src/components/Icon';
@@ -69,6 +70,7 @@ export default function BazarList() {
   return (
     <MessScreen footer={<BottomNav active="bazar" />}>
       <Container>
+        <BackButton fallback="/" style={{ marginBottom: 14 }} />
         <SectionHeader
           lead={t('THE')}
           accent={t('BAZAR')}

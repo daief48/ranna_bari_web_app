@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import MessScreen, { useMessTopOffset } from '../../src/features/meal-management/MessScreen';
+import BackButton from '../../src/components/BackButton';
 import Icon from '../../src/components/Icon';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../src/theme/tokens';
@@ -146,6 +147,7 @@ export default function MessRoom() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={insets.top}
       >
+        <BackButton fallback="/" style={{ marginHorizontal: 14, marginTop: 10 }} />
         <ScrollView
           ref={scroller}
           contentContainerStyle={{

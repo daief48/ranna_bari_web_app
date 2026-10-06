@@ -3,6 +3,7 @@ import { Pressable, RefreshControl, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import Screen, { Container } from '../../src/components/Screen';
+import BackButton from '../../src/components/BackButton';
 import Icon from '../../src/components/Icon';
 import SectionHeader from '../../src/components/SectionHeader';
 import Button from '../../src/components/Button';
@@ -51,6 +52,7 @@ export default function ChatInbox() {
     return (
       <Screen>
         <Container>
+          <BackButton fallback="/" style={{ marginBottom: 14 }} />
           <SectionHeader
             lead={t('NO')}
             accent={t('MESSAGES')}

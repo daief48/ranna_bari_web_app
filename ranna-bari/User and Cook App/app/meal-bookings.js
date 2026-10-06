@@ -11,6 +11,7 @@ import { Pressable, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../src/components/Screen';
+import BackButton from '../src/components/BackButton';
 import Icon from '../src/components/Icon';
 import Reveal from '../src/components/Reveal';
 import Button from '../src/components/Button';
@@ -50,6 +51,7 @@ export default function MealBookingsScreen() {
   return (
     <Screen>
       <Container>
+        <BackButton fallback="/" style={{ marginBottom: 14 }} />
         <SectionHeader
           lead={t('MY')}
           accent={t('MEAL BOOKINGS')}

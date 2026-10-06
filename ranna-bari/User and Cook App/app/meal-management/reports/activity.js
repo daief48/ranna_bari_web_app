@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
+import BackButton from '../../../src/components/BackButton';
 import SectionHeader from '../../../src/components/SectionHeader';
 import { Body } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
@@ -81,6 +82,7 @@ export default function ActivityLog() {
   return (
     <MessScreen>
       <Container>
+        <BackButton fallback="/" style={{ marginBottom: 14 }} />
         <BackLink fallback="/meal-management/reports" />
 
         <SectionHeader

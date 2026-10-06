@@ -17,6 +17,7 @@ import { Pressable, Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../../src/components/Screen';
+import BackButton from '../../src/components/BackButton';
 import Button from '../../src/components/Button';
 import SectionHeader from '../../src/components/SectionHeader';
 import ChatLauncher from '../../src/components/ChatLauncher';
@@ -94,6 +95,7 @@ export default function MealBookingScreen() {
     return (
       <Screen>
         <Container>
+          <BackButton fallback="/" style={{ marginBottom: 14 }} />
           <Loading />
         </Container>
       </Screen>

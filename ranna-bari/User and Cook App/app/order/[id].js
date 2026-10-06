@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import Screen, { Container } from '../../src/components/Screen';
+import BackButton from '../../src/components/BackButton';
 import Icon from '../../src/components/Icon';
 import Reveal from '../../src/components/Reveal';
 import ChatLauncher from '../../src/components/ChatLauncher';
@@ -62,6 +63,7 @@ export default function OrderScreen() {
     return (
       <Screen>
         <Container style={{ alignItems: 'center', gap: 16, paddingTop: 40 }}>
+          <BackButton fallback="/" style={{ marginBottom: 14 }} />
           <Icon name="alertCircle" size={32} color={colors.primary} />
           <Heading size={20}>
             {hydrated && asked ? t('Order not found') : t('Loading your order…')}

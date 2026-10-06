@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import MessScreen, { Container } from '../../src/features/meal-management/MessScreen';
+import BackButton from '../../src/components/BackButton';
 import SectionHeader from '../../src/components/SectionHeader';
 import Button from '../../src/components/Button';
 import Icon from '../../src/components/Icon';
@@ -105,6 +106,7 @@ export default function CloseMonth() {
   return (
     <MessScreen>
       <Container>
+        <BackButton fallback="/" style={{ marginBottom: 14 }} />
         <BackLink fallback="/meal-management/more" />
 
         <SectionHeader

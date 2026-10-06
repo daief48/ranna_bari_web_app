@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import MessScreen, { Container } from '../../src/features/meal-management/MessScreen';
+import BackButton from '../../src/components/BackButton';
 import SectionHeader from '../../src/components/SectionHeader';
 import { Body } from '../../src/components/Typography';
 import { type } from '../../src/theme/tokens';
@@ -50,6 +51,7 @@ export default function More() {
       footer={<BottomNav active="more" badges={{ money: pending.total || 0, more: unreadMessages }} />}
     >
       <Container>
+        <BackButton fallback="/" style={{ marginBottom: 14 }} />
         <SectionHeader
           lead={t('EVERYTHING')}
           accent={t('ELSE')}

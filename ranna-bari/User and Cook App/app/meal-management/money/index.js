@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import MessScreen, { Container } from '../../../src/features/meal-management/MessScreen';
+import BackButton from '../../../src/components/BackButton';
 import SectionHeader from '../../../src/components/SectionHeader';
 import { Body } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
@@ -68,6 +69,7 @@ export default function Money() {
   return (
     <MessScreen footer={<BottomNav active="money" badges={{ money: pending.total || 0 }} />}>
       <Container>
+        <BackButton fallback="/" style={{ marginBottom: 14 }} />
         <SectionHeader
           lead={t('THE')}
           accent={t('MONEY')}

@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import MessScreen, { Container } from '../../src/features/meal-management/MessScreen';
+import BackButton from '../../src/components/BackButton';
 import SectionHeader from '../../src/components/SectionHeader';
 import Icon from '../../src/components/Icon';
 import { Body } from '../../src/components/Typography';
@@ -90,6 +91,7 @@ export default function MealDashboard() {
     return (
       <MessScreen>
         <Container>
+          <BackButton fallback="/" style={{ marginBottom: 14 }} />
           <SectionHeader
             lead={t('MEAL')}
             accent={t('MANAGEMENT')}
