@@ -31,6 +31,41 @@ export function statusMeta(status, colors) {
         icon: 'alertCircle',
         action: 'Accept order',
       };
+    /* The escrow rail's words for the same walk — a wallet order opens at
+       `confirmed`, not `placed`, and its kitchen verbs differ accordingly.
+       Without these the order fell to the default and read as nothing. */
+    case 'confirmed':
+      return {
+        label: 'New',
+        bg: colors.primary50,
+        fg: colors.primary,
+        icon: 'alertCircle',
+        action: 'Start cooking',
+      };
+    case 'preparing':
+      return {
+        label: 'Cooking',
+        bg: colors.saffron50,
+        fg: colors.saffron,
+        icon: 'pot',
+        action: 'Mark ready',
+      };
+    case 'ready':
+      return {
+        label: 'Ready',
+        bg: colors.saffron50,
+        fg: colors.saffron,
+        icon: 'clock',
+        action: 'Send out',
+      };
+    case 'delivering':
+      return {
+        label: 'On the way',
+        bg: colors.sage50,
+        fg: colors.sage,
+        icon: 'delivery',
+        action: 'Mark delivered',
+      };
     case 'accepted':
       return {
         label: 'Accepted',

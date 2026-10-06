@@ -18,10 +18,9 @@ import { font, radius, tracking, type } from '../../../src/theme/tokens';
 import {
   COOK_PAYOUT_RATE,
   NEXT_STEP,
-  ORDER_STEPS,
+  stepsFor,
   cookPayout,
   formatOrderDate,
-  stepIndex,
   timeAgo,
   useOrders,
 } from '../../../src/store/OrdersContext';
@@ -67,7 +66,10 @@ export default function CookOrderScreen() {
 
   const meta = statusMeta(order.status, colors);
   const next = NEXT_STEP[order.status];
-  const current = stepIndex(order.status);
+  /* The stair the order actually stands on: cash and escrow use different
+     words for the same walk, and the wrong stair answers with -1. */
+  const steps = stepsFor(order);
+  const current = steps.findIndex((s) => s.key === order.status);
   const closed = order.status === 'cancelled' || order.status === 'rejected';
   const stamps = Object.fromEntries((order.history ?? []).map((h) => [h.status, h.at]));
 
@@ -478,7 +480,7 @@ export default function CookOrderScreen() {
               </View>
             ) : (
               <View style={{ gap: 2 }}>
-                {ORDER_STEPS.map((step, i) => {
+                {steps.map((step, i) => {
                   const done = i < current;
                   const active = i === current;
                   const tone = done
@@ -513,7 +515,7 @@ export default function CookOrderScreen() {
                             strokeWidth={done ? 2.4 : 1.9}
                           />
                         </View>
-                        {i < ORDER_STEPS.length - 1 ? (
+                        {i < steps.length - 1 ? (
                           <View
                             style={{
                               width: 2,

@@ -68,10 +68,26 @@ import { useLang } from '../../../src/i18n/LanguageContext';
  * "New" is a decision, "Cooking" is work, "Delivering" is a wait, and
  * "History" is everything already settled.
  */
+/* The lanes speak both rails: cash opens at `placed`, a wallet order at
+   `confirmed`, and from there the two vocabularies name the same walk —
+   accepted/cooking vs preparing, on_the_way vs ready/delivering. An order
+   standing on a word no lane matched appeared nowhere on the board at all. */
 const LANES = [
-  { key: 'new', label: 'New', match: (s) => s === 'placed' },
-  { key: 'cooking', label: 'Cooking', match: (s) => s === 'accepted' || s === 'cooking' },
-  { key: 'delivering', label: 'Delivering', match: (s) => s === 'on_the_way' },
+  {
+    key: 'new',
+    label: 'New',
+    match: (s) => s === 'placed' || s === 'confirmed',
+  },
+  {
+    key: 'cooking',
+    label: 'Cooking',
+    match: (s) => s === 'accepted' || s === 'cooking' || s === 'preparing',
+  },
+  {
+    key: 'delivering',
+    label: 'Delivering',
+    match: (s) => s === 'on_the_way' || s === 'ready' || s === 'delivering',
+  },
   { key: 'history', label: 'History', match: isClosed },
 ];
 

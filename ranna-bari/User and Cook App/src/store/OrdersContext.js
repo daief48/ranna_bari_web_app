@@ -27,6 +27,25 @@ export const ORDER_STEPS = [
 export const stepIndex = (status) =>
   ORDER_STEPS.findIndex((s) => s.key === status);
 
+/* The escrow rail's own stair — a wallet order never stands on `placed`, so
+   the cash stair answers its position with -1 and a screen of grey. */
+export const ESCROW_STEPS = [
+  { key: 'confirmed', label: 'Order confirmed', icon: 'receipt' },
+  { key: 'preparing', label: 'Cooking now', icon: 'pot' },
+  { key: 'ready', label: 'Ready', icon: 'clock' },
+  { key: 'delivering', label: 'On the way', icon: 'delivery' },
+  { key: 'delivered', label: 'Delivered', icon: 'shieldCheck' },
+];
+
+/* `delivered` sits on both stairs, so detection runs on the escrow-only
+   words — or on the kind, which is decided by where the money is. */
+const ESCROW_ONLY = ['confirmed', 'preparing', 'ready', 'delivering', 'completed'];
+
+export const stepsFor = (order) =>
+  order && (order.kind === 'wallet' || ESCROW_ONLY.includes(order.status))
+    ? ESCROW_STEPS
+    : ORDER_STEPS;
+
 /**
  * Neither `cancelled` nor `rejected` is a step, so both sit outside the rail.
  *
@@ -47,6 +66,12 @@ export const NEXT_STEP = {
   accepted: 'cooking',
   cooking: 'on_the_way',
   on_the_way: 'delivered',
+  /* The escrow rail — a wallet order's walk — has its own words for the
+     same four moves. No key collides, so one map serves both rails. */
+  confirmed: 'preparing',
+  preparing: 'ready',
+  ready: 'delivering',
+  delivering: 'delivered',
 };
 
 export const PAYMENT_METHODS = [
