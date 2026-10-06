@@ -244,12 +244,11 @@ export default function TabsLayout() {
      from flashing the wrong panel for a frame on a cold start. */
   if (hydrated && isCookMode) return <Redirect href="/cook" />;
 
-  /* The app starts at the door: until the session verifies there is no
-     customer home to stand on — every tab route lands on the partition,
-     because a start page of cards and search bars presumes an account the
-     visitor has not made yet. */
+  /* The app starts at the welcome page: until the session verifies there is
+     no customer home to stand on — every tab route lands there, and the
+     welcome hands on to the partition and the door. */
   if (accessSettled({ hydrated }, session) && !isSignedIn(session)) {
-    return <Redirect href="/join" />;
+    return <Redirect href="/welcome" />;
   }
 
   return (

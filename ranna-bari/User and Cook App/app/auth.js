@@ -17,6 +17,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import Icon from '../src/components/Icon';
 import Button from '../src/components/Button';
 import BackButton from '../src/components/BackButton';
+import LanguageSwitch from '../src/components/LanguageSwitch';
 import FloatLabelInput, { FormNote } from '../src/components/FloatLabelInput';
 import LocationPicker from '../src/components/LocationPicker';
 import KitchenPhotoField from '../src/components/KitchenPhotoField';
@@ -730,6 +731,10 @@ export default function AuthScreen() {
               }}
             >
               <BackButton />
+
+              {/* Pre-auth, the bar's whole job is brand, language, theme —
+                  so the language rides here beside the theme toggle. */}
+              <LanguageSwitch />
 
               <Pressable
                 accessibilityRole="button"

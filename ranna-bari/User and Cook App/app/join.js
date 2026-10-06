@@ -1,34 +1,27 @@
 import React from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import Screen, { Container } from '../src/components/Screen';
-import Button from '../src/components/Button';
 import BackButton from '../src/components/BackButton';
 import { IconTile } from '../src/components/Surfaces';
 import { Heading } from '../src/components/Typography';
+import Icon from '../src/components/Icon';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { font, radius } from '../src/theme/tokens';
 import { useLang } from '../src/i18n/LanguageContext';
-import { useSession } from '../src/store/SessionContext';
-import { isSignedIn } from '../src/lib/access';
 
 /**
- * The door.
+ * The partition.
  *
- * Signing in used to open straight on a phone-number field, and the cook's
- * way in hid behind a small "sign in with email" sentence; the role question
- * ("what brings you here?") waited until the middle of creating an account.
- * Nobody could say which of the two apps they were walking into.
- *
- * So the question moved to the front, where it belongs, and takes a whole
- * screen: two doors, each offering both of its ways in. Everything past this
- * point already knew its audience — the picker that used to be signup's step
- * 1 is gone, because this screen is it.
+ * Second page of the way in: the welcome has said who this place is, and
+ * this screen asks the one question that shapes everything after it. The
+ * answer is carried to the door screen, where the side's own sign-in and
+ * registration wait — neither choice is asked to share a page with the
+ * other any more.
  */
-
-/* The two ways in, per door. `push` rather than `replace`: the door stays
-   underneath, so the back button walks you out the way you came. */
 const DOORS = [
   {
     key: 'user',
@@ -36,10 +29,6 @@ const DOORS = [
     variant: 'primary',
     title: "I'm here to eat",
     desc: 'Order home-cooked meals from kitchens on your street.',
-    actions: [
-      { label: 'Sign in', variant: 'glass', href: '/auth?tab=signin&door=user' },
-      { label: 'Create account', variant: 'primary', href: '/auth?tab=signup&role=user' },
-    ],
   },
   {
     key: 'cook',
@@ -47,10 +36,6 @@ const DOORS = [
     variant: 'sage',
     title: "I'm here to cook",
     desc: 'Turn your kitchen into a business. Cook, list, deliver.',
-    actions: [
-      { label: 'Sign in', variant: 'glass', href: '/auth?tab=signin&door=cook' },
-      { label: 'Register your kitchen', variant: 'primary', href: '/auth?tab=signup&role=cook' },
-    ],
   },
 ];
 
@@ -58,20 +43,15 @@ export default function JoinScreen() {
   const { colors, shadow } = useTheme();
   const router = useRouter();
   const { t } = useLang();
-  /* For a guest this screen is the start — there is nothing behind it, so
-     the back pill would point at the door it is standing in. A signed-in
-     visitor keeps the way out. */
-  const started = isSignedIn(useSession());
 
   return (
     <Screen>
       <ScrollView
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 48 }}
       >
         <Container style={{ maxWidth: 520, paddingTop: 32 }}>
-          {started ? <BackButton /> : null}
+          <BackButton fallback="/welcome" />
 
           <Heading style={{ marginTop: 22, marginBottom: 6 }}>
             {t('What brings you here?')}
@@ -82,75 +62,72 @@ export default function JoinScreen() {
               fontSize: 14.5,
               lineHeight: 22,
               color: colors.textMuted,
-              marginBottom: 20,
+              marginBottom: 22,
             }}
           >
             {t('You can always add the other side later from your profile.')}
           </Text>
 
           <View style={{ gap: 16 }}>
-            {DOORS.map((door) => (
-              <View
-                key={door.key}
-                style={[
-                  {
-                    padding: 18,
-                    paddingHorizontal: 16,
-                    borderRadius: radius.md,
-                    borderWidth: 1,
-                    borderColor: colors.line,
-                    backgroundColor: colors.sunken,
-                  },
-                  shadow.sm,
-                ]}
-              >
-                <IconTile
-                  name={door.icon}
-                  variant={door.variant}
-                  style={{ width: 48, height: 48, borderRadius: 15, marginBottom: 12 }}
-                />
-
-                <Text
-                  style={{
-                    fontFamily: font.displayExtra,
-                    fontSize: 18,
-                    lineHeight: 22,
-                    letterSpacing: -0.27,
-                    color: colors.text,
-                    marginBottom: 5,
+            {DOORS.map((door, i) => (
+              <Animated.View key={door.key} entering={FadeInDown.duration(450).delay(i * 120)}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t(door.title)}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    router.push({ pathname: '/door', params: { role: door.key } });
                   }}
+                  style={({ pressed }) => [
+                    {
+                      padding: 20,
+                      paddingHorizontal: 18,
+                      borderRadius: radius.md,
+                      borderWidth: 1.5,
+                      borderColor: pressed ? colors.primary : colors.line,
+                      backgroundColor: colors.surfaceSolid,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 16,
+                      transform: [{ scale: pressed ? 0.98 : 1 }],
+                    },
+                    pressed ? shadow.md : shadow.sm,
+                  ]}
                 >
-                  {t(door.title)}
-                </Text>
-                <Text
-                  style={{
-                    fontFamily: font.ui,
-                    fontSize: 13,
-                    lineHeight: 20,
-                    color: colors.textMuted,
-                    marginBottom: 16,
-                  }}
-                >
-                  {t(door.desc)}
-                </Text>
+                  <IconTile
+                    name={door.icon}
+                    variant={door.variant}
+                    style={{ width: 56, height: 56, borderRadius: 18 }}
+                  />
 
-                {/* Stacked, not side by side: a pill that has to share the
-                    card's width with another truncates exactly the words a
-                    first-time visitor needs — "Create account" became
-                    "CREATE ACC…", which is a door with no name on it. */}
-                <View style={{ gap: 10 }}>
-                  {door.actions.map((action) => (
-                    <Button
-                      key={action.label}
-                      variant={action.variant}
-                      label={t(action.label)}
-                      small
-                      block
-                      onPress={() => router.push(action.href)}
-                    />
-                  ))}
-                </View>
-              </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text
+                      style={{
+                        fontFamily: font.displayBold,
+                        fontSize: 19,
+                        lineHeight: 24,
+                        letterSpacing: -0.3,
+                        color: colors.text,
+                        marginBottom: 4,
+                      }}
+                    >
+                      {t(door.title)}
+                    </Text>
+                    <Text
+                      style={{
+                        fontFamily: font.ui,
+                        fontSize: 13,
+                        lineHeight: 19,
+                        color: colors.textMuted,
+                      }}
+                    >
+                      {t(door.desc)}
+                    </Text>
+                  </View>
+
+                  <Icon name="chevronRight" size={18} color={colors.textMuted} />
+                </Pressable>
+              </Animated.View>
             ))}
           </View>
         </Container>

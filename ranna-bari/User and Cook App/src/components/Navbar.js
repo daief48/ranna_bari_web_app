@@ -202,7 +202,10 @@ export default function Navbar() {
   const pathname = usePathname();
   /* A guest away from home walks without the tab bar, so every page they can
      wander onto needs a way back that lives on the page itself. */
-  const guestAwayFromHome = !signedIn && pathname !== '/';
+  /* Pre-auth pages keep the bar to its barest: name, language, theme. */
+  const PRE_AUTH = ['/welcome', '/join', '/door'];
+  const guestAwayFromHome =
+    !signedIn && pathname !== '/' && !PRE_AUTH.includes(pathname);
   const { t } = useLang();
 
   const audience = isCookMode ? 'cook' : 'customer';
@@ -340,57 +343,12 @@ export default function Navbar() {
               * joining the rail — and a guest has no other side to switch to
               * anyway.
               */}
-            {!signedIn && pathname !== '/join' ? (
-              /* Hidden on the door itself: the pill would only stack another
-                 copy of the screen it is standing on. */
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('Sign in or join')}
-                onPress={() => {
-                  Haptics.selectionAsync().catch(() => {});
-                  router.push('/join');
-                }}
-                style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 5,
-                  paddingVertical: 7,
-                  paddingHorizontal: roomy ? 12 : 9,
-                  borderRadius: radius.pill,
-                  backgroundColor: pressed ? colors.primary : colors.primary50,
-                  borderWidth: 1,
-                  borderColor: colors.primary100,
-                  transform: [{ scale: pressed ? 0.96 : 1 }],
-                })}
-              >
-                {({ pressed }) => (
-                  <>
-                    <Icon
-                      name="user"
-                      size={14}
-                      color={pressed ? colors.onPrimary : colors.primary}
-                      strokeWidth={2}
-                    />
-                    <Text
-                      numberOfLines={1}
-                      maxFontSizeMultiplier={1.2}
-                      style={{
-                        fontFamily: font.uiBold,
-                        fontSize: 11,
-                        letterSpacing: 0.2,
-                        color: pressed ? colors.onPrimary : colors.primary,
-                      }}
-                    >
-                      {roomy ? t('Sign in') : t('In')}
-                    </Text>
-                  </>
-                )}
-              </Pressable>
-            ) : (
-              /* A destination, not a setting — so it keeps its own colour and
-                 its own outline instead of joining the rail. */
-              <ModeSwitch compact={!roomy} />
-            )}
+            {/* A destination, not a setting — so it keeps its own colour and
+                its own outline instead of joining the rail. Pre-auth pages
+                render the bar at its barest — name, language, theme — so this
+                slot is simply empty until there is a session; the welcome,
+                partition and door screens carry the asking. */}
+            {signedIn ? <ModeSwitch compact={!roomy} /> : null}
 
             <Rail>
               {[

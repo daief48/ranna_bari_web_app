@@ -432,6 +432,13 @@ export const bn = {
   'Give it a price — the basket cannot total nothing.':
     'দাম লিখুন — খালি দামে ঝুড়ির হিসাবই দাঁড়ায় না।',
   'Accepted. It is in the cooking queue.': 'মেনে নেওয়া হয়েছে। এখন রান্নার লাইনে।',
+  'How would you like to go in?': 'কীভাবে ঢুকবেন?',
+  'You already have an account.': 'আপনার আগে থেকেই অ্যাকাউন্ট আছে।',
+  'New here? A phone number is all it takes.':
+    'নতুন এখানে? শুধু একটা ফোন নম্বরই যথেষ্ট।',
+  'You already have a kitchen here.': 'এখানে আপনার রান্নাঘর আগে থেকেই আছে।',
+  'Three short steps, an email code, and your documents.':
+    'তিনটা ছোট ধাপ, একটা ইমেইল-কোড, আর আপনার ডকুমেন্ট।',
   'You can always add the other side later from your profile.':
     'অন্য দিকটি পরে প্রোফাইল থেকে যোগ করতে পারবেন।',
   'Your details': 'আপনার তথ্য',
