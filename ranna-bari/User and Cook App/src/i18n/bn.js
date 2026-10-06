@@ -408,6 +408,25 @@ export const bn = {
   'The order did not go through. Try again.': 'অর্ডারটা হয়নি। আবার চেষ্টা করুন।',
   'This phone already had an account, so you are signed in as {name}. Your details were left as they were.':
     'এই নম্বরে আগে থেকেই অ্যাকাউন্ট ছিল, তাই আপনি {name} হিসেবেই সাইন ইন হয়েছেন। আগের তথ্যগুলো যেমন ছিল তেমনই রাখা হয়েছে।',
+  'Send code': 'কোড পাঠান',
+  'Six-digit code': 'ছয় সংখ্যার কোড',
+  'We sent a six-digit code to {phone}.': '{phone} নম্বরে ছয় সংখ্যার কোড পাঠানো হয়েছে।',
+  'Use a different number': 'অন্য নম্বর ব্যবহার করুন',
+  'Signed in.': 'সাইন ইন হয়ে গেছে।',
+  'Please accept the Terms and Privacy Policy to continue.':
+    'এগোতে শর্তাবলি আর গোপনীয়তা-নীতি মেনে নিন।',
+  'We need your mobile number to send a code.': 'কোড পাঠাতে আপনার মোবাইল নম্বর দরকার।',
+  'Could not send a code.': 'কোড পাঠানো যায়নি।',
+  'Enter your mobile number.': 'আপনার মোবাইল নম্বর লিখুন।',
+  'We send a six-digit code to your phone. No password to remember.':
+    'আমরা আপনার ফোনে ছয় সংখ্যার কোড পাঠাই। পাসওয়ার্ড মনে রাখার ঝামেলা নেই।',
+  'We could not submit those documents.': 'ওই ডকুমেন্টগুলো জমা দেওয়া যায়নি।',
+  'Back': 'ফেরত',
+  'Continue': 'এগোন',
+  'A name is the one thing a rider needs to ask for.':
+    'রাইডার ডাকার জন্য একটাই জিনিস দরকার — নাম।',
+  'That phone number looks too short to call.': 'ফোন নম্বরটা ডাকার মতো লম্বা মনে হচ্ছে না।',
+  'That image could not be loaded. Try another one.': 'ছবিটা লোড করা যায়নি। অন্যটা দিন।',
   'You can always add the other side later from your profile.':
     'অন্য দিকটি পরে প্রোফাইল থেকে যোগ করতে পারবেন।',
   'Your details': 'আপনার তথ্য',

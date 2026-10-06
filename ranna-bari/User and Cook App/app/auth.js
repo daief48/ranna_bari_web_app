@@ -1253,8 +1253,8 @@ function SignUpView({
               title={role === 'cook' ? t('Your kitchen details') : t('Your details')}
               sub={
                 role === 'cook'
-                  ? 'This is what customers will see, plus one thing only we see.'
-                  : 'We only ask for what an order actually needs.'
+                  ? t('This is what customers will see, plus one thing only we see.')
+                  : t('We only ask for what an order actually needs.')
               }
             />
 
@@ -1347,7 +1347,7 @@ function SignUpView({
 
                 <FieldHint
                   icon="shieldCheck"
-                  text="Encrypted at rest and used once, for the verification badge. It is never shown to customers."
+                  text={t('Encrypted at rest and used once, for the verification badge. It is never shown to customers.')}
                 />
               </>
             ) : null}
@@ -1365,8 +1365,8 @@ function SignUpView({
             />
 
             <Actions
-              next={{ label: 'Continue', onPress: () => goStep(3) }}
-              backLabel="Back"
+              next={{ label: t('Continue'), onPress: () => goStep(3) }}
+              backLabel={t('Back')}
             />
           </Animated.View>
         ) : null}
@@ -1412,7 +1412,7 @@ function SignUpView({
                     marginBottom: 10,
                   }}
                 >
-                  Save this address as
+                  {t('Save this address as')}
                 </Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {[
@@ -1500,15 +1500,15 @@ function SignUpView({
             <Actions
               next={{
                 label: suBusy
-                  ? 'Just a moment…'
+                  ? t('Just a moment…')
                   : role === 'cook'
-                    ? 'Create account'
+                    ? t('Create account')
                     : suStage === 'form'
-                      ? 'Send code'
-                      : 'Create account',
+                      ? t('Send code')
+                      : t('Create account'),
                 onPress: submit,
               }}
-              backLabel="Back"
+              backLabel={t('Back')}
               onBack={() =>
                 role === 'user' && suStage === 'code' ? setSuStage('form') : goStep(2)
               }
@@ -2197,7 +2197,7 @@ function RadiusSlider({ value, onChange }) {
 
       <FieldHint
         icon="route"
-        text="Only customers inside this circle will see your kitchen. Start small — you can widen it any time."
+        text={t('Only customers inside this circle will see your kitchen. Start small — you can widen it any time.')}
       />
     </View>
   );

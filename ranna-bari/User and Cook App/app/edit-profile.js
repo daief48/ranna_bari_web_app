@@ -116,6 +116,7 @@ function EditProfileForm({ account }) {
   const [note, setNote] = useState('');
   const [picking, setPicking] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   /**
    * The picker hands back a local `file://` uri on native but a `blob:` url on
@@ -162,32 +163,47 @@ function EditProfileForm({ account }) {
           : asset.uri,
       );
     } catch (e) {
-      setNote('That image could not be loaded. Try another one.');
+      setNote(t('That image could not be loaded. Try another one.'));
     } finally {
       setPicking(false);
     }
   };
 
   const save = async () => {
+    if (saving) return;
     if (!name.trim()) {
-      setNote('A name is the one thing a rider needs to ask for.');
+      setNote(t('A name is the one thing a rider needs to ask for.'));
       return;
     }
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setNote('That email address does not look right.');
+      setNote(t('That email address does not look right.'));
       return;
     }
     if (phone.trim() && phone.replace(/\D/g, '').length < 10) {
-      setNote('That phone number looks too short to call.');
+      setNote(t('That phone number looks too short to call.'));
       return;
     }
 
     setNote('');
+    setSaving(true);
     /* To the server first, then the device. The profile used to stop at
        AsyncStorage, which is why an address never survived a reinstall and
        why the server — the thing that decides which kitchens reach you —
        had never heard of one. */
-    await saveProfile({ name: name.trim(), email: email.trim(), avatar, bio: bio.trim() });
+    const out = await saveProfile({
+      name: name.trim(),
+      email: email.trim(),
+      avatar,
+      bio: bio.trim(),
+    });
+    if (!out.ok) {
+      /* A silent save was the worst version: "Saved." on screen, the screen
+         popped, and the server never heard of any of it — the edit quietly
+         reverted on the next cold start. Stay, and say so. */
+      setSaving(false);
+      setNote(t('That did not reach the server. Check the connection and save again.'));
+      return;
+    }
 
     await updateAccount({
       avatar,
@@ -484,7 +500,13 @@ function EditProfileForm({ account }) {
           </Reveal>
 
           <View style={{ marginTop: 24, gap: 12 }}>
-            <Button label={t('Save changes')} icon="check" block onPress={save} />
+            <Button
+              label={saving ? t('Saving…') : t('Save changes')}
+              icon="check"
+              block
+              disabled={saving}
+              onPress={save}
+            />
             <Pressable
               accessibilityRole="button"
               onPress={() => (router.canGoBack() ? router.back() : router.replace('/profile'))}
