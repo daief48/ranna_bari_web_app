@@ -427,6 +427,10 @@ export const bn = {
     'রাইডার ডাকার জন্য একটাই জিনিস দরকার — নাম।',
   'That phone number looks too short to call.': 'ফোন নম্বরটা ডাকার মতো লম্বা মনে হচ্ছে না।',
   'That image could not be loaded. Try another one.': 'ছবিটা লোড করা যায়নি। অন্যটা দিন।',
+  'That did not save. Check the connection and try again.':
+    'সেভ হয়নি। সংযোগ দেখে আবার চেষ্টা করুন।',
+  'Give it a price — the basket cannot total nothing.':
+    'দাম লিখুন — খালি দামে ঝুড়ির হিসাবই দাঁড়ায় না।',
   'You can always add the other side later from your profile.':
     'অন্য দিকটি পরে প্রোফাইল থেকে যোগ করতে পারবেন।',
   'Your details': 'আপনার তথ্য',

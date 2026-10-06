@@ -321,7 +321,13 @@ export default function CookMeals() {
                             </Body>
                           ) : (
                             <Button
-                              label={busy === order.id ? t('Updating…') : t('Mark delivered')}
+                              label={
+                                busy === order.id
+                                  ? t('Updating…')
+                                  : order.status === 'confirmed'
+                                    ? t('Start cooking')
+                                    : t('Mark delivered')
+                              }
                               block
                               disabled={busy === order.id}
                               style={{ marginTop: 12 }}

@@ -6,7 +6,7 @@
  * to make, name, order and remove -- and the order matters, because it is the
  * order customers see across the top of the shop.
  */
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -39,7 +39,11 @@ export default function StoreCategories() {
   const [name, setName] = useState('');
   const [emoji, setEmoji] = useState(EMOJI[0]);
   const [editing, setEditing] = useState(null);
+  const [draft, setDraft] = useState('');
   const [note, setNote] = useState(null);
+  /* One rename in flight at a time: blur and submit both ask for the commit,
+     and two PATCHes racing can land out of order and save a truncated name. */
+  const committingRef = useRef(false);
 
   const store = kitchen ? shop.storeForKitchen(kitchen.id) : null;
   const categories = store ? shop.categoriesOf(store.id) : [];
@@ -51,10 +55,25 @@ export default function StoreCategories() {
     setName('');
   };
 
-  const rename = async (id, value) => {
+  /* Committed on blur or submit, not per keystroke: the old wiring PATCHed
+     on every character against a value bound to the server's copy, so a
+     cleared field refused as name-required before anything was typed, and
+     each response refetched the list under the typing thumbs. */
+  const commitRename = async (id) => {
+    if (committingRef.current) return;
+    const value = draft.trim();
+    if (!value) return;
+    const current = categories.find((c) => c.id === id);
+    if (!current || current.name === value) {
+      setEditing(null);
+      return;
+    }
+    committingRef.current = true;
     const out = await shop.updateCategory(id, { name: value });
+    committingRef.current = false;
     if (!out.ok) alert.error(errorText(out.error, t, n, out));
     else setNote(null);
+    setEditing(null);
   };
 
   const remove = async (id) => {
@@ -259,16 +278,21 @@ export default function StoreCategories() {
                 <View style={{ flex: 1 }}>
                   <FloatLabelInput
                     label={t('Name')}
-                    value={c.name}
-                    onChangeText={(v) => rename(c.id, v)}
-                    onSubmitEditing={() => setEditing(null)}
+                    value={draft}
+                    onChangeText={setDraft}
+                    autoFocus
+                    onSubmitEditing={() => commitRename(c.id)}
+                    onBlur={() => commitRename(c.id)}
                   />
                 </View>
               ) : (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`${t('Rename')} ${c.name}`}
-                  onPress={() => setEditing(c.id)}
+                  onPress={() => {
+                    setDraft(c.name);
+                    setEditing(c.id);
+                  }}
                   style={{ flex: 1, minWidth: 0 }}
                 >
                   <Text

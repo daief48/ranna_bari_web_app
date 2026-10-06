@@ -128,7 +128,13 @@ export default function CookOrders() {
   const { t, n } = useLang();
 
   /* ---- menu ---- */
-  const mine = ordersForKitchen(kitchen?.id);
+  /* This board is the dish rail: cash and wallet orders only. Shop parcels
+     and meal plates have their own tabs and their own rails — a meal plate
+     here rendered ৳0 on an empty item list and a button whose word the meal
+     rail would refuse. */
+  const mine = ordersForKitchen(kitchen?.id).filter(
+    (o) => o.kind === 'cod' || o.kind === 'wallet',
+  );
 
   const counts = useMemo(() => {
     const out = {};

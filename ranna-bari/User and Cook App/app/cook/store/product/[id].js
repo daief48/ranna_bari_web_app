@@ -88,6 +88,7 @@ function Form({ store, product, isNew }) {
   const [deliveryNote, setDeliveryNote] = useState(product?.deliveryNote ?? '');
   const [note, setNote] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const addImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -109,13 +110,22 @@ function Form({ store, product, isNew }) {
   };
 
   const save = async () => {
+    if (saving) return;
+    /* The backend reads an empty price as "leave alone", which on create
+       means the schema default: a live ৳0 product the basket cannot total.
+       A new product cannot exist without a price. */
+    const parsedPrice = Number(String(price).replace(/[^\d.]/g, ''));
+    if (isNew && (!price.trim() || !(parsedPrice > 0))) {
+      return alert.error(t('Give it a price — the basket cannot total nothing.'));
+    }
+    setSaving(true);
     const out = await shop.saveProduct({
       productId: product?.id,
       storeId: store.id,
       patch: {
         name: name.trim(),
         description: description.trim(),
-        price,
+        price: price.trim() ? parsedPrice : undefined,
         stock,
         minQty: minQty.trim() ? minQty : 1,
         maxQty: maxQty.trim() ? maxQty : null,
@@ -127,12 +137,16 @@ function Form({ store, product, isNew }) {
         deliveryNote: deliveryNote.trim(),
       },
     });
+    setSaving(false);
     if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     router.replace('/cook/store/products');
   };
 
-  const remove = () => {
-    shop.removeProduct(product.id);
+  const remove = async () => {
+    /* A delete that routes before its answer lands leaves the cook on a
+       list still showing the product, with no word about why. */
+    const out = await shop.removeProduct(product.id);
+    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     router.replace('/cook/store/products');
   };
 
@@ -420,10 +434,11 @@ function Form({ store, product, isNew }) {
 
         <Reveal delay={6}>
           <Button
-            label={isNew ? t('Add product') : t('Save changes')}
+            label={saving ? t('Saving…') : isNew ? t('Add product') : t('Save changes')}
             icon="check"
             iconPosition="left"
             block
+            disabled={saving}
             onPress={save}
             style={{ marginTop: 22 }}
           />

@@ -8,6 +8,7 @@ import * as Haptics from 'expo-haptics';
 import Icon from '../../../src/components/Icon';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { useOrders } from '../../../src/store/OrdersContext';
+import { useAuth } from '../../../src/store/AuthContext';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
@@ -55,9 +56,13 @@ function CookBar({ state, descriptors, navigation }) {
   const { t, n: num } = useLang();
 
   /* The one number worth interrupting a cook for: orders nobody has looked
-     at yet. It rides the Orders tab so it is visible from every screen. */
+     at yet — on either rail, since a wallet order waits at `confirmed` the
+     same way a cash order waits at `placed`. It rides the Orders tab so it
+     is visible from every screen. */
   const waiting = kitchen
-    ? ordersForKitchen(kitchen.id).filter((o) => o.status === 'placed').length
+    ? ordersForKitchen(kitchen.id).filter(
+        (o) => o.status === 'placed' || o.status === 'confirmed',
+      ).length
     : 0;
 
   /* Its equivalent for pre-booked meals: plates paid for and not yet
@@ -132,7 +137,7 @@ function CookBar({ state, descriptors, navigation }) {
                   !badge
                     ? t(options.title ?? meta.label)
                     : `${t(options.title ?? meta.label)}, ${
-                        meta.name === 'meals'
+                        meta.name === 'listings'
                           ? t('{n} plates to cook', { n: num(badge) })
                           : t('{n} waiting on you', { n: num(badge) })
                       }`
@@ -278,6 +283,7 @@ function useWatchForApproval(waiting, reload) {
 
 export default function CookPanelLayout() {
   const { kitchen, hydrated, reload } = useKitchen();
+  const { setViewMode } = useAuth();
   const router = useRouter();
 
   /* The one screen whose whole purpose is waiting has to notice when the wait
@@ -299,12 +305,20 @@ export default function CookPanelLayout() {
    * kitchen had been stopped saw a working dashboard and a string of failures
    * with no reason attached to any of them.
    */
+  /* Leaving the panel means leaving cook mode first: the customer tabs
+     bounce any cook-mode user straight back here, so a plain replace('/')
+     re-rendered the same gate and the exit button read as dead. */
+  const leaveToCustomer = () => {
+    setViewMode('customer');
+    router.replace('/');
+  };
+
   if (kitchen?.suspended) {
     return (
       <KitchenSuspended
         kitchen={kitchen}
         onContact={() => router.push('/chat')}
-        onBack={() => router.replace('/')}
+        onBack={leaveToCustomer}
       />
     );
   }
@@ -315,7 +329,7 @@ export default function CookPanelLayout() {
         kitchen={kitchen}
         onCompleteDocuments={() => router.push('/cook-documents')}
         onOpenDetails={() => router.push('/cook/kitchen-details')}
-        onBack={() => router.replace('/')}
+        onBack={leaveToCustomer}
       />
     );
   }

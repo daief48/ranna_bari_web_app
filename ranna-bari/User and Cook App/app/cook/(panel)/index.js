@@ -193,7 +193,13 @@ export default function CookDashboard() {
   );
 
   const inFlight = useMemo(
-    () => mine.filter((o) => !isClosed(o.status) && o.status !== 'placed'),
+    () =>
+      mine.filter(
+        (o) =>
+          !isClosed(o.status) &&
+          o.status !== 'placed' &&
+          (o.kind === 'cod' || o.kind === 'wallet'),
+      ),
     [mine],
   );
 

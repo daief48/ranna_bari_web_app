@@ -134,7 +134,7 @@ function DishForm({ isNew, existing }) {
   const toggleTag = (t) =>
     setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
 
-  const save = () => {
+  const save = async () => {
     const value = Number(price);
     if (!name.trim()) {
       setNote(t('Give the dish a name.'));
@@ -158,8 +158,16 @@ function DishForm({ isNew, existing }) {
       tags,
     };
 
-    if (isNew) addDish(payload);
-    else updateDish(existing.id, payload);
+    /* The verdict is read: a dropped connection used to route to the menu
+       with the old dish still standing and nothing said — the cook believed
+       the change had landed. */
+    const out = isNew
+      ? await addDish(payload)
+      : await updateDish(existing.id, payload);
+    if (!out || out.ok === false) {
+      setNote(t('That did not save. Check the connection and try again.'));
+      return;
+    }
 
     Haptics.selectionAsync().catch(() => {});
     router.replace('/cook/menu');
@@ -386,8 +394,12 @@ function DishForm({ isNew, existing }) {
                       label={t('Remove')}
                       small
                       style={{ flex: 1 }}
-                      onPress={() => {
-                        removeDish(existing.id);
+                      onPress={async () => {
+                        const out = await removeDish(existing.id);
+                        if (!out || out.ok === false) {
+                          setNote(t('That did not save. Check the connection and try again.'));
+                          return;
+                        }
                         router.replace('/cook/menu');
                       }}
                     />
