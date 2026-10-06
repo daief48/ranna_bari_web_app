@@ -420,7 +420,7 @@ export default function CookDashboard() {
               tone: 'sage',
               title: t('Add your first dish'),
               sub: t('An open kitchen with an empty menu has nothing to sell'),
-              onPress: () => router.push('/cook/menu'),
+              onPress: () => router.push('/cook/dish/new'),
             },
 
             (kitchen.photos ?? []).length === 0 && {

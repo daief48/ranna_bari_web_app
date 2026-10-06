@@ -135,7 +135,7 @@ export default function CookOrderScreen() {
               fontVariant: ['tabular-nums'],
             }}
           >
-            {order.id}
+            {order.code ?? order.id}
           </Text>
           <Body muted size={14} style={{ marginTop: 4 }}>
             {formatOrderDate(order.createdAt, lang)}

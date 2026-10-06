@@ -301,7 +301,7 @@ function Back() {
           color: colors.sage,
         }}
       >
-        {t('Kitchen')}
+        {t('Today')}
       </Text>
     </Pressable>
   );

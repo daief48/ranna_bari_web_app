@@ -108,7 +108,20 @@ function CookBar({ state, descriptors, navigation }) {
             const meta = TABS.find((t) => t.name === route.name);
             if (!meta) return null;
 
-            const focused = state.index === i;
+            /* A hidden screen lights its host tab: the menu and the shop
+               belong to Listings, earnings and the kitchen page to Business,
+               the meal plates to Orders. Five working screens otherwise
+               render the bar with nothing selected at all. */
+            const HOST = {
+              menu: 'listings',
+              store: 'listings',
+              earnings: 'business',
+              kitchen: 'business',
+              meals: 'orders',
+            };
+            const focused =
+              state.index === i ||
+              HOST[state.routes[state.index]?.name] === route.name;
             const { options } = descriptors[route.key];
             /* Meals moved under Listings, so the plates-to-cook count moves
                with it — a number that vanished when its tab did would be a

@@ -56,7 +56,7 @@ export default function BusinessScreen() {
           <Reveal delay={2}>
             <ActionRow
               icon="chefHat"
-              title={t('Kitchen')}
+              title={t('Kitchen profile')}
               sub={
                 kitchen?.isOpen
                   ? t('Open for orders')
