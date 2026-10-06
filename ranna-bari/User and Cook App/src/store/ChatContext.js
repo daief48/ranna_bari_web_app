@@ -61,6 +61,10 @@ export function ChatProvider({ children }) {
 
   /** Unsent messages, newest last. Persisted, so a crash does not lose them. */
   const [outbox, setOutbox] = useState([]);
+  /* The outbox's single source of truth; state mirrors it for the badge. A
+     drain that read storage instead held a snapshot, and anything queued
+     while it flew was wiped by the snapshot's closing write. */
+  const outboxRef = useRef([]);
 
   const socketRef = useRef(null);
   const retryRef = useRef(null);
@@ -83,7 +87,10 @@ export function ChatProvider({ children }) {
       .then((raw) => {
         if (!raw) return;
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) setOutbox(parsed);
+        if (Array.isArray(parsed)) {
+          outboxRef.current = parsed;
+          setOutbox(parsed);
+        }
       })
       .catch(() => {});
   }, []);
@@ -428,15 +435,10 @@ export function ChatProvider({ children }) {
     drainingRef.current = true;
 
     try {
-      let queue = await AsyncStorage.getItem(OUTBOX_KEY)
-        .then((raw) => (raw ? JSON.parse(raw) : []))
-        .catch(() => []);
-      if (!Array.isArray(queue) || queue.length === 0) return;
+      if (!outboxRef.current.length) return;
 
-      const remaining = [...queue];
-
-      while (remaining.length) {
-        const pending = remaining[0];
+      while (outboxRef.current.length) {
+        const pending = outboxRef.current[0];
         try {
           const out = await api('/chat/messages', {
             method: 'POST',
@@ -458,31 +460,31 @@ export function ChatProvider({ children }) {
               ),
             };
           });
-
-          remaining.shift();
         } catch (error) {
-          if (error instanceof ApiError && !error.retryable) {
-            /* The server refused it and will refuse it again — a closed
-               thread, a message too long. Drop it from the queue and mark the
-               copy on screen as failed rather than retrying forever. */
-            setMessages((prev) => {
-              const list = prev[pending.threadId] ?? [];
-              return {
-                ...prev,
-                [pending.threadId]: list.map((m) =>
-                  m.clientId === pending.clientId ? { ...m, failed: true } : m,
-                ),
-              };
-            });
-            remaining.shift();
-            continue;
+          if (!(error instanceof ApiError && !error.retryable)) {
+            break; // network. Leave the rest queued.
           }
-          break; // network. Leave the rest queued.
+          /* The server refused it and will refuse it again — a closed
+             thread, a message too long. Drop it from the queue and mark the
+             copy on screen as failed rather than retrying forever. */
+          setMessages((prev) => {
+            const list = prev[pending.threadId] ?? [];
+            return {
+              ...prev,
+              [pending.threadId]: list.map((m) =>
+                m.clientId === pending.clientId ? { ...m, failed: true } : m,
+              ),
+            };
+          });
         }
-      }
 
-      setOutbox(remaining);
-      persistOutbox(remaining);
+        /* The ref is the queue, so a message send() appended while this
+           request was in flight is still ahead of the slice — nothing here
+           can overwrite it. */
+        outboxRef.current = outboxRef.current.slice(1);
+        setOutbox(outboxRef.current);
+        persistOutbox(outboxRef.current);
+      }
     } finally {
       drainingRef.current = false;
     }
@@ -518,14 +520,17 @@ export function ChatProvider({ children }) {
         [threadId]: [...(prev[threadId] ?? []), optimistic],
       }));
 
-      const queued = [...outbox, { threadId, body: text, clientId }];
+      /* Queued onto the ref, not onto the render's copy: two sends in one
+         tick closed over the same stale outbox and the second was lost. */
+      const queued = [...outboxRef.current, { threadId, body: text, clientId }];
+      outboxRef.current = queued;
       setOutbox(queued);
       persistOutbox(queued);
 
       drain();
       return optimistic;
     },
-    [outbox, persistOutbox, drain],
+    [persistOutbox, drain],
   );
 
   /* ---------------- threads ---------------- */
