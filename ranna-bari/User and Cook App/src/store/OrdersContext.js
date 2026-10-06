@@ -181,11 +181,9 @@ export function OrdersProvider({ children }) {
           deliveryFee,
           platformFee,
           total: subtotal + deliveryFee + platformFee,
-          status: 'placed',
           contact: draft.contact,
           address: draft.address,
           createdAt,
-          history: [{ status: 'placed', at: createdAt }],
         };
       });
 
