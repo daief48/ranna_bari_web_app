@@ -124,6 +124,10 @@ export default function AuthScreen() {
      customer defaults, same as before the door existed. */
   const initTab = param('tab', fromCookFunnel ? 'signup' : 'signin');
   const [tab, setTab] = useState(initTab === 'signup' ? 'signup' : 'signin');
+  /* The door's options page sends an intention, not a menu: when it locks
+     the screen, the switch and the cross-links stand down and the cook —
+     or the eater — sees only the form they chose. */
+  const locked = param('locked', '') === '1';
 
   /* ---- sign in ---- */
   /* A customer signs in with a phone and a code. A cook — who now holds a
@@ -761,7 +765,11 @@ export default function AuthScreen() {
               </Pressable>
             </View>
 
-            {/* ---- Switch ---- */}
+            {/* ---- Switch ----
+                The door's locked links hide it: the form is the whole page
+                then, and the way to the other form is the back pill, which
+                leads to the door that chose. */}
+            {!locked ? (
             <View
               style={{
                 flexDirection: 'row',
@@ -810,9 +818,11 @@ export default function AuthScreen() {
                 );
               })}
             </View>
+            ) : null}
 
             {tab === 'signin' ? (
               <SignInView
+                locked={locked}
                 mode={siMode}
                 setMode={setSiMode}
                 phone={siPhone}
@@ -1165,6 +1175,9 @@ function SignInView({
         )}
       </View>
 
+      {/* The way to the other form is the door that chose, not a sentence —
+          a locked screen is the whole page its link promised. */}
+      {locked ? null : (
       <View
         style={{
           flexDirection: 'row',
@@ -1190,6 +1203,7 @@ function SignInView({
           </Text>
         </Pressable>
       </View>
+      )}
     </Animated.View>
   );
 }

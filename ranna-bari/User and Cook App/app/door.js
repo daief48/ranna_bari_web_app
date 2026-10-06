@@ -31,12 +31,12 @@ const DOORS = {
     signin: {
       label: 'Sign in',
       desc: 'You already have an account.',
-      href: '/auth?tab=signin&door=user',
+      href: '/auth?tab=signin&door=user&locked=1',
     },
     register: {
       label: 'Create account',
       desc: 'New here? A phone number is all it takes.',
-      href: '/auth?tab=signup&role=user',
+      href: '/auth?tab=signup&role=user&locked=1',
     },
   },
   cook: {
@@ -46,12 +46,12 @@ const DOORS = {
     signin: {
       label: 'Sign in',
       desc: 'You already have a kitchen here.',
-      href: '/auth?tab=signin&door=cook',
+      href: '/auth?tab=signin&door=cook&locked=1',
     },
     register: {
       label: 'Register your kitchen',
       desc: 'Three short steps, an email code, and your documents.',
-      href: '/auth?tab=signup&role=cook',
+      href: '/auth?tab=signup&role=cook&locked=1',
     },
   },
 };
