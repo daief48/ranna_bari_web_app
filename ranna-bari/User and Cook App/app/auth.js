@@ -839,6 +839,8 @@ export default function AuthScreen() {
               <SignUpView
                 step={step}
                 role={role}
+                pickerOpen={pickerOpen}
+                setPickerOpen={setPickerOpen}
                 detailsNote={detailsNote}
                 locNote={locNote}
                 suStage={suStage}
@@ -1198,6 +1200,8 @@ function SignInView({
 function SignUpView({
   step,
   role,
+  pickerOpen,
+  setPickerOpen,
   detailsNote,
   locNote,
   suStage,
