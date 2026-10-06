@@ -33,7 +33,7 @@ export default function RequestsScreen() {
 
   const key = customerKeyOf(account);
   const requests = useMemo(
-    () => shop.requestsForCustomer(key).slice().sort((a, b) => b.createdAt - a.createdAt),
+    () => shop.requestsForCustomer(key).slice().sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? ''))),
     [shop, key],
   );
 

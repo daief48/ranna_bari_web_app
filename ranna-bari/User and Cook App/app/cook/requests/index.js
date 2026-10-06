@@ -40,7 +40,7 @@ export default function CookRequests() {
     const all = shop
       .requestsForCook(kitchen.id)
       .slice()
-      .sort((a, b) => b.createdAt - a.createdAt);
+      .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
 
     const withMine = all.map((request) => ({
       request,
