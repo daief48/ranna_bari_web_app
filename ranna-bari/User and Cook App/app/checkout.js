@@ -65,6 +65,7 @@ function CheckoutForm() {
     platformFee,
     total,
     clear,
+    removeKitchens,
   } = useCart();
 
   /* Prefill from the account the signup flow saved -- the pin it dropped is
@@ -165,6 +166,24 @@ function CheckoutForm() {
       }
 
       setNote(errorText(out.error, t, n, out));
+      return;
+    }
+
+    /* A basket spanning two kitchens can be taken by one and refused by the
+       other — balance too low, kitchen gone. The old path emptied
+       everything and drove to the receipt, so the refused food was paid for
+       by nobody, seen by nobody, and gone from the basket it could have
+       been retried from. The kitchens that were taken leave the basket; the
+       rest stay, and the note says which is which. */
+    const refused = out.refused ?? [];
+    if (refused.length) {
+      removeKitchens(refused.map((r) => r.chefId));
+      setNote(
+        t('{name} could not take this order: {reason}. Their food is still in your basket — everything else was placed and is in your orders.', {
+          name: refused[0]?.chefName || t('The kitchen'),
+          reason: errorText(refused[0]?.error, t, n, { error: refused[0]?.error }),
+        }),
+      );
       return;
     }
 

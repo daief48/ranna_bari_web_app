@@ -226,14 +226,21 @@ export function OrdersProvider({ children }) {
 
       await shop.refresh();
 
-      const ids = new Set(results.filter((r) => r.ok).map((r) => r.orderId));
-      return {
-        ok: true,
-        result: results
-          .filter((r) => r.ok)
-          .map((r) => ({ id: r.orderId, code: r.code })),
-        ids,
-      };
+      /* Rows answer in the order they were asked, so each refusal keeps the
+         kitchen it belonged to — the basket has to know who stayed behind. */
+      const taken = [];
+      const refused = [];
+      results.forEach((row, i) => {
+        const kitchen = {
+          chefId: drafts[i]?.chefId ?? null,
+          chefName: drafts[i]?.chefName ?? '',
+        };
+        if (row.ok) taken.push({ id: row.orderId, code: row.code, ...kitchen });
+        else refused.push({ ...kitchen, error: row.error });
+      });
+
+      const ids = new Set(taken.map((r) => r.id));
+      return { ok: true, result: taken, ids, refused };
     },
     [token, shop],
   );

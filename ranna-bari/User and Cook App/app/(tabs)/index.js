@@ -130,6 +130,11 @@ export default function HomeScreen() {
     const out = [];
     for (const order of orders ?? []) {
       if (!order?.items?.length) continue;
+      /* Only an order of kitchen dishes can walk straight back into the
+         basket: shop shelves and meal plates carry no kitchen on their
+         lines, and a line without one reaches checkout as kitchen-missing —
+         refused, while the rest of the basket moves on without it. */
+      if (!order.items.every((i) => i?.chefId)) continue;
       const key = order.chefId ?? order.chefName;
       if (!key || seen.has(key)) continue;
       seen.add(key);

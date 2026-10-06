@@ -122,6 +122,14 @@ export function CartProvider({ children }) {
 
   const clear = useCallback(() => setItems([]), []);
 
+  /* The kitchens whose orders were taken leave the basket; a refused
+     kitchen's lines stay, so the retry carries only what failed. */
+  const removeKitchens = useCallback((chefIds) => {
+    const gone = new Set((chefIds ?? []).map((id) => String(id)).filter(Boolean));
+    if (!gone.size) return;
+    setItems((prev) => prev.filter((i) => !gone.has(String(i.chefId))));
+  }, []);
+
   const value = useMemo(() => {
     const count = items.reduce((s, i) => s + i.qty, 0);
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
@@ -137,6 +145,7 @@ export function CartProvider({ children }) {
       remove,
       updateQty,
       clear,
+      removeKitchens,
       hydrated,
     };
   }, [items, add, reorder, remove, updateQty, clear, hydrated]);
