@@ -302,9 +302,12 @@ export default function Navbar() {
               </Pressable>
             ) : null}
 
-            {/* The brand yields first and truncates rather than pushing. */}
+            {/* The brand yields first and truncates rather than pushing. In
+                cook mode the tabs bounce `/` straight back to the panel, so
+                pushing it would only stack a detour — replace, and the
+                button lands where it looks like it goes. */}
             <Pressable
-              onPress={() => router.push('/')}
+              onPress={() => (isCookMode ? router.replace('/cook') : router.push('/'))}
               accessibilityRole="link"
               accessibilityLabel="RannaBari home"
               style={({ pressed }) => ({
@@ -337,7 +340,9 @@ export default function Navbar() {
               * joining the rail — and a guest has no other side to switch to
               * anyway.
               */}
-            {!signedIn ? (
+            {!signedIn && pathname !== '/join' ? (
+              /* Hidden on the door itself: the pill would only stack another
+                 copy of the screen it is standing on. */
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t('Sign in or join')}
