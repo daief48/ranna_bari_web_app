@@ -9,15 +9,20 @@
  *
  * Money leads, because it is the reason the rest of it exists.
  */
-import React from 'react';
-import { View } from 'react-native';
+import React, { useState } from 'react';
+import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import CookScreen from '../../../src/components/CookScreen';
 import { Container } from '../../../src/components/Screen';
 import Reveal from '../../../src/components/Reveal';
 import SectionHeader from '../../../src/components/SectionHeader';
+import Button from '../../../src/components/Button';
 import { ActionRow } from '../../../src/components/CookBits';
+import { useTheme } from '../../../src/theme/ThemeProvider';
+import { font, radius, type } from '../../../src/theme/tokens';
+import { useAuth } from '../../../src/store/AuthContext';
+import { useSession } from '../../../src/store/SessionContext';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
@@ -25,8 +30,14 @@ import { useLang } from '../../../src/i18n/LanguageContext';
 export default function BusinessScreen() {
   const router = useRouter();
   const { t, n } = useLang();
+  const { colors } = useTheme();
   const { kitchen } = useKitchen();
   const { wallet } = useCommerce();
+  const { account, signOut } = useAuth();
+  /* The same rule Profile obeys: dropping only the local account would
+     leave a live token on the device for the next person to inherit. */
+  const { signOutServer } = useSession();
+  const [confirmOut, setConfirmOut] = useState(false);
 
   return (
     <CookScreen>
@@ -96,6 +107,68 @@ export default function BusinessScreen() {
             />
           </Reveal>
         </View>
+
+        {/* ---- Log out ----
+            The cook's exit lives here because this is the end of the
+            business list: nothing after it to reach past. It keeps
+            Profile's two-step confirm — the one destructive action on
+            the screen should not look like the navigation around it. */}
+        {account ? (
+          <View style={{ marginTop: 24 }}>
+            {confirmOut ? (
+              <View
+                style={{
+                  padding: 16,
+                  borderRadius: radius.md,
+                  backgroundColor: colors.primary50,
+                  borderWidth: 1,
+                  borderColor: colors.primary100,
+                  gap: 12,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: font.ui,
+                    fontSize: type.sm,
+                    lineHeight: 21,
+                    color: colors.text,
+                  }}
+                >
+                  {t('Log out of {who}? Your menu and orders stay on this device.', {
+                    who: account.email || account.phone || t('this account'),
+                  })}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <Button
+                    variant="glass"
+                    label={t('Stay in')}
+                    small
+                    onPress={() => setConfirmOut(false)}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    label={t('Log out')}
+                    small
+                    onPress={async () => {
+                      setConfirmOut(false);
+                      await Promise.all([signOut(), signOutServer()]);
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </View>
+            ) : (
+              <Button
+                variant="glass"
+                label={t('Log out')}
+                icon="x"
+                iconPosition="left"
+                block
+                onPress={() => setConfirmOut(true)}
+              />
+            )}
+          </View>
+        ) : null}
       </Container>
     </CookScreen>
   );
