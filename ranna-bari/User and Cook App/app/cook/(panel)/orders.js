@@ -16,8 +16,15 @@
  * never means leaving the board — even a pre-order, with money held, is
  * answered where it stands.
  */
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -90,10 +97,43 @@ const MEAL_NEXT = {
 };
 
 const KINDS = [
-  { key: 'menu', label: 'Menu' },
-  { key: 'shop', label: 'Shop' },
-  { key: 'meals', label: 'Meals' },
+  { key: 'menu', label: 'Menu', icon: 'receipt' },
+  { key: 'shop', label: 'Shop', icon: 'box' },
+  { key: 'meals', label: 'Meals', icon: 'pot' },
 ];
+
+/* How far along each kind is, as dots on a line. The maps collapse the
+   statuses that mean the same posture on the pass — accepted and cooking
+   are both "at the fire" — so one short line fits every kind. A status
+   missing from a map is an ending (cancelled, rejected), and takes no
+   line at all. */
+const STEP_AT = {
+  menu: {
+    placed: 0,
+    accepted: 1,
+    cooking: 1,
+    on_the_way: 2,
+    delivered: 3,
+    completed: 3,
+  },
+  shop: {
+    pending: 0,
+    confirmed: 1,
+    preparing: 1,
+    ready: 2,
+    delivering: 2,
+    delivered: 3,
+    completed: 3,
+  },
+  meals: {
+    confirmed: 0,
+    preparing: 1,
+    delivered: 2,
+    completed: 2,
+  },
+};
+
+const STEP_TOTAL = { menu: 4, shop: 4, meals: 3 };
 
 export default function CookOrders() {
   const { colors } = useTheme();
@@ -262,6 +302,12 @@ export default function CookOrders() {
             })
           : t('No plates booked for {date}.', { date: dateLabel(mealDate) });
 
+  /* A quiet board is worth saying out loud: nothing in any of the three
+     kinds needs the cook right now. History lanes don't count — settled
+     work is not work. */
+  const boardQuiet =
+    !counts.new && !counts.cooking && !counts.delivering && !shopNeeds && !mealOpen;
+
   return (
     <CookScreen>
       <Container>
@@ -355,6 +401,18 @@ export default function CookOrders() {
                       >
                         {day.count ? n(day.count) : '·'}
                       </Text>
+                      {/* You-are-here mark: with seven boxes of numbers,
+                          the eye needs one that is not a number. */}
+                      <View
+                        style={{
+                          width: 4,
+                          height: 4,
+                          borderRadius: 2,
+                          marginTop: 3,
+                          backgroundColor:
+                            day.date === todayKey() ? colors.saffron : 'transparent',
+                        }}
+                      />
                     </Pressable>
                   );
                 })}
@@ -377,8 +435,8 @@ export default function CookOrders() {
             </View>
           ) : (
             <EmptyState
-              icon="pot"
-              title={t('No menu orders')}
+              icon={boardQuiet ? 'sparkles' : 'pot'}
+              title={boardQuiet ? t('All done.') : t('No menu orders')}
               body={
                 counts.new
                   ? t('Try another lane.')
@@ -459,81 +517,108 @@ export default function CookOrders() {
 }
 
 /* ------------------------------------------------------------------ *
- * the segmented control — kinds, lanes and shop filters share it
+ * the segmented control
+ *
+ * Kinds and lanes get a sunken track with a thumb that slides under the
+ * labels — the selection is a moving surface rather than a repaint, so
+ * the eye follows it to the new count. The shop's filters stay chips:
+ * seven of them is an open-ended row, not a switch.
  * ------------------------------------------------------------------ */
 
 function Segmented({ items, value, onChange, scroll = false }) {
-  const { colors } = useTheme();
+  const { colors, shadow } = useTheme();
   const { t, n } = useLang();
 
-  const Row = ({ item, active, prevActive }) => (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      onPress={() => onChange(item.key)}
-      style={({ pressed }) => ({
-        flexGrow: 1,
-        flexBasis: 0,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 4,
-        paddingVertical: 9,
-        paddingHorizontal: 10,
-        borderRadius: radius.pill,
-        backgroundColor: active ? colors.sage : colors.surfaceSolid,
-        borderWidth: scroll ? 1 : 0,
-        borderColor: active ? colors.sage : colors.line,
-        opacity: pressed && !active ? 0.6 : 1,
-      })}
-    >
-      <Text
-        numberOfLines={1}
-        maxFontSizeMultiplier={1.1}
-        style={{
-          fontFamily: font.uiBold,
-          fontSize: 10.5,
-          letterSpacing: 0.2,
-          textTransform: 'uppercase',
-          color: active ? '#FFFFFF' : colors.textMuted,
-        }}
-      >
-        {t(item.label)}
-      </Text>
-
-      {item.count > 0 && !item.badgeless ? (
-        <View
-          style={{
-            minWidth: 16,
-            paddingHorizontal: 4,
-            paddingVertical: 1,
-            borderRadius: radius.pill,
-            alignItems: 'center',
-            backgroundColor: active ? 'rgba(255, 255, 255, 0.3)' : colors.primary50,
-          }}
-        >
-          <Text
-            maxFontSizeMultiplier={1.1}
-            style={{
-              fontFamily: font.uiBold,
-              fontSize: 10,
-              color: active ? '#FFFFFF' : colors.primary,
-            }}
-          >
-            {n(item.count)}
-          </Text>
-        </View>
-      ) : null}
-    </Pressable>
+  /* Hooks come before the chip branch — the branch is about pixels, not
+     about whether the component animates. */
+  const index = Math.max(
+    0,
+    items.findIndex((i) => i.key === value),
   );
+  const reduced = useReducedMotion();
+  const at = useSharedValue(index);
+
+  useEffect(() => {
+    at.value = reduced
+      ? index
+      : withTiming(index, { duration: 260, easing: Easing.out(Easing.cubic) });
+  }, [at, index, reduced]);
+
+  /* The thumb is `100/n %` wide, so translating by its own width per step
+     lands it exactly on each slot — no measuring, no onLayout. */
+  const thumb = useAnimatedStyle(() => ({
+    transform: [{ translateX: `${at.value * 100}%` }],
+  }));
 
   if (scroll) {
     /* The shop's filters are an open-ended list in spirit — seven of them,
        too many for one pill row on a phone. */
+    const Chip = ({ item, active }) => (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected: active }}
+        onPress={() => {
+          if (!active) Haptics.selectionAsync().catch(() => {});
+          onChange(item.key);
+        }}
+        style={({ pressed }) => ({
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 4,
+          paddingVertical: 9,
+          paddingHorizontal: 10,
+          borderRadius: radius.pill,
+          backgroundColor: active ? colors.sage : colors.surfaceSolid,
+          borderWidth: 1,
+          borderColor: active ? colors.sage : colors.line,
+          opacity: pressed && !active ? 0.6 : 1,
+        })}
+      >
+        <Text
+          numberOfLines={1}
+          maxFontSizeMultiplier={1.1}
+          style={{
+            fontFamily: font.uiBold,
+            fontSize: 10.5,
+            letterSpacing: 0.2,
+            textTransform: 'uppercase',
+            color: active ? '#FFFFFF' : colors.textMuted,
+          }}
+        >
+          {t(item.label)}
+        </Text>
+
+        {item.count > 0 && !item.badgeless ? (
+          <View
+            style={{
+              minWidth: 16,
+              paddingHorizontal: 4,
+              paddingVertical: 1,
+              borderRadius: radius.pill,
+              alignItems: 'center',
+              backgroundColor: active ? 'rgba(255, 255, 255, 0.3)' : colors.primary50,
+            }}
+          >
+            <Text
+              maxFontSizeMultiplier={1.1}
+              style={{
+                fontFamily: font.uiBold,
+                fontSize: 10,
+                color: active ? '#FFFFFF' : colors.primary,
+              }}
+            >
+              {n(item.count)}
+            </Text>
+          </View>
+        ) : null}
+      </Pressable>
+    );
+
     return (
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
         {items.map((item) => (
-          <Row key={item.key} item={item} active={value === item.key} />
+          <Chip key={item.key} item={item} active={value === item.key} />
         ))}
       </ScrollView>
     );
@@ -542,33 +627,145 @@ function Segmented({ items, value, onChange, scroll = false }) {
   return (
     <View
       style={{
-        flexDirection: 'row',
-        alignItems: 'stretch',
         padding: 4,
         borderRadius: radius.pill,
-        backgroundColor: colors.surfaceSolid,
-        borderWidth: 1,
-        borderColor: colors.line,
+        backgroundColor: colors.sunken,
       }}
     >
-      {items.map((item, i) => {
-        const active = value === item.key;
-        const prevActive = i > 0 && value === items[i - 1].key;
-        return (
-          <React.Fragment key={item.key}>
-            {i > 0 ? (
-              <View
+      <View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
+        <Animated.View
+          pointerEvents="none"
+          accessible={false}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={[
+            {
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: 0,
+              width: `${100 / Math.max(items.length, 1)}%`,
+              borderRadius: radius.pill,
+              backgroundColor: colors.surfaceSolid,
+            },
+            thumb,
+            shadow.xs,
+          ]}
+        />
+        {items.map((item) => {
+          const active = value === item.key;
+          return (
+            <Pressable
+              key={item.key}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              onPress={() => {
+                if (!active) Haptics.selectionAsync().catch(() => {});
+                onChange(item.key);
+              }}
+              style={({ pressed }) => ({
+                flexGrow: 1,
+                flexBasis: 0,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 5,
+                paddingVertical: 9,
+                paddingHorizontal: 6,
+                opacity: pressed && !active ? 0.6 : 1,
+              })}
+            >
+              {item.icon ? (
+                <Icon
+                  name={item.icon}
+                  size={13}
+                  color={active ? colors.primary : colors.textMuted}
+                  strokeWidth={2.2}
+                />
+              ) : null}
+              <Text
+                numberOfLines={1}
+                maxFontSizeMultiplier={1.1}
                 style={{
-                  width: 1,
-                  marginVertical: 7,
-                  backgroundColor: active || prevActive ? 'transparent' : colors.line,
+                  fontFamily: font.uiBold,
+                  fontSize: 10.5,
+                  letterSpacing: 0.2,
+                  textTransform: 'uppercase',
+                  color: active ? colors.text : colors.textMuted,
                 }}
-              />
-            ) : null}
-            <Row item={item} active={active} prevActive={prevActive} />
-          </React.Fragment>
-        );
-      })}
+              >
+                {t(item.label)}
+              </Text>
+
+              {item.count > 0 && !item.badgeless ? (
+                <View
+                  style={{
+                    minWidth: 16,
+                    paddingHorizontal: 4,
+                    paddingVertical: 1,
+                    borderRadius: radius.pill,
+                    alignItems: 'center',
+                    backgroundColor: colors.primary50,
+                  }}
+                >
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    style={{
+                      fontFamily: font.uiBold,
+                      fontSize: 10,
+                      color: colors.primary,
+                    }}
+                  >
+                    {n(item.count)}
+                  </Text>
+                </View>
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * progress dots — where an order stands on its way to done
+ * ------------------------------------------------------------------ */
+
+function Steps({ at, total }) {
+  const { colors } = useTheme();
+
+  /* Decorative on purpose: the status pill beside it already names the
+     stage in words, so a screen reader gets the fact once, not twice. */
+  return (
+    <View
+      accessible={false}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{ flexDirection: 'row', alignItems: 'center' }}
+    >
+      {Array.from({ length: total }, (_, i) => (
+        <React.Fragment key={i}>
+          {i > 0 ? (
+            <View
+              style={{
+                flex: 1,
+                height: 2,
+                borderRadius: 1,
+                backgroundColor: i <= at ? colors.sage100 : colors.line,
+              }}
+            />
+          ) : null}
+          <View
+            style={{
+              width: i === at ? 9 : 7,
+              height: i === at ? 9 : 7,
+              borderRadius: 5,
+              backgroundColor: i <= at ? colors.sage : colors.line,
+            }}
+          />
+        </React.Fragment>
+      ))}
     </View>
   );
 }
@@ -647,6 +844,10 @@ function ShopCard({ order, onAdvance, onAnswer }) {
             {formatAddress(order.address)}
           </Text>
         </View>
+      ) : null}
+
+      {STEP_AT.shop[order.status] !== undefined ? (
+        <Steps at={STEP_AT.shop[order.status]} total={STEP_TOTAL.shop} />
       ) : null}
 
       {/* A pending pre-order is a decision, not a stage — so the card gets
@@ -760,6 +961,8 @@ function MealPlate({ order, busy, onDeliver }) {
         </View>
         <Price size={17}>৳{n(order.amount)}</Price>
       </View>
+
+      <Steps at={STEP_AT.meals[order.status] ?? 0} total={STEP_TOTAL.meals} />
 
       {done ? (
         <Text style={{ fontFamily: font.ui, fontSize: type.xs + 1, color: colors.textMuted }}>
@@ -1016,6 +1219,14 @@ function OrderCard({ order, onOpen }) {
         >
           {order.items.map((it) => `${n(it.qty)}×  ${it.name}`).join(',  ')}
         </Text>
+
+        {/* Where this order stands on its way to done — the pill names the
+            stage, the dots say how much of the road is behind it. */}
+        {STEP_AT.menu[order.status] !== undefined ? (
+          <View style={{ marginTop: 13, marginBottom: 2 }}>
+            <Steps at={STEP_AT.menu[order.status]} total={STEP_TOTAL.menu} />
+          </View>
+        ) : null}
       </Pressable>
 
       {next ? (
