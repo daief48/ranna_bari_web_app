@@ -527,21 +527,26 @@ export function StoreCard({ store, km, products, onPress, onSave, saved = false 
             {!store.isOpen ? <StockPill availability="closed" /> : null}
           </View>
 
-          {store.tagline ? (
-            <Text
-              /* A shop's one-line pitch, which is a whole sentence and was
-                 losing its end on a narrow card. */
-              numberOfLines={2}
-              style={{
-                fontFamily: font.ui,
-                fontSize: type.xs,
-                lineHeight: type.xs * 1.45,
-                color: colors.textMuted,
-              }}
-            >
-              {store.tagline}
-            </Text>
-          ) : null}
+          {/* The pitch sits in a slot the height of exactly two lines, and
+              holds that height whether it is missing, one line, or two — a
+              horizontal row of these cards is level, not ragged. */}
+          <View style={{ height: type.xs * 1.45 * 2 }}>
+            {store.tagline ? (
+              <Text
+                /* A shop's one-line pitch, which is a whole sentence and was
+                   losing its end on a narrow card. */
+                numberOfLines={2}
+                style={{
+                  fontFamily: font.ui,
+                  fontSize: type.xs,
+                  lineHeight: type.xs * 1.45,
+                  color: colors.textMuted,
+                }}
+              >
+                {store.tagline}
+              </Text>
+            ) : null}
+          </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
             <Text
@@ -571,29 +576,34 @@ export function StoreCard({ store, km, products, onPress, onSave, saved = false 
           {/* Free delivery, on the card rather than only inside the shop.
              Five of sixteen shops offer it and a customer could not find out
              without opening one — which is the wrong way round for the only
-             thing on this platform that makes an order cheaper. */}
-          {store.freeDeliveryOver ? (
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                alignSelf: 'flex-start',
-                gap: 5,
-                marginTop: 5,
-                paddingVertical: 3,
-                paddingHorizontal: 8,
-                borderRadius: radius.pill,
-                backgroundColor: colors.sage50,
-              }}
-            >
-              <Icon name="delivery" size={11} color={colors.sage} />
-              <Text
-                style={{ fontFamily: font.uiSemi, fontSize: 10.5, color: colors.sage }}
+             thing on this platform that makes an order cheaper.
+
+             The slot is reserved on every card, pill or no pill: it is the
+             last row, so without the reservation the shops that offer free
+             delivery would be the tallest cards in the row. */}
+          <View style={{ height: 21, marginTop: 5 }}>
+            {store.freeDeliveryOver ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  alignSelf: 'flex-start',
+                  gap: 5,
+                  height: 21,
+                  paddingHorizontal: 8,
+                  borderRadius: radius.pill,
+                  backgroundColor: colors.sage50,
+                }}
               >
-                {t('Free delivery over ৳{n}', { n: n(store.freeDeliveryOver) })}
-              </Text>
-            </View>
-          ) : null}
+                <Icon name="delivery" size={11} color={colors.sage} />
+                <Text
+                  style={{ fontFamily: font.uiSemi, fontSize: 10.5, color: colors.sage }}
+                >
+                  {t('Free delivery over ৳{n}', { n: n(store.freeDeliveryOver) })}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
       </View>
     </Pressable>
