@@ -350,6 +350,242 @@ export function ActionRow({ icon, title, sub, tone = 'sage', onPress, locked = f
 }
 
 /**
+ * Where a listing flow stands, drawn as the steps it is made of.
+ *
+ * A create/edit screen used to be one undifferentiated scroll: nothing said
+ * how much was left, so a cook partway through a form had no idea whether the
+ * save button was the end or the middle. The steps here say that — and they
+ * say it in the order the work happens, which is also the order the fields
+ * sit in on the screen.
+ *
+ * Done steps keep their label, dimmed under a tick. A step list that forgets
+ * what it has finished is a spinner pretending to be progress.
+ */
+export function WizardSteps({ steps, current, style }) {
+  const { colors } = useTheme();
+  const { t } = useLang();
+
+  return (
+    <View
+      style={[
+        {
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          gap: 6,
+          marginBottom: 24,
+        },
+        style,
+      ]}
+    >
+      {steps.map((label, i) => {
+        const done = i < current;
+        const now = i === current;
+        const last = i === steps.length - 1;
+
+        return (
+          <View key={label} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
+              {/* The track behind the dots, so the sequence reads left to
+                  right even before any label is read. */}
+              <View style={{ flex: 1, height: 2, backgroundColor: 'transparent' }} />
+              <View
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 13,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: done
+                    ? colors.sage
+                    : now
+                      ? colors.primary
+                      : colors.sunken,
+                  borderWidth: 1,
+                  borderColor: done ? colors.sage : now ? colors.primary : colors.line,
+                }}
+              >
+                {done ? (
+                  <Icon name="check" size={13} color="#FFFFFF" strokeWidth={2.6} />
+                ) : (
+                  <NumText n={i + 1} now={now} />
+                )}
+              </View>
+              {!last ? (
+                <View
+                  style={{
+                    flex: 1,
+                    height: 2,
+                    borderRadius: 1,
+                    backgroundColor: done ? colors.sage100 : colors.line,
+                  }}
+                />
+              ) : (
+                <View style={{ flex: 1, height: 2, backgroundColor: 'transparent' }} />
+              )}
+            </View>
+            <Text
+              maxFontSizeMultiplier={1.2}
+              numberOfLines={2}
+              style={{
+                fontFamily: now ? font.uiBold : font.uiSemi,
+                fontSize: 9.5,
+                letterSpacing: 0.5,
+                textTransform: 'uppercase',
+                textAlign: 'center',
+                color: now ? colors.primary : done ? colors.sage : colors.textMuted,
+              }}
+            >
+              {t(label)}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function NumText({ n: value, now }) {
+  const { colors } = useTheme();
+  const { n } = useLang();
+  return (
+    <Text
+      style={{
+        fontFamily: font.uiBold,
+        fontSize: 11.5,
+        color: now ? '#FFFFFF' : colors.textMuted,
+      }}
+    >
+      {n(value)}
+    </Text>
+  );
+}
+
+/**
+ * A field's own error, directly under the field it belongs to.
+ *
+ * One shared note at the top of a form cannot say which field it is about,
+ * so a cook with three problems reads one of them and has to guess at the
+ * other two — or press save repeatedly to find out. Per-field, the error
+ * names its field by position, and it clears the moment the field is
+ * touched again.
+ */
+export function FieldError({ text, style }) {
+  const { colors } = useTheme();
+  const { t } = useLang();
+
+  if (!text) return null;
+
+  return (
+    <View
+      style={[
+        {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+          marginTop: -12,
+          marginBottom: 16,
+        },
+        style,
+      ]}
+    >
+      <Icon name="alertCircle" size={13} color={colors.primary} strokeWidth={2.2} />
+      <Text
+        style={{
+          flex: 1,
+          fontFamily: font.ui,
+          fontSize: type.xs + 0.5,
+          lineHeight: 17,
+          color: colors.primary,
+        }}
+      >
+        {t(text)}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * Draft or live, as one row that says which.
+ *
+ * A saved-but-not-selling listing used to look identical to a broken save:
+ * it appeared in the list, the cook believed the work was done, and nobody
+ * could order it. The switch makes the state the cook's decision rather than
+ * a side effect, and the sentence under it says what each side currently
+ * costs — a draft is invisible, a live one is orderable.
+ */
+export function PublishSwitch({ value, onChange, title, sub, disabled }) {
+  const { colors } = useTheme();
+
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value }}
+      accessibilityLabel={title}
+      disabled={disabled}
+      onPress={() => onChange(!value)}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        padding: 16,
+        borderRadius: radius.lg,
+        backgroundColor: value ? colors.sage50 : colors.sunken,
+        borderWidth: 1,
+        borderColor: value ? colors.sage100 : colors.line,
+        opacity: disabled ? 0.6 : pressed ? 0.96 : 1,
+      })}
+    >
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text
+          style={{
+            fontFamily: font.displayBold,
+            fontSize: 16,
+            letterSpacing: -0.16,
+            color: colors.text,
+          }}
+        >
+          {title}
+        </Text>
+        {sub ? (
+          <Text
+            style={{
+              marginTop: 2,
+              fontFamily: font.ui,
+              fontSize: type.sm,
+              lineHeight: type.sm * 1.35,
+              color: colors.textMuted,
+            }}
+          >
+            {sub}
+          </Text>
+        ) : null}
+      </View>
+
+      <View
+        style={{
+          width: 46,
+          height: 27,
+          borderRadius: 14,
+          padding: 3,
+          justifyContent: 'center',
+          alignItems: value ? 'flex-end' : 'flex-start',
+          backgroundColor: value ? colors.sage : colors.line,
+        }}
+      >
+        <View
+          style={{
+            width: 21,
+            height: 21,
+            borderRadius: 11,
+            backgroundColor: colors.raised,
+          }}
+        />
+      </View>
+    </Pressable>
+  );
+}
+
+/**
  * How far a kitchen — or a shop — will travel, as a drag.
  *
  * A slider rather than a number field because the value is a judgement about

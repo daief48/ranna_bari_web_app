@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import CookScreen from '../../../src/components/CookScreen';
@@ -22,6 +22,17 @@ export default function CookMenu() {
   const router = useRouter();
   const { kitchen, liveDishes, toggleDish } = useKitchen();
   const { t, n } = useLang();
+  /* The editor names the dish it just saved, so the list can greet it — the
+     success moment is landing on the card, not a toast that fades while the
+     cook is still in transit. */
+  const { highlight } = useLocalSearchParams();
+  const [flash, setFlash] = useState(highlight ? String(highlight) : null);
+
+  useEffect(() => {
+    if (!flash) return undefined;
+    const timer = setTimeout(() => setFlash(null), 2600);
+    return () => clearTimeout(timer);
+  }, [flash]);
 
   const dishes = kitchen?.dishes ?? [];
 
@@ -95,6 +106,7 @@ export default function CookMenu() {
               <Reveal key={dish.id} delay={(i % 5) + 1}>
                 <DishRow
                   dish={dish}
+                  highlighted={dish.id === flash}
                   onOpen={() => router.push(`/cook/dish/${dish.id}`)}
                   onToggle={() => {
                     Haptics.selectionAsync().catch(() => {});
@@ -116,8 +128,12 @@ export default function CookMenu() {
  * The availability switch is the whole reason this row is not just a link:
  * running out of fish at 8pm is the most common thing a cook has to tell the
  * app, and it should never cost more than one tap.
+ *
+ * `highlighted` is the editor's handoff: the dish just saved or published
+ * wears a sage edge for a couple of seconds, which is how the list says
+ * "here it is" without a dialog a cook has to dismiss first.
  */
-function DishRow({ dish, onOpen, onToggle }) {
+function DishRow({ dish, onOpen, onToggle, highlighted = false }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
   const on = dish.available;
@@ -129,12 +145,12 @@ function DishRow({ dish, onOpen, onToggle }) {
           borderRadius: radius.lg,
           backgroundColor: colors.surfaceSolid,
           borderWidth: 1,
-          borderColor: colors.line,
+          borderColor: highlighted ? colors.sage : colors.line,
           overflow: 'hidden',
           // Sold out reads as dimmed, so the live menu is scannable at a glance.
           opacity: on ? 1 : 0.62,
         },
-        shadow.sm,
+        highlighted && shadow.md,
       ]}
     >
       <Pressable

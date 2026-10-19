@@ -6,10 +6,10 @@
  * the list rather than a form two taps away is the difference between a
  * stock count that is kept up and one that is not.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import CookScreen from '../../../src/components/CookScreen';
 import { Container } from '../../../src/components/Screen';
@@ -43,6 +43,18 @@ export default function StoreProducts() {
   const shop = useCommerce();
 
   const [filter, setFilter] = useState('all');
+
+  /* The editor names the product it just saved, so the shelf can greet it —
+     the row wears a sage edge for a moment instead of the cook hunting for
+     whatever changed. */
+  const { highlight } = useLocalSearchParams();
+  const [flash, setFlash] = useState(highlight ? String(highlight) : null);
+
+  useEffect(() => {
+    if (!flash) return undefined;
+    const timer = setTimeout(() => setFlash(null), 2600);
+    return () => clearTimeout(timer);
+  }, [flash]);
 
   const store = kitchen ? shop.storeForKitchen(kitchen.id) : null;
   const all = useMemo(
@@ -177,6 +189,7 @@ export default function StoreProducts() {
                 <Row
                   product={product}
                   category={categoryName(product.categoryId)}
+                  highlighted={product.id === flash}
                   onOpen={() => router.push(`/cook/store/product/${product.id}`)}
                   onStock={(v) => shop.setStock(product.id, v)}
                   onToggle={() => shop.toggleProduct(product.id)}
@@ -200,7 +213,7 @@ export default function StoreProducts() {
   );
 }
 
-function Row({ product, category, onOpen, onStock, onToggle }) {
+function Row({ product, category, onOpen, onStock, onToggle, highlighted = false }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
 
@@ -224,10 +237,10 @@ function Row({ product, category, onOpen, onStock, onToggle }) {
           borderRadius: radius.lg,
           backgroundColor: colors.surfaceSolid,
           borderWidth: 1,
-          borderColor: colors.line,
+          borderColor: highlighted ? colors.sage : colors.line,
           opacity: product.active ? 1 : 0.7,
         },
-        shadow.xs,
+        highlighted ? shadow.md : shadow.xs,
       ]}
     >
       <Pressable

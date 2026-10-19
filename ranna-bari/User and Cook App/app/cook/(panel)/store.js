@@ -20,9 +20,11 @@ import Icon from '../../../src/components/Icon';
 import Reveal from '../../../src/components/Reveal';
 import Button from '../../../src/components/Button';
 import SectionHeader from '../../../src/components/SectionHeader';
-import { ActionRow } from '../../../src/components/CookBits';
+import FloatLabelInput from '../../../src/components/FloatLabelInput';
+import { ActionRow, FieldError, WizardSteps } from '../../../src/components/CookBits';
 import { CountTile, EmptyState } from '../../../src/components/MealBits';
 import { BlockLabel } from '../../../src/components/StoreBits';
+import { Body } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
@@ -38,12 +40,14 @@ export default function CookStoreHub() {
   const router = useRouter();
   const { kitchen } = useKitchen();
   const shop = useCommerce();
-  const [busy, setBusy] = useState(false);
 
   const store = kitchen ? shop.storeForKitchen(kitchen.id) : null;
 
-  /* No shop yet: one button, and it borrows what the kitchen already knows
-     rather than asking for it twice. */
+  /* No shop yet: a two-step setup, not a single blind button. The old flow
+     opened the shop silently with borrowed values and dropped the cook into
+     settings — the shop existed before they had said anything about it. Two
+     screens, four fields, and the cook has said what it is called and what
+     delivery costs by the time it exists. */
   if (!store) {
     return (
       <CookScreen>
@@ -54,35 +58,7 @@ export default function CookStoreHub() {
             accent={t('SHOP')}
             subtitle={t('Sell cakes, pitha, achar — anything you make that keeps.')}
           />
-          <EmptyState
-            icon="box"
-            title={t('You have not opened a shop yet')}
-            body={t(
-              'A shop is your own storefront: your categories, your products, your stock. It sits alongside your kitchen, not instead of it.',
-            )}
-            action={
-              <Button
-                label={busy ? t('Opening…') : t('Open your shop')}
-                icon="arrowRight"
-                disabled={busy || !kitchen}
-                onPress={async () => {
-                  if (!kitchen) return;
-                  setBusy(true);
-                  const out = await shop.saveStore(kitchen.id, {
-                    name: kitchen.name,
-                    logo: kitchen.avatar,
-                    cover: kitchen.coverImage,
-                    area: kitchen.area,
-                    lat: kitchen.lat,
-                    lng: kitchen.lng,
-                    deliveryRadiusKm: kitchen.deliveryRadiusKm,
-                  });
-                  setBusy(false);
-                  if (out.ok) router.push('/cook/store/settings');
-                }}
-              />
-            }
-          />
+          <StoreSetup kitchen={kitchen} />
         </Container>
       </CookScreen>
     );
@@ -336,6 +312,180 @@ function Money({ label, amount, tone }) {
       >
         ৳{n(amount)}
       </Text>
+    </View>
+  );
+}
+
+/**
+ * The two steps between "no shop" and "a shop".
+ *
+ * Step one names it; step two prices delivery. Everything else — the logo,
+ * the cover, the location — is borrowed from the kitchen, which already
+ * knows it, and can be changed in settings afterwards. Four fields is what
+ * stands between a cook and a storefront, and the wizard says so: the count
+ * is visible, the fields are the work, and nothing is invented on their
+ * behalf.
+ */
+function StoreSetup({ kitchen }) {
+  const { colors, shadow } = useTheme();
+  const { t, n } = useLang();
+  const shop = useCommerce();
+  const router = useRouter();
+  const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  /* A shop on the same street as its kitchen, until the cook says otherwise. */
+  const [name, setName] = useState(kitchen?.name ?? '');
+  const [tagline, setTagline] = useState('');
+  const [fee, setFee] = useState('0');
+  const [freeOver, setFreeOver] = useState('');
+
+  const STEPS = [t('The storefront'), t('Delivery')];
+
+  const next = () => {
+    if (step === 0) {
+      if (!name.trim()) {
+        setErrors({ name: t('Give the shop a name.') });
+        return;
+      }
+      setErrors({});
+    }
+    Haptics.selectionAsync().catch(() => {});
+    setStep(1);
+  };
+
+  const open = async () => {
+    const feeValue = Number(fee || '0');
+    if (!Number.isFinite(feeValue) || feeValue < 0) {
+      setErrors({ fee: t('Delivery fee is a number of taka.') });
+      return;
+    }
+    const overValue = freeOver.trim() ? Number(freeOver) : null;
+    if (freeOver.trim() && (!Number.isFinite(overValue) || overValue < 0)) {
+      setErrors({ fee: t('Free-delivery threshold is a number of taka.') });
+      return;
+    }
+
+    setSaving(true);
+    const out = await shop.saveStore(kitchen.id, {
+      name: name.trim(),
+      tagline: tagline.trim(),
+      logo: kitchen.avatar,
+      cover: kitchen.coverImage,
+      area: kitchen.area,
+      lat: kitchen.lat,
+      lng: kitchen.lng,
+      deliveryRadiusKm: kitchen.deliveryRadiusKm,
+      deliveryFee: Math.max(0, Math.round(feeValue)),
+      freeDeliveryOver: freeOver.trim() ? Math.round(overValue) : null,
+    });
+    setSaving(false);
+
+    if (!out.ok) {
+      setErrors({ form: out.message || t('That did not work') });
+      return;
+    }
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    /* Straight into settings, where the photographs are — the one thing the
+       borrowed kitchen values cannot already be right about. */
+    router.push('/cook/store/settings');
+  };
+
+  return (
+    <View>
+      <WizardSteps steps={STEPS} current={step} />
+
+      <Reveal delay={1}>
+        <EmptyState
+          icon="box"
+          title={t('You have not opened a shop yet')}
+          body={t(
+            'A shop is your own storefront: your categories, your products, your stock. It sits alongside your kitchen, not instead of it.',
+          )}
+        />
+      </Reveal>
+
+      {step === 0 ? (
+        <Reveal delay={2}>
+          <View style={{ marginTop: 20 }}>
+            <FloatLabelInput
+              label={t('Shop name')}
+              value={name}
+              onChangeText={(v) => {
+                setName(v);
+                setErrors({});
+              }}
+              placeholder={t('What customers see on the map')}
+            />
+            <FieldError text={errors.name} />
+
+            <FloatLabelInput
+              label={t('Tagline (optional)')}
+              value={tagline}
+              onChangeText={setTagline}
+              placeholder={t('One line on what you make and keep')}
+            />
+
+            <Button
+              label={t('Continue')}
+              icon="arrowRight"
+              block
+              onPress={next}
+              style={{ marginTop: 8 }}
+            />
+          </View>
+        </Reveal>
+      ) : (
+        <Reveal delay={2}>
+          <View style={{ marginTop: 20 }}>
+            <Body muted size={13.5} style={{ marginBottom: 16 }}>
+              {t('Two numbers, and delivery is priced. You can change both later.')}
+            </Body>
+
+            <FloatLabelInput
+              label={t('Delivery fee in taka')}
+              value={fee}
+              onChangeText={(v) => {
+                setFee(v.replace(/[^0-9]/g, ''));
+                setErrors({});
+              }}
+              keyboardType="number-pad"
+              placeholder="40"
+            />
+
+            <FloatLabelInput
+              label={t('Free delivery over (optional)')}
+              value={freeOver}
+              onChangeText={(v) => {
+                setFreeOver(v.replace(/[^0-9]/g, ''));
+                setErrors({});
+              }}
+              keyboardType="number-pad"
+              placeholder={t('Leave empty for no free delivery')}
+            />
+            <FieldError text={errors.fee} />
+
+            {errors.form ? <FieldError text={errors.form} /> : null}
+
+            <Button
+              label={saving ? t('Opening…') : t('Open your shop')}
+              icon={saving ? undefined : 'check'}
+              block
+              disabled={saving || !kitchen}
+              onPress={open}
+            />
+            <Button
+              variant="ghost"
+              label={t('Back')}
+              block
+              onPress={() => setStep(0)}
+              style={{ marginTop: 10 }}
+            />
+          </View>
+        </Reveal>
+      )}
     </View>
   );
 }

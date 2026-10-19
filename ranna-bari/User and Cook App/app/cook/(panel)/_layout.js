@@ -26,12 +26,16 @@ import { font, radius } from '../../../src/theme/tokens';
  * The five screens keep their routes and every link to them still works:
  * `state.routes.map` below draws nothing for a route with no entry here, so
  * leaving them out hides them from the bar without unmounting anything.
+ *
+ * Business left the bar when Profile took its place: a kitchen's money,
+ * verification and public identity are one subject, and the tab that carries
+ * it is named for the thing a cook calls it — their profile.
  */
 const TABS = [
-  { name: 'index', icon: 'activity', label: 'Today' },
+  { name: 'index', icon: 'activity', label: 'Dashboard' },
   { name: 'orders', icon: 'receipt', label: 'Orders' },
   { name: 'listings', icon: 'utensils', label: 'Listings' },
-  { name: 'business', icon: 'banknote', label: 'Business' },
+  { name: 'profile', icon: 'user', label: 'Profile' },
 ];
 
 /**
@@ -325,10 +329,10 @@ export default function CookPanelLayout() {
       screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true }}
       tabBar={(props) => <CookBar {...props} />}
     >
-      <Tabs.Screen name="index" options={{ title: 'Today' }} />
+      <Tabs.Screen name="index" options={{ title: 'Dashboard' }} />
       <Tabs.Screen name="orders" options={{ title: 'Orders' }} />
       <Tabs.Screen name="listings" options={{ title: 'Listings' }} />
-      <Tabs.Screen name="business" options={{ title: 'Business' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
       <Tabs.Screen name="meals" options={{ title: 'Meals' }} />
       <Tabs.Screen name="menu" options={{ title: 'Menu' }} />
       {/* `(panel)` is a group, so this is still `/cook/store` — the rows and

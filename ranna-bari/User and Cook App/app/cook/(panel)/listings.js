@@ -135,6 +135,27 @@ export default function ListingsScreen() {
               onPress={() => router.push('/cook/store')}
             />
           </Reveal>
+
+          {/* The kitchen itself is a listing — the photographs, the area, the
+              radius and the open shutter are exactly what a customer judges
+              before the first tap. It lives here rather than only on Profile,
+              because a cook fixing their page is doing listing work. */}
+          <Reveal delay={3}>
+            <ActionRow
+              icon="gem"
+              title={t('Kitchen')}
+              sub={
+                (kitchen?.photos ?? []).length
+                  ? t('{n} photos · {area} · up to {km} km', {
+                      n: n((kitchen?.photos ?? []).length),
+                      area: kitchen?.area,
+                      km: n(Number(kitchen?.deliveryRadiusKm ?? 0).toFixed(1)),
+                    })
+                  : t('No photos yet — customers scroll past an empty page')
+              }
+              onPress={() => router.push('/cook/kitchen-details')}
+            />
+          </Reveal>
         </View>
 
         {/* Each row says where that half of the meal system stands. A cook
@@ -196,7 +217,7 @@ export default function ListingsScreen() {
         ) : null}
 
         <View style={{ gap: 12 }}>
-          <Reveal delay={3}>
+          <Reveal delay={4}>
             <ActionRow
               icon="pot"
               tone="saffron"

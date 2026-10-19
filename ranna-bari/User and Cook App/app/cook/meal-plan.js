@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../../src/components/Screen';
 import SectionHeader from '../../src/components/SectionHeader';
@@ -67,7 +67,14 @@ export default function CookMealPlan() {
   const { t, n } = useLang();
   const alert = useAlert();
 
-  const [month, setMonth] = useState(currentMonth());
+  /* The hub names the month it was looking at, so the editor opens on the
+     same one instead of always landing on today. */
+  const { month: monthParam } = useLocalSearchParams();
+  const [month, setMonth] = useState(
+    typeof monthParam === 'string' && /^\d{4}-\d{2}$/.test(monthParam)
+      ? monthParam
+      : currentMonth(),
+  );
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [days, setDays] = useState([]);

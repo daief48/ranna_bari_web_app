@@ -339,7 +339,7 @@ function Back() {
   return (
     <Pressable
       accessibilityRole="link"
-      onPress={() => (router.canGoBack() ? router.back() : router.replace('/cook/business'))}
+      onPress={() => (router.canGoBack() ? router.back() : router.replace('/cook/profile'))}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -358,7 +358,7 @@ function Back() {
           color: colors.primary,
         }}
       >
-        {t('Business')}
+        {t('Profile')}
       </Text>
     </Pressable>
   );

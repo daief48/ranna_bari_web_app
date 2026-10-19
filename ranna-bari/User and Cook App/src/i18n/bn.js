@@ -2608,4 +2608,200 @@ export const bn = {
   'National ID — back': 'জাতীয় পরিচয়পত্র — পেছনের পাশ',
   'Profile photo': 'প্রোফাইল ছবি',
   'Kitchen photo': 'রান্নাঘরের ছবি',
+
+  /* ---------------- cook panel redesign: dashboard ---------------- */
+  Dashboard: 'ড্যাশবোর্ড',
+  'Right now': 'এই মুহূর্তে',
+  'New orders': 'নতুন অর্ডার',
+  'New orders today': 'আজকের নতুন অর্ডার',
+  'Plates to cook': 'রান্না করার প্লেট',
+  'Loading your kitchen…': 'আপনার রান্নাঘর লোড হচ্ছে…',
+  'Your kitchen photos': 'আপনার রান্নাঘরের ছবি',
+  'Nobody can order until you open': 'আপনি না খোলা পর্যন্ত কেউ অর্ডার করতে পারবে না',
+  'Close the kitchen': 'রান্নাঘর বন্ধ করুন',
+  'Open the kitchen': 'রান্নাঘর খুলুন',
+  'Held for you, {n} taka': 'আপনার জন্য জমা আছে, {n} টাকা',
+  'Held for you · {n} under review, so it stays put for now':
+    'আপনার জন্য জমা · {n}টি রিভিউতে আছে, তাই আপাতত থাকছে',
+  'Held for you · released when customers confirm delivery':
+    'আপনার জন্য জমা · ক্রেতা ডেলিভারি নিশ্চিত করলেই ছাড়া হবে',
+  '{n} orders under review': '{n}টি অর্ডার রিভিউতে আছে',
+  'That money stays put until the case is settled': 'মামলা মিটে যাওয়া পর্যন্ত এই টাকা থাকবে',
+  '{n} orders have been waiting too long': '{n}টি অর্ডার অনেকক্ষণ ধরে অপেক্ষা করছে',
+  'Somebody has been waiting on an answer': 'কেউ একজন উত্তরের অপেক্ষায় আছে',
+  'Open your kitchen': 'আপনার রান্নাঘর খুলুন',
+  'While it is closed you are off the map and nobody can order':
+    'বন্ধ থাকলে আপনি ম্যাপে থাকেন না, কেউ অর্ডারও করতে পারে না',
+  'Add your first dish': 'প্রথম পদটি যোগ করুন',
+  'An open kitchen with an empty menu has nothing to sell':
+    'খোলা রান্নাঘরে খালি মেনু থাকলে বিক্রি করার কিছু থাকে না',
+  'Add kitchen photos': 'রান্নাঘরের ছবি যোগ করুন',
+  'People scroll past a kitchen they cannot see': 'যে রান্নাঘর দেখা যায় না, মানুষ সেটি এড়িয়ে যায়',
+  '{n} pre-orders to confirm': 'নিশ্চিত করার মতো {n}টি প্রি-অর্ডার',
+  'They are waiting on you before they can pay': 'আপনার উত্তরের অপেক্ষায় আছে, তারপরই টাকা দিতে পারবে',
+  'Your shop is closed': 'আপনার দোকান বন্ধ আছে',
+  'Everything you stocked is there and nobody can buy it':
+    'আপনার সব পণ্য সেখানে আছে, কিন্তু কেউ কিনতে পারছে না',
+  '{n} products are out of stock': '{n}টি পণ্যের স্টক শেষ',
+  'Customers can see them and cannot buy them': 'ক্রেতারা দেখতে পাচ্ছে, কিনতে পারছে না',
+  '{n} people are asking for food': '{n}জন খাবার চাইছেন',
+  'Nobody has offered to cook it yet': 'এখনো কেউ রান্নার প্রস্তাব দেয়নি',
+  Waiting: 'অপেক্ষা',
+  Stalled: 'থেমে আছে',
+  'Bars are earnings — the small figure under each day is orders.':
+    'বার মানে আয় — প্রতিদিনের নিচের ছোট সংখ্যা মানে অর্ডার।',
+  'No orders this week yet. The day one arrives, this fills in.':
+    'এই সপ্তাহে এখনো কোনো অর্ডার আসেনি। আসার দিনই এখানে ভরে যাবে।',
+  'No orders this week. Open the kitchen and they start coming.':
+    'এই সপ্তাহে কোনো অর্ডার নেই। রান্নাঘর খুলুন, অর্ডার আসা শুরু হবে।',
+  'Top this week': 'এই সপ্তাহের সেরা',
+  'Latest review': 'সর্বশেষ রিভিউ',
+  'Rated, with nothing written.': 'রেটিং দিয়েছেন, কিছু লেখেননি।',
+  'Quick actions': 'দ্রুত কাজ',
+  'To your menu': 'মেনুতে',
+  'To your shop': 'দোকানে',
+  '৳{n} released': '৳{n} রিলিজ হয়েছে',
+  'Checked and listed': 'যাচাই হয়ে গেছে, তালিকায় আছে',
+  'Send your documents again': 'কাগজপত্র আবার পাঠান',
+  'A check is running': 'যাচাই চলছে',
+  Messages: 'মেসেজ',
+  'Questions about your orders': 'অর্ডার নিয়ে প্রশ্ন',
+
+  /* ---------------- cook panel redesign: profile ---------------- */
+  'Verified kitchen': 'যাচাইকৃত রান্নাঘর',
+  'Verification failed': 'যাচাই ব্যর্থ হয়েছে',
+  'Verification pending': 'যাচাই অপেক্ষমাণ',
+  'How customers see you, what the platform knows, and what you are owed.':
+    'ক্রেতারা আপনাকে যেভাবে দেখে, প্ল্যাটফর্ম কী জানে, আর আপনার কী পাওনা — সব এক জায়গায়।',
+  '{n} reviews': '{n}টি রিভিউ',
+  'No reviews yet': 'এখনো কোনো রিভিউ নেই',
+  Preview: 'প্রিভিউ',
+  'Send your documents': 'কাগজপত্র পাঠান',
+  'Your documents': 'আপনার কাগজপত্র',
+  'NID and kitchen photos — the check starts with these':
+    'এনআইডি ও রান্নাঘরের ছবি — যাচাই এগুলো দিয়েই শুরু হয়',
+  'Submitted. Tap to review what we hold.': 'জমা হয়েছে। যা জমা আছে দেখতে ট্যাপ করুন।',
+  'What has been released, what is held, and what has left.':
+    'যা রিলিজ হয়েছে, যা জমা আছে, আর যা চলে গেছে।',
+  'Released · last paid {when} via {method}': 'রিলিজ হয়েছে · শেষ পেমেন্ট {when}, {method}-এর মাধ্যমে',
+  'Released to you · payouts run every Sunday': 'আপনার নামে রিলিজ · পেআউট হয় প্রতি রবিবার',
+  held: 'জমা',
+  '{score} from {n} customers': '{n} জন ক্রেতার দেওয়া {score}',
+  'Nobody has rated your kitchen yet': 'এখনো কেউ আপনার রান্নাঘর রেট করেননি',
+  ACCOUNT: 'অ্যাকাউন্ট',
+  'You, rather than the kitchen.': 'রান্নাঘর নয়, আপনি নিজে।',
+  'Your account': 'আপনার অ্যাকাউন্ট',
+  'Add an email or phone': 'ইমেইল বা ফোন যোগ করুন',
+  'Password and sign-in': 'পাসওয়ার্ড ও সাইন-ইন',
+  'Change your password, or how you sign in': 'পাসওয়ার্ড বদলান, বা সাইন-ইনের উপায়',
+  SUPPORT: 'সহায়তা',
+  'A person, not a form.': 'ফর্ম নয়, একজন মানুষ।',
+  'Anything about orders, money or verification': 'অর্ডার, টাকা বা যাচাই — যেকোনো বিষয়ে',
+
+  /* ---------------- cook panel redesign: listings ---------------- */
+  '{n} photos · {area} · up to {km} km': '{n}টি ছবি · {area} · সর্বোচ্চ {km} কিমি',
+  'No photos yet — customers scroll past an empty page':
+    'এখনো ছবি নেই — খালি পেজ দেখে ক্রেতারা এড়িয়ে যায়',
+
+  /* ---------------- cook panel redesign: shop setup ---------------- */
+  'The storefront': 'দোকানের পরিচয়',
+  'Give the shop a name.': 'দোকানের একটা নাম দিন।',
+  'Delivery fee is a number of taka.': 'ডেলিভারি ফি টাকায় একটা সংখ্যা।',
+  'Free-delivery threshold is a number of taka.': 'ফ্রি ডেলিভারির সীমা টাকায় একটা সংখ্যা।',
+  'Tagline (optional)': 'ট্যাগলাইন (ঐচ্ছিক)',
+  'One line on what you make and keep': 'আপনি কী বানান ও জমা রাখেন, এক লাইনে',
+  'Two numbers, and delivery is priced. You can change both later.':
+    'দুটো সংখ্যা, আর ডেলিভারির দাম তৈরি। দুটোই পরে বদলানো যাবে।',
+  'Delivery fee in taka': 'ডেলিভারি ফি (টাকায়)',
+  'Free delivery over (optional)': 'এর বেশি হলে ফ্রি ডেলিভারি (ঐচ্ছিক)',
+  'Leave empty for no free delivery': 'ফ্রি ডেলিভারি না দিতে চাইলে খালি রাখুন',
+
+  /* ---------------- cook panel redesign: dish editor ---------------- */
+  'That photo could not be read. Please try another.': 'ছবিটা পড়া গেল না। অন্যটা দিন।',
+  '{name} is on your menu.': '{name} এখন আপনার মেনুতে।',
+  'Saved. Customers see it now.': 'সেভ হয়েছে। ক্রেতারা এখনই দেখছে।',
+  'A photo, a name, a price — that is a dish. It goes live when you say so.':
+    'একটা ছবি, একটা নাম, একটা দাম — এই তো পদ। আপনি বললেই লাইভ হবে।',
+  'Preparing the photo…': 'ছবি তৈরি হচ্ছে…',
+  'The essentials': 'মূল জিনিস',
+  'How customers will see it': 'ক্রেতারা যেভাবে দেখবে',
+  'Available now': 'এখন পাওয়া যাচ্ছে',
+  'Saved, but sold out': 'সেভ হয়েছে, তবে ফুরিয়ে গেছে',
+  'Customers can order it the moment it is saved.': 'সেভ হওয়ার সাথে সাথেই ক্রেতারা অর্ডার করতে পারবেন।',
+  'It sits on your menu greyed out until you switch it on.':
+    'চালু না করা পর্যন্ত এটা মেনুতে ফিকে হয়ে থাকবে।',
+
+  /* ---------------- cook panel redesign: product editor ---------------- */
+  'Give the product a name.': 'পণ্যটির একটা নাম দিন।',
+  'How many are on the shelf? Zero is a number.': 'তাকে কয়টা আছে? শূন্যও একটা সংখ্যা।',
+  'Pick a shelf — products live under categories.': 'একটা শেলফ বাছুন — পণ্য ক্যাটাগরির নিচেই থাকে।',
+  '{name} is on your shelf.': '{name} এখন আপনার তাকে।',
+  '{name} saved as a draft.': '{name} খসড়া হিসেবে সেভ হয়েছে।',
+  'A photo, a price, a shelf — it is on sale when you say so.':
+    'একটা ছবি, একটা দাম, একটা শেলফ — আপনি বললেই বিক্রিতে চলে আসবে।',
+  Photos: 'ছবি',
+  'Add the first photo': 'প্রথম ছবিটা যোগ করুন',
+  'Add more photos': 'আরও ছবি যোগ করুন',
+  Cover: 'কভার',
+  Shelf: 'শেলফ',
+  'Hidden until you publish it': 'প্রকাশ না করা পর্যন্ত লুকানো থাকবে',
+  'Hidden draft': 'লুকানো খসড়া',
+  'Customers can buy it as soon as it is saved.': 'সেভ হওয়ার সাথে সাথেই ক্রেতারা কিনতে পারবেন।',
+  'Kept on your shelf, seen by nobody, until you switch it on.':
+    'চালু না করা পর্যন্ত তাকে থাকবে, কেউ দেখবে না।',
+  'Remove {name} from your shop? Orders already placed are not affected.':
+    'দোকান থেকে {name} সরিয়ে ফেলবেন? আগের অর্ডারগুলোর কিছু হবে না।',
+
+  /* ---------------- cook panel redesign: kitchen wizard ---------------- */
+  'That photo would push the gallery over its size limit. Try a shorter one.':
+    'এই ছবিটা গ্যালারির সাইজ সীমা ছাড়িয়ে দেবে। ছোট একটা ছবি দিন।',
+  'A kitchen without a single photo reads as empty. Add one.':
+    'একটা ছবিও না থাকলে রান্নাঘর খালি দেখায়। একটা যোগ করুন।',
+  'Saved. Customers see your listing now.': 'সেভ হয়েছে। ক্রেতারা এখনই আপনার লিস্টিং দেখছে।',
+  'Everything a customer sees. Saved in one go, at the end.':
+    'ক্রেতা যা কিছু দেখে। সব শেষে একসাথে সেভ হয়।',
+  'Add a cover': 'কভার যোগ করুন',
+  'Your round picture': 'আপনার গোল ছবি',
+  'Rides with your name on cards, chat and reviews.': 'কার্ড, চ্যাট আর রিভিউতে নামের পাশে থাকে।',
+  'Kitchen photos': 'রান্নাঘরের ছবি',
+  'The gallery customers scroll — and the one your verification is read from.':
+    'ক্রেতারা যে গ্যালারি দেখে — আর যাচাইয়ের সময়ও এটাই দেখা হয়।',
+  'Your area': 'আপনার এলাকা',
+  'How far you will carry food. Further means more customers — and colder food.':
+    'কত দূর খাবার পৌঁছাবেন। দূর মানে বেশি ক্রেতা — আর ঠান্ডা খাবার।',
+  'On the map and taking orders the moment this is saved.': 'সেভ হওয়া মাত্রই ম্যাপে, অর্ডার নেওয়া চালু।',
+  'Listed, but nobody can order until you open.': 'তালিকায় আছে, কিন্তু খুললে তবেই অর্ডার হবে।',
+  'The basics': 'মূল তথ্য',
+
+  /* ---------------- cook panel redesign: meal hub ---------------- */
+  '{label} · ৳{rate} a meal': '{label} · প্রতি মিল ৳{rate}',
+  'Meal service paused.': 'মাসিক মিল সেবা বন্ধ আছে।',
+  'Meal service is open for bookings.': 'মাসিক মিল সেবা বুকিংয়ের জন্য খোলা।',
+  'Customers can book this month from your listing.':
+    'ক্রেতারা আপনার লিস্টিং থেকে এই মাসটা বুক করতে পারছেন।',
+  'Your listing shows no meal service until you switch this on.':
+    'এটা চালু না করা পর্যন্ত আপনার লিস্টিংয়ে মাসিক মিল সেবা দেখা যাবে না।',
+  'This month’s menu': 'এই মাসের মেনু',
+  '{n} meals written for {month}': '{month} মাসে {n}টি মিল লেখা আছে',
+  'Nothing written for {month} yet': '{month} মাসের জন্য এখনো কিছু লেখা হয়নি',
+  'Edit the menu': 'মেনু সম্পাদনা',
+  'Category, rate and how many meals a day': 'ক্যাটাগরি, রেট আর দিনে কয়টা মিল',
+  'The dish names the calendar draws from': 'ক্যালেন্ডার যে পদের নামগুলো থেকে লেখে',
+
+  /* ---------------- cook panel: reviews screen (older gaps) ---------------- */
+  REVIEWS: 'রিভিউ',
+  'What customers said after their food arrived.': 'খাবার পৌঁছানোর পর ক্রেতারা যা বলেছেন।',
+  'Nobody has rated your kitchen yet.': 'এখনো কেউ আপনার রান্নাঘর রেট করেননি।',
+  'latest {n} shown': 'সর্বশেষ {n}টি দেখানো হচ্ছে',
+  'A customer can rate your kitchen once their food has arrived. The first one usually follows your first few deliveries.':
+    'খাবার পৌঁছে গেলে ক্রেতা আপনার রান্নাঘর রেট করতে পারেন। প্রথমটা সাধারণত প্রথম কয়েকটা ডেলিভারির পরই আসে।',
+  'Your kitchen was not approved': 'আপনার রান্নাঘর অনুমোদিত হয়নি',
+  'Waiting for RannaBari to check your kitchen': 'রান্নাবাড়ি আপনার রান্নাঘর দেখছে',
+  'Fix what is mentioned above and your kitchen goes back in the queue. Nobody can order from it until then.':
+    'উপরের কথাগুলো ঠিক করুন, রান্নাঘর আবার লাইনে ফিরে যাবে। ততদিন কেউ অর্ডার করতে পারবে না।',
+  'Somebody reads every kitchen before it goes live — it is what makes a RannaBari cook worth trusting. You cannot list food or take orders until that is done.':
+    'লাইভ হওয়ার আগে প্রতিটা রান্নাঘর একজন মানুষ দেখে — এজন্যই রান্নাবাড়ির রাঁধুনিদের উপর ভরসা হয়। সেটা শেষ না হওয়া পর্যন্ত খাবার দিতে বা অর্ডার নিতে পারবেন না।',
+  'Your kitchen is suspended': 'আপনার রান্নাঘর সাময়িকভাবে বন্ধ',
+  'Nobody can order from your kitchen while this lasts, and you cannot list food or take orders. Money already held against your finished orders is safe and still yours.':
+    'যতদিন এই অবস্থা থাকবে, কেউ আপনার রান্নাঘর থেকে অর্ডার করতে পারবে না, আর আপনিও খাবার দিতে বা অর্ডার নিতে পারবেন না। আপনার রান্না করা অর্ডারের জমা টাকা নিরাপদ এবং সেটা আপনারই থাকবে।',
 };
