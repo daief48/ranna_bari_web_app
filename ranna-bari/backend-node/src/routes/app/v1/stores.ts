@@ -33,7 +33,7 @@ import {
   toggleStoreOpen,
   updateCategory,
 } from '../../../logic/stores.js';
-import { Account, Kitchen, Product, Store } from '../../../models/index.js';
+import { Account, Kitchen, Product, Store, StoreCategory } from '../../../models/index.js';
 import { kitchenMayTrade } from '../../../logic/sync.js';
 
 /**
@@ -45,17 +45,20 @@ import { kitchenMayTrade } from '../../../logic/sync.js';
  * store in the process was the cook's own. Here it is the whole security
  * model, and it takes two shapes.
  *
- * **A `mine` route resolves the store from the caller's kitchen.** Not from a
- * body field, not from a query parameter, not from a store id the app happens
- * to be holding. `myStore()` is the only way into a write, so there is no
- * endpoint where forgetting the check is possible — the store id the logic
- * layer receives was derived from the token, never read from the request.
+ * **A kitchen owns a *set* of shops now** — a cake shop and an achar shop are
+ * two storefronts under one cook — so "mine" no longer means "the only one".
+ * The id of the shop being written travels in the body, and ownership is
+ * enforced *in the query*: `myStoreOf` looks up `_id` **and** `kitchenId`
+ * together, so a foreign shop and a made-up id are the same 404, and no
+ * handler ever sees a row its caller does not own. The token still decides
+ * *whose* kitchen it is; the body only picks which of that kitchen's own
+ * shops the request means.
  *
- * **An id-addressed write is looked up through the caller's own store first.**
- * `/products/:id/stock` and `/categories/:id/move` name a row directly, so
- * each one is fetched via the caller's shop and compared before the logic
- * layer sees the id. A row belonging to another cook is a 404, which is also
- * the honest answer: as far as this caller is concerned it does not exist.
+ * **An id-addressed write (`/products/:id/stock`, `/categories/:id/move`) is
+ * looked up through its owner before the logic layer sees the id.** The row's
+ * store is fetched and compared against the caller's kitchen; a row belonging
+ * to another cook is a 404, which is also the honest answer: as far as this
+ * caller is concerned it does not exist.
  */
 
 /* Fastify's reply, narrowed to what a refusal needs — the same structural
@@ -140,19 +143,88 @@ async function cookOf(
  * is never read at all, which is the only version of this rule that survives
  * somebody adding the next endpoint in a hurry.
  */
-async function myStore(
+/**
+ * One of this kitchen's own shops, chosen by id.
+ *
+ * The id travels in the body, because a kitchen's shops are a set now — but
+ * ownership never does: the lookup carries `_id` **and** `kitchenId` from the
+ * token together, so a foreign shop and a made-up id are the same 404 and
+ * neither exists to this caller. A body with no usable id is the same answer.
+ */
+async function myStoreOf(
   request: FastifyRequest,
   reply: Refusable,
+  storeId: unknown,
 ): Promise<{ cook: Cook; store: StoreDoc } | null> {
   const cook = await cookOf(request, reply);
   if (!cook) return null;
 
-  const store = await storeForKitchen(cook.kitchenId);
+  const id =
+    typeof storeId === 'string' && Types.ObjectId.isValid(storeId) ? storeId : null;
+  if (!id) {
+    fail(reply, ERR.NO_STORE, 404);
+    return null;
+  }
+
+  const store = await Store.findOne({ _id: id, kitchenId: String(cook.kitchenId) }).lean();
   if (!store) {
     fail(reply, ERR.NO_STORE, 404);
     return null;
   }
   return { cook, store };
+}
+
+/**
+ * A product, its shop, and the proof that the shop belongs to this kitchen.
+ *
+ * `/products/:id/*` names the product directly, so the product's own
+ * `storeId` decides which shop the request is really about — the caller's
+ * body is not consulted for this one. Only the kitchen comparison keeps a
+ * cook from restocking somebody else's shelf.
+ */
+async function myProductOf(
+  request: FastifyRequest,
+  reply: Refusable,
+  productId: string,
+): Promise<{ cook: Cook; store: StoreDoc; product: ProductDoc } | null> {
+  const cook = await cookOf(request, reply);
+  if (!cook) return null;
+
+  const product = await productById(productId);
+  if (!product) {
+    fail(reply, ERR.NO_PRODUCT, 404);
+    return null;
+  }
+
+  const store = await storeById(String(product.storeId));
+  if (!store || String(store.kitchenId) !== String(cook.kitchenId)) {
+    fail(reply, ERR.NO_PRODUCT, 404);
+    return null;
+  }
+  return { cook, store, product };
+}
+
+/** The same, for a shelf — `/categories/:id/*` names the category directly. */
+async function myCategoryOf(
+  request: FastifyRequest,
+  reply: Refusable,
+  categoryId: string,
+): Promise<{ cook: Cook; store: StoreDoc; category: CategoryDoc } | null> {
+  const cook = await cookOf(request, reply);
+  if (!cook) return null;
+
+  const category = await StoreCategory.findById(categoryId).lean();
+  if (!category) {
+    fail(reply, ERR.NO_PRODUCT, 404);
+    return null;
+  }
+
+  const store = await storeById(String(category.storeId));
+  if (!store || String(store.kitchenId) !== String(cook.kitchenId)) {
+    fail(reply, ERR.NO_PRODUCT, 404);
+    return null;
+  }
+  return { cook, store, category };
 }
 
 /** A product, but only one of this store's. */
@@ -694,21 +766,34 @@ export async function storeRoutes(app: FastifyInstance) {
   /* ---------------- the cook's own shop ---------------- */
 
   /**
-   * Create or update the caller's store.
+   * Create a shop, or update one this kitchen already owns.
    *
-   * The only write that does not go through `myStore`, because a cook saving
-   * for the first time does not have one yet. The kitchen still comes from the
-   * token — `saveStore` upserts on it — so this cannot reach another cook's
-   * row either.
+   * The only write that does not resolve its store through the catalogue —
+   * a cook opening a *new* shop has no id to send yet. The body's optional
+   * `storeId` picks the verb: present means "edit this one of mine" (the
+   * ownership check rides inside `saveStore`'s query), absent means "open
+   * another one", capped by the logic layer.
    */
   app.post('/stores/mine', async (request, reply) => {
     const cook = await cookOf(request, reply, { trading: true });
     if (!cook) return;
 
-    const body = storePatchSchema.safeParse(request.body ?? {});
+    const body = storePatchSchema
+      .extend({ storeId: z.string().optional() })
+      .safeParse(request.body ?? {});
     if (!body.success) return fail(reply, ERR.NAME_REQUIRED);
 
-    const out = await saveStore({ kitchenId: cook.kitchenId, patch: body.data });
+    /* A brand-new shop needs a name to exist by — the update path keeps the
+       one it already has, exactly as the kitchen's own registration does. */
+    if (!body.data.storeId && !String(body.data.name ?? '').trim()) {
+      return fail(reply, ERR.NAME_REQUIRED);
+    }
+
+    const out = await saveStore({
+      kitchenId: cook.kitchenId,
+      storeId: body.data.storeId ?? null,
+      patch: body.data,
+    });
     if (!out.ok) return fail(reply, out.error, statusFor(out.error), out.detail);
 
     /* The logic layer widens its writes to `Record<string, unknown>`, but what
@@ -718,7 +803,12 @@ export async function storeRoutes(app: FastifyInstance) {
   });
 
   app.post('/stores/mine/open', async (request, reply) => {
-    const mine = await myStore(request, reply);
+    const body = z
+      .object({ storeId: z.string() })
+      .safeParse(request.body ?? {});
+    if (!body.success) return fail(reply, ERR.NO_STORE, 404);
+
+    const mine = await myStoreOf(request, reply, body.data.storeId);
     if (!mine) return;
 
     const out = await toggleStoreOpen({ storeId: String(mine.store._id) });
@@ -735,13 +825,17 @@ export async function storeRoutes(app: FastifyInstance) {
      break a switch in two of them. */
 
   app.post('/stores/mine/categories', async (request, reply) => {
-    const mine = await myStore(request, reply);
-    if (!mine) return;
-
     const body = z
-      .object({ name: z.string(), emoji: z.string().optional() })
+      .object({
+        storeId: z.string(),
+        name: z.string(),
+        emoji: z.string().optional(),
+      })
       .safeParse(request.body);
     if (!body.success) return fail(reply, ERR.NAME_REQUIRED);
+
+    const mine = await myStoreOf(request, reply, body.data.storeId);
+    if (!mine) return;
 
     const out = await addCategory({
       storeId: String(mine.store._id),
@@ -754,11 +848,9 @@ export async function storeRoutes(app: FastifyInstance) {
   });
 
   app.patch('/categories/:id', async (request, reply) => {
-    const mine = await myStore(request, reply);
-    if (!mine) return;
-
     const { id } = request.params as { id: string };
-    if (!(await myCategory(mine.store, id))) return fail(reply, ERR.NO_PRODUCT, 404);
+    const owned = await myCategoryOf(request, reply, id);
+    if (!owned) return;
 
     const body = z
       .object({ name: z.string().optional(), emoji: z.string().optional() })
@@ -773,11 +865,9 @@ export async function storeRoutes(app: FastifyInstance) {
 
   /** Refuses on a shelf that still holds products, and says how many. */
   app.post('/categories/:id/remove', async (request, reply) => {
-    const mine = await myStore(request, reply);
-    if (!mine) return;
-
     const { id } = request.params as { id: string };
-    if (!(await myCategory(mine.store, id))) return fail(reply, ERR.NO_PRODUCT, 404);
+    const owned = await myCategoryOf(request, reply, id);
+    if (!owned) return;
 
     const out = await removeCategory({ categoryId: id });
     if (!out.ok) return fail(reply, out.error, statusFor(out.error), out.detail);
@@ -786,11 +876,9 @@ export async function storeRoutes(app: FastifyInstance) {
   });
 
   app.post('/categories/:id/move', async (request, reply) => {
-    const mine = await myStore(request, reply);
-    if (!mine) return;
-
     const { id } = request.params as { id: string };
-    if (!(await myCategory(mine.store, id))) return fail(reply, ERR.NO_PRODUCT, 404);
+    const owned = await myCategoryOf(request, reply, id);
+    if (!owned) return;
 
     const body = z.object({ delta: z.coerce.number() }).safeParse(request.body);
     if (!body.success) return fail(reply, ERR.BAD_AMOUNT);
@@ -803,15 +891,20 @@ export async function storeRoutes(app: FastifyInstance) {
 
   /* ---------------- products ---------------- */
 
-  /** Create or update one product on the caller's own shelves. */
+  /** Create or update one product on one of the caller's own shelves. */
   app.post('/stores/mine/products', async (request, reply) => {
-    const mine = await myStore(request, reply);
-    if (!mine) return;
-
-    const body = productSaveSchema.safeParse(request.body ?? {});
+    const body = productSaveSchema
+      .extend({ storeId: z.string().optional() })
+      .safeParse(request.body ?? {});
     if (!body.success) return fail(reply, ERR.NAME_REQUIRED);
 
-    const { id, productId, ...patch } = body.data;
+    /* The shop the product belongs to rides in the body — a kitchen with two
+       shops files under one or the other, and the ownership check is the
+       lookup below, not the string the client typed. */
+    const mine = await myStoreOf(request, reply, body.data.storeId);
+    if (!mine) return;
+
+    const { id, productId, storeId, ...patch } = body.data;
     const target = productId ?? id ?? null;
 
     // An edit is checked against this store; a create is pinned to it.
@@ -838,11 +931,9 @@ export async function storeRoutes(app: FastifyInstance) {
   });
 
   app.post('/products/:id/remove', async (request, reply) => {
-    const mine = await myStore(request, reply);
-    if (!mine) return;
-
     const { id } = request.params as { id: string };
-    if (!(await myProduct(mine.store, id))) return fail(reply, ERR.NO_PRODUCT, 404);
+    const owned = await myProductOf(request, reply, id);
+    if (!owned) return;
 
     const out = await removeProduct({ productId: id });
     if (!out.ok) return fail(reply, out.error, statusFor(out.error), out.detail);
@@ -852,11 +943,9 @@ export async function storeRoutes(app: FastifyInstance) {
 
   /** Restock, or correct a count — the inventory screen's stepper. */
   app.post('/products/:id/stock', async (request, reply) => {
-    const mine = await myStore(request, reply);
-    if (!mine) return;
-
     const { id } = request.params as { id: string };
-    if (!(await myProduct(mine.store, id))) return fail(reply, ERR.NO_PRODUCT, 404);
+    const owned = await myProductOf(request, reply, id);
+    if (!owned) return;
 
     const body = z.object({ stock: numeric }).safeParse(request.body);
     if (!body.success) return fail(reply, ERR.BAD_AMOUNT);
@@ -873,11 +962,9 @@ export async function storeRoutes(app: FastifyInstance) {
      twice. */
 
   app.post('/products/:id/toggle', async (request, reply) => {
-    const mine = await myStore(request, reply);
-    if (!mine) return;
-
     const { id } = request.params as { id: string };
-    if (!(await myProduct(mine.store, id))) return fail(reply, ERR.NO_PRODUCT, 404);
+    const owned = await myProductOf(request, reply, id);
+    if (!owned) return;
 
     const out = await toggleProduct({ productId: id });
     if (!out.ok) return fail(reply, out.error, statusFor(out.error), out.detail);
@@ -886,11 +973,9 @@ export async function storeRoutes(app: FastifyInstance) {
   });
 
   app.post('/products/:id/preorder-toggle', async (request, reply) => {
-    const mine = await myStore(request, reply);
-    if (!mine) return;
-
     const { id } = request.params as { id: string };
-    if (!(await myProduct(mine.store, id))) return fail(reply, ERR.NO_PRODUCT, 404);
+    const owned = await myProductOf(request, reply, id);
+    if (!owned) return;
 
     const out = await togglePreorder({ productId: id });
     if (!out.ok) return fail(reply, out.error, statusFor(out.error), out.detail);

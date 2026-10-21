@@ -93,6 +93,8 @@ export async function registerKitchen(
     lng?: number;
     deliveryRadiusKm?: number;
     isOpen?: boolean;
+    payoutMethod?: string;
+    payoutAccount?: string;
   },
 ): Promise<Result<{ kitchenId: string; created: boolean }>> {
   const existing = await Kitchen.findOne({ accountId: caller.accountId });
@@ -138,6 +140,10 @@ export async function registerKitchen(
         ? kitchen.deliveryRadiusKm
         : (existing?.deliveryRadiusKm ?? 3),
     isOpen: typeof kitchen.isOpen === 'boolean' ? kitchen.isOpen : (existing?.isOpen ?? false),
+    /* Where the cook's money goes. The cook names it, the panel reads it —
+       the operator paying a run has a place to look besides a chat thread. */
+    payoutMethod: kitchen.payoutMethod ?? existing?.payoutMethod ?? '',
+    payoutAccount: kitchen.payoutAccount ?? existing?.payoutAccount ?? '',
   };
 
   if (existing) {
@@ -473,12 +479,24 @@ async function disputedAmong(ids: string[]): Promise<Set<string>> {
 }
 
 /** Every order this caller is on — as the customer, or as the kitchen. */
-export async function ordersFor(caller: AppIdentity, take = 50) {
-  const rows = await Order.find(
-    caller.kitchenId
+/**
+ * Every order this caller is on, newest first.
+ *
+ * `before` is a cursor: a createdAt (ISO) strictly older than the first row
+ * of the last page, for scrolling further back. Absent means the first
+ * page. Keyset rather than skip — a page fetched by offset can repeat or
+ * skip rows when a new order lands mid-scroll, and an order that appears
+ * twice on a board is worse than one that arrives a moment late.
+ */
+export async function ordersFor(caller: AppIdentity, take = 50, before?: string) {
+  const since = before && !Number.isNaN(new Date(before).getTime()) ? new Date(before) : null;
+
+  const rows = await Order.find({
+    ...(caller.kitchenId
       ? { $or: [{ customerKey: caller.customerKey }, { kitchenId: caller.kitchenId }] }
-      : { customerKey: caller.customerKey },
-  )
+      : { customerKey: caller.customerKey }),
+    ...(since ? { createdAt: { $lt: since } } : {}),
+  })
     .sort({ createdAt: -1 })
     .limit(take)
     .lean();

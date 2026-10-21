@@ -39,6 +39,7 @@ import Icon from '../../src/components/Icon';
 import Reveal from '../../src/components/Reveal';
 import Button from '../../src/components/Button';
 import FloatLabelInput from '../../src/components/FloatLabelInput';
+import LocationPicker from '../../src/components/LocationPicker';
 import {
   ActionRow,
   FieldError,
@@ -94,15 +95,24 @@ function Wizard({ kitchen }) {
   /* ---- the draft ----
      Everything the four steps collect, held here and posted once. Nothing
      reaches the server until the last step says so — a half-finished wizard
-     must never be a half-changed listing. */
+     must never be a half-changed listing. This is every field the kitchen
+     model lets a cook own: identity, the photographs, where it is and how
+     far it travels, and whether it is open. */
+  const [ownerName, setOwnerName] = useState(kitchen.ownerName ?? '');
   const [name, setName] = useState(kitchen.name ?? '');
   const [specialty, setSpecialty] = useState(kitchen.specialty ?? '');
+  const [specialties, setSpecialties] = useState(kitchen.specialties ?? []);
   const [specialtyOpen, setSpecialtyOpen] = useState(false);
   const [description, setDescription] = useState(kitchen.description ?? '');
   const [cover, setCover] = useState(kitchen.coverImage ?? '');
   const [avatar, setAvatar] = useState(kitchen.avatar ?? '');
   const [photos, setPhotos] = useState(kitchen.photos ?? []);
   const [area, setArea] = useState(kitchen.area ?? '');
+  /* Null until the cook moves the pin — same rule as the shop settings:
+     null means "leave whatever is stored", so merely opening the editor and
+     saving does not silently pin the kitchen to wherever the map happened
+     to wake up. */
+  const [pin, setPin] = useState(null);
   const [radiusKm, setRadiusKm] = useState(kitchen.deliveryRadiusKm ?? 3);
   const [open, setOpen] = useState(!!kitchen.isOpen);
 
@@ -212,14 +222,18 @@ function Wizard({ kitchen }) {
 
     setSaving(true);
     const out = await updateKitchen({
+      ownerName: ownerName.trim(),
       name: name.trim(),
       specialty,
+      specialties,
       description: description.trim(),
       coverImage: cover,
       avatar,
       photos,
       area: area ? normaliseArea(area) : '',
       deliveryRadiusKm: radiusKm,
+      /* Only sent when the pin was actually moved — see the draft note. */
+      ...(pin ? { lat: pin.lat, lng: pin.lng } : {}),
       isOpen: open,
     });
     setSaving(false);
@@ -277,6 +291,16 @@ function Wizard({ kitchen }) {
           {/* ---- step 1 · the basics ---- */}
           {step === 0 ? (
             <Reveal delay={2}>
+              <FloatLabelInput
+                label={t('Your name')}
+                value={ownerName}
+                onChangeText={setOwnerName}
+                placeholder={t('The name customers greet')}
+              />
+              <Body muted size={12} style={{ marginTop: -12, marginBottom: 16 }}>
+                {t('Signs your replies, reviews and the greeting on your page.')}
+              </Body>
+
               <FloatLabelInput
                 label={t('Kitchen name')}
                 value={name}
@@ -376,6 +400,64 @@ function Wizard({ kitchen }) {
                   ))}
                 </View>
               ) : null}
+
+              {/* The rest of the multi-select — the primary above is what the
+                  card shows; these are every kitchen a cook also runs. Ticking
+                  the primary here too keeps the two in step. */}
+              <Text
+                style={{
+                  fontFamily: font.uiSemi,
+                  fontSize: type.micro,
+                  letterSpacing: type.micro * 0.09,
+                  textTransform: 'uppercase',
+                  color: colors.textMuted,
+                  marginBottom: 10,
+                }}
+              >
+                {t('You also cook')}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+                {SPECIALTIES.filter((s) => s !== specialty).map((s) => {
+                  const on = specialties.includes(s);
+                  return (
+                    <Pressable
+                      key={s}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      onPress={() =>
+                        setSpecialties((prev) =>
+                          prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
+                        )
+                      }
+                      style={({ pressed }) => ({
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                        paddingVertical: 9,
+                        paddingHorizontal: 14,
+                        borderRadius: radius.pill,
+                        backgroundColor: on ? colors.sage : colors.surfaceSolid,
+                        borderWidth: 1,
+                        borderColor: on ? colors.sage : colors.line,
+                        transform: [{ scale: pressed ? 0.96 : 1 }],
+                      })}
+                    >
+                      {on ? (
+                        <Icon name="check" size={12} color="#FFFFFF" strokeWidth={2.6} />
+                      ) : null}
+                      <Text
+                        style={{
+                          fontFamily: on ? font.uiBold : font.uiSemi,
+                          fontSize: 12.5,
+                          color: on ? '#FFFFFF' : colors.textMuted,
+                        }}
+                      >
+                        {t(s)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
               <FloatLabelInput
                 label={t('About your cooking')}
@@ -640,8 +722,9 @@ function Wizard({ kitchen }) {
           ) : null}
 
           {/* ---- step 3 · delivery ----
-              Where this kitchen travels. The area puts it in the filters;
-              the radius decides whose door it will reach. */}
+              Where this kitchen is and how far it travels. The area puts it
+              in the filters; the pin is where distance is measured from; the
+              radius decides whose door it will reach. */}
           {step === 2 ? (
             <Reveal delay={2}>
               <Text
@@ -687,6 +770,43 @@ function Wizard({ kitchen }) {
                     </Pressable>
                   );
                 })}
+              </View>
+
+              {/* The exact pin. Distance to every customer is measured from
+                  here, so a kitchen that moved should be able to move its
+                  marker rather than live forever at wherever signup dropped
+                  it. */}
+              <Text
+                style={{
+                  fontFamily: font.uiSemi,
+                  fontSize: type.micro,
+                  letterSpacing: type.micro * 0.09,
+                  textTransform: 'uppercase',
+                  color: colors.textMuted,
+                  marginBottom: 10,
+                }}
+              >
+                {t('Exact location')}
+              </Text>
+              <Text
+                style={{
+                  fontFamily: font.ui,
+                  fontSize: type.xs,
+                  lineHeight: 17,
+                  color: colors.textMuted,
+                  marginBottom: 10,
+                }}
+              >
+                {pin
+                  ? t('Customers see this pin and measure delivery from it.')
+                  : t('Using the area above. Move the pin to set the exact spot.')}
+              </Text>
+              <View style={{ marginBottom: 20, borderRadius: radius.md, overflow: 'hidden', borderWidth: 1, borderColor: colors.line }}>
+                <LocationPicker
+                  height={220}
+                  center={pin ? { lat: pin.lat, lng: pin.lng } : undefined}
+                  onChange={(v) => setPin({ lat: v.lat, lng: v.lng })}
+                />
               </View>
 
               <RadiusSlider value={radiusKm} onChange={setRadiusKm} />

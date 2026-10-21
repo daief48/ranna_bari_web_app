@@ -203,6 +203,8 @@ const EMPTY = {
      been paid. `balance` and `earnings` are kept as the server's own names
      for the first and last of those. */
   wallet: { customer: 0, held: 0, cook: 0, balance: 0, earnings: 0 },
+  /* The next-page cursor for `/orders`, once a first page has answered. */
+  ordersCursor: undefined,
   /** requestId -> the server's offer summary for it. */
   summaries: {},
   /** storeId -> the cook's own dashboard counts. */
@@ -570,7 +572,7 @@ export function CommerceProvider({ children }) {
   );
 
   /**
-   * The cook's own shop, loaded without being asked for.
+   * The cook's shops, loaded without being asked for.
    *
    * Seven screens in the cook panel read the catalogue -- products,
    * categories, settings, the shelf editor -- and every one of them would
@@ -578,8 +580,10 @@ export function CommerceProvider({ children }) {
    * a blank shop that reads as "your products are gone", so it is fetched
    * here rather than seven times.
    *
-   * A closed shop is absent from `/stores`, which lists open ones only, so
-   * this looks it up by kitchen rather than searching the directory.
+   * A kitchen owns a *set* of shops now — the cake shop and the achar shop —
+   * so every one of them is loaded, not just the first. A closed shop is
+   * absent from `/stores`, which lists open ones only, so this looks them up
+   * by kitchen rather than searching the directory.
    */
   const ownStoreRef = useRef(null);
   useEffect(() => {
@@ -589,8 +593,8 @@ export function CommerceProvider({ children }) {
 
     (async () => {
       const out = await call(`/stores?kitchenId=${encodeURIComponent(kitchenId)}`, { token });
-      const found = out.ok ? (out.result.stores ?? [])[0] : null;
-      if (found) await ensureStore(found.id, { force: true });
+      const found = out.ok ? (out.result.stores ?? []) : [];
+      if (found.length) await Promise.all(found.map((s) => ensureStore(s.id, { force: true })));
       // A cook who has not opened a shop yet is not an error; there is
       // simply nothing to load, and the panel offers to open one.
       else ownStoreRef.current = null;
@@ -828,14 +832,55 @@ export function CommerceProvider({ children }) {
 
   const reloadOrders = useCallback(async () => {
     const [orders, preorders] = await Promise.all([
-      call('/orders', { token }),
+      call('/orders', token ? { token } : undefined),
       kitchenId ? call('/preorders', { token }) : null,
     ]);
     const fields = {};
-    if (orders.ok) fields.orders = asOrders(orders.result.orders);
+    if (orders.ok) {
+      fields.orders = asOrders(orders.result.orders);
+      /* The next-page cursor, or null at the end of history. Kept on the
+         context rather than the screen so both the customer list and the
+         cook board share one notion of "is there more". */
+      fields.ordersCursor = orders.result.cursor ?? null;
+    }
     if (preorders?.ok) fields.preorders = preorders.result.preorders ?? [];
     if (Object.keys(fields).length) patch(fields);
   }, [token, kitchenId, patch]);
+
+  /**
+   * The next page of history, appended.
+   *
+   * Scroll-to-load-more for every order list. The cursor is the last row's
+   * createdAt, asked back as `?before=` — keyset pagination, so a new order
+   * landing mid-scroll cannot repeat or skip a row the way a page offset
+   * can. No more pages answers `more: false` and the footers stop asking.
+   */
+  const loadMoreOrders = useCallback(async () => {
+    if (!token) return null;
+    if (live.current.ordersCursor === null) return { more: false };
+    const before =
+      live.current.ordersCursor ??
+      (live.current.orders.length
+        ? live.current.orders[live.current.orders.length - 1].createdAt
+        : undefined);
+    if (!before) return { more: false };
+
+    const out = await call(`/orders?before=${encodeURIComponent(before)}&take=30`, {
+      token,
+    });
+    if (!out.ok) return null;
+
+    const page = asOrders(out.result.orders ?? []);
+    const known = new Set(live.current.orders.map((o) => String(o.id)));
+    patch({
+      orders: [
+        ...live.current.orders,
+        ...page.filter((o) => !known.has(String(o.id))),
+      ],
+      ordersCursor: out.result.cursor ?? null,
+    });
+    return { more: (out.result.cursor ?? null) !== null && page.length > 0 };
+  }, [token, patch]);
 
   /* Handed to the socket listener above, which was declared before this
      existed. Kept in sync here rather than in an effect of its own: the
@@ -858,17 +903,23 @@ export function CommerceProvider({ children }) {
     if (out.ok) patch({ notifications: out.result.notifications ?? [] });
   }, [token, patch]);
 
-  /** The cook's own shop, refetched whole after any change to it. */
+  /**
+   * The cook's shops, refetched whole after any change to any of them.
+   *
+   * One kitchen can run several shops now, and a price changed in the cake
+   * shop must not leave the achar shop's numbers stale, so this reloads the
+   * whole set — five shops is five cheap directory reads, not a reason to
+   * guess which slice a write touched.
+   */
   const reloadMyStore = useCallback(async () => {
-    const mine = live.current.stores.find(
+    let mine = live.current.stores.filter(
       (s) => String(s.kitchenId) === String(kitchenId),
     );
-    if (mine) await ensureStore(mine.id, { force: true });
-    else {
+    if (!mine.length) {
       const out = await call(`/stores?kitchenId=${encodeURIComponent(kitchenId)}`, { token });
-      const found = out.ok ? (out.result.stores ?? [])[0] : null;
-      if (found) await ensureStore(found.id, { force: true });
+      mine = out.ok ? (out.result.stores ?? []) : [];
     }
+    await Promise.all(mine.map((s) => ensureStore(s.id, { force: true })));
   }, [kitchenId, token, ensureStore]);
 
   const reloadCart = useCallback(async () => {
@@ -918,6 +969,9 @@ export function CommerceProvider({ children }) {
          the orders list on its behalf. */
       reloadWallet,
       reloadOrders,
+      /** Scroll-to-load-more for the order lists; `{more:false}` at the end. */
+      loadMoreOrders,
+      ordersCursor: state.ordersCursor ?? null,
 
       storeLoaded: (storeId) => state.loadedStores.includes(String(storeId)),
 
@@ -1004,6 +1058,14 @@ export function CommerceProvider({ children }) {
       /* ---- cook stores: reads ---- */
       stores: state.stores,
       products: state.products,
+      /** Every shop a kitchen owns, in creation order. Defaults to the
+          caller's own kitchen; the chef page names another one. */
+      myStores: (id) =>
+        state.stores
+          .filter((s) => String(s.kitchenId) === String(id ?? kitchenId))
+          .sort((a, b) => new Date(a.createdAt ?? 0) - new Date(b.createdAt ?? 0)),
+      /* The first shop — kept for the surfaces that only ever meant "the
+         shop" and have not learned the plural yet. */
       storeForKitchen: (id) => S.storeForKitchen(state, id),
       storeById: (id) => S.storeById(state, id),
       categoriesOf: (storeId) => S.categoriesOf(state, storeId),
@@ -1069,8 +1131,20 @@ export function CommerceProvider({ children }) {
       priceCart: () => state.cart,
 
       /* ---- cook stores: writes ---- */
-      saveStore: (id, patchBody) =>
-        write('/stores/mine', { body: patchBody, after: reloadMyStore }),
+      /**
+       * Open a new shop, or update one.
+       *
+       * `update` says which verb: a kitchen owns a set of shops now, so
+       * "save" without an id means "open another one" on the server, and
+       * editing an existing shop must name it. Callers pass the *store's* id
+       * with `update: true` (settings), or whatever they hold with no flag
+       * (the setup flow, which creates).
+       */
+      saveStore: (id, patchBody, { update = false } = {}) =>
+        write('/stores/mine', {
+          body: update ? { ...patchBody, storeId: String(id) } : patchBody,
+          after: reloadMyStore,
+        }),
       toggleStoreOpen: () => write('/stores/mine/open', { after: reloadMyStore }),
       addCategory: (storeId, name, emoji) =>
         write('/stores/mine/categories', { body: { name, emoji }, after: reloadMyStore }),

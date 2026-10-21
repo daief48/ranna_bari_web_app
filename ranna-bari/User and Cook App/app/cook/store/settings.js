@@ -10,7 +10,7 @@ import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
 import CookScreen from '../../../src/components/CookScreen';
@@ -35,7 +35,13 @@ export default function StoreSettings() {
   const { kitchen } = useKitchen();
   const shop = useCommerce();
 
-  const store = kitchen ? shop.storeForKitchen(kitchen.id) : null;
+  /* The shop this screen is working on, named by the route's `?shop=`
+     param and defaulting to the kitchen's first — the hub always names one,
+     so the default only covers a link that arrived without it. */
+  const { shop: shopParam } = useLocalSearchParams();
+  const shops = kitchen ? shop.myStores(kitchen.id) : [];
+  const store =
+    shops.find((s) => String(s.id) === String(shopParam)) ?? shops[0] ?? null;
 
   /* The form only mounts once there is something to fill it with, so the
      fields are never initialised from a document that has not loaded. */
@@ -48,10 +54,10 @@ export default function StoreSettings() {
       </CookScreen>
     );
   }
-  return <Form store={store} kitchenId={kitchen.id} />;
+  return <Form store={store} />;
 }
 
-function Form({ store, kitchenId }) {
+function Form({ store }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
   const alert = useAlert();
@@ -96,7 +102,11 @@ function Form({ store, kitchenId }) {
   };
 
   const save = async () => {
-    const out = await shop.saveStore(kitchenId, {
+    /* A kitchen owns several shops now — editing must name the one on
+       screen, or the server would read the save as "open another one". */
+    const out = await shop.saveStore(
+      store.id,
+      {
       name: name.trim(),
       tagline: tagline.trim(),
       description: description.trim(),
@@ -109,7 +119,9 @@ function Form({ store, kitchenId }) {
       deliveryRadiusKm: radiusKm,
       /* Only sent when the pin was actually moved. */
       ...(pin ? { lat: pin.lat, lng: pin.lng } : {}),
-    });
+      },
+      { update: true },
+    );
     if (!out.ok) {
       setSaved(false);
       alert.error(errorText(out.error, t, n, out));

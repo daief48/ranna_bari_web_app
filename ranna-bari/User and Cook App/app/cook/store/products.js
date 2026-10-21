@@ -56,7 +56,13 @@ export default function StoreProducts() {
     return () => clearTimeout(timer);
   }, [flash]);
 
-  const store = kitchen ? shop.storeForKitchen(kitchen.id) : null;
+  /* The shop this screen is working on, named by the route's `?shop=`
+     param and defaulting to the kitchen's first — the hub always names one,
+     so the default only covers a link that arrived without it. */
+  const { shop: shopParam } = useLocalSearchParams();
+  const shops = kitchen ? shop.myStores(kitchen.id) : [];
+  const store =
+    shops.find((s) => String(s.id) === String(shopParam)) ?? shops[0] ?? null;
   const all = useMemo(
     () => (store ? shop.productsOf(store.id) : []),
     [shop, store],
@@ -112,7 +118,12 @@ export default function StoreProducts() {
             icon="plus"
             iconPosition="left"
             block
-            onPress={() => router.push('/cook/store/product/new')}
+            onPress={() =>
+              router.push({
+                pathname: '/cook/store/product/new',
+                params: { shop: String(store.id) },
+              })
+            }
           />
         </Reveal>
       </Container>
@@ -190,7 +201,12 @@ export default function StoreProducts() {
                   product={product}
                   category={categoryName(product.categoryId)}
                   highlighted={product.id === flash}
-                  onOpen={() => router.push(`/cook/store/product/${product.id}`)}
+                  onOpen={() =>
+                    router.push({
+                      pathname: `/cook/store/product/${product.id}`,
+                      params: { shop: String(store.id) },
+                    })
+                  }
                   onStock={(v) => shop.setStock(product.id, v)}
                   onToggle={() => shop.toggleProduct(product.id)}
                 />

@@ -8,7 +8,7 @@
  */
 import React, { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import CookScreen from '../../../src/components/CookScreen';
 import { Container } from '../../../src/components/Screen';
@@ -41,7 +41,13 @@ export default function StoreCategories() {
   const [editing, setEditing] = useState(null);
   const [note, setNote] = useState(null);
 
-  const store = kitchen ? shop.storeForKitchen(kitchen.id) : null;
+  /* The shop this screen is working on, named by the route's `?shop=`
+     param and defaulting to the kitchen's first — the hub always names one,
+     so the default only covers a link that arrived without it. */
+  const { shop: shopParam } = useLocalSearchParams();
+  const shops = kitchen ? shop.myStores(kitchen.id) : [];
+  const store =
+    shops.find((s) => String(s.id) === String(shopParam)) ?? shops[0] ?? null;
   const categories = store ? shop.categoriesOf(store.id) : [];
 
   const add = async () => {

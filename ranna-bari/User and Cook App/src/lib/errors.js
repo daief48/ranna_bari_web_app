@@ -133,6 +133,8 @@ export function errorText(error, t, n, extra = {}) {
     /* ---- cook stores ---- */
     case 'store-missing':
       return t('That shop is no longer listed.');
+    case 'too-many-stores':
+      return t('That is more shops than one kitchen can run.');
     case 'store-closed':
       return t('This shop is closed right now.');
     case 'product-missing':

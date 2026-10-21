@@ -546,6 +546,12 @@ export async function appRoutes(app: FastifyInstance) {
            pictures — the pending screen offers the documents step until it
            is set. */
         documentsSubmittedAt: kitchen.documentsSubmittedAt ?? null,
+        /* The cook's own payout destination, set from the profile's payout
+           editor and read by the operator on the kitchen page. */
+        payoutMethod: kitchen.payoutMethod ?? '',
+        payoutAccount: kitchen.payoutAccount ?? '',
+        /* When this kitchen joined — the profile card's "member since". */
+        createdAt: kitchen.createdAt ?? null,
         area: kitchen.area,
         lat: kitchen.lat,
         lng: kitchen.lng,
@@ -672,10 +678,22 @@ export async function appRoutes(app: FastifyInstance) {
     if (!cook) return null;
 
     const query = z
-      .object({ take: z.coerce.number().int().positive().max(100).optional() })
+      .object({
+        take: z.coerce.number().int().positive().max(100).optional(),
+        before: z.string().optional(),
+      })
       .parse(request.query ?? {});
 
-    const reviews = await Review.find({ kitchenId: cook.kitchenId, hidden: false })
+    const since =
+      query.before && !Number.isNaN(new Date(query.before).getTime())
+        ? new Date(query.before)
+        : null;
+
+    const reviews = await Review.find({
+      kitchenId: cook.kitchenId,
+      hidden: false,
+      ...(since ? { createdAt: { $lt: since } } : {}),
+    })
       .sort({ createdAt: -1 })
       .limit(query.take ?? 50)
       .lean();
@@ -691,6 +709,10 @@ export async function appRoutes(app: FastifyInstance) {
         text: review.text,
         createdAt: review.createdAt,
       })),
+      cursor:
+        reviews.length === (query.take ?? 50)
+          ? reviews[reviews.length - 1].createdAt
+          : null,
     };
   });
 
@@ -1340,7 +1362,24 @@ export async function appRoutes(app: FastifyInstance) {
   app.get('/orders', async (request, reply) => {
     const caller = await callerOf(request);
     if (!caller) return fail(reply, 'unauthenticated', 401);
-    return { orders: await ordersFor(caller) };
+
+    /* Scroll-back cursor + page size. Capped at 100: the app asks for more
+       as the cook scrolls, so a huge ask is a buggy client, not a power
+       user — and the shaped rows are not cheap to build. */
+    const query = z
+      .object({
+        take: z.coerce.number().int().positive().max(100).optional(),
+        before: z.string().optional(),
+      })
+      .parse(request.query ?? {});
+
+    const orders = await ordersFor(caller, query.take ?? 50, query.before);
+    return {
+      orders,
+      /* The next cursor, or null at the end of history. Absent `more` on
+         legacy callers reads as "one page" — they already had that. */
+      cursor: orders.length === (query.take ?? 50) ? orders[orders.length - 1].createdAt : null,
+    };
   });
 
   /**

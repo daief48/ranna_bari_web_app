@@ -13,9 +13,11 @@
     "typecheck": "tsc --noEmit",
     "seed": "tsx scripts/seed.ts",
     "migrate:sqlite": "tsx scripts/migrate-from-sqlite.ts",
+    "migrate:multi-shop": "tsx scripts/multi-shop-migrate.ts",
     "test": "tsx scripts/check-sessions.ts && vitest run",
     "test:watch": "vitest",
     "seed:local": "tsx scripts/seed-local.ts",
+    "seed:lily": "tsx scripts/seed-lily.ts",
     "check:sessions": "tsx scripts/check-sessions.ts",
     "routes": "tsx scripts/routes.ts",
     "dev:local": "tsx scripts/dev-local.ts"

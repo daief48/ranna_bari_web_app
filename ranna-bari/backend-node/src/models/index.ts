@@ -268,6 +268,19 @@ const kitchenSchema = new Schema(
     /** Stamped when the cook hands in NID photos and kitchen pictures. */
     documentsSubmittedAt: { type: Date, default: null },
 
+    /**
+     * Where the cook's money goes.
+     *
+     * The payout run marks a kitchen paid by a method the *operator* typed,
+     * which meant the destination lived in nobody's records — a cook whose
+     * bKash number changed had no way to say so, and the operator had no
+     * place to look it up. `payoutMethod` is '' | 'bkash' | 'bank';
+     * `payoutAccount` is the number or account the cook wrote. Cook-editable
+     * through `/kitchens/mine`, read by the panel's kitchen page.
+     */
+    payoutMethod: { type: String, default: '' },
+    payoutAccount: { type: String, default: '' },
+
     nextDishSeq: { type: Number, default: 1 },
   },
   opts,
@@ -336,7 +349,11 @@ export const Dish = model('Dish', dishSchema);
 
 const storeSchema = new Schema(
   {
-    kitchenId: { type: String, required: true, unique: true },
+    /* Many shops per kitchen — a cake shop and an achar shop are two
+       storefronts under one cook. The old `unique: true` is gone; existing
+       deployments still carry the unique index, which
+       `scripts/multi-shop-migrate.ts` drops and replaces with the plain one. */
+    kitchenId: { type: String, required: true, index: true },
     name: { type: String, default: '' },
     tagline: { type: String, default: '' },
     description: { type: String, default: '' },

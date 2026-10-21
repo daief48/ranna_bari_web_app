@@ -9,6 +9,7 @@ import Icon from '../../src/components/Icon';
 import Reveal from '../../src/components/Reveal';
 import SectionHeader from '../../src/components/SectionHeader';
 import { EmptyState } from '../../src/components/MealBits';
+import { LoadMoreFooter } from '../../src/lib/useInfinite';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../src/theme/tokens';
 import { useKitchen } from '../../src/store/KitchenContext';
@@ -33,7 +34,18 @@ export default function CookReviewsScreen() {
   const router = useRouter();
   const { t, n } = useLang();
   const { kitchen } = useKitchen();
-  const { reviews, loaded } = useCookReviews();
+  const { reviews, loaded, loadMore } = useCookReviews();
+  const [moreLoading, setMoreLoading] = React.useState(false);
+
+  /* Reviews are cursor-paginated: the footer mounts at the list's end and
+     asks for the next page; `more:false` (rendered as exhausted) stops it. */
+  const [moreDone, setMoreDone] = React.useState(false);
+  const handleMore = React.useCallback(async () => {
+    setMoreLoading(true);
+    const out = await loadMore();
+    setMoreLoading(false);
+    if (out?.more === false) setMoreDone(true);
+  }, [loadMore]);
 
   const spread = useMemo(() => {
     const counts = [0, 0, 0, 0, 0];
@@ -304,6 +316,11 @@ export default function CookReviewsScreen() {
                 'A customer can rate your kitchen once their food has arrived. The first one usually follows your first few deliveries.',
               )}
             />
+          ) : null}
+
+          {/* The rest of the words, on demand — mounting is the trigger. */}
+          {total ? (
+            <LoadMoreFooter onLoad={handleMore} loading={moreLoading} exhausted={moreDone} />
           ) : null}
         </View>
       </Container>

@@ -9,7 +9,7 @@
  * the always-loaded object would buy two requests on every launch for two
  * screens most sessions never open.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { call, hasServer } from '../lib/server';
 import { useSession } from '../store/SessionContext';
@@ -56,15 +56,50 @@ function useCookResource(path, key) {
 }
 
 /**
- * What customers wrote, newest first.
+ * What customers wrote, newest first — with scroll-to-load-more.
  *
  * A cook could read their score and not one word behind it — `rating` and
  * `reviewCount` were on the wire and the reviews were not. A number moving
  * from 4.8 to 4.1 tells them something happened; only the words say what.
+ * The list is cursor-paginated (50 a page); `loadMore` appends the next
+ * page and answers `{ more }` so the footer knows when to stop asking.
  */
 export function useCookReviews() {
   const { data, loaded, busy, reload } = useCookResource('/kitchens/mine/reviews', 'reviews');
-  return { reviews: data, loaded, busy, reload };
+  const { token, getToken } = useSession();
+  const [cursor, setCursor] = useState(undefined);
+  const inflight = useRef(false);
+
+  const loadMore = useCallback(async () => {
+    if (inflight.current || !data.length) return { more: false };
+    const bearer = getToken() || token;
+    if (!bearer || !hasServer) return { more: false };
+    /* `undefined` = the first page is still the whole answer; `null` =
+       history exhausted. Both mean "nothing to ask for". */
+    if (cursor === null) return { more: false };
+    const before =
+      cursor ?? new Date(data[data.length - 1].createdAt ?? Date.now()).toISOString();
+
+    inflight.current = true;
+    try {
+      const out = await call(
+        `/kitchens/mine/reviews?before=${encodeURIComponent(before)}&take=50`,
+        { token: bearer },
+      );
+      if (!out.ok) return null;
+      const page = out.result?.reviews ?? [];
+      const known = new Set(data.map((r) => String(r.id)));
+      const fresh = page.filter((r) => !known.has(String(r.id)));
+      if (fresh.length) setData((prev) => [...prev, ...fresh]);
+      const next = out.result?.cursor ?? null;
+      setCursor(next);
+      return { more: next !== null && fresh.length > 0 };
+    } finally {
+      inflight.current = false;
+    }
+  }, [data, cursor, token, getToken]);
+
+  return { reviews: data, loaded, busy, reload, loadMore };
 }
 
 /**

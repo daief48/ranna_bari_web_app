@@ -122,6 +122,9 @@ type KitchenView = {
     kycDecidedBy: string | null;
     /** When the cook handed in the NID faces and kitchen photographs, if they have. */
     documentsSubmittedAt: Date | string | null;
+    /** Where the cook asked to be paid — set from the app's profile editor. */
+    payoutMethod: string;
+    payoutAccount: string;
     createdAt: Date | string;
     updatedAt: Date | string;
     account: { name: string; phone: string | null; email: string | null; nid: string | null } | null;
@@ -375,6 +378,16 @@ export default async function KitchenDetail({ params }: { params: Promise<{ id: 
               ) : (
                 <span className="text-ink3">none</span>
               )}
+            </span>
+          </Field>
+          {/* Where the cook asked to be paid. Typed by the cook in the app's
+              profile editor; the payout run's "mark paid" should agree with
+              it rather than guessing. */}
+          <Field label="Payout method">
+            <span className="text-right text-[12px] text-ink2">
+              {kitchen.payoutMethod
+                ? `${kitchen.payoutMethod === 'bkash' ? 'bKash' : 'Bank'} · ${kitchen.payoutAccount || '—'}`
+                : 'not set'}
             </span>
           </Field>
 

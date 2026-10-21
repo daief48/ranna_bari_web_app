@@ -112,7 +112,13 @@ travel as data URIs. Local dev: `npm run dev` (port 4000).
 ### Scripts (`backend-node/scripts/`)
 `seed.ts` (full deterministic demo DB — customers, orders, ledger; `npm run
 seed`), `seed-catalog.ts` (catalogue only: kitchens/dishes/stores/products,
-no accounts — safe to rerun), `delete-all-users.ts` (wipe user data, dry-run
+no accounts — safe to rerun), `seed-lily.ts` (one fully-loaded cook —
+**Lily Sweet Kitchen**, `npm run seed:lily`; sign-in lily@rannabari.test /
+lily1234; ~32 orders across a week with lunch/dinner spikes, all pipeline
+stages, held money, meal service + published month menu + today's plates,
+one shop with 5 products, 9 reviews avg 4.2, bkash payout — feeds every
+dashboard chart; idempotent, clears only Lily's own rows),
+`delete-all-users.ts` (wipe user data, dry-run
 default, `--yes` applies; keep-list = reference + admin), `delete-test-cooks.ts`,
 `rm-test-orders.ts`, `check-sessions.ts` (runs before vitest), `seed-meal-demo.ts`,
 `mint-cook-session.ts`. Tests: vitest + mongodb-memory-server (`npm test`).
@@ -131,16 +137,30 @@ Netlify URL; `EXPO_PUBLIC_API_URL` overrides. Realtime: WS to `/ws` for chat.
 - `auth.js` — sign-in (phone OTP) + 3-step signup; `become-cook.js` (cook
   funnel step 1) → `auth?role=cook` → `cook-verify.js` (email OTP) →
   `cook-documents.js` (NID front/back upload) → admin KYC
-- `cook/(panel)/` — cook tabs: **index = Dashboard (right-now tiles, NextUp,
-  7-day trend, top dishes, quick actions), orders, listings (4 catalogues:
-  Menu/Shop/Kitchen/Meal), profile (kitchen card, KYC, earnings, account,
-  log out)**; hidden routes (still served, not in the bar): menu, meals,
-  meal-hub, store, earnings, kitchen. Listing editors: `dish/[id]` and
-  `store/product/[id]` are photo-first sectioned forms with live preview +
-  publish switch; `kitchen-details` is a 4-step wizard (basics → photos →
-  delivery → publish); `meal-hub` carries the service switch and a month
-  calendar grid. `WizardSteps`, `FieldError`, `PublishSwitch` live in
-  `src/components/CookBits.js`
+- `cook/(panel)/` — cook tabs: **index = Dashboard (two-business cards — kitchen
+  and shop, each with its own shutter, mini-stats and a 7-day sparkline —
+  NextUp, week chart (animated WeekBars + order-mix DonutChart), monthly-meals
+  panel with today's progress rail, top dishes, quick actions), orders,
+  listings (4 catalogues: Menu/Shop/Kitchen/Meal), profile (kitchen card with
+  lifetime line + specialty chips + Share, KYC, earnings with inline payout
+  editor, notifications, settings — language/dark mode/customer view, account,
+  support, log out)**; hidden routes (still served, not in the bar):
+  menu, meals, meal-hub, store, earnings, kitchen. Chart kit:
+  `src/components/CookCharts.js` (SVG donut/bars/sparkline/rail/bar-list/
+  segmented-bar/mini-week, animate once on mount). The Profile card's Edit
+  opens `kitchen-details`, a 4-step wizard that edits *every* cook-owned
+  kitchen field: owner name, kitchen name, specialty + multi specialties,
+  description, cover/avatar/gallery, area + exact pin (LocationPicker),
+  radius, open shutter. **Payout destination**: `kitchen.payoutMethod` ('' |
+  'bkash' | 'bank') + `payoutAccount`, cook-edited inline on Profile, shown
+  on the admin kitchen page for payout runs. Listing editors:
+  `dish/[id]` and `store/product/[id]` are photo-first sectioned forms with
+  live preview + publish switch; `meal-hub` carries the service switch and a
+  month calendar grid. **Kitchen and shop are separate businesses**: the shop
+  is born from its own 3-step setup (name → own photos → own delivery terms)
+  and borrows nothing from the kitchen; the only link is ownership
+  (`kitchenId` → same token, same wallet, one KYC). `WizardSteps`,
+  `FieldError`, `PublishSwitch` live in `src/components/CookBits.js`
 - `chat/`, `order/`, `orders.js`, `checkout.js`, `wallet.js`, `stores/`,
   `product/`, `chef/`, `dish/`, `meal-*` (booking/service/order/management),
   `request-order/`, `requests/`, `saved-shops.js`, `edit-profile.js`,
@@ -232,3 +252,15 @@ Static Next.js 16 marketing page (no API). Unrelated to auth flows.
   **Done 2026-10-18:** Dashboard/Profile tabs + all four listing flows
   redesigned per the brief (see Routing map above). Untested on device —
   worth a smoke pass in Expo before calling it shipped.
+  **Done 2026-10-20 (plan 1 of the kitchen/shop split):** shop setup fully
+  decoupled from the kitchen (own name/photos/area/fee, 3 steps) and the
+  dashboard now shows two business cards side by side, each with its own
+  shutter. **Done 2026-10-20 (plan 2):** a kitchen owns a *set* of shops
+  (cap 5). The `unique` index on `stores.kitchenId` is gone from the schema —
+  existing deployments must run `npm run migrate:multi-shop` once to drop it
+  in Atlas. `/stores/mine` POST creates (no `storeId`) or updates (`storeId`
+  in body); every shop write names its store and ownership is enforced in
+  the query (`_id` + `kitchenId`). The shop hub has switcher chips and every
+  child screen resolves its shop from `?shop=`; dashboard, orders board and
+  listings aggregate across shops. Untested on device — smoke pass in Expo
+  before calling either plan shipped.

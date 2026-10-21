@@ -2804,4 +2804,155 @@ export const bn = {
   'Your kitchen is suspended': 'আপনার রান্নাঘর সাময়িকভাবে বন্ধ',
   'Nobody can order from your kitchen while this lasts, and you cannot list food or take orders. Money already held against your finished orders is safe and still yours.':
     'যতদিন এই অবস্থা থাকবে, কেউ আপনার রান্নাঘর থেকে অর্ডার করতে পারবে না, আর আপনিও খাবার দিতে বা অর্ডার নিতে পারবেন না। আপনার রান্না করা অর্ডারের জমা টাকা নিরাপদ এবং সেটা আপনারই থাকবে।',
+
+  /* ---------------- plan 1: two separate businesses ---------------- */
+  'Your businesses': 'আপনার ব্যবসা',
+  'Shop: {n} pre-orders to confirm': 'দোকান: {n}টি প্রি-অর্ডার নিশ্চিত করার মতো',
+  'Shop: {n} products are out of stock': 'দোকান: {n}টি পণ্যের স্টক শেষ',
+  'Add a logo and a cover — this shop needs its own face.':
+    'একটা লোগো আর কভার দিন — এই দোকানের নিজের চেহারা দরকার।',
+  "A second business under the same roof: its own name, its own photos, its own delivery terms. It never borrows the kitchen's.":
+    'একই চালের নিচে আরেকটা ব্যবসা: নিজের নাম, নিজের ছবি, নিজের ডেলিভারির নিয়ম। রান্নাঘর থেকে কিছুই ধার নেবে না।',
+  'What customers will call this shop': 'ক্রেতারা এই দোকানকে যে নামে ডাকবে',
+  'One line on what this shop sells': 'এই দোকান কী বেচে, এক লাইনে',
+  'Shop logo': 'দোকানের লোগো',
+  'The round picture customers see': 'ক্রেতারা যে গোল ছবিটা দেখবে',
+  'How far this shop will deliver.': 'এই দোকান কত দূর পণ্য পৌঁছাবে।',
+
+  /* ---------------- plan 2: multiple shops per kitchen ---------------- */
+  'New shop': 'নতুন দোকান',
+  '{n} shops': '{n}টি দোকান',
+  'All {n} shops are closed': '{n}টা দোকানই বন্ধ আছে',
+  '{n} shops · {m} products on sale': '{n}টি দোকান · {m}টি পণ্য বিক্রিতে',
+  'That is more shops than one kitchen can run.':
+    'একটা রান্নাঘর এর চেয়ে বেশি দোকান চালাতে পারে না।',
+
+  /* ---------------- orders board (older gaps) ---------------- */
+  '{c} cooking, {d} out for delivery.': '{c}টা রান্নায়, {d}টা ডেলিভারিতে।',
+  'Nothing in the kitchen right now.': 'এই মুহূর্তে রান্নাঘরে কিছু নেই।',
+  '{n} orders need you — answer or pack them.':
+    '{n}টি অর্ডার আপনার অপেক্ষায় — উত্তর দিন বা প্যাক করুন।',
+  'Shop orders are moving. Nothing is stuck.': 'দোকানের অর্ডারগুলো চলছে। কোনোটাই আটকে নেই।',
+  'No shop orders yet.': 'এখনো দোকানের কোনো অর্ডার নেই।',
+  '{n} plates to hand over on {date}.': '{date} তারিখে হাতে দেওয়ার মতো {n}টি প্লেট।',
+  'No plates booked for {date}.': '{date} তারিখের জন্য কোনো প্লেট বুক হয়নি।',
+  Board: 'বোর্ড',
+  'No menu orders': 'কোনো মেনু অর্ডার নেই',
+  'Try another lane.': 'অন্য লেন দেখুন।',
+  'A shop sells the things you make to keep. Open one and its orders land here.':
+    'দোকান আপনার বানিয়ে রাখা জিনিস বেচে। খুললেই এখানে তার অর্ডার আসবে।',
+  'Copy order ID {code}': 'অর্ডার আইডি {code} কপি করুন',
+  'Order ID:': 'অর্ডার আইডি:',
+  THE: '',
+  'Where your food is cooked.': 'আপনার খাবার যেখানে রান্না হয়।',
+  'Add {name} to cart': '{name} কার্টে যোগ করুন',
+  'Photos of this kitchen': 'এই রান্নাঘরের ছবিগুলো',
+  'A photo of this kitchen': 'এই রান্নাঘরের একটা ছবি',
+
+  /* ---------------- dashboard charts + informative cards ---------------- */
+  orders: 'অর্ডার',
+  'Menu dishes': 'মেনুর পদ',
+  'Shop goods': 'দোকানের পণ্য',
+  'Month’s plates': 'মাসের প্লেট',
+  'Open the hub': 'হাব খুলুন',
+  'meals set': 'মিল সেট',
+  'No menu published for this month — bookings are closed.':
+    'এই মাসের মেনু প্রকাশিত নয় — বুকিং বন্ধ।',
+  'Today’s plates': 'আজকের প্লেট',
+  '{done} of {total} handed over': '{total} এর মধ্যে {done}টা হাতে দেওয়া হয়েছে',
+  'None booked': 'কোনো বুকিং নেই',
+  'Next cooking day {date}': 'পরের রান্নার দিন {date}',
+  'Not started yet — set a category and a rate to open a month of cooking':
+    'এখনো শুরু হয়নি — ক্যাটাগরি আর রেট ঠিক করে এক মাসের রান্না খুলুন',
+  'In the pass': 'রান্নায় ও পথে',
+  'Today’s pipeline': 'আজকের অর্ডারের অবস্থা',
+  Done: 'সম্পন্ন',
+  '{area} · {state}': '{area} · {state}',
+  '{n} shops · {state}': '{n}টি দোকান · {state}',
+  'A second business — cakes, pitha, achar, anything that keeps':
+    'একই চালের নিচে আরেকটা ব্যবসা — কেক, পিঠা, আচার, যা জমিয়ে রাখা যায়',
+
+  /* ---------------- kitchen full editor ---------------- */
+  'Your name': 'আপনার নাম',
+  'The name customers greet': 'ক্রেতারা যে নামে সম্বোধন করবে',
+  'Signs your replies, reviews and the greeting on your page.':
+    'আপনার উত্তর, রিভিউ আর পেজের শুভেচ্ছায় এই নামই থাকবে।',
+  'You also cook': 'আরও যা রান্না করেন',
+  'Exact location': 'ঠিক অবস্থান',
+  'Using the area above. Move the pin to set the exact spot.':
+    'উপরের এলাকাই ব্যবহার হচ্ছে। ঠিক জায়গা বসাতে পিন সরান।',
+
+  /* ---------------- profile additions ---------------- */
+  Share: 'শেয়ার',
+  'See {name} on RannaBari': 'রান্নাবাড়িতে {name} দেখুন',
+  'Since {when} · {n} orders delivered': '{when} থেকে · {n}টি অর্ডার ডেলিভারি',
+  'Submitted {when} · tap to review what we hold.':
+    'জমা হয়েছে {when} · যা আছে দেখতে ট্যাপ করুন।',
+  'Payout method': 'পেআউট মাধ্যম',
+  '{method} · ····{last4}': '{method} · ····{last4}',
+  'Pick bKash or bank first.': 'আগে বিকাশ বা ব্যাংক বাছুন।',
+  'Write the number or account the money should go to.':
+    'যে নম্বর বা অ্যাকাউন্টে টাকা যাবে সেটা লিখুন।',
+  bKash: 'বিকাশ',
+  Bank: 'ব্যাংক',
+  'Not set — where should your money go?': 'সেট নেই — টাকা কোথায় পাঠাব?',
+  'Account number': 'অ্যাকাউন্ট নম্বর',
+  'bKash number': 'বিকাশ নম্বর',
+  'The account payouts land in': 'পেআউট যে অ্যাকাউন্টে আসবে',
+  'The app, your way.': 'অ্যাপ, আপনার নিয়মে।',
+  Language: 'ভাষা',
+  'Dark mode': 'ডার্ক মোড',
+  'On — the kitchen at night': 'চালু — রাতের রান্নাঘর',
+  'Off — washi paper light': 'বন্ধ — কাগজের আলো',
+  'Customer view': 'ক্রেতার দৃশ্য',
+
+  /* ---------------- business breakdown panels ---------------- */
+  'Business breakdown': 'ব্যবসার হিসাব',
+  '{n} orders this week': 'এই সপ্তাহে {n}টি অর্ডার',
+  earned: 'আয়',
+  Out: 'শেষ',
+  '{n} products on the shelves': 'তাকে {n}টি পণ্য',
+  '{n} meals set': '{n}টি মিল সেট',
+
+  /* ---------------- week hero + new charts ---------------- */
+  'This week’s earnings': 'এই সপ্তাহের আয়',
+  '{n} orders · {d} delivered money': '{n}টি অর্ডার · {d}টির টাকা ডেলিভারিতে',
+  'Each bar is the day’s earnings, cut by business.':
+    'প্রতিটা বার সেই দিনের আয় — ব্যবসা অনুযায়ী ভাগ করা।',
+  'When orders arrive': 'কখন অর্ডার আসে',
+  'Last 7 days, by part of day': 'শেষ ৭ দিন, দিনের অংশ অনুযায়ী',
+  'handed over': 'হাতে দেওয়া',
+
+  /* ---------------- profile businesses menu ---------------- */
+  BUSINESSES: 'ব্যবসাসমূহ',
+  'Tap one to see everything set up behind it.':
+    'যেটার পেছনে কী সব সেট আছে দেখতে ট্যাপ করুন।',
+  'Closed · {n} dishes listed': 'বন্ধ · {n}টি পদ তালিকায়',
+  '{live} of {total} live': '{total}টির মধ্যে {live}টি লাইভ',
+  '{score} · {n} reviews': '{score} · {n}টি রিভিউ',
+  Status: 'অবস্থা',
+  'Edit details': 'বিবরণ সম্পাদনা',
+  'Open · ৳{rate} a meal': 'খোলা · প্রতি মিল ৳{rate}',
+  'Set up, not switched on': 'সেট আছে, চালু নয়',
+  Rate: 'রেট',
+  'Not published': 'প্রকাশিত নয়',
+  'No meal service yet — set a category and a rate to open a month of cooking.':
+    'এখনো মিল সেবা নেই — ক্যাটাগরি আর রেট ঠিক করে এক মাসের রান্না খুলুন।',
+  'Start a meal service': 'মিল সেবা শুরু করুন',
+  'Not opened yet': 'এখনো খোলা হয়নি',
+  'Open · {n} products': 'খোলা · {n}টি পণ্য',
+  '{n} shops · closed': '{n}টি দোকান · বন্ধ',
+  'Closed · {n} products': 'বন্ধ · {n}টি পণ্য',
+  '{n} on sale · {m} out of stock': '{n}টি বিক্রিতে · {m}টি স্টক শেষ',
+  '৳{n} fee · free over ৳{m}': '৳{n} ফি · ৳{m}-এর উপরে ফ্রি',
+  'Open the shop hub': 'দোকান হাব খুলুন',
+  'A second business — cakes, pitha, achar, anything that keeps.':
+    'একই চালের নিচে আরেকটা ব্যবসা — কেক, পিঠা, আচার, যা জমিয়ে রাখা যায়।',
+  '{pct}% vs last week': 'গত সপ্তাহের চেয়ে {pct}%',
+  '{n} new orders — view now': '{n}টি নতুন অর্ডার — এখনই দেখুন',
+  'This lane is worth ৳{n} to you.': 'এই লেনটা আপনার জন্য ৳{n}-এর কাজ।',
+  'Search code, customer or dish': 'কোড, ক্রেতা বা পদ দিয়ে খুঁজুন',
+  'Show 30 more': 'আরও ৩০টি দেখুন',
+  'Show more': 'আরও দেখুন',
+  order: 'অর্ডার',
 };

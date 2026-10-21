@@ -45,9 +45,13 @@ export default function ListingsScreen() {
   const dishes = kitchen?.dishes ?? [];
   const live = dishes.filter((d) => d.available !== false).length;
 
-  const store = kitchen ? shop.storeForKitchen(kitchen.id) : null;
-  const products = store ? shop.productsOf(store.id) : [];
-  const onSale = products.filter((p) => p.active !== false).length;
+  /* The kitchen's shops — one, or several; the row says which and sums what
+     is on sale across all of them. */
+  const shops = kitchen ? shop.myStores(kitchen.id) : [];
+  const onSale = shops.reduce(
+    (sum, s) => sum + shop.productsOf(s.id).filter((p) => p.active !== false).length,
+    0,
+  );
 
   /*
    * The state of each meal row, not a description of it.
@@ -128,9 +132,14 @@ export default function ListingsScreen() {
               icon="box"
               title={t('Shop')}
               sub={
-                store
-                  ? t('{n} products on sale', { n: n(onSale) })
-                  : t('You have not opened a shop yet')
+                shops.length === 0
+                  ? t('You have not opened a shop yet')
+                  : shops.length === 1
+                    ? t('{n} products on sale', { n: n(onSale) })
+                    : t('{n} shops · {m} products on sale', {
+                        n: n(shops.length),
+                        m: n(onSale),
+                      })
               }
               onPress={() => router.push('/cook/store')}
             />

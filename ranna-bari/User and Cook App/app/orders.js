@@ -18,6 +18,8 @@ import {
   useOrders,
 } from '../src/store/OrdersContext';
 import { ORDER_FLOW } from '../src/lib/ledger';
+import { LoadMoreFooter } from '../src/lib/useInfinite';
+import { useCommerce } from '../src/store/CommerceContext';
 import { useLang } from '../src/i18n/LanguageContext';
 
 /**
@@ -68,7 +70,17 @@ export default function OrdersScreen() {
   const { colors, shadow } = useTheme();
   const router = useRouter();
   const { orders, hydrated } = useOrders();
+  const { loadMoreOrders, ordersCursor } = useCommerce();
+  const [moreLoading, setMoreLoading] = React.useState(false);
   const { t, n, lang } = useLang();
+
+  /* The footer mounts when the list's end scrolls into view; its press
+     fallback covers a swallowed mount. `more:false` stops the asking. */
+  const loadMore = React.useCallback(async () => {
+    setMoreLoading(true);
+    await loadMoreOrders();
+    setMoreLoading(false);
+  }, [loadMoreOrders]);
 
   return (
     <Screen glow="both">
@@ -307,6 +319,13 @@ export default function OrdersScreen() {
                 </Reveal>
               );
             })}
+
+            {/* History continues below — mounting is the trigger. */}
+            <LoadMoreFooter
+              onLoad={loadMore}
+              loading={moreLoading}
+              exhausted={ordersCursor === null}
+            />
           </View>
         )}
       </Container>

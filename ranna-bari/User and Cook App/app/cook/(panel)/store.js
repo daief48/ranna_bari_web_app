@@ -11,8 +11,14 @@
  */
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
+
+import { toStorableImage } from '../../../src/lib/pickedImage';
+import { KNOWN_AREAS, normaliseArea } from '../../../src/lib/areas';
 
 import CookScreen from '../../../src/components/CookScreen';
 import { Container } from '../../../src/components/Screen';
@@ -21,12 +27,17 @@ import Reveal from '../../../src/components/Reveal';
 import Button from '../../../src/components/Button';
 import SectionHeader from '../../../src/components/SectionHeader';
 import FloatLabelInput from '../../../src/components/FloatLabelInput';
-import { ActionRow, FieldError, WizardSteps } from '../../../src/components/CookBits';
+import {
+  ActionRow,
+  FieldError,
+  RadiusSlider,
+  WizardSteps,
+} from '../../../src/components/CookBits';
 import { CountTile, EmptyState } from '../../../src/components/MealBits';
 import { BlockLabel } from '../../../src/components/StoreBits';
 import { Body } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
-import { font, radius, type } from '../../../src/theme/tokens';
+import { font, radius, tracking, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useAction } from '../../../src/components/Alert';
@@ -41,13 +52,22 @@ export default function CookStoreHub() {
   const { kitchen } = useKitchen();
   const shop = useCommerce();
 
-  const store = kitchen ? shop.storeForKitchen(kitchen.id) : null;
+  /* Every shop this kitchen owns, and the one the hub is looking at.
+     The route's `?shop=` param carries the choice in from the dashboard and
+     the listings rows; inside the hub the switcher chips keep it. */
+  const { shop: shopParam } = useLocalSearchParams();
+  const shops = kitchen ? shop.myStores(kitchen.id) : [];
+  const store =
+    shopParam === 'new'
+      ? null
+      : shops.find((s) => String(s.id) === String(shopParam)) ?? shops[0] ?? null;
 
-  /* No shop yet: a two-step setup, not a single blind button. The old flow
-     opened the shop silently with borrowed values and dropped the cook into
-     settings — the shop existed before they had said anything about it. Two
-     screens, four fields, and the cook has said what it is called and what
-     delivery costs by the time it exists. */
+  /* No shop yet — none at all, or the switcher asked for a new one: a
+     three-step setup, not a single blind button. The old flow opened the
+     shop silently with borrowed values and dropped the cook into settings —
+     the shop existed before they had said anything about it. The cook says
+     what it is called, what it looks like and what delivery costs by the
+     time it exists. */
   if (!store) {
     return (
       <CookScreen>
@@ -66,6 +86,11 @@ export default function CookStoreHub() {
 
   const view = shop.storeOverview(store);
 
+  /* Each row below works on one shop, so the screens it opens have to know
+     which — the param travels with every push. */
+  const withShop = (path) =>
+    router.push({ pathname: path, params: { shop: String(store.id) } });
+
   return (
     <CookScreen>
       <Container>
@@ -80,6 +105,93 @@ export default function CookStoreHub() {
               : t('{name} is closed. Nothing can be bought.', { name: store.name })
           }
         />
+
+        {/* ---- the switcher ----
+            One kitchen, several shops: this row is how the hub says which
+            one is open underneath. Hidden when there is only one — a
+            switcher with a single choice is chrome, not navigation. */}
+        {shops.length > 1 ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              gap: 8,
+              marginBottom: 18,
+            }}
+          >
+            {shops.map((s) => {
+              const on = String(s.id) === String(store.id);
+              return (
+                <Pressable
+                  key={String(s.id)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: on }}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    router.setParams({ shop: String(s.id) });
+                  }}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                    paddingVertical: 9,
+                    paddingHorizontal: 14,
+                    borderRadius: radius.pill,
+                    backgroundColor: on ? colors.sage : colors.surfaceSolid,
+                    borderWidth: 1,
+                    borderColor: on ? colors.sage : colors.line,
+                    transform: [{ scale: pressed ? 0.97 : 1 }],
+                  })}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      maxWidth: 130,
+                      fontFamily: on ? font.uiBold : font.uiSemi,
+                      fontSize: 13,
+                      color: on ? '#FFFFFF' : colors.text,
+                    }}
+                  >
+                    {s.name || t('Shop')}
+                  </Text>
+                </Pressable>
+              );
+            })}
+            {/* Opening yet another shop reuses the setup flow — the same
+                three steps, starting empty. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('New shop')}
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+                router.setParams({ shop: 'new' });
+              }}
+              style={({ pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                paddingVertical: 9,
+                paddingHorizontal: 14,
+                borderRadius: radius.pill,
+                borderWidth: 1,
+                borderStyle: 'dashed',
+                borderColor: pressed ? colors.sage : colors.line,
+                backgroundColor: pressed ? colors.sage50 : 'transparent',
+              })}
+            >
+              <Icon name="plus" size={13} color={colors.sage} strokeWidth={2.4} />
+              <Text
+                style={{
+                  fontFamily: font.uiSemi,
+                  fontSize: 13,
+                  color: colors.sage,
+                }}
+              >
+                {t('New shop')}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* ---- the shutter ---- */}
         <Reveal delay={1}>
@@ -199,7 +311,7 @@ export default function CookStoreHub() {
             tone="primary"
             title={t('Add a product')}
             sub={t('Name, price, stock and photos')}
-            onPress={() => router.push('/cook/store/product/new')}
+            onPress={() => withShop('/cook/store/product/new')}
           />
           <ActionRow
             icon="box"
@@ -208,13 +320,13 @@ export default function CookStoreHub() {
               n: n(view.products),
               out: n(view.outOfStock),
             })}
-            onPress={() => router.push('/cook/store/products')}
+            onPress={() => withShop('/cook/store/products')}
           />
           <ActionRow
             icon="sliders"
             title={t('Categories')}
             sub={t('{n} categories, in your own order', { n: n(view.categories) })}
-            onPress={() => router.push('/cook/store/categories')}
+            onPress={() => withShop('/cook/store/categories')}
           />
           <ActionRow
             icon="clock"
@@ -225,19 +337,19 @@ export default function CookStoreHub() {
                 ? t('{n} waiting for your answer', { n: n(view.pendingPreorders) })
                 : t('Nothing waiting')
             }
-            onPress={() => router.push('/cook/store/preorders')}
+            onPress={() => withShop('/cook/store/preorders')}
           />
           <ActionRow
             icon="receipt"
             title={t('Shop orders')}
             sub={t('{n} in progress', { n: n(view.activeOrders) })}
-            onPress={() => router.push('/cook/store/orders')}
+            onPress={() => withShop('/cook/store/orders')}
           />
           <ActionRow
             icon="chefHat"
             title={t('Shop settings')}
             sub={t('Name, photos, delivery and contact')}
-            onPress={() => router.push('/cook/store/settings')}
+            onPress={() => withShop('/cook/store/settings')}
           />
           <ActionRow
             icon="eye"
@@ -317,14 +429,18 @@ function Money({ label, amount, tone }) {
 }
 
 /**
- * The two steps between "no shop" and "a shop".
+ * The steps between "no shop" and "a shop" — with nothing borrowed.
  *
- * Step one names it; step two prices delivery. Everything else — the logo,
- * the cover, the location — is borrowed from the kitchen, which already
- * knows it, and can be changed in settings afterwards. Four fields is what
- * stands between a cook and a storefront, and the wizard says so: the count
- * is visible, the fields are the work, and nothing is invented on their
- * behalf.
+ * The shop is the cook's *second* business, not an annex of the first: it is
+ * born with its own name, its own photographs and its own delivery terms.
+ * Nothing here reads the kitchen — an earlier flow prefilled the kitchen's
+ * name, logo, cover, area and radius, which silently made every new shop a
+ * copy of the kitchen it sat beside. Three steps, all the cook's own words
+ * and pictures, and the storefront belongs to the shop alone.
+ *
+ * The one link that remains is ownership — the shop is created against the
+ * cook's kitchen, which is what lets the same token edit it and sends its
+ * money to the same wallet. That is a fact about the ledger, not the brand.
  */
 function StoreSetup({ kitchen }) {
   const { colors, shadow } = useTheme();
@@ -334,25 +450,69 @@ function StoreSetup({ kitchen }) {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
+  /* Per-photo note — the wait while a picture is resized, and the failure
+     if it cannot be read. */
+  const [photoNote, setPhotoNote] = useState('');
 
-  /* A shop on the same street as its kitchen, until the cook says otherwise. */
-  const [name, setName] = useState(kitchen?.name ?? '');
+  /* Every field starts empty. The kitchen's values are one tap away in
+     settings if the cook wants them; starting identical to the kitchen is
+     the one thing this flow must not do. */
+  const [name, setName] = useState('');
   const [tagline, setTagline] = useState('');
+  const [logo, setLogo] = useState('');
+  const [cover, setCover] = useState('');
+  const [area, setArea] = useState('');
+  const [radiusKm, setRadiusKm] = useState(3);
   const [fee, setFee] = useState('0');
   const [freeOver, setFreeOver] = useState('');
 
-  const STEPS = [t('The storefront'), t('Delivery')];
+  const STEPS = [t('The storefront'), t('Photos'), t('Delivery')];
+
+  /* ---- photograph picking ----
+     Same rule as everywhere else in the panel: a stored picture is kept as
+     it is, a fresh pick is resized to the role it will live at, so the tile
+     always shows exactly what will be posted. */
+  const pickPhoto = async (role) => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      setPhotoNote(t('RannaBari needs photo access to set a product photo.'));
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: role === 'cover' ? [3, 1] : [1, 1],
+      quality: 0.6,
+      base64: true,
+    });
+    if (res.canceled || !res.assets?.[0]) return;
+
+    setPhotoNote('');
+    const stored = await toStorableImage(res.assets[0], role);
+    if (!stored) {
+      setPhotoNote(t('That photo could not be read. Please try another.'));
+      return;
+    }
+    if (role === 'cover') setCover(stored);
+    else setLogo(stored);
+    Haptics.selectionAsync().catch(() => {});
+  };
 
   const next = () => {
-    if (step === 0) {
-      if (!name.trim()) {
-        setErrors({ name: t('Give the shop a name.') });
-        return;
-      }
-      setErrors({});
+    if (step === 0 && !name.trim()) {
+      setErrors({ name: t('Give the shop a name.') });
+      return;
     }
+    /* The shop's own face, both pieces. A logo without a banner reads half
+       dressed in the directory, and this is the one moment asking for both
+       costs nothing. */
+    if (step === 1 && (!logo || !cover)) {
+      setErrors({ photos: t('Add a logo and a cover — this shop needs its own face.') });
+      return;
+    }
+    setErrors({});
     Haptics.selectionAsync().catch(() => {});
-    setStep(1);
+    setStep((s) => s + 1);
   };
 
   const open = async () => {
@@ -371,12 +531,10 @@ function StoreSetup({ kitchen }) {
     const out = await shop.saveStore(kitchen.id, {
       name: name.trim(),
       tagline: tagline.trim(),
-      logo: kitchen.avatar,
-      cover: kitchen.coverImage,
-      area: kitchen.area,
-      lat: kitchen.lat,
-      lng: kitchen.lng,
-      deliveryRadiusKm: kitchen.deliveryRadiusKm,
+      logo,
+      cover,
+      area: area ? normaliseArea(area) : '',
+      deliveryRadiusKm: radiusKm,
       deliveryFee: Math.max(0, Math.round(feeValue)),
       freeDeliveryOver: freeOver.trim() ? Math.round(overValue) : null,
     });
@@ -388,8 +546,8 @@ function StoreSetup({ kitchen }) {
     }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    /* Straight into settings, where the photographs are — the one thing the
-       borrowed kitchen values cannot already be right about. */
+    /* Straight into settings, where the finer details live — the shop now
+       exists on its own terms. */
     router.push('/cook/store/settings');
   };
 
@@ -402,11 +560,12 @@ function StoreSetup({ kitchen }) {
           icon="box"
           title={t('You have not opened a shop yet')}
           body={t(
-            'A shop is your own storefront: your categories, your products, your stock. It sits alongside your kitchen, not instead of it.',
+            'A second business under the same roof: its own name, its own photos, its own delivery terms. It never borrows the kitchen\'s.',
           )}
         />
       </Reveal>
 
+      {/* ---- step 1 · identity ---- */}
       {step === 0 ? (
         <Reveal delay={2}>
           <View style={{ marginTop: 20 }}>
@@ -417,7 +576,7 @@ function StoreSetup({ kitchen }) {
                 setName(v);
                 setErrors({});
               }}
-              placeholder={t('What customers see on the map')}
+              placeholder={t('What customers will call this shop')}
             />
             <FieldError text={errors.name} />
 
@@ -425,7 +584,7 @@ function StoreSetup({ kitchen }) {
               label={t('Tagline (optional)')}
               value={tagline}
               onChangeText={setTagline}
-              placeholder={t('One line on what you make and keep')}
+              placeholder={t('One line on what this shop sells')}
             />
 
             <Button
@@ -437,11 +596,232 @@ function StoreSetup({ kitchen }) {
             />
           </View>
         </Reveal>
-      ) : (
+      ) : null}
+
+      {/* ---- step 2 · the shop's own face ---- */}
+      {step === 1 ? (
         <Reveal delay={2}>
           <View style={{ marginTop: 20 }}>
-            <Body muted size={13.5} style={{ marginBottom: 16 }}>
-              {t('Two numbers, and delivery is priced. You can change both later.')}
+            {photoNote ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 14,
+                  padding: 12,
+                  borderRadius: radius.sm,
+                  backgroundColor: colors.primary50,
+                  borderWidth: 1,
+                  borderColor: colors.primary100,
+                }}
+              >
+                <Icon name="alertCircle" size={15} color={colors.primary} />
+                <Text
+                  style={{
+                    flex: 1,
+                    fontFamily: font.ui,
+                    fontSize: type.sm,
+                    color: colors.text,
+                  }}
+                >
+                  {photoNote}
+                </Text>
+              </View>
+            ) : null}
+            <FieldError text={errors.photos} />
+
+            {/* The cover — the banner the directory and the shop page lead
+                with. Cropped 3:1, the exact shape it will be shown in. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={cover ? t('Change cover') : t('Add a cover')}
+              onPress={() => pickPhoto('cover')}
+              style={({ pressed }) => [
+                {
+                  height: 130,
+                  borderRadius: radius.lg,
+                  overflow: 'hidden',
+                  borderWidth: 1,
+                  borderColor: colors.line,
+                  opacity: pressed ? 0.94 : 1,
+                },
+                shadow.sm,
+              ]}
+            >
+              <Image
+                source={cover ? { uri: cover } : null}
+                contentFit="cover"
+                transition={200}
+                style={{ width: '100%', height: '100%', backgroundColor: colors.sunken }}
+              />
+              <LinearGradient
+                colors={['transparent', `rgba(${colors.scrim}, 0.55)`]}
+                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+              />
+              <View
+                style={{
+                  position: 'absolute',
+                  left: 14,
+                  bottom: 14,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  paddingVertical: 8,
+                  paddingHorizontal: 13,
+                  borderRadius: radius.pill,
+                  backgroundColor: 'rgba(255, 255, 255, 0.22)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(255, 255, 255, 0.3)',
+                }}
+              >
+                <Icon name="gem" size={13} color={colors.onDark} />
+                <Text
+                  style={{
+                    fontFamily: font.uiBold,
+                    fontSize: 9.5,
+                    letterSpacing: 0.8,
+                    textTransform: 'uppercase',
+                    color: colors.onDark,
+                  }}
+                >
+                  {cover ? t('Change cover') : t('Add a cover')}
+                </Text>
+              </View>
+            </Pressable>
+
+            {/* The logo — the round face that rides shop cards and chat. */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 16,
+                marginTop: 14,
+              }}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('Add a photo')}
+                onPress={() => pickPhoto('avatar')}
+              >
+                <Image
+                  source={logo ? { uri: logo } : null}
+                  contentFit="cover"
+                  transition={200}
+                  style={{
+                    width: 84,
+                    height: 84,
+                    borderRadius: 28,
+                    borderWidth: 1,
+                    borderColor: colors.line,
+                    backgroundColor: colors.sunken,
+                  }}
+                />
+                <View
+                  style={{
+                    position: 'absolute',
+                    right: -2,
+                    bottom: -2,
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.sage,
+                    borderWidth: 2,
+                    borderColor: colors.surfaceSolid,
+                  }}
+                >
+                  <Icon name="plus" size={13} color="#FFFFFF" strokeWidth={2.4} />
+                </View>
+              </Pressable>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text
+                  style={{
+                    fontFamily: font.uiSemi,
+                    fontSize: type.sm,
+                    color: colors.text,
+                  }}
+                >
+                  {t('Shop logo')}
+                </Text>
+                <Text
+                  style={{
+                    marginTop: 2,
+                    fontFamily: font.ui,
+                    fontSize: type.xs,
+                    lineHeight: 17,
+                    color: colors.textMuted,
+                  }}
+                >
+                  {t('The round picture customers see')}
+                </Text>
+              </View>
+            </View>
+
+            <Button
+              label={t('Continue')}
+              icon="arrowRight"
+              block
+              onPress={next}
+              style={{ marginTop: 22 }}
+            />
+          </View>
+        </Reveal>
+      ) : null}
+
+      {/* ---- step 3 · delivery, on the shop's own terms ---- */}
+      {step === 2 ? (
+        <Reveal delay={2}>
+          <View style={{ marginTop: 20 }}>
+            <Text
+              style={{
+                fontFamily: font.uiSemi,
+                fontSize: type.micro,
+                letterSpacing: type.micro * tracking.label,
+                textTransform: 'uppercase',
+                color: colors.textMuted,
+                marginBottom: 12,
+              }}
+            >
+              {t('Your area')}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+              {Array.from(new Set([area, ...KNOWN_AREAS].filter(Boolean))).map((a) => {
+                const on = area === a;
+                return (
+                  <Pressable
+                    key={a}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    onPress={() => setArea(a)}
+                    style={({ pressed }) => ({
+                      paddingVertical: 9,
+                      paddingHorizontal: 14,
+                      borderRadius: radius.pill,
+                      backgroundColor: on ? colors.sage : colors.surfaceSolid,
+                      borderWidth: 1,
+                      borderColor: on ? colors.sage : colors.line,
+                      transform: [{ scale: pressed ? 0.96 : 1 }],
+                    })}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: on ? font.uiBold : font.uiSemi,
+                        fontSize: 13,
+                        color: on ? '#FFFFFF' : colors.textMuted,
+                      }}
+                    >
+                      {a}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <RadiusSlider value={radiusKm} onChange={setRadiusKm} />
+            <Body muted size={13} style={{ marginTop: 4, marginBottom: 18 }}>
+              {t('How far this shop will deliver.')}
             </Body>
 
             <FloatLabelInput
@@ -469,23 +849,26 @@ function StoreSetup({ kitchen }) {
 
             {errors.form ? <FieldError text={errors.form} /> : null}
 
-            <Button
-              label={saving ? t('Opening…') : t('Open your shop')}
-              icon={saving ? undefined : 'check'}
-              block
-              disabled={saving || !kitchen}
-              onPress={open}
-            />
-            <Button
-              variant="ghost"
-              label={t('Back')}
-              block
-              onPress={() => setStep(0)}
-              style={{ marginTop: 10 }}
-            />
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+              <Button
+                variant="glass"
+                label={t('Back')}
+                icon="arrowLeft"
+                iconPosition="left"
+                style={{ flex: 1 }}
+                onPress={() => setStep(1)}
+              />
+              <Button
+                label={saving ? t('Opening…') : t('Open your shop')}
+                icon={saving ? undefined : 'check'}
+                style={{ flex: 2 }}
+                disabled={saving || !kitchen}
+                onPress={open}
+              />
+            </View>
           </View>
         </Reveal>
-      )}
+      ) : null}
     </View>
   );
 }

@@ -239,38 +239,83 @@ function storeFields(patch: StorePatch): Record<string, unknown> {
   return out;
 }
 
+/** Every shop this kitchen owns, in creation order. */
+export function storesForKitchen(kitchenId: string, session?: ClientSession) {
+  return Store.find({ kitchenId: String(kitchenId) })
+    .sort({ createdAt: 1 })
+    .session(session ?? null)
+    .lean();
+}
+
 /**
- * Create or update the kitchen's store.
+ * How many shops one kitchen may open.
  *
- * One store per kitchen: the storefront *is* the kitchen's shop window, and a
- * cook with two of them would be two sellers wearing one name. The app kept
- * that true by looking first; here the unique index on `kitchenId` keeps it
- * true even when two devices save at once, which is why this is one upsert
- * rather than a find and a create.
+ * Not a product decision the data needs — a cap is what stops a runaway loop
+ * in a buggy client from filling the directory with empty storefronts. Five
+ * is more than any real cook runs and small enough that the dashboard's
+ * aggregate reads stay one cheap query.
+ */
+export const STORES_PER_KITCHEN = 5;
+
+/**
+ * Create a shop, or update one the kitchen already owns.
+ *
+ * Two verbs that used to be one upsert. The old save created *the* kitchen's
+ * store when there was none and updated it otherwise — correct under
+ * one-shop-per-kitchen, ambiguous the moment a second shop exists: "save" no
+ * longer says which row it means. Now the caller says:
+ *
+ *   - `storeId` present → update that row, and only if this kitchen owns it.
+ *     A foreign storeId is not an error leak — it reads as NO_STORE, the same
+ *     answer a wrong id gets.
+ *   - `storeId` absent → create, capped at `STORES_PER_KITCHEN`. The cap is
+ *     checked against the count and then re-checked by nothing — a race
+ *     between two devices can exceed it by one, which a cap this generous
+ *     forgives.
  *
  * A new shop opens shut — the schema's default — because the cook decides
  * when the shelves are ready.
  */
 export async function saveStore({
   kitchenId,
+  storeId,
   patch,
 }: {
   kitchenId: string;
+  storeId?: string | null;
   patch?: StorePatch;
 }): Promise<Result<Record<string, unknown>>> {
-  if (patch?.name != null && !String(patch.name).trim()) return fail(ERR.NAME_REQUIRED);
-
-  const fields = storeFields(patch ?? {});
   const key = String(kitchenId);
 
-  const store = await Store.findOneAndUpdate(
-    { kitchenId: key },
-    // An empty `$set` is rejected by the server, so an insert-only save says so.
-    Object.keys(fields).length ? { $set: fields } : { $setOnInsert: { kitchenId: key } },
-    { new: true, upsert: true, setDefaultsOnInsert: true },
-  ).lean();
+  if (storeId) {
+    const id = objectId(storeId);
+    if (!id) return fail(ERR.NO_STORE);
 
-  return ok(store as Record<string, unknown>);
+    /* Ownership in the query itself: a row this kitchen does not own is a
+       row this kitchen cannot see, so both wrong-id and wrong-owner read
+       NO_STORE. */
+    const store = await Store.findOneAndUpdate(
+      { _id: id, kitchenId: key },
+      { $set: storeFields(patch ?? {}) },
+      { new: true },
+    ).lean();
+    if (!store) return fail(ERR.NO_STORE);
+
+    return ok(store as Record<string, unknown>);
+  }
+
+  if (patch?.name != null && !String(patch.name).trim()) return fail(ERR.NAME_REQUIRED);
+
+  const count = await Store.countDocuments({ kitchenId: key });
+  if (count >= STORES_PER_KITCHEN) {
+    return fail(ERR.TOO_MANY_STORES, { cap: STORES_PER_KITCHEN });
+  }
+
+  const fields = storeFields(patch ?? {});
+  const store = await Store.create([
+    { kitchenId: key, ...(Object.keys(fields).length ? fields : {}) },
+  ]);
+  return ok(store[0].toObject() as Record<string, unknown>);
 }
 
 /** Flipped in the document rather than read-then-written: two taps, one shop. */

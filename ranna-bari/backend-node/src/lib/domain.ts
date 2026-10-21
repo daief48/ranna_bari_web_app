@@ -37,6 +37,7 @@ export const ERR = {
 
   // stores
   NO_STORE: 'store-missing',
+  TOO_MANY_STORES: 'too-many-stores',
   STORE_CLOSED: 'store-closed',
   NO_PRODUCT: 'product-missing',
   PRODUCT_OFF: 'product-unavailable',
@@ -132,6 +133,7 @@ export const ERR_TEXT: Record<string, string> = {
   [ERR.PLAN_MISSING]: 'No meal plan is published for that day yet.',
   [ERR.SERVICE_INACTIVE]: 'This cook is not taking meal bookings right now.',
   [ERR.NO_STORE]: 'That store no longer exists.',
+  [ERR.TOO_MANY_STORES]: 'You have reached the limit of shops per kitchen.',
   [ERR.STORE_CLOSED]: 'The shop is closed.',
   [ERR.NO_PRODUCT]: 'That product no longer exists.',
   [ERR.PRODUCT_OFF]: 'This product is not available.',

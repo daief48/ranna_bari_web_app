@@ -53,7 +53,12 @@ export default function ProductEditor() {
   const { t } = useLang();
 
   const isNew = String(id) === 'new';
-  const store = kitchen ? shop.storeForKitchen(kitchen.id) : null;
+  /* Which shop this editor is working on — named by the route, defaulting
+     to the kitchen's first for a link that arrived without one. */
+  const { shop: shopParam } = useLocalSearchParams();
+  const shops = kitchen ? shop.myStores(kitchen.id) : [];
+  const store =
+    shops.find((s) => String(s.id) === String(shopParam)) ?? shops[0] ?? null;
   const existing = isNew ? null : shop.productById(String(id));
 
   /* Guard before the form so its fields are never seeded from a document
@@ -220,7 +225,10 @@ function Form({ store, product, isNew }) {
     );
     router.replace({
       pathname: '/cook/store/products',
-      params: product?.id ? { highlight: String(product.id) } : {},
+      params: {
+        shop: String(store.id),
+        ...(product?.id ? { highlight: String(product.id) } : {}),
+      },
     });
   };
 
@@ -235,7 +243,12 @@ function Form({ store, product, isNew }) {
         <Pressable
           accessibilityRole="link"
           onPress={() =>
-            router.canGoBack() ? router.back() : router.replace('/cook/store/products')
+            router.canGoBack()
+              ? router.back()
+              : router.replace({
+                  pathname: '/cook/store/products',
+                  params: { shop: String(store.id) },
+                })
           }
           style={{
             flexDirection: 'row',
@@ -562,7 +575,12 @@ function Form({ store, product, isNew }) {
             ) : (
               <Pressable
                 accessibilityRole="link"
-                onPress={() => router.push('/cook/store/categories')}
+                onPress={() =>
+                  router.push({
+                    pathname: '/cook/store/categories',
+                    params: { shop: String(store.id) },
+                  })
+                }
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',

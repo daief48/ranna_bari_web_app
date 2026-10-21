@@ -16,8 +16,8 @@
  * never means leaving the board — even a pre-order, with money held, is
  * answered where it stands.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { RefreshControl, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -25,49 +25,36 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import * as Clipboard from 'expo-clipboard';
 
 import CookScreen from '../../../src/components/CookScreen';
 import { Container } from '../../../src/components/Screen';
 import Icon from '../../../src/components/Icon';
-import Reveal from '../../../src/components/Reveal';
 import SectionHeader from '../../../src/components/SectionHeader';
 import Button from '../../../src/components/Button';
-import { statusMeta } from '../../../src/components/CookBits';
-import { Price } from '../../../src/components/Typography';
+import { EmptyState, errorText } from '../../../src/components/MealBits';
 import {
-  EmptyState,
-  MealStatusPill,
-  PaymentPill,
-  errorText,
-} from '../../../src/components/MealBits';
-import { OrderLines } from '../../../src/components/StoreBits';
+  Cloche,
+  MemoMealPlate,
+  MemoOrderCard,
+  MemoShopCard,
+} from '../../../src/components/OrderCards';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
-import {
-  NEXT_STEP,
-  cookPayout,
-  isClosed,
-  timeAgo,
-  useOrders,
-} from '../../../src/store/OrdersContext';
+import { cookPayout, isClosed, useOrders } from '../../../src/store/OrdersContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useSession } from '../../../src/store/SessionContext';
-import { formatAddress } from '../../../src/lib/address';
-import { COOK_ADVANCES } from '../../../src/lib/ledger';
 import { ORDER_FILTERS, filterOrders } from '../../../src/lib/storeLogic';
 import { fetchMealOrders } from '../../../src/features/meal-plan/api';
 import {
-  SLOT_LABEL,
   dateLabel,
   dayParts,
   todayKey,
 } from '../../../src/features/meal-plan/format';
 import { useAlert } from '../../../src/components/Alert';
+import { LoadMoreFooter } from '../../../src/lib/useInfinite';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 /**
@@ -107,33 +94,6 @@ const KINDS = [
    are both "at the fire" — so one short line fits every kind. A status
    missing from a map is an ending (cancelled, rejected), and takes no
    line at all. */
-const STEP_AT = {
-  menu: {
-    placed: 0,
-    accepted: 1,
-    cooking: 1,
-    on_the_way: 2,
-    delivered: 3,
-    completed: 3,
-  },
-  shop: {
-    pending: 0,
-    confirmed: 1,
-    preparing: 1,
-    ready: 2,
-    delivering: 2,
-    delivered: 3,
-    completed: 3,
-  },
-  meals: {
-    confirmed: 0,
-    preparing: 1,
-    delivered: 2,
-    completed: 2,
-  },
-};
-
-const STEP_TOTAL = { menu: 4, shop: 4, meals: 3 };
 
 export default function CookOrders() {
   const { colors } = useTheme();
@@ -149,10 +109,38 @@ export default function CookOrders() {
   const [mealDate, setMealDate] = useState(todayKey());
   const [meals, setMeals] = useState(null);
   const [busyMeal, setBusyMeal] = useState(null);
+  /* Pull-to-refresh — one gesture re-reads every kind. */
+  const [refreshing, setRefreshing] = useState(false);
+  /* History search + the window: the lane is unbounded, so it renders a
+     sliding window and grows on demand rather than all at once. */
+  const [query, setQuery] = useState('');
+  const [historyLimit, setHistoryLimit] = useState(30);
   const { t, n } = useLang();
+  /* Ids the board opened with — the "new while open" detector below
+     compares against this. Declared beside the state it accompanies; the
+     effect that reads it lives after `mine` is computed. */
+  const seenRef = useRef(null);
+  const [newCount, setNewCount] = useState(0);
 
   /* ---- menu ---- */
   const mine = ordersForKitchen(kitchen?.id);
+
+  /* ---- new orders while the board is open ----
+     The socket already re-reads the list live; this only notices. Ids seen
+     on the first pass are the board's opening state, not news — anything
+     placed after that raises the chip, and tapping it (or opening the New
+     lane) settles it. Never auto-switches: yanking a cook out of the lane
+     they chose is worse than a chip. */
+  useEffect(() => {
+    const placed = mine.filter((o) => o.status === 'placed');
+    if (seenRef.current === null) {
+      seenRef.current = new Set(placed.map((o) => String(o.id)));
+      return;
+    }
+    const fresh = placed.filter((o) => !seenRef.current.has(String(o.id))).length;
+    setNewCount(fresh);
+    for (const o of placed) seenRef.current.add(String(o.id));
+  }, [mine]);
 
   const counts = useMemo(() => {
     const out = {};
@@ -160,11 +148,14 @@ export default function CookOrders() {
     return out;
   }, [mine]);
 
-  /* ---- shop ---- */
-  const store = kitchen ? shop.storeForKitchen(kitchen.id) : null;
+  /* ---- shop ----
+     Every shop this kitchen owns — the board folds their orders into one
+     queue, since a cook answering a pre-order does not care which storefront
+     it walked in through. */
   const shopOrders = useMemo(
-    () => (store ? shop.storeOrders(store.id) : []),
-    [shop, store],
+    () =>
+      (kitchen ? shop.myStores(kitchen.id) : []).flatMap((s) => shop.storeOrders(s.id)),
+    [shop, kitchen],
   );
   const shopNeeds = useMemo(
     () =>
@@ -176,28 +167,39 @@ export default function CookOrders() {
     [shopOrders],
   );
 
-  const advanceShop = async (orderId) => {
-    const out = await shop.advanceOrder(orderId);
-    if (!out.ok) alert.error(errorText(out.error, t, n, out));
-  };
+  const advanceShop = useCallback(
+    async (orderId) => {
+      const out = await shop.advanceOrder(orderId);
+      if (!out.ok) alert.error(errorText(out.error, t, n, out));
+    },
+    [shop, alert, t, n],
+  );
 
   /* A pre-order is a decision, and the board carries it: the same two
-     answers the pre-order queue gives, with the same words back. */
-  const answerPreorder = async (order, answer) => {
-    const out =
-      answer === 'accept'
-        ? await shop.acceptPreorder(order.id)
-        : await shop.rejectPreorder(order.id, 'Declined by the kitchen');
-    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
-    alert.success(
-      answer === 'accept'
-        ? t('Accepted. {customer} has been told.', { customer: order.customerName })
-        : t('Declined. ৳{n} went back to {customer}.', {
-            n: n(out.result),
-            customer: order.customerName,
-          }),
-    );
-  };
+     answers the pre-order queue gives, with the same words back. The card
+     hands up `(answer, orderId)` — a stable signature, so a memoised card
+     does not re-render because its handler was rebuilt around it. */
+  const answerPreorder = useCallback(
+    async (answer, orderId) => {
+      const order = shopOrders.find((o) => String(o.id) === String(orderId));
+      const out =
+        answer === 'accept'
+          ? await shop.acceptPreorder(orderId)
+          : await shop.rejectPreorder(orderId, 'Declined by the kitchen');
+      if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+      alert.success(
+        answer === 'accept'
+          ? t('Accepted. {customer} has been told.', {
+              customer: order?.customerName ?? '',
+            })
+          : t('Declined. ৳{n} went back to {customer}.', {
+              n: n(out.result),
+              customer: order?.customerName ?? '',
+            }),
+      );
+    },
+    [shopOrders, shop, alert, t, n],
+  );
 
   /* ---- meals ---- */
   const loadMeals = useCallback(async () => {
@@ -218,33 +220,78 @@ export default function CookOrders() {
   const mealDone = (o) => o.status === 'delivered' || o.status === 'completed';
   const mealOpen = mealOrders.filter((o) => !mealDone(o)).length;
 
-  const deliverMeal = async (order) => {
-    setBusyMeal(order.id);
-    const out = await advanceOrder(order.id);
-    setBusyMeal(null);
-    if (out && out.ok === false) {
-      alert.error(out.message ?? t('That did not work.'), t('Not updated'));
-      return;
-    }
-    loadMeals();
-  };
+  const deliverMeal = useCallback(
+    async (orderId) => {
+      setBusyMeal(orderId);
+      const out = await advanceOrder(orderId);
+      setBusyMeal(null);
+      if (out && out.ok === false) {
+        alert.error(out.message ?? t('That did not work.'), t('Not updated'));
+        return;
+      }
+      loadMeals();
+    },
+    [advanceOrder, alert, t, loadMeals],
+  );
+
+  /* Opening a card is the one action every row shares, so the handler is
+     stable too — a memoised card re-renders for order changes only. */
+  const openOrder = useCallback(
+    (orderId) => router.push(`/cook/order/${orderId}`),
+    [router],
+  );
 
   /* ---- menu lanes (as before) ----
      Open on the lane that has something in it — New still wins whenever
      anything is actually waiting. A tap pins the choice. */
   const shownLane = lane ?? (LANES.find((l) => counts[l.key] > 0)?.key ?? 'new');
 
+  /* History searched + windowed separately from the working lanes: the
+     lane is unbounded, so it renders a sliding window that grows on
+     demand, and the search narrows the whole set before the window cuts. */
+  const historySearched = useMemo(() => {
+    let list = mine.filter((o) => isClosed(o.status));
+    list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    if (query.trim()) {
+      const q = query.trim().toLowerCase();
+      list = list.filter(
+        (o) =>
+          (o.code ?? '').toLowerCase().includes(q) ||
+          (o.contact?.name ?? '').toLowerCase().includes(q) ||
+          (o.items ?? []).some((it) => (it.name ?? '').toLowerCase().includes(q)),
+      );
+    }
+    return list;
+  }, [mine, query]);
+
   const menuRows = useMemo(() => {
+    if (shownLane === 'history') return historySearched.slice(0, historyLimit);
     const active = LANES.find((l) => l.key === shownLane);
-    const list = mine.filter((o) => active.match(o.status));
-    /* Work lanes put the longest wait first -- that is the one going cold.
-       History reads newest-first like any log. */
-    return list.sort((a, b) =>
-      shownLane === 'history'
-        ? new Date(b.createdAt) - new Date(a.createdAt)
-        : new Date(a.createdAt) - new Date(b.createdAt),
-    );
+    /* Work lanes put the longest wait first -- that is the one going cold. */
+    return mine
+      .filter((o) => active.match(o.status))
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  }, [mine, shownLane, historySearched, historyLimit]);
+
+  const historyHasMore = historySearched.length > historyLimit;
+
+  /* The lane's money — what the visible queue is worth at the cook's rate.
+     A count says how many; the taka says whether any of it is worth
+     staying late for. */
+  const laneMoney = useMemo(() => {
+    const active = LANES.find((l) => l.key === shownLane);
+    return mine
+      .filter((o) => active.match(o.status))
+      .reduce((sum, o) => sum + cookPayout(o), 0);
   }, [mine, shownLane]);
+
+  /* ---- pull-to-refresh ----
+     One gesture re-reads everything the board draws: orders, shops, meals. */
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([shop.refresh(), loadMeals()]);
+    setRefreshing(false);
+  }, [shop, loadMeals]);
 
   const shopRows = useMemo(
     () => filterOrders(shopOrders, shopFilter),
@@ -309,7 +356,16 @@ export default function CookOrders() {
     !counts.new && !counts.cooking && !counts.delivering && !shopNeeds && !mealOpen;
 
   return (
-    <CookScreen>
+    <CookScreen
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.sage}
+          colors={[colors.sage]}
+        />
+      }
+    >
       <Container>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
@@ -324,8 +380,48 @@ export default function CookOrders() {
           <Cloche />
         </View>
 
+        {/* ---- new orders while the board is open ----
+            A chip, not an auto-switch: the cook chose this lane, and a
+            board that yanks them around teaches them not to trust it. */}
+        {newCount > 0 && !(shownKind === 'menu' && shownLane === 'new') ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('{n} new orders — view now', { n: n(newCount) })}
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              setKind('menu');
+              setLane('new');
+              setNewCount(0);
+            }}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              marginTop: 12,
+              paddingVertical: 11,
+              borderRadius: radius.pill,
+              backgroundColor: pressed ? colors.primary50 : colors.primary,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            })}
+          >
+            <Icon name="sparkles" size={14} color="#FFFFFF" strokeWidth={2.4} />
+            <Text
+              style={{
+                fontFamily: font.uiBold,
+                fontSize: type.sm,
+                color: '#FFFFFF',
+              }}
+            >
+              {t('{n} new orders — view now', { n: n(newCount) })}
+            </Text>
+          </Pressable>
+        ) : null}
+
         {/* ---- the three kinds ---- */}
-        <Segmented items={kindItems} value={shownKind} onChange={setKind} />
+        <View style={{ marginTop: 12 }}>
+          <Segmented items={kindItems} value={shownKind} onChange={setKind} />
+        </View>
 
         {/* ---- per-kind sub-control ---- */}
         {shownKind === 'menu' ? (
@@ -335,6 +431,63 @@ export default function CookOrders() {
               value={shownLane}
               onChange={setLane}
             />
+
+            {/* The lane's worth — a count says how many, the taka says
+                whether any of it is worth staying late for. */}
+            <Text
+              style={{
+                marginTop: 8,
+                fontFamily: font.uiSemi,
+                fontSize: type.xs,
+                color: colors.textMuted,
+              }}
+            >
+              {t('This lane is worth ৳{n} to you.', { n: n(laneMoney) })}
+            </Text>
+
+            {/* History search — code, customer, or a dish on the line. */}
+            {shownLane === 'history' ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginTop: 10,
+                  paddingHorizontal: 12,
+                  paddingVertical: 9,
+                  borderRadius: radius.pill,
+                  backgroundColor: colors.sunken,
+                  borderWidth: 1,
+                  borderColor: colors.line,
+                }}
+              >
+                <Icon name="search" size={14} color={colors.textLight} strokeWidth={2.2} />
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder={t('Search code, customer or dish')}
+                  placeholderTextColor={colors.textLight}
+                  autoCorrect={false}
+                  style={{
+                    flex: 1,
+                    fontFamily: font.ui,
+                    fontSize: type.sm,
+                    color: colors.text,
+                    paddingVertical: 0,
+                  }}
+                />
+                {query ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('Cancel')}
+                    onPress={() => setQuery('')}
+                    hitSlop={8}
+                  >
+                    <Icon name="x" size={14} color={colors.textLight} strokeWidth={2.4} />
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
           </View>
         ) : null}
 
@@ -423,15 +576,30 @@ export default function CookOrders() {
       </Container>
 
       <Container style={{ marginTop: 18 }}>
-        {/* ---- menu ---- */}
+        {/* ---- menu ----
+            Memoised cards, no per-row entrance animation: the Screen's own
+            entrance covers the swap, and a lane switch repaints instantly
+            instead of replaying thirty fades. History grows two ways — the
+            local window by button, then the server's older pages by the
+            footer once the window has shown everything the context holds. */}
         {shownKind === 'menu' ? (
           menuRows.length ? (
-            <View style={{ gap: 14 }}>
-              {menuRows.map((order, i) => (
-                <Reveal key={order.id} delay={(i % 5) + 1}>
-                  <OrderCard order={order} onOpen={() => router.push(`/cook/order/${order.id}`)} />
-                </Reveal>
+            <View style={{ gap: 12 }}>
+              {menuRows.map((order) => (
+                <MemoOrderCard key={String(order.id)} order={order} onOpen={openOrder} />
               ))}
+              {shownLane === 'history' && historyHasMore ? (
+                <Button
+                  variant="glass"
+                  block
+                  icon="chevronDown"
+                  label={t('Show 30 more')}
+                  onPress={() => setHistoryLimit((l) => l + 30)}
+                />
+              ) : null}
+              {shownLane === 'history' && !historyHasMore ? (
+                <HistoryFromServer />
+              ) : null}
             </View>
           ) : (
             <EmptyState
@@ -450,7 +618,7 @@ export default function CookOrders() {
 
         {/* ---- shop ---- */}
         {shownKind === 'shop' ? (
-          !store ? (
+          !(kitchen && shop.myStores(kitchen.id).length) ? (
             <EmptyState
               icon="box"
               title={t('You have not opened a shop yet')}
@@ -458,14 +626,13 @@ export default function CookOrders() {
             />
           ) : shopRows.length ? (
             <View style={{ gap: 12 }}>
-              {shopRows.map((order, i) => (
-                <Reveal key={order.id} delay={(i % 5) + 1}>
-                  <ShopCard
-                    order={order}
-                    onAdvance={() => advanceShop(order.id)}
-                    onAnswer={(answer) => answerPreorder(order, answer)}
-                  />
-                </Reveal>
+              {shopRows.map((order) => (
+                <MemoShopCard
+                  key={String(order.id)}
+                  order={order}
+                  onAdvance={advanceShop}
+                  onAnswer={answerPreorder}
+                />
               ))}
             </View>
           ) : (
@@ -481,10 +648,13 @@ export default function CookOrders() {
         {shownKind === 'meals' ? (
           meals === null ? null : mealOrders.length ? (
             <View style={{ gap: 12 }}>
-              {mealOrders.map((order, i) => (
-                <Reveal key={order.id} delay={(i % 5) + 1}>
-                  <MealPlate order={order} busy={busyMeal === order.id} onDeliver={() => deliverMeal(order)} />
-                </Reveal>
+              {mealOrders.map((order) => (
+                <MemoMealPlate
+                  key={String(order.id)}
+                  order={order}
+                  busy={busyMeal === order.id}
+                  onDeliver={deliverMeal}
+                />
               ))}
               <Button
                 label={t('Open the cooking board')}
@@ -728,603 +898,28 @@ function Segmented({ items, value, onChange, scroll = false }) {
   );
 }
 
-/* ------------------------------------------------------------------ *
- * progress dots — where an order stands on its way to done
- * ------------------------------------------------------------------ */
-
-function Steps({ at, total }) {
-  const { colors } = useTheme();
-
-  /* Decorative on purpose: the status pill beside it already names the
-     stage in words, so a screen reader gets the fact once, not twice. */
-  return (
-    <View
-      accessible={false}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={{ flexDirection: 'row', alignItems: 'center' }}
-    >
-      {Array.from({ length: total }, (_, i) => (
-        <React.Fragment key={i}>
-          {i > 0 ? (
-            <View
-              style={{
-                flex: 1,
-                height: 2,
-                borderRadius: 1,
-                backgroundColor: i <= at ? colors.sage100 : colors.line,
-              }}
-            />
-          ) : null}
-          <View
-            style={{
-              width: i === at ? 9 : 7,
-              height: i === at ? 9 : 7,
-              borderRadius: 5,
-              backgroundColor: i <= at ? colors.sage : colors.line,
-            }}
-          />
-        </React.Fragment>
-      ))}
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------------ *
- * shop card
- * ------------------------------------------------------------------ */
-
-function ShopCard({ order, onAdvance, onAnswer }) {
-  const { colors, shadow } = useTheme();
-  const { t, n } = useLang();
-  const [busy, setBusy] = useState(false);
-
-  const next = COOK_ADVANCES[order.handover === 'pickup' ? 'pickup' : 'delivery'][order.status];
-
-  const answer = async (which) => {
-    if (busy) return;
-    Haptics.selectionAsync().catch(() => {});
-    setBusy(true);
-    await onAnswer(which);
-    setBusy(false);
-  };
-
-  return (
-    <View
-      style={[
-        {
-          gap: 12,
-          padding: 14,
-          borderRadius: radius.lg,
-          backgroundColor: colors.surfaceSolid,
-          borderWidth: 1,
-          borderColor: order.status === 'pending' ? colors.saffron100 : colors.line,
-        },
-        shadow.sm,
-      ]}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <Image
-          source={{ uri: order.image }}
-          contentFit="cover"
-          transition={200}
-          style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.sunken }}
-        />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text
-            numberOfLines={1}
-            style={{ fontFamily: font.uiSemi, fontSize: type.sm + 2, color: colors.text }}
-          >
-            {order.customerName || t('A customer')}
-          </Text>
-          <Text
-            numberOfLines={1}
-            style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
-          >
-            {order.code} · {timeAgo(order.createdAt, t, n)}
-          </Text>
-        </View>
-        <Price size={17}>৳{n(order.amount)}</Price>
-      </View>
-
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <MealStatusPill status={order.status} />
-        <PaymentPill payment={order.payment} />
-      </View>
-
-      <OrderLines lines={order.lines ?? []} />
-
-      {formatAddress(order.address) ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Icon name="pin" size={13} color={colors.textLight} />
-          <Text
-            numberOfLines={1}
-            style={{ flex: 1, fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
-          >
-            {formatAddress(order.address)}
-          </Text>
-        </View>
-      ) : null}
-
-      {STEP_AT.shop[order.status] !== undefined ? (
-        <Steps at={STEP_AT.shop[order.status]} total={STEP_TOTAL.shop} />
-      ) : null}
-
-      {/* A pending pre-order is a decision, not a stage — so the card gets
-          the decision itself, in the same two-tap shape the pre-order queue
-          uses. The held money is the customer's stake; naming it beside the
-          buttons is what makes declining feel safe. */}
-      {order.status === 'pending' ? (
-        <View style={{ gap: 10 }}>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 8,
-              padding: 10,
-              borderRadius: radius.sm,
-              backgroundColor: colors.saffron50,
-            }}
-          >
-            <Icon name="lock" size={13} color={colors.saffron} />
-            <Text
-              style={{
-                flex: 1,
-                fontFamily: font.ui,
-                fontSize: type.xs,
-                lineHeight: type.xs * 1.5,
-                color: colors.text,
-              }}
-            >
-              {t('৳{n} is held. Declining returns it in full.', { n: n(order.amount) })}
-            </Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Button
-              variant="glass"
-              small
-              label={t('Decline')}
-              disabled={busy}
-              style={{ flex: 1 }}
-              onPress={() => answer('decline')}
-            />
-            <Button
-              small
-              label={busy ? t('Updating…') : t('Accept')}
-              icon={busy ? undefined : 'check'}
-              iconPosition="left"
-              disabled={busy}
-              style={{ flex: 1 }}
-              onPress={() => answer('accept')}
-            />
-          </View>
-        </View>
-      ) : next ? (
-        <Button small label={t(SHOP_NEXT[order.status])} block onPress={onAdvance} />
-      ) : order.status === 'delivered' ? (
-        <Text style={{ fontFamily: font.ui, fontSize: type.xs + 1, color: colors.textMuted }}>
-          {t('Waiting for the customer to confirm they got it.')}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------------ *
- * one meal plate
- * ------------------------------------------------------------------ */
-
-function MealPlate({ order, busy, onDeliver }) {
-  const { colors, shadow } = useTheme();
-  const { t, n } = useLang();
-
-  const done = order.status === 'delivered' || order.status === 'completed';
-  const nextLabel = MEAL_NEXT[order.status];
-
-  return (
-    <View
-      style={[
-        {
-          gap: 10,
-          padding: 14,
-          borderRadius: radius.lg,
-          backgroundColor: colors.surfaceSolid,
-          borderWidth: 1,
-          borderColor: done ? colors.line : colors.saffron100,
-        },
-        shadow.sm,
-      ]}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text
-            numberOfLines={1}
-            style={{ fontFamily: font.displayBold, fontSize: 16, letterSpacing: -0.2, color: colors.text }}
-          >
-            {order.title}
-          </Text>
-          <Text
-            numberOfLines={1}
-            style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted, marginTop: 2 }}
-          >
-            {order.customerName || order.customerKey}
-            {order.slot ? ` · ${t(SLOT_LABEL[order.slot] ?? order.slot)}` : ''}
-          </Text>
-          {order.address?.line || order.address?.area ? (
-            <Text
-              numberOfLines={1}
-              style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted, marginTop: 1 }}
-            >
-              {[order.address.line, order.address.area].filter(Boolean).join(', ')}
-            </Text>
-          ) : null}
-        </View>
-        <Price size={17}>৳{n(order.amount)}</Price>
-      </View>
-
-      <Steps at={STEP_AT.meals[order.status] ?? 0} total={STEP_TOTAL.meals} />
-
-      {done ? (
-        <Text style={{ fontFamily: font.ui, fontSize: type.xs + 1, color: colors.textMuted }}>
-          {order.status === 'completed'
-            ? t('The customer confirmed this one. Payment is with the platform to release.')
-            : t('Handed over. The money moves when the customer confirms they got it.')}
-        </Text>
-      ) : (
-        <Button
-          small
-          label={busy ? t('Updating…') : t(nextLabel ?? 'Mark delivered')}
-          icon={busy ? undefined : 'check'}
-          block
-          disabled={busy}
-          onPress={onDeliver}
-        />
-      )}
-    </View>
-  );
-}
-
 /**
- * The serving dome beside the title.
+ * History past what the context holds — the server's older pages.
  *
- * Decoration, and marked as such: `accessibilityElementsHidden` keeps it out
- * of the reading order, because a screen reader announcing "pot, sparkles,
- * leaf" before the order list is noise standing where information should be.
+ * The board reads orders out of `CommerceContext`, which loads one page
+ * (fifty). History can reach further back than that, so once the local
+ * window has shown everything the context holds, this footer asks the
+ * server for the next page — appending into the context, so the board,
+ * the customer list and every count agree about what exists.
  */
-function Cloche() {
-  const { colors } = useTheme();
+function HistoryFromServer() {
+  const { loadMoreOrders, ordersCursor } = useCommerce();
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const out = await loadMoreOrders();
+    setLoading(false);
+    if (out?.more === false) setDone(true);
+  }, [loadMoreOrders]);
 
   return (
-    <View
-      accessible={false}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={{ width: 92, height: 78, marginTop: 2 }}
-    >
-      <View style={{ position: 'absolute', right: 2, bottom: 6 }}>
-        <Icon name="pot" size={62} color={colors.saffron100} strokeWidth={1.4} />
-      </View>
-      <View style={{ position: 'absolute', left: 0, top: 8 }}>
-        <Icon name="sparkles" size={18} color={colors.saffron} strokeWidth={1.7} />
-      </View>
-      <View style={{ position: 'absolute', right: 4, top: 0 }}>
-        <Icon name="sparkles" size={13} color={colors.saffron100} strokeWidth={1.7} />
-      </View>
-      <View style={{ position: 'absolute', right: 0, bottom: 2 }}>
-        <Icon name="leaf" size={17} color={colors.sage100} strokeWidth={1.7} />
-      </View>
-    </View>
-  );
-}
-
-/**
- * One order, as a card a cook can act on without opening it.
- *
- * The whole surface opens the order; the two buttons at the foot are the
- * decision itself, so a cook working a queue never has to leave the board.
- */
-function OrderCard({ order, onOpen }) {
-  const { colors, shadow } = useTheme();
-  const { t, n } = useLang();
-  const { advanceOrder } = useOrders();
-  const [copied, setCopied] = useState(false);
-
-  const meta = statusMeta(order.status, colors);
-  const next = NEXT_STEP[order.status];
-  const isNew = order.status === 'placed';
-  const count = order.items.reduce((s, it) => s + it.qty, 0);
-
-  /* The code is what a cook reads to a rider or pastes into a message, so it
-     is worth one tap rather than a careful retype of eight characters. */
-  const copyCode = async () => {
-    if (!order.code) return;
-    Haptics.selectionAsync().catch(() => {});
-    await Clipboard.setStringAsync(order.code).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
-  };
-
-  return (
-    <View
-      style={[
-        {
-          borderRadius: radius.lg,
-          backgroundColor: colors.surfaceSolid,
-          borderWidth: 1,
-          borderColor: isNew ? colors.primary100 : colors.line,
-          overflow: 'hidden',
-        },
-        shadow.sm,
-      ]}
-    >
-      <Pressable
-        accessibilityRole="link"
-        accessibilityLabel={`${t('Order')} ${order.code ?? ''}, ${t(meta.label)}`}
-        onPress={onOpen}
-        style={({ pressed }) => ({
-          paddingHorizontal: 16,
-          paddingTop: 15,
-          backgroundColor: pressed ? colors.sunken : 'transparent',
-        })}
-      >
-        {/* ---- status, age, and the code ---- */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 4,
-              paddingVertical: 4,
-              paddingHorizontal: 9,
-              borderRadius: radius.pill,
-              backgroundColor: meta.bg,
-            }}
-          >
-            <Icon name={meta.icon} size={11} color={meta.fg} strokeWidth={2.2} />
-            <Text
-              maxFontSizeMultiplier={1.2}
-              style={{
-                fontFamily: font.uiBold,
-                fontSize: 10,
-                letterSpacing: 0.6,
-                textTransform: 'uppercase',
-                color: meta.fg,
-              }}
-            >
-              {t(meta.label)}
-            </Text>
-          </View>
-
-          <Text
-            numberOfLines={1}
-            style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
-          >
-            {timeAgo(order.createdAt, t, n)}
-          </Text>
-
-          <View style={{ flex: 1 }} />
-
-          {order.code ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('Copy order ID {code}', { code: order.code })}
-              onPress={copyCode}
-              hitSlop={8}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
-            >
-              <Text
-                numberOfLines={1}
-                style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textLight }}
-              >
-                {t('Order ID:')}
-              </Text>
-              <Text
-                numberOfLines={1}
-                style={{
-                  fontFamily: font.uiBold,
-                  fontSize: type.xs,
-                  letterSpacing: 0.4,
-                  color: colors.text,
-                  fontVariant: ['tabular-nums'],
-                }}
-              >
-                {order.code}
-              </Text>
-              <Icon
-                name={copied ? 'check' : 'copy'}
-                size={14}
-                color={copied ? colors.sage : colors.textLight}
-                strokeWidth={2}
-              />
-            </Pressable>
-          ) : null}
-        </View>
-
-        {/* ---- who, where, and the cook's share ---- */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 }}>
-          <Image
-            source={{ uri: order.items[0]?.image }}
-            contentFit="cover"
-            transition={150}
-            style={{
-              width: 54,
-              height: 54,
-              borderRadius: radius.sm,
-              backgroundColor: colors.sunken,
-            }}
-          />
-
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text
-              numberOfLines={1}
-              style={{
-                fontFamily: font.displayBold,
-                fontSize: 17,
-                letterSpacing: -0.2,
-                color: colors.text,
-              }}
-            >
-              {order.contact?.name ?? t('A customer')}
-            </Text>
-            <View
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}
-            >
-              <Icon name="pin" size={12} color={colors.textLight} />
-              <Text
-                numberOfLines={1}
-                style={{ flex: 1, fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
-              >
-                {t(count === 1 ? '{n} item' : '{n} items', { n: n(count) })}
-                {order.address?.area ? ` • ${order.address.area}` : ''}
-              </Text>
-            </View>
-          </View>
-
-          <View style={{ alignItems: 'flex-end' }}>
-            <Price size={19}>৳{n(cookPayout(order))}</Price>
-            <Text
-              style={{
-                fontFamily: font.uiBold,
-                fontSize: 9.5,
-                letterSpacing: 0.7,
-                textTransform: 'uppercase',
-                color: colors.sage,
-              }}
-            >
-              {t('Your cut')}
-            </Text>
-          </View>
-        </View>
-
-        {/* A dashed rule, because what is above it is the order and what is
-            below it is the food — related, but not the same reading. */}
-        <View
-          style={{
-            marginTop: 13,
-            borderTopWidth: 1,
-            borderStyle: 'dashed',
-            borderColor: colors.line,
-          }}
-        />
-
-        <Text
-          numberOfLines={2}
-          style={{
-            marginTop: 11,
-            fontFamily: font.ui,
-            fontSize: type.sm,
-            lineHeight: 20,
-            color: colors.textMuted,
-          }}
-        >
-          {order.items.map((it) => `${n(it.qty)}×  ${it.name}`).join(',  ')}
-        </Text>
-
-        {/* Where this order stands on its way to done — the pill names the
-            stage, the dots say how much of the road is behind it. */}
-        {STEP_AT.menu[order.status] !== undefined ? (
-          <View style={{ marginTop: 13, marginBottom: 2 }}>
-            <Steps at={STEP_AT.menu[order.status]} total={STEP_TOTAL.menu} />
-          </View>
-        ) : null}
-      </Pressable>
-
-      {next ? (
-        <View
-          style={{
-            flexDirection: 'row',
-            gap: 10,
-            paddingHorizontal: 16,
-            paddingTop: 14,
-            paddingBottom: 16,
-          }}
-        >
-          {/* Rejecting needs a reason, and the reason list is on the order
-              screen -- so this opens it rather than deciding here. */}
-          {isNew ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('Reject')}
-              onPress={onOpen}
-              style={({ pressed }) => ({
-                flex: 1,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 7,
-                paddingVertical: 12,
-                borderRadius: radius.pill,
-                borderWidth: 1,
-                borderColor: colors.primary100,
-                backgroundColor: pressed ? colors.primary50 : 'transparent',
-              })}
-            >
-              <Icon name="x" size={15} color={colors.primary} strokeWidth={2.4} />
-              <Text
-                style={{ fontFamily: font.uiBold, fontSize: type.sm, color: colors.primary }}
-              >
-                {t('Reject')}
-              </Text>
-            </Pressable>
-          ) : null}
-
-          {/*
-            * Green, and it is the only green button on the screen.
-            *
-            * This was the same vermilion as Reject, so the two decisions on a
-            * new order looked alike at a glance and the destructive one had
-            * no less weight than the one a cook makes forty times a day.
-            */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t(meta.action)}
-            onPress={() => {
-              Haptics.selectionAsync().catch(() => {});
-              advanceOrder(order.id);
-            }}
-            style={({ pressed }) => ({
-              flex: isNew ? 1.35 : 1,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              paddingVertical: 12,
-              borderRadius: radius.pill,
-              backgroundColor: pressed ? colors.sage100 : colors.sage,
-            })}
-          >
-            <Icon name="check" size={15} color="#FFFFFF" strokeWidth={2.6} />
-            <Text style={{ fontFamily: font.uiBold, fontSize: type.sm, color: '#FFFFFF' }}>
-              {t(meta.action)}
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {order.status === 'rejected' && order.rejectReason ? (
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'flex-start',
-            gap: 9,
-            paddingHorizontal: 16,
-            paddingBottom: 16,
-          }}
-        >
-          <Icon name="alertCircle" size={15} color={colors.textLight} />
-          <Text
-            style={{
-              flex: 1,
-              fontFamily: font.ui,
-              fontSize: type.xs,
-              lineHeight: 18,
-              color: colors.textMuted,
-            }}
-          >
-            {order.rejectReason}
-          </Text>
-        </View>
-      ) : null}
-    </View>
+    <LoadMoreFooter onLoad={load} loading={loading} exhausted={done || ordersCursor === null} />
   );
 }

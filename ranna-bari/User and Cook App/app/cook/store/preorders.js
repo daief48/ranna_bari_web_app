@@ -43,7 +43,12 @@ export default function StorePreorders() {
   const [error, setError] = useState(null);
   const [flash, setFlash] = useState(null);
 
-  const store = kitchen ? shop.storeForKitchen(kitchen.id) : null;
+  /* The shops this kitchen owns. Pre-orders are answered from one queue
+     regardless of which storefront they walked in through, so the answered
+     list folds every shop's orders — the hub's switcher does not split this
+     screen, because declining a cake is not a different act from declining
+     a jar. */
+  const shops = kitchen ? shop.myStores(kitchen.id) : [];
 
   const pending = useMemo(
     () => (kitchen ? shop.pendingPreorders(kitchen.id) : []),
@@ -53,12 +58,12 @@ export default function StorePreorders() {
   /* Answered requests stay on the screen, newest first: a cook who declines
      one by mistake should be able to see that they did. */
   const answered = useMemo(() => {
-    if (!store) return [];
-    return shop
-      .storeOrders(store.id)
+    if (!kitchen) return [];
+    return shops
+      .flatMap((s) => shop.storeOrders(s.id))
       .filter((o) => o.preorder && o.status !== 'pending')
       .slice(0, 8);
-  }, [shop, store]);
+  }, [shop, kitchen, shops]);
 
   const accept = async (order) => {
     const out = await shop.acceptPreorder(order.id);

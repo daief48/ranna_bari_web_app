@@ -63,10 +63,11 @@ export default function ChefScreen() {
   const chef = useChef(id);
   const menu = useMenu(id);
 
-  /* A cook can run a shop as well as a kitchen. If they do, this is the only
-     place a customer already looking at them would think to find it. */
+  /* A cook can run shops as well as a kitchen — several, now, each its own
+     storefront. If they do, this is the only place a customer already
+     looking at them would think to find them. */
   const commerce = useCommerce();
-  const shop = commerce.storeForKitchen(id);
+  const shops = commerce.myStores(id);
 
   if (!chef) {
     return (
@@ -332,54 +333,57 @@ export default function ChefScreen() {
         </Container>
       ) : null}
 
-      {/* ---- their shop, if they keep one ---- */}
-      {shop ? (
-        <Container style={{ paddingTop: 28 }}>
-          <Pressable
-            accessibilityRole="link"
-            onPress={() => router.push(`/stores/${shop.id}`)}
-            style={({ pressed }) => [
-              {
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 12,
-                padding: 14,
-                borderRadius: radius.md,
-                backgroundColor: colors.surfaceSolid,
-                borderWidth: 1,
-                borderColor: pressed ? colors.primary200 : colors.line,
-              },
-              shadow.sm,
-            ]}
-          >
-            <View
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 14,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: colors.primary50,
-              }}
+      {/* ---- their shops, if they keep any ---- */}
+      {shops.length ? (
+        <Container style={{ paddingTop: 28, gap: 10 }}>
+          {shops.map((shop) => (
+            <Pressable
+              key={String(shop.id)}
+              accessibilityRole="link"
+              onPress={() => router.push(`/stores/${shop.id}`)}
+              style={({ pressed }) => [
+                {
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: 14,
+                  borderRadius: radius.md,
+                  backgroundColor: colors.surfaceSolid,
+                  borderWidth: 1,
+                  borderColor: pressed ? colors.primary200 : colors.line,
+                },
+                shadow.sm,
+              ]}
             >
-              <Icon name="box" size={18} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text
-                numberOfLines={1}
-                style={{ fontFamily: font.uiSemi, fontSize: type.sm + 2, color: colors.text }}
+              <View
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 14,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: colors.primary50,
+                }}
               >
-                {shop.name}
-              </Text>
-              <Text
-                numberOfLines={1}
-                style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
-              >
-                {shop.tagline || t('Cakes, pitha, achar and gifts')}
-              </Text>
-            </View>
-            <Icon name="chevronRight" size={16} color={colors.textLight} />
-          </Pressable>
+                <Icon name="box" size={18} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text
+                  numberOfLines={1}
+                  style={{ fontFamily: font.uiSemi, fontSize: type.sm + 2, color: colors.text }}
+                >
+                  {shop.name}
+                </Text>
+                <Text
+                  numberOfLines={1}
+                  style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
+                >
+                  {shop.tagline || t('Cakes, pitha, achar and gifts')}
+                </Text>
+              </View>
+              <Icon name="chevronRight" size={16} color={colors.textLight} />
+            </Pressable>
+          ))}
         </Container>
       ) : null}
 
