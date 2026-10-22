@@ -14,6 +14,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 
 import Icon from './Icon';
+import Button from './Button';
 import { Body, Price } from './Typography';
 import { EmptyState, MealStatusPill, PaymentPill } from './MealBits';
 import { OrderLines } from './StoreBits';
@@ -21,7 +22,7 @@ import { statusMeta } from './CookBits';
 import { useTheme } from '../theme/ThemeProvider';
 import { useLang } from '../i18n/LanguageContext';
 import { font, radius, type } from '../theme/tokens';
-import { cookPayout, NEXT_STEP, timeAgo } from '../store/OrdersContext';
+import { cookPayout, NEXT_STEP, timeAgo, useOrders } from '../store/OrdersContext';
 import { formatAddress } from '../lib/address';
 import { COOK_ADVANCES } from '../lib/ledger';
 import { SLOT_LABEL } from '../features/meal-plan/format';
@@ -53,6 +54,20 @@ const STEP_AT = {
 };
 
 const STEP_TOTAL = { menu: 4, shop: 4, meals: 3 };
+
+/** What the shop's button says at each stage. */
+export const SHOP_NEXT = {
+  confirmed: 'Start packing',
+  preparing: 'Mark ready',
+  ready: 'Send out',
+  delivering: 'Mark delivered',
+};
+
+/** A meal plate's two working steps. Delivered is the customer's to confirm. */
+export const MEAL_NEXT = {
+  confirmed: 'Start cooking',
+  preparing: 'Mark delivered',
+};
 
 /* ------------------------------------------------------------------ *
  * progress dots — where an order stands on its way to done

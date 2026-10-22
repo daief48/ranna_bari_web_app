@@ -2709,6 +2709,7 @@ function QuickTile({ icon, tone = 'sage', label, sub, onPress }) {
  */
 function WoWBadge({ pct, style }) {
   const { colors } = useTheme();
+  const { t, n } = useLang();
 
   if (pct == null) return null;
 
@@ -2764,6 +2765,7 @@ function WoWBadge({ pct, style }) {
  */
 function MixRow({ color, label, value, total, onPress }) {
   const { colors } = useTheme();
+  const { n } = useLang();
   const pct = total ? Math.round((value / total) * 100) : 0;
 
   return (

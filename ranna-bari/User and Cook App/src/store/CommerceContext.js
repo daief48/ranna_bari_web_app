@@ -1145,9 +1145,18 @@ export function CommerceProvider({ children }) {
           body: update ? { ...patchBody, storeId: String(id) } : patchBody,
           after: reloadMyStore,
         }),
-      toggleStoreOpen: () => write('/stores/mine/open', { after: reloadMyStore }),
+      /* The route names its shop since a kitchen could own several — a body
+         without a storeId reads as "no such shop" on the server. */
+      toggleStoreOpen: (storeId) =>
+        write('/stores/mine/open', {
+          body: { storeId: String(storeId) },
+          after: reloadMyStore,
+        }),
       addCategory: (storeId, name, emoji) =>
-        write('/stores/mine/categories', { body: { name, emoji }, after: reloadMyStore }),
+        write('/stores/mine/categories', {
+          body: { storeId: String(storeId), name, emoji },
+          after: reloadMyStore,
+        }),
       updateCategory: (categoryId, patchBody) =>
         write(`/categories/${categoryId}`, {
           method: 'PATCH',
@@ -1158,9 +1167,9 @@ export function CommerceProvider({ children }) {
         write(`/categories/${categoryId}/remove`, { after: reloadMyStore }),
       moveCategory: (categoryId, delta) =>
         write(`/categories/${categoryId}/move`, { body: { delta }, after: reloadMyStore }),
-      saveProduct: ({ productId, patch: body }) =>
+      saveProduct: ({ productId, storeId, patch: body }) =>
         write('/stores/mine/products', {
-          body: { ...body, productId },
+          body: { ...body, storeId: storeId != null ? String(storeId) : undefined, productId },
           after: reloadMyStore,
         }),
       removeProduct: (productId) =>

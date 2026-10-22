@@ -281,7 +281,12 @@ function DishForm({ isNew, existing }) {
               The whole width, at the size it is judged in. A thumbnail beside
               a form makes a photograph feel like paperwork; this is the dish
               as a customer will scroll past it. */}
-          <Reveal delay={2}>
+          {/* The remove-photo chip is a sibling of the photo press, not a
+              child of it: on web each role="button" becomes a real <button>,
+              and a button inside a button is invalid HTML. The Reveal view
+              wraps exactly the photo, so it is the chip's positioning
+              context. */}
+          <Reveal delay={2} style={{ marginBottom: 18 }}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('Change photo')}
@@ -292,7 +297,6 @@ function DishForm({ isNew, existing }) {
                   height: 210,
                   borderRadius: radius.lg,
                   overflow: 'hidden',
-                  marginBottom: 18,
                   borderWidth: 1,
                   borderColor: colors.line,
                   opacity: pressed ? 0.94 : 1,
@@ -370,35 +374,35 @@ function DishForm({ isNew, existing }) {
                   </Text>
                 </View>
               )}
-
-              {/* A stock plate is a stand-in, not a choice — so it is the one
-                  photo that can be removed without leaving the dish bare. */}
-              {image !== PLACEHOLDER && !processingPhoto ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('Remove photo')}
-                  onPress={() => {
-                    Haptics.selectionAsync().catch(() => {});
-                    setImage(PLACEHOLDER);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: 12,
-                    right: 12,
-                    width: 30,
-                    height: 30,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 15,
-                    backgroundColor: 'rgba(16, 12, 10, 0.5)',
-                    borderWidth: 1,
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
-                  }}
-                >
-                  <Icon name="x" size={14} color="#FFFFFF" strokeWidth={2.4} />
-                </Pressable>
-              ) : null}
             </Pressable>
+
+            {/* A stock plate is a stand-in, not a choice — so it is the one
+                photo that can be removed without leaving the dish bare. */}
+            {image !== PLACEHOLDER && !processingPhoto ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('Remove photo')}
+                onPress={() => {
+                  Haptics.selectionAsync().catch(() => {});
+                  setImage(PLACEHOLDER);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: 12,
+                  right: 12,
+                  width: 30,
+                  height: 30,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 15,
+                  backgroundColor: 'rgba(16, 12, 10, 0.5)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(255, 255, 255, 0.3)',
+                }}
+              >
+                <Icon name="x" size={14} color="#FFFFFF" strokeWidth={2.4} />
+              </Pressable>
+            ) : null}
           </Reveal>
 
           {photoNote ? (

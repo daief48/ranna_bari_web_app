@@ -52,7 +52,9 @@ function useCookResource(path, key) {
     if (isVerified) reload();
   }, [isVerified, reload]);
 
-  return { data, loaded, busy, reload };
+  /* `setData` rides along for the one hook that appends pages into the
+     same list rather than replacing it (useCookReviews' cursor paging). */
+  return { data, setData, loaded, busy, reload };
 }
 
 /**
@@ -65,7 +67,10 @@ function useCookResource(path, key) {
  * page and answers `{ more }` so the footer knows when to stop asking.
  */
 export function useCookReviews() {
-  const { data, loaded, busy, reload } = useCookResource('/kitchens/mine/reviews', 'reviews');
+  const { data, setData, loaded, busy, reload } = useCookResource(
+    '/kitchens/mine/reviews',
+    'reviews',
+  );
   const { token, getToken } = useSession();
   const [cursor, setCursor] = useState(undefined);
   const inflight = useRef(false);

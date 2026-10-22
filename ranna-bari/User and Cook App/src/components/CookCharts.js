@@ -180,7 +180,7 @@ export function Gauge({
           strokeWidth={thickness}
           fill="none"
         />
-        <G rotation={-90} originX={size / 2} originY={size / 2}>
+        <G transform={`rotate(-90 ${size / 2} ${size / 2})`}>
           <AnimatedCircle
             cx={size / 2}
             cy={size / 2}
@@ -358,7 +358,9 @@ export function DonutChart({
           strokeWidth={thickness}
           fill="none"
         />
-        <G rotation={-90} originX={size / 2} originY={size / 2}>
+        {/* A plain SVG transform, not the rotation/originX props: on web
+            those compile to a transform-origin React DOM rejects. */}
+        <G transform={`rotate(-90 ${size / 2} ${size / 2})`}>
           {arcs.map((arc, i) => (
             <DonutArc
               key={i}

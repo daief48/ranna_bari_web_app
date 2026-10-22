@@ -69,19 +69,8 @@ const LANES = [
   { key: 'history', label: 'History', match: isClosed },
 ];
 
-/** What the shop's button says at each stage. */
-const SHOP_NEXT = {
-  confirmed: 'Start packing',
-  preparing: 'Mark ready',
-  ready: 'Send out',
-  delivering: 'Mark delivered',
-};
-
-/** A meal plate's two working steps. Delivered is the customer's to confirm. */
-const MEAL_NEXT = {
-  confirmed: 'Start cooking',
-  preparing: 'Mark delivered',
-};
+/* SHOP_NEXT and MEAL_NEXT — what each kind's button says per stage — live
+   with the cards that render them, in src/components/OrderCards. */
 
 const KINDS = [
   { key: 'menu', label: 'Menu', icon: 'receipt' },
