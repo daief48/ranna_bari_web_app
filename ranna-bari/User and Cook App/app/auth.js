@@ -23,6 +23,7 @@ import { IconTile } from '../src/components/Surfaces';
 import { useTheme } from '../src/theme/ThemeProvider';
 import useResponsive from '../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../src/theme/tokens';
+import { DIVISION_NAMES, districtNamesOf } from '../src/lib/bd-areas';
 import { useAuth } from '../src/store/AuthContext';
 import { useSession } from '../src/store/SessionContext';
 import { useAlert } from '../src/components/Alert';
@@ -174,6 +175,11 @@ export default function AuthScreen() {
   const [detail, setDetail] = useState('');
   const [addressLabel, setAddressLabel] = useState('Home');
   const [radiusKm, setRadiusKm] = useState(3);
+  /* The customer's division and district, picked in step 3. This is what the
+     coverage matcher reads — without it a brand-new address is legacy the
+     moment it is created, and only the radius ever answers for it. */
+  const [suDivision, setSuDivision] = useState('');
+  const [suDistrict, setSuDistrict] = useState('');
 
   const aside = ASIDE[tab === 'signup' && role ? role : 'none'];
   const pwLevel = passwordScore(pw);
@@ -267,6 +273,16 @@ export default function AuthScreen() {
   const submit = async () => {
     if (!place) {
       return alert.error(t('Drop your pin on the map so we know where to find you.'));
+    }
+    /* A customer's division and district are what the coverage matcher reads —
+       the whole "who delivers to me" answer hangs on them, so they are asked
+       for outright rather than falling back to the radius for another
+       generation of addresses. */
+    if (role === 'user' && !suDivision) {
+      return alert.error(t('Pick your division so kitchens know if they reach you.'));
+    }
+    if (role === 'user' && !suDistrict) {
+      return alert.error(t('Pick your district inside {division}.', { division: suDivision }));
     }
     if (!phone.trim()) {
       return alert.error(t('We need your mobile number to send a code.'));
@@ -457,6 +473,8 @@ export default function AuthScreen() {
                    what the filters, the cards and the shop directory match
                    on. */
                 area: normaliseArea(place.address),
+                division: suDivision,
+                district: suDistrict,
                 detail: detail.trim(),
                 lat: place.lat,
                 lng: place.lng,
@@ -1430,6 +1448,103 @@ function SignUpView({
             />
 
             <FormNote text={locNote} />
+
+            {role === 'user' ? (
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{
+                    fontFamily: font.uiSemi,
+                    fontSize: type.micro,
+                    letterSpacing: type.micro * tracking.label,
+                    textTransform: 'uppercase',
+                    color: colors.textMuted,
+                    marginBottom: 10,
+                  }}
+                >
+                  {t('Where do you live?')}
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                  {DIVISION_NAMES.map((name) => {
+                    const on = suDivision === name;
+                    return (
+                      <Pressable
+                        key={name}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        onPress={() => {
+                          setSuDivision(name);
+                          setSuDistrict('');
+                        }}
+                        style={({ pressed }) => ({
+                          paddingVertical: 8,
+                          paddingHorizontal: 13,
+                          borderRadius: radius.pill,
+                          backgroundColor: on ? colors.primary : colors.surfaceSolid,
+                          borderWidth: 1,
+                          borderColor: on ? colors.primary : colors.line,
+                          transform: [{ scale: pressed ? 0.96 : 1 }],
+                        })}
+                      >
+                        <Text
+                          style={{
+                            fontFamily: on ? font.uiBold : font.uiSemi,
+                            fontSize: 12.5,
+                            color: on ? colors.onPrimary : colors.textMuted,
+                          }}
+                        >
+                          {name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {suDivision ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {districtNamesOf(suDivision).map((name) => {
+                      const on = suDistrict === name;
+                      return (
+                        <Pressable
+                          key={name}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: on }}
+                          onPress={() => setSuDistrict(name)}
+                          style={({ pressed }) => ({
+                            paddingVertical: 7,
+                            paddingHorizontal: 12,
+                            borderRadius: radius.pill,
+                            backgroundColor: on ? colors.primary50 : colors.surfaceSolid,
+                            borderWidth: 1,
+                            borderColor: on ? colors.primary100 : colors.line,
+                            transform: [{ scale: pressed ? 0.96 : 1 }],
+                          })}
+                        >
+                          <Text
+                            style={{
+                              fontFamily: on ? font.uiBold : font.ui,
+                              fontSize: 12.5,
+                              color: on ? colors.primary : colors.textMuted,
+                            }}
+                          >
+                            {name}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ) : null}
+                <Text
+                  style={{
+                    fontFamily: font.ui,
+                    fontSize: 12,
+                    lineHeight: 18,
+                    color: colors.textMuted,
+                    marginTop: 8,
+                  }}
+                >
+                  {t('This decides which kitchens and shops can reach you — more useful than the pin.')}
+                </Text>
+              </View>
+            ) : null}
 
             <LocationPicker onChange={setPlace} height={250} />
 

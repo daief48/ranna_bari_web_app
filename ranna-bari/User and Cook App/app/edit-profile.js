@@ -22,6 +22,7 @@ import { IconTile } from '../src/components/Surfaces';
 import { Body, Heading } from '../src/components/Typography';
 import { useTheme } from '../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../src/theme/tokens';
+import { DIVISION_NAMES, districtNamesOf } from '../src/lib/bd-areas';
 import { useAuth } from '../src/store/AuthContext';
 import { useSession } from '../src/store/SessionContext';
 import { useLang } from '../src/i18n/LanguageContext';
@@ -91,7 +92,7 @@ function EditProfileForm({ account }) {
   const { t } = useLang();
   const router = useRouter();
   const { updateAccount } = useAuth();
-  const { saveProfile } = useSession();
+  const { saveProfile, saveAddress } = useSession();
 
   /* Every field here is one the sign-in or signup flow already collected, so
      the form opens on the stored values rather than on blanks. */
@@ -105,6 +106,10 @@ function EditProfileForm({ account }) {
   const [specialtyOpen, setSpecialtyOpen] = useState(false);
   const [line, setLine] = useState(account?.addressDetail ?? '');
   const [area, setArea] = useState(account?.area ?? '');
+  /* The coverage pair — what the matcher reads before any distance. Empty on
+     every account that predates the picker. */
+  const [division, setDivision] = useState(account?.division ?? '');
+  const [district, setDistrict] = useState(account?.district ?? '');
   const [label, setLabel] = useState(account?.addressLabel ?? 'Home');
   const [bio, setBio] = useState(account?.bio ?? '');
   const [coords, setCoords] = useState(
@@ -206,6 +211,27 @@ function EditProfileForm({ account }) {
        had never heard of one. */
     await saveProfile({ name: name.trim(), email: email.trim(), avatar, bio: bio.trim() });
 
+    /* The address block now carries the division pair that coverage matching
+       reads, so it has to reach the server — `/account` carries only the
+       profile fields, and the address of record is the selected one in the
+       addresses list. Rebuilt from what is on screen and posted whole; the
+       pin travels only when it was actually moved. */
+    const selected = (account?.addresses ?? []).find((a) => a.selected) ?? null;
+    if (selected) {
+      await saveAddress({
+        id: selected.id,
+        label,
+        area: area.trim(),
+        division,
+        district,
+        detail: line.trim(),
+        instructions: selected.instructions ?? '',
+        /* Only when moved — saving a name should not re-pin the address. */
+        ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
+        select: true,
+      });
+    }
+
     await updateAccount({
       avatar,
       lat: coords?.lat ?? account?.lat ?? null,
@@ -218,6 +244,8 @@ function EditProfileForm({ account }) {
       specialty,
       addressDetail: line.trim(),
       area: area.trim(),
+      division,
+      district,
       addressLabel: label,
       bio: bio.trim(),
     });
@@ -571,6 +599,111 @@ function EditProfileForm({ account }) {
                 onChangeText={setLine}
                 placeholder={t('House 12, Road 7, Flat 4B')}
               />
+
+              {/* ---- division → district ----
+                  The coverage matcher reads these two before it reads any
+                  distance, so they sit above the free-text area. */}
+              <Text
+                style={{
+                  fontFamily: font.uiSemi,
+                  fontSize: type.micro,
+                  letterSpacing: type.micro * tracking.label,
+                  textTransform: 'uppercase',
+                  color: colors.textMuted,
+                  marginTop: 8,
+                  marginBottom: 8,
+                }}
+              >
+                {t('Division')}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {DIVISION_NAMES.map((name) => {
+                  const on = division === name;
+                  return (
+                    <Pressable
+                      key={name}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      onPress={() => {
+                        setDivision(name);
+                        setDistrict('');
+                      }}
+                      style={({ pressed }) => ({
+                        paddingVertical: 8,
+                        paddingHorizontal: 13,
+                        borderRadius: radius.pill,
+                        backgroundColor: on ? colors.primary : colors.surfaceSolid,
+                        borderWidth: 1,
+                        borderColor: on ? colors.primary : colors.line,
+                        transform: [{ scale: pressed ? 0.96 : 1 }],
+                      })}
+                    >
+                      <Text
+                        style={{
+                          fontFamily: on ? font.uiBold : font.uiSemi,
+                          fontSize: 12.5,
+                          color: on ? colors.onPrimary : colors.textMuted,
+                        }}
+                      >
+                        {name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {division ? (
+                <View style={{ marginTop: 10 }}>
+                  <Text
+                    style={{
+                      fontFamily: font.uiSemi,
+                      fontSize: type.micro,
+                      letterSpacing: type.micro * tracking.label,
+                      textTransform: 'uppercase',
+                      color: colors.textMuted,
+                      marginBottom: 8,
+                    }}
+                  >
+                    {t('District')}
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {districtNamesOf(division).map((name) => {
+                      const on = district === name;
+                      return (
+                        <Pressable
+                          key={name}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: on }}
+                          onPress={() => {
+                            setDistrict(name);
+                            if (!area.trim()) setArea(name);
+                          }}
+                          style={({ pressed }) => ({
+                            paddingVertical: 7,
+                            paddingHorizontal: 12,
+                            borderRadius: radius.pill,
+                            backgroundColor: on ? colors.primary50 : colors.surfaceSolid,
+                            borderWidth: 1,
+                            borderColor: on ? colors.primary100 : colors.line,
+                            transform: [{ scale: pressed ? 0.96 : 1 }],
+                          })}
+                        >
+                          <Text
+                            style={{
+                              fontFamily: on ? font.uiBold : font.ui,
+                              fontSize: 12.5,
+                              color: on ? colors.primary : colors.textMuted,
+                            }}
+                          >
+                            {name}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
               <FloatLabelInput
                 label={t('Area')}
                 value={area}

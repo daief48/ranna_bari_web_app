@@ -8,6 +8,7 @@
  * switch had the mirror problem -- it changed the kitchen page and nothing
  * that leads to it, so a closed kitchen still sat at the top of the feed.
  */
+import { areaInRow, divisionOfDistrict } from './bd-areas';
 
 /**
  * A kitchen with no flag is cooking. Absence means "never said otherwise",
@@ -29,4 +30,40 @@ export function deliversTo(chef, km) {
   const radius = chef?.deliveryRadiusKm;
   if (typeof radius !== 'number' || !(radius > 0)) return true;
   return km <= radius;
+}
+
+/**
+ * Whether a seller — a kitchen or a shop — covers one customer address.
+ *
+ * The division model outranks the map: a seller who named the divisions they
+ * deliver to is visible everywhere inside them, at any distance, and hidden
+ * everywhere outside them, however close the pin sits. A seller who never
+ * named any (every row that predates the picker) keeps the radius answer, so
+ * nothing regresses behind this function's back.
+ *
+ * `km` is the distance from the caller's origin, computed once upstream and
+ * reused here for the legacy path. No address on file — a guest, or an
+ * account that never picked a division — falls back the same way: today's
+ * behaviour, show everything the radius allows.
+ */
+export function coversCustomer(seller, addr, km) {
+  if (!addr || (!addr.division && !addr.district && !addr.area)) {
+    return deliversTo(seller, km);
+  }
+  if (seller?.allBangladesh) return true;
+
+  const rows = Array.isArray(seller?.serviceAreas) ? seller.serviceAreas : [];
+  if (!rows.length) return deliversTo(seller, km);
+
+  const division =
+    addr.division || divisionOfDistrict(addr.district) || divisionOfDistrict(addr.area);
+  if (!division) return deliversTo(seller, km);
+
+  return rows.some(
+    (row) =>
+      row?.division === division &&
+      (!(Array.isArray(row.areas) && row.areas.length) ||
+        areaInRow(row, addr.district) ||
+        areaInRow(row, addr.area)),
+  );
 }

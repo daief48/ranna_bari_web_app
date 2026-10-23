@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { bearerFrom, identify, type AppIdentity } from '../../../auth/app-auth.js';
 import { ERR, errText } from '../../../lib/domain.js';
 import { todayKey } from '../../../lib/format.js';
+import { serviceAreaCovers } from '../../../lib/bd-areas.js';
 import {
   acceptPrice,
   cancelRequest,
@@ -151,7 +152,9 @@ function distanceKm(a: Point, b: Point): number {
  *
  * The same rule browse uses — open, and willing to come this far — so a
  * request cannot reach a cook whose food the customer could never have been
- * shown. `isOpen` is asked only of a request wanted today: it says whether a
+ * shown. Coverage first: a kitchen that named its divisions covers an address
+ * in them at any distance, and one that named none keeps the old radius
+ * answer. `isOpen` is asked only of a request wanted today: it says whether a
  * kitchen is taking orders *now*, which is no answer at all about Friday's
  * cake, and applying it anyway would empty the broadcast for anyone planning
  * ahead in the evening.
@@ -161,14 +164,21 @@ function distanceKm(a: Point, b: Point): number {
  * already skips it when it simulates offers.
  */
 async function broadcastTo(
-  draft: { lat?: number; lng?: number; area?: string; wantedDate?: string },
+  draft: {
+    lat?: number;
+    lng?: number;
+    area?: string;
+    division?: string;
+    district?: string;
+    wantedDate?: string;
+  },
   ownKitchenId: string | null,
 ): Promise<string[]> {
   const sameDay = !draft.wantedDate || draft.wantedDate <= todayKey();
 
   const kitchens = await Kitchen.find(
     { suspended: false, ...(sameDay ? { isOpen: true } : {}) },
-    { lat: 1, lng: 1, deliveryRadiusKm: 1, area: 1 },
+    { lat: 1, lng: 1, deliveryRadiusKm: 1, area: 1, serviceAreas: 1, allBangladesh: 1 },
   ).lean();
 
   const origin =
@@ -176,9 +186,19 @@ async function broadcastTo(
       ? { lat: draft.lat, lng: draft.lng }
       : null;
 
+  const addr =
+    draft.division || draft.district
+      ? { division: draft.division, district: draft.district, area: draft.area }
+      : null;
+
   return kitchens
     .filter((kitchen) => String(kitchen._id) !== ownKitchenId)
     .filter((kitchen) => {
+      /* A kitchen with coverage rows (or the country switch) has answered the
+         question outright — distance never second-guesses it. */
+      const covered = serviceAreaCovers(kitchen, addr);
+      if (covered !== null) return covered;
+
       if (origin && kitchen.lat && kitchen.lng) {
         const away = distanceKm(origin, { lat: kitchen.lat, lng: kitchen.lng });
         return away <= (kitchen.deliveryRadiusKm ?? 3);
@@ -247,6 +267,8 @@ const draftSchema = z.object({
   categoryId: optionalText,
   category: optionalText,
   area: optionalText,
+  division: optionalText,
+  district: optionalText,
   lat: optionalCoord,
   lng: optionalCoord,
 });

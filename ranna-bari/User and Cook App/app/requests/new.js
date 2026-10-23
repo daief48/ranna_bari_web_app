@@ -70,7 +70,21 @@ export default function NewRequest() {
     [account],
   );
 
-  const eligible = useMemo(() => shop.eligibleKitchens(origin), [shop, origin]);
+  /* Coverage answers against the address on file, not the pin: a kitchen that
+     named Gopalganj reaches this request however far away it pins. */
+  const addr = useMemo(
+    () =>
+      account
+        ? {
+            division: account.division ?? '',
+            district: account.district ?? '',
+            area: account.area ?? '',
+          }
+        : null,
+    [account],
+  );
+
+  const eligible = useMemo(() => shop.eligibleKitchens(origin, addr), [shop, origin, addr]);
 
   /* Only cooks who could actually take it: asking a kitchen that will not
      deliver to you is a message nobody can act on. */
@@ -146,6 +160,10 @@ export default function NewRequest() {
         target,
         lat: account?.lat ?? null,
         lng: account?.lng ?? null,
+        /* The broadcast matches on these before it measures anything. */
+        area: account?.area ?? null,
+        division: account?.division ?? null,
+        district: account?.district ?? null,
       },
       eligible,
     );

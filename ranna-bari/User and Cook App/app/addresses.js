@@ -32,6 +32,7 @@ import { useAuth } from '../src/store/AuthContext';
 import { useSession } from '../src/store/SessionContext';
 import { useLang } from '../src/i18n/LanguageContext';
 import { useAlert } from '../src/components/Alert';
+import { DIVISION_NAMES, districtNamesOf } from '../src/lib/bd-areas';
 
 /** The three a person actually has. Anything else they can type. */
 const LABELS = ['Home', 'Office', 'Other'];
@@ -244,11 +245,27 @@ function Editor({ entry, onCancel, onSave, busy }) {
   const { t } = useLang();
 
   const [label, setLabel] = useState(entry.label ?? 'Home');
+  const [division, setDivision] = useState(entry.division ?? '');
+  const [district, setDistrict] = useState(entry.district ?? '');
   const [area, setArea] = useState(entry.area ?? '');
   const [detail, setDetail] = useState(entry.detail ?? '');
   const [instructions, setInstructions] = useState(entry.instructions ?? '');
   const [pin, setPin] = useState(null);
   const [note, setNote] = useState('');
+
+  const pickDivision = (name) => {
+    setDivision(name);
+    /* A new division invalidates the old district — keeping it would be a
+       district that belongs to no division on file. */
+    setDistrict('');
+  };
+
+  const pickDistrict = (name) => {
+    setDistrict(name);
+    /* The area line is the display string; the district is a fine default
+       for it until the customer types something finer, like a neighbourhood. */
+    if (!area.trim()) setArea(name);
+  };
 
   const submit = () => {
     if (!detail.trim() && !area.trim()) {
@@ -259,6 +276,8 @@ function Editor({ entry, onCancel, onSave, busy }) {
     onSave({
       ...(entry.id ? { id: entry.id } : {}),
       label: label.trim() || 'Home',
+      division,
+      district,
       area: area.trim(),
       detail: detail.trim(),
       instructions: instructions.trim(),
@@ -322,6 +341,89 @@ function Editor({ entry, onCancel, onSave, busy }) {
             onChangeText={setDetail}
             placeholder={t('House 12, Road 7, Flat 4B')}
           />
+
+          {/* ---- division → district ----
+              The cascading pair is what the coverage matcher reads: a kitchen
+              that named Gopalganj reaches this address however far away it
+              pins. The free-text area below stays for the neighbourhood. */}
+          <View style={{ marginTop: 6, marginBottom: 14 }}>
+            <Body muted size={12} style={{ marginBottom: 8 }}>
+              {t('Division')}
+            </Body>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {DIVISION_NAMES.map((name) => {
+                const on = division === name;
+                return (
+                  <Pressable
+                    key={name}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    onPress={() => pickDivision(name)}
+                    style={({ pressed }) => ({
+                      paddingVertical: 8,
+                      paddingHorizontal: 13,
+                      borderRadius: radius.pill,
+                      backgroundColor: on ? colors.primary : colors.surfaceSolid,
+                      borderWidth: 1,
+                      borderColor: on ? colors.primary : colors.line,
+                      transform: [{ scale: pressed ? 0.96 : 1 }],
+                    })}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: on ? font.uiBold : font.uiSemi,
+                        fontSize: 12.5,
+                        color: on ? colors.onPrimary : colors.textMuted,
+                      }}
+                    >
+                      {name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {division ? (
+              <View style={{ marginTop: 10 }}>
+                <Body muted size={12} style={{ marginBottom: 8 }}>
+                  {t('District')}
+                </Body>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {districtNamesOf(division).map((name) => {
+                    const on = district === name;
+                    return (
+                      <Pressable
+                        key={name}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        onPress={() => pickDistrict(name)}
+                        style={({ pressed }) => ({
+                          paddingVertical: 7,
+                          paddingHorizontal: 12,
+                          borderRadius: radius.pill,
+                          backgroundColor: on ? colors.primary50 : colors.surfaceSolid,
+                          borderWidth: 1,
+                          borderColor: on ? colors.primary100 : colors.line,
+                          transform: [{ scale: pressed ? 0.96 : 1 }],
+                        })}
+                      >
+                        <Text
+                          style={{
+                            fontFamily: on ? font.uiBold : font.ui,
+                            fontSize: 12.5,
+                            color: on ? colors.primary : colors.textMuted,
+                          }}
+                        >
+                          {name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+          </View>
+
           <FloatLabelInput
             label={t('Area')}
             value={area}
@@ -336,7 +438,7 @@ function Editor({ entry, onCancel, onSave, busy }) {
           />
 
           <Body muted size={13} style={{ marginTop: 4, marginBottom: 10 }}>
-            {t('The pin is what decides which kitchens can reach you.')}
+            {t('The division and district decide which kitchens reach you. The pin fine-tunes it.')}
           </Body>
           <LocationPicker
             height={220}

@@ -184,6 +184,9 @@ export function OrdersProvider({ children }) {
           status: 'placed',
           contact: draft.contact,
           address: draft.address,
+          /* The customer's words for the cook — every kitchen's order in the
+             basket carries it. The server caps it at 300. */
+          ...(draft.note ? { note: draft.note } : {}),
           createdAt,
           history: [{ status: 'placed', at: createdAt }],
         };

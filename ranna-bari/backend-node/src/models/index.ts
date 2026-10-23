@@ -53,6 +53,11 @@ const accountSchema = new Schema(
      * `addresses` is selected — one place to read, one place to choose.
      */
     area: { type: String, default: null },
+    /* The selected address's division and district, mirrored flat with `area`
+       so the coverage matcher never has to dig into the list. Null on every
+       account that predates them. */
+    division: { type: String, default: null },
+    district: { type: String, default: null },
     lat: { type: Number, default: null },
     lng: { type: Number, default: null },
     addressDetail: { type: String, default: null },
@@ -73,6 +78,11 @@ const accountSchema = new Schema(
           id: { type: String, required: true },
           label: { type: String, default: 'Home' },
           area: { type: String, default: '' },
+          /* Division and district, from the cascading picker. Both empty on
+             every row that predates them — absence means legacy, and the
+             matcher falls back to the radius for those. */
+          division: { type: String, default: '' },
+          district: { type: String, default: '' },
           detail: { type: String, default: '' },
           instructions: { type: String, default: '' },
           lat: { type: Number, default: null },
@@ -256,6 +266,25 @@ const kitchenSchema = new Schema(
     deliveryRadiusKm: { type: Number, default: 3 },
     isOpen: { type: Boolean, default: false, index: true },
 
+    /**
+     * Where this kitchen delivers, as divisions and the districts inside
+     * them. An empty `areas` array under a division means the whole division;
+     * `allBangladesh` outranks everything. Deliberately additive with
+     * `deliveryRadiusKm`: a kitchen with no coverage rows here keeps working
+     * on the radius alone, exactly as before.
+     */
+    serviceAreas: {
+      type: [
+        {
+          _id: false,
+          division: { type: String, default: '' },
+          areas: { type: [String], default: [] },
+        },
+      ],
+      default: [],
+    },
+    allBangladesh: { type: Boolean, default: false },
+
     suspended: { type: Boolean, default: false, index: true },
     suspendedReason: { type: String, default: null },
 
@@ -334,7 +363,11 @@ const dishSchema = new Schema(
     name: { type: String, required: true },
     description: { type: String, default: '' },
     price: { type: Number, required: true },
+    /* `photos` is the set; `image` stays the primary/first one and is kept
+       equal to `photos[0]` on every write, so every existing reader — lists,
+       search, cards, old app builds — keeps working unchanged. */
     image: { type: String, default: '' },
+    photos: { type: [String], default: [] },
     tags: { type: [String], default: [] },
     available: { type: Boolean, default: true },
   },
@@ -357,6 +390,10 @@ const storeSchema = new Schema(
     name: { type: String, default: '' },
     tagline: { type: String, default: '' },
     description: { type: String, default: '' },
+    /* Shop label chips — 'Achar', 'Pitha', 'Cakes & bakes'. Not the shop's
+       shelves: StoreCategory is where products live; this is how a shop
+       names what it is. Empty on every shop that predates them. */
+    tags: { type: [String], default: [] },
     logo: { type: String, default: '' },
     cover: { type: String, default: '' },
     phone: { type: String, default: '' },
@@ -364,7 +401,25 @@ const storeSchema = new Schema(
     lat: { type: Number, default: null },
     lng: { type: Number, default: null },
     deliveryRadiusKm: { type: Number, default: null },
+    /* Same coverage model as the kitchen's — additive with the radius, so an
+       old shop with only a radius keeps behaving as it always did. */
+    serviceAreas: {
+      type: [
+        {
+          _id: false,
+          division: { type: String, default: '' },
+          areas: { type: [String], default: [] },
+        },
+      ],
+      default: [],
+    },
+    allBangladesh: { type: Boolean, default: false },
     deliveryFee: { type: Number, default: 0 },
+    /* Inside/outside Dhaka fees. Null means "no opinion" — the effective fee
+       is the specific field when set, else this legacy `deliveryFee`, so an
+       old shop charges everyone the same number exactly as before. */
+    deliveryFeeInsideDhaka: { type: Number, default: null },
+    deliveryFeeOutsideDhaka: { type: Number, default: null },
     freeDeliveryOver: { type: Number, default: null },
     isOpen: { type: Boolean, default: false, index: true },
   },
@@ -679,6 +734,9 @@ const mealBookingSchema = new Schema(
     minMeals: { type: Number, default: 1 },
     maxMeals: { type: Number, default: 1 },
 
+    /** The customer's words for the cook, riding the whole month. */
+    note: { type: String, default: '' },
+
     /** Bounded by maxMeals and always read whole — embedded. */
     items: {
       type: [
@@ -884,6 +942,14 @@ const orderSchema = new Schema(
     handover: { type: String, default: 'delivery' },
     serveDate: { type: String, default: null },
     slot: { type: String, default: null },
+
+    /**
+     * "Jhal kom diben" — the customer's words for the cook, typed at
+     * checkout. Deliberately not `address.instructions`, which is the
+     * *rider's* note and answers a different question. Empty on every order
+     * that predates it.
+     */
+    note: { type: String, default: '' },
 
     /** Bounded and always read with the order — embedded. */
     lines: { type: Schema.Types.Mixed, default: [] },

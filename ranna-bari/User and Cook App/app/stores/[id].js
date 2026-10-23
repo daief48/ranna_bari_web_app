@@ -292,6 +292,35 @@ export default function StoreScreen() {
             </Text>
           ) : null}
 
+          {/* What the shop is, in the cook's own chips. */}
+          {(store.tags ?? []).length ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
+              {store.tags.map((tag) => (
+                <View
+                  key={tag}
+                  style={{
+                    paddingVertical: 4,
+                    paddingHorizontal: 10,
+                    borderRadius: radius.pill,
+                    backgroundColor: colors.primary50,
+                    borderWidth: 1,
+                    borderColor: colors.primary100,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: font.uiSemi,
+                      fontSize: 11,
+                      color: colors.primary,
+                    }}
+                  >
+                    {t(tag)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <Icon name="pin" size={12} color={colors.textLight} />
             <Text style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}>
@@ -343,14 +372,42 @@ export default function StoreScreen() {
                 color: colors.textMuted,
               }}
             >
-              {store.freeDeliveryOver
-                ? t('Delivery ৳{fee} · free over ৳{over}', {
-                    fee: n(store.deliveryFee),
-                    over: n(store.freeDeliveryOver),
-                  })
-                : store.deliveryFee
-                  ? t('Delivery ৳{fee}', { fee: n(store.deliveryFee) })
-                  : t('Free delivery')}
+            {store.deliveryFeeInsideDhaka != null || store.deliveryFeeOutsideDhaka != null ? (
+              /* The split rates, both named — the checkout picks one by the
+                 customer's division, so the shop page shows the menu of them. */
+              <Text
+                style={{
+                  flex: 1,
+                  fontFamily: font.ui,
+                  fontSize: type.xs + 1,
+                  lineHeight: (type.xs + 1) * 1.5,
+                  color: colors.textMuted,
+                }}
+              >
+                {[
+                  store.deliveryFeeInsideDhaka != null
+                    ? t('৳{fee} inside Dhaka', { fee: n(store.deliveryFeeInsideDhaka) })
+                    : null,
+                  store.deliveryFeeOutsideDhaka != null
+                    ? t('৳{fee} outside Dhaka', { fee: n(store.deliveryFeeOutsideDhaka) })
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                {store.freeDeliveryOver
+                  ? ` · ${t('free over ৳{over}', { over: n(store.freeDeliveryOver) })}`
+                  : ''}
+              </Text>
+            ) : store.freeDeliveryOver ? (
+              t('Delivery ৳{fee} · free over ৳{over}', {
+                fee: n(store.deliveryFee),
+                over: n(store.freeDeliveryOver),
+              })
+            ) : store.deliveryFee ? (
+              t('Delivery ৳{fee}', { fee: n(store.deliveryFee) })
+            ) : (
+              t('Free delivery')
+            )}
             </Text>
           </View>
         </View>

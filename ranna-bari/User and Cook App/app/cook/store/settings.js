@@ -28,11 +28,22 @@ import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import LocationPicker from '../../../src/components/LocationPicker';
+import ServiceAreaPicker from '../../../src/components/ServiceAreaPicker';
 import { RadiusSlider } from '../../../src/components/CookBits';
 import { useAlert } from '../../../src/components/Alert';
 
-export default function StoreSettings() {
-  const { kitchen } = useKitchen();
+/** The vocabulary a shop names itself with — same list the setup wizard offers. */
+const SHOP_TAGS = [
+  'Homemade',
+  'Achar',
+  'Pitha',
+  'Cakes & bakes',
+  'Dry snacks',
+  'Honey & ghee',
+  'Gift boxes',
+];
+
+export default function StoreSettings() {  const { kitchen } = useKitchen();
   const shop = useCommerce();
 
   /* The shop this screen is working on, named by the route's `?shop=`
@@ -72,14 +83,29 @@ function Form({ store }) {
   const [radiusKm, setRadiusKm] = useState(
     store.deliveryRadiusKm ?? 3,
   );
+  /* Coverage — the divisions this shop will cross. The radius above stays as
+     the fallback for a shop that never picks any. */
+  const [coverage, setCoverage] = useState({
+    allBangladesh: !!store.allBangladesh,
+    serviceAreas: store.serviceAreas ?? [],
+  });
   const [name, setName] = useState(store.name || '');
   const [tagline, setTagline] = useState(store.tagline || '');
+  const [tags, setTags] = useState(store.tags ?? []);
   const [description, setDescription] = useState(store.description || '');
   const [phone, setPhone] = useState(store.phone || '');
   const [area, setArea] = useState(store.area ?? '');
   const [logo, setLogo] = useState(store.logo ?? '');
   const [cover, setCover] = useState(store.cover ?? '');
   const [fee, setFee] = useState(String(store.deliveryFee ?? 0));
+  /* Null means "no opinion" — the flat fee above then charges everyone the
+     same, which is every shop that predates the split. */
+  const [feeInside, setFeeInside] = useState(
+    store.deliveryFeeInsideDhaka == null ? '' : String(store.deliveryFeeInsideDhaka),
+  );
+  const [feeOutside, setFeeOutside] = useState(
+    store.deliveryFeeOutsideDhaka == null ? '' : String(store.deliveryFeeOutsideDhaka),
+  );
   const [freeOver, setFreeOver] = useState(
     store.freeDeliveryOver == null ? '' : String(store.freeDeliveryOver),
   );
@@ -102,21 +128,29 @@ function Form({ store }) {
   };
 
   const save = async () => {
+    /* A specific pair replaces the flat fee the moment either is written. */
+    const insideValue = feeInside.trim() === '' ? null : Math.round(Number(feeInside) || 0);
+    const outsideValue = feeOutside.trim() === '' ? null : Math.round(Number(feeOutside) || 0);
     /* A kitchen owns several shops now — editing must name the one on
        screen, or the server would read the save as "open another one". */
     const out = await shop.saveStore(
       store.id,
       {
       name: name.trim(),
-      tagline: tagline.trim(),
+      tagline: tagline.trim().slice(0, 90),
+      tags,
       description: description.trim(),
       phone: phone.trim(),
       area: area.trim(),
       logo,
       cover,
       deliveryFee: Math.max(0, Math.round(Number(fee) || 0)),
+      deliveryFeeInsideDhaka: insideValue,
+      deliveryFeeOutsideDhaka: outsideValue,
       freeDeliveryOver: freeOver.trim() ? Math.round(Number(freeOver)) : null,
       deliveryRadiusKm: radiusKm,
+      serviceAreas: coverage.serviceAreas,
+      allBangladesh: coverage.allBangladesh,
       /* Only sent when the pin was actually moved. */
       ...(pin ? { lat: pin.lat, lng: pin.lng } : {}),
       },
@@ -286,6 +320,94 @@ function Form({ store }) {
               onChangeText={setTagline}
               placeholder={t('Cakes, pitha and achar, made at home')}
             />
+            {/* Real sentences beat a blank line — tap one to fill, then edit. */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: -8, marginBottom: 10 }}>
+              {[
+                t('Small-batch achar, ground and bottled every week'),
+                t('Village-style pitha made to order'),
+                t('Home bakes — cakes, cupcakes, gift boxes'),
+              ].map((example) => (
+                <Pressable
+                  key={example}
+                  accessibilityRole="button"
+                  onPress={() => setTagline(example)}
+                  style={({ pressed }) => ({
+                    paddingVertical: 7,
+                    paddingHorizontal: 11,
+                    borderRadius: radius.pill,
+                    borderWidth: 1,
+                    borderColor: tagline === example ? colors.sage : colors.line,
+                    backgroundColor: tagline === example ? colors.sage50 : pressed ? colors.sunken : 'transparent',
+                  })}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      fontFamily: font.ui,
+                      fontSize: 11.5,
+                      color: colors.textMuted,
+                      maxWidth: 260,
+                    }}
+                  >
+                    {example}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* What this shop is, in chips. */}
+            <Text
+              style={{
+                fontFamily: font.uiSemi,
+                fontSize: type.micro,
+                letterSpacing: type.micro * 0.09,
+                textTransform: 'uppercase',
+                color: colors.textMuted,
+                marginBottom: 8,
+              }}
+            >
+              {t('Tags (up to 5)')}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+              {SHOP_TAGS.map((tag) => {
+                const on = tags.includes(tag);
+                return (
+                  <Pressable
+                    key={tag}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    onPress={() =>
+                      setTags((prev) =>
+                        prev.includes(tag)
+                          ? prev.filter((x) => x !== tag)
+                          : prev.length >= 5
+                            ? prev
+                            : [...prev, tag],
+                      )
+                    }
+                    style={({ pressed }) => ({
+                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      borderRadius: radius.pill,
+                      backgroundColor: on ? colors.sage : colors.surfaceSolid,
+                      borderWidth: 1,
+                      borderColor: on ? colors.sage : colors.line,
+                      transform: [{ scale: pressed ? 0.96 : 1 }],
+                    })}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: on ? font.uiBold : font.uiSemi,
+                        fontSize: 12,
+                        color: on ? '#FFFFFF' : colors.textMuted,
+                      }}
+                    >
+                      {t(tag)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <FloatLabelInput
               label={t('Description')}
               value={description}
@@ -360,6 +482,36 @@ function Form({ store }) {
               />
             </View>
 
+            {/* Two prices, because Dhaka is not Chattogram. The customer's
+                division picks which one they are charged; leave both empty and
+                the flat fee above applies to everyone. */}
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 14 }}>
+              <FloatLabelInput
+                label={t('Delivery fee inside Dhaka')}
+                value={feeInside}
+                onChangeText={(v) => setFeeInside(v.replace(/[^0-9]/g, ''))}
+                keyboardType="number-pad"
+                placeholder={t('Same for everyone')}
+                style={{ flex: 1 }}
+              />
+              <FloatLabelInput
+                label={t('Delivery fee outside Dhaka')}
+                value={feeOutside}
+                onChangeText={(v) => setFeeOutside(v.replace(/[^0-9]/g, ''))}
+                keyboardType="number-pad"
+                placeholder={t('Same for everyone')}
+                style={{ flex: 1 }}
+              />
+            </View>
+
+            {/* ---- where this shop will go ----
+                Divisions and districts, not just a circle on a map. When
+                coverage is set it outranks the radius entirely — the slider
+                below is only the answer for a shop that never picks any. */}
+            <View style={{ marginTop: 22, marginBottom: 8 }}>
+              <ServiceAreaPicker value={coverage} onChange={setCoverage} />
+            </View>
+
             {/* How far the shelf travels, which is not necessarily how far a
                 hot meal will: a jar of achar posts further than a plate of
                 bhuna. The shop kept inheriting the kitchen's radius with no
@@ -382,7 +534,9 @@ function Form({ store }) {
                 marginTop: 10,
               }}
             >
-              {t('Charged once per order, however many things are in the basket.')}
+              {coverage.allBangladesh || (coverage.serviceAreas ?? []).length
+                ? t('The radius is not used while coverage is chosen above.')
+                : t('Charged once per order, however many things are in the basket.')}
             </Text>
           </View>
         </Reveal>

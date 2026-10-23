@@ -94,6 +94,10 @@ type SavedAddress = {
   id: string;
   label: string;
   area: string;
+  /* Division and district, from the cascading picker. Empty on every row
+     that predates them — absence means legacy. */
+  division?: string;
+  district?: string;
   detail: string;
   instructions: string;
   lat?: number | null;
@@ -112,6 +116,8 @@ const shapeAccount = (account: {
   avatar?: string | null;
   bio?: string;
   area?: string | null;
+  division?: string | null;
+  district?: string | null;
   lat?: number | null;
   lng?: number | null;
   addressDetail?: string | null;
@@ -128,6 +134,8 @@ const shapeAccount = (account: {
   bio: account.bio ?? '',
   /* The selected address, flat — the shape every existing screen reads. */
   area: account.area ?? '',
+  division: account.division ?? '',
+  district: account.district ?? '',
   lat: account.lat ?? null,
   lng: account.lng ?? null,
   addressDetail: account.addressDetail ?? '',
@@ -154,6 +162,10 @@ async function saveAddresses(customerKey: string, list: SavedAddress[]) {
       $set: {
         addresses: list,
         area: chosen?.area ?? null,
+        /* Mirrored flat with `area`: the coverage matcher reads the account,
+           not the list, and the legacy screens already read this way. */
+        division: chosen?.division ?? null,
+        district: chosen?.district ?? null,
         addressDetail: chosen?.detail ?? null,
         addressLabel: chosen?.label ?? null,
         lat: chosen?.lat ?? null,
@@ -216,6 +228,7 @@ const shapeDish = (dish: {
   description?: string;
   price: number;
   image?: string;
+  photos?: string[];
   tags?: string[];
   available?: boolean;
 }) => ({
@@ -224,6 +237,9 @@ const shapeDish = (dish: {
   description: dish.description ?? '',
   price: dish.price,
   image: dish.image ?? '',
+  /* The set behind the primary. `image` itself leads it so a dish written
+     before the set existed still swipes as a one-photo gallery. */
+  photos: dish.photos?.length ? dish.photos : dish.image ? [dish.image] : [],
   tags: dish.tags ?? [],
   available: dish.available ?? true,
 });
@@ -357,6 +373,11 @@ export async function appRoutes(app: FastifyInstance) {
       lat: k.lat,
       lng: k.lng,
       deliveryRadiusKm: k.deliveryRadiusKm,
+      /* Coverage — what replaced "a pin and a radius" as the answer to "will
+         they come this far". Absent on legacy rows, which the app reads as
+         "use the radius". */
+      serviceAreas: k.serviceAreas ?? [],
+      allBangladesh: !!k.allBangladesh,
       isOpen: k.isOpen,
     }));
 
@@ -441,6 +462,8 @@ export async function appRoutes(app: FastifyInstance) {
         lat: kitchen.lat,
         lng: kitchen.lng,
         deliveryRadiusKm: kitchen.deliveryRadiusKm,
+        serviceAreas: kitchen.serviceAreas ?? [],
+        allBangladesh: !!kitchen.allBangladesh,
         isOpen: kitchen.isOpen,
       },
     };
@@ -556,6 +579,10 @@ export async function appRoutes(app: FastifyInstance) {
         lat: kitchen.lat,
         lng: kitchen.lng,
         deliveryRadiusKm: kitchen.deliveryRadiusKm,
+        /* The cook reads back what the editor wrote — the coverage rows and
+           the master switch, exactly as the customer side reads them. */
+        serviceAreas: kitchen.serviceAreas ?? [],
+        allBangladesh: !!kitchen.allBangladesh,
         isOpen: kitchen.isOpen,
       },
       dishes: dishes.map(shapeDish),
@@ -778,6 +805,9 @@ export async function appRoutes(app: FastifyInstance) {
         description: z.string().optional(),
         price: z.coerce.number().finite().positive().optional(),
         image: z.string().optional(),
+        /* The set, capped at the same five a shop product carries. `image`
+           stays the wire's primary — the server derives it from photos[0]. */
+        photos: z.array(z.string()).max(5).optional(),
         tags: z.array(z.string()).optional(),
         available: z.boolean().optional(),
       })
@@ -785,6 +815,11 @@ export async function appRoutes(app: FastifyInstance) {
     if (!body.success) return fail(reply, ERR.NAME_REQUIRED);
 
     const { dishId, ...patch } = body.data;
+
+    /* Every reader — list cards, search, old app builds — reads `image`.
+       It stays the first photo, whatever shape the write arrived in. */
+    if (patch.photos?.length) patch.image = patch.photos[0];
+    else if (patch.photos && !patch.photos.length && !patch.image) patch.image = '';
 
     if (dishId) {
       const dish = await Dish.findOneAndUpdate(
@@ -1265,6 +1300,11 @@ export async function appRoutes(app: FastifyInstance) {
         id: z.string().optional(),
         label: z.string().default('Home'),
         area: z.string().default(''),
+        /* Division and district, from the cascading picker. Both optional:
+           an old app build (or a legacy screen) sends neither, and absence
+           means the matcher falls back to the radius. */
+        division: z.string().optional(),
+        district: z.string().optional(),
         detail: z.string().default(''),
         instructions: z.string().default(''),
         lat: z.coerce.number().nullable().optional(),
@@ -1288,6 +1328,8 @@ export async function appRoutes(app: FastifyInstance) {
       id,
       label: body.data.label.trim() || 'Home',
       area: body.data.area.trim(),
+      division: (body.data.division ?? '').trim(),
+      district: (body.data.district ?? '').trim(),
       detail: body.data.detail.trim(),
       instructions: body.data.instructions.trim(),
       lat: body.data.lat ?? (at >= 0 ? list[at]!.lat : null),

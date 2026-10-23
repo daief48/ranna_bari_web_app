@@ -27,6 +27,7 @@ import {
   refundInto,
   setStatus,
 } from './ledger';
+import { divisionOfDistrict } from './bd-areas';
 
 /* ------------------------------------------------------------------ *
  * reads
@@ -451,17 +452,43 @@ export function clearCart(state, { customerKey }) {
 }
 
 /**
+ * The delivery fee this shop charges one address — the client's twin of
+ * `deliveryFeeFor` in `backend-node/src/logic/stores.ts`, kept word for word
+ * so a basket preview never disagrees with the till.
+ *
+ * A shop that set inside/outside rates charges by the address's division; a
+ * shop that set neither charges its one legacy fee to everyone. An unknown
+ * division never earns the outside guess: the inside fee when that is the
+ * only specific one, the legacy fee otherwise.
+ */
+export function deliveryFeeFor(store, addr) {
+  if (!store) return 0;
+  const inside = store.deliveryFeeInsideDhaka;
+  const outside = store.deliveryFeeOutsideDhaka;
+  if (inside == null && outside == null) return store.deliveryFee ?? 0;
+
+  const division =
+    addr?.division || divisionOfDistrict(addr?.district) || divisionOfDistrict(addr?.area);
+
+  if (!division) {
+    return outside == null ? (inside ?? store.deliveryFee ?? 0) : (store.deliveryFee ?? 0);
+  }
+  if (division === 'Dhaka') return inside ?? store.deliveryFee ?? 0;
+  return outside ?? store.deliveryFee ?? 0;
+}
+
+/**
  * Price the basket, revalidating every line against the live product.
  *
  * Nothing the cart stored is trusted: the price, the availability and the
- * limits are all read again from the product record, because a basket can
- * sit for a day while the cook changes their mind about all three.
+ * limits are all read again from the product record, because a basket can sit
+ * for a day while the cook changes their mind about all three.
  *
  * Returns the same shape whether or not it is orderable, so the cart screen
  * can show the problem next to the line that has it rather than as one
  * banner at the bottom.
  */
-export function priceCart(state, customerKey) {
+export function priceCart(state, customerKey, addr) {
   const lines = cartOf(state, customerKey).map((line) => {
     const product = productById(state, line.productId);
     const store = product ? storeById(state, product.storeId) : null;
@@ -506,7 +533,7 @@ export function priceCart(state, customerKey) {
   let delivery = 0;
   for (const { store, subtotal } of stores.values()) {
     const free = store.freeDeliveryOver != null && subtotal >= store.freeDeliveryOver;
-    delivery += free ? 0 : (store.deliveryFee ?? 0);
+    delivery += free ? 0 : deliveryFeeFor(store, addr);
   }
 
   const subtotal = lines.reduce((sum, l) => sum + (l.problem ? 0 : l.lineTotal), 0);
@@ -543,7 +570,7 @@ const titleFor = (lines) =>
  * agreed to cannot share a status.
  */
 export function checkout(state, { customerKey, customer, now, rand }) {
-  const priced = priceCart(state, customerKey);
+  const priced = priceCart(state, customerKey, customer?.address ?? null);
   if (!priced.lines.length) return fail(state, ERR.EMPTY_CART);
   if (priced.problems.length) {
     const first = priced.problems[0];
@@ -589,7 +616,10 @@ export function checkout(state, { customerKey, customer, now, rand }) {
     const free =
       group.store.freeDeliveryOver != null &&
       storeSubtotal >= group.store.freeDeliveryOver;
-    const fee = feeTaken.has(group.store.id) || free ? 0 : (group.store.deliveryFee ?? 0);
+    const fee =
+      feeTaken.has(group.store.id) || free
+        ? 0
+        : deliveryFeeFor(group.store, customer?.address ?? null);
     feeTaken.add(group.store.id);
 
     const amount = subtotal + fee;

@@ -26,6 +26,7 @@ import Screen, { Container } from '../../src/components/Screen';
 import Icon from '../../src/components/Icon';
 import Button from '../../src/components/Button';
 import SectionHeader from '../../src/components/SectionHeader';
+import FloatLabelInput from '../../src/components/FloatLabelInput';
 import { Body } from '../../src/components/Typography';
 import { useAlert } from '../../src/components/Alert';
 import { useTheme } from '../../src/theme/ThemeProvider';
@@ -65,6 +66,8 @@ export default function MealServiceScreen() {
   const [data, setData] = useState(null);
   const [picked, setPicked] = useState(() => new Set());
   const [busy, setBusy] = useState(false);
+  /* For the cook, not the rider — one sentence riding the whole month. */
+  const [cookNote, setCookNote] = useState('');
 
   const load = useCallback(async () => {
     if (!token || !kitchenId) return;
@@ -236,6 +239,7 @@ export default function MealServiceScreen() {
           month,
           selections,
           address,
+          note: cookNote,
         });
         setBusy(false);
 
@@ -437,6 +441,41 @@ export default function MealServiceScreen() {
           ) : (
             <View style={{ marginTop: 18 }}>
               {/* Whole-month shortcuts. "Lunch every day" is the commonest
+              {/* Whose menu this is. A kitchen that has not published a month
+                  of its own is booked off the platform's default calendar —
+                  the customer should know that before they commit a month to
+                  it, not after the food does not match the kitchen. */}
+              {data?.planSource === 'system' ? (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 7,
+                    marginTop: 12,
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    borderRadius: radius.sm,
+                    backgroundColor: colors.sunken,
+                    borderWidth: 1,
+                    borderColor: colors.line,
+                  }}
+                >
+                  <Icon name="sparkles" size={13} color={colors.textMuted} />
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontFamily: font.uiSemi,
+                      fontSize: 12,
+                      lineHeight: 17,
+                      color: colors.textMuted,
+                    }}
+                  >
+                    {t('RannaBari default menu — the cook has not published their own yet')}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Take one sitting across the month — the shortcut for the commonest
                   shape of a meal plan and it was twenty taps down a scroll. */}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {SLOTS.map((slot) => (
@@ -450,6 +489,19 @@ export default function MealServiceScreen() {
                 {count > 0 ? (
                   <Chip label={t('Clear')} onPress={() => setPicked(new Set())} />
                 ) : null}
+              </View>
+
+              {/* For the cook, not the rider — one sentence riding every plate
+                  of the month. Kept above the calendar so it is answered while
+                  the days are being picked, not scrolled past. */}
+              <View style={{ marginTop: 16 }}>
+                <FloatLabelInput
+                  label={t('Note for the cook (optional)')}
+                  value={cookNote}
+                  onChangeText={setCookNote}
+                  placeholder={t('Anything the cook should know? Less spicy, less sweet…')}
+                  multiline
+                />
               </View>
 
               {pastDays.length && !showPast ? (

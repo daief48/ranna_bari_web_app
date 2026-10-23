@@ -112,9 +112,9 @@ describe('health and config', () => {
 
     expect(keys).toEqual(
       [
-        'area', 'avatar', 'coverImage', 'deliveryRadiusKm', 'description', 'ecoBadge',
-        'id', 'isOpen', 'isVerified', 'lat', 'lng', 'name', 'rating', 'reviewCount',
-        'specialty', 'tags',
+        'allBangladesh', 'area', 'avatar', 'coverImage', 'deliveryRadiusKm', 'description',
+        'ecoBadge', 'id', 'isOpen', 'isVerified', 'lat', 'lng', 'name', 'rating',
+        'reviewCount', 'serviceAreas', 'specialty', 'tags',
       ].sort(),
     );
   });

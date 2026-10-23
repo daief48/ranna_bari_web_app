@@ -1478,6 +1478,10 @@ export async function payForRequest(
             customerName: args.customer?.name ?? '',
             phone: args.customer?.phone ?? '',
             address: args.customer?.address ?? null,
+            /* The request's own text follows the order — the cook's board is
+               where the work is actually triaged, and it should not depend on
+               anybody finding the request thread. */
+            note: String(request.description ?? '').slice(0, 300),
 
             handover: 'delivery',
             /* One line for the whole job. The cook named this price knowing

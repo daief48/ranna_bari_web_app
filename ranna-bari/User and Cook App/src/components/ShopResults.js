@@ -10,15 +10,17 @@
  * one box at the top of the screen, and a second box inside this list would
  * be two ways to ask the same question.
  */
-import React, { useMemo } from 'react';
-import { View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import Button from './Button';
+import Icon from './Icon';
 import Reveal from './Reveal';
 import { EmptyState, errorText } from './MealBits';
 import { Skeleton, StoreCard } from './StoreBits';
-import { radius } from '../theme/tokens';
+import { font, radius, type } from '../theme/tokens';
+import { useTheme } from '../theme/ThemeProvider';
 import { useAuth } from '../store/AuthContext';
 import { useCommerce } from '../store/CommerceContext';
 import { useLang } from '../i18n/LanguageContext';
@@ -32,6 +34,7 @@ export default function ShopResults({
   onClearFilters,
 }) {
   const { t, n } = useLang();
+  const { colors } = useTheme();
   const alert = useAlert();
   const router = useRouter();
   const { account, isSignedIn } = useAuth();
@@ -45,7 +48,22 @@ export default function ShopResults({
     [account],
   );
 
-  const all = useMemo(() => storesNearby(origin), [storesNearby, origin]);
+  /* Coverage answers against the address on file, not the pin alone: a shop
+     that named Gopalganj reaches a Gopalganj address however far the crow
+     would have to fly. */
+  const addr = useMemo(
+    () =>
+      account
+        ? {
+            division: account.division ?? '',
+            district: account.district ?? '',
+            area: account.area ?? '',
+          }
+        : null,
+    [account],
+  );
+
+  const all = useMemo(() => storesNearby(origin, addr), [storesNearby, origin, addr]);
 
   /*
    * Product names per shop, for the ones the app happens to hold.
@@ -78,7 +96,7 @@ export default function ShopResults({
         row,
         rank: matcher.rank({
           name: row.store.name,
-          tags: [row.store.area],
+          tags: [row.store.area, ...(row.store.tags ?? [])],
           text: [row.store.tagline, ...(shelfWords.get(String(row.store.id)) ?? [])].join(' '),
         }),
       }))
@@ -88,6 +106,15 @@ export default function ShopResults({
   }, [all, query, openOnly, freeOnly, shelfWords]);
 
   const narrowed = !!query.trim() || openOnly || freeOnly;
+
+  /* The list arrives with the deliverers in front; what is left is shown
+     rather than hidden, folded under its own heading. An open shop a few
+     kilometres past the radius used to be a total invisibility event — the
+     customer was shown an empty screen and the cook heard silence. Distance
+     still gates the basket; here it only gates attention. */
+  const [showOutside, setShowOutside] = useState(false);
+  const near = rows.filter((r) => r.near !== false);
+  const outside = rows.filter((r) => r.near === false);
 
   /* A guest is sent to sign in rather than silently failing: the list is
      per-account, and there is nowhere to put it until there is an account. */
@@ -132,20 +159,63 @@ export default function ShopResults({
     );
   }
 
+  const card = ({ store, km, products: productCount }, i) => (
+    <Reveal key={store.id} delay={(i % 5) + 1}>
+      <StoreCard
+        store={store}
+        km={km}
+        products={productCount}
+        saved={isStoreSaved(store.id)}
+        onSave={() => save(store)}
+        onPress={() => router.push(`/stores/${store.id}`)}
+      />
+    </Reveal>
+  );
+
   return (
     <View style={{ gap: 16 }}>
-      {rows.map(({ store, km, products: productCount }, i) => (
-        <Reveal key={store.id} delay={(i % 5) + 1}>
-          <StoreCard
-            store={store}
-            km={km}
-            products={productCount}
-            saved={isStoreSaved(store.id)}
-            onSave={() => save(store)}
-            onPress={() => router.push(`/stores/${store.id}`)}
-          />
-        </Reveal>
-      ))}
+      {near.map(card)}
+
+      {outside.length ? (
+        <View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showOutside }}
+            accessibilityLabel={t('Outside your delivery area')}
+            onPress={() => setShowOutside((v) => !v)}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              borderRadius: radius.md,
+              borderWidth: 1,
+              borderColor: colors.line,
+              backgroundColor: pressed ? colors.sunken : 'transparent',
+            })}
+          >
+            <Icon
+              name={showOutside ? 'chevronDown' : 'chevronRight'}
+              size={14}
+              color={colors.textMuted}
+              strokeWidth={2.2}
+            />
+            <Text
+              style={{
+                flex: 1,
+                fontFamily: font.uiSemi,
+                fontSize: type.sm,
+                color: colors.textMuted,
+              }}
+            >
+              {t('Outside your delivery area')} · {n(outside.length)}
+            </Text>
+          </Pressable>
+
+          {showOutside ? <View style={{ gap: 16, marginTop: 16 }}>{outside.map(card)}</View> : null}
+        </View>
+      ) : null}
     </View>
   );
 }

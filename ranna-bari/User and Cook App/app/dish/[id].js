@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -57,6 +57,12 @@ export default function DishScreen() {
   const { dish, chef } = found;
   const closed = !isOpenNow(chef);
 
+  /* The set behind the cover — one photo still swipes as one, so a dish
+     written before the set existed renders exactly as it always did. */
+  const gallery = dish.photos?.length ? dish.photos : [dish.image].filter(Boolean);
+  const [page, setPage] = useState(0);
+  const pagerRef = useRef(null);
+
   /* The rest of the same menu, so the page is a way into the kitchen rather
      than a dead end. Three is enough to suggest there is more. */
   const alsoHere = menu.filter((d) => String(d.id) !== String(dish.id)).slice(0, 3);
@@ -103,12 +109,59 @@ export default function DishScreen() {
               shadow.md,
             ]}
           >
-            <Image
-              source={{ uri: dish.image }}
-              contentFit="cover"
-              transition={250}
-              style={{ width: '100%', height: 230, backgroundColor: colors.sunken }}
-            />
+            {gallery.length > 1 ? (
+              <>
+                <ScrollView
+                  ref={pagerRef}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onScroll={(e) =>
+                    setPage(Math.round(e.nativeEvent.contentOffset.x / e.nativeEvent.layout.width))
+                  }
+                  scrollEventThrottle={32}
+                >
+                  {gallery.map((uri) => (
+                    <Image
+                      key={uri}
+                      source={{ uri }}
+                      contentFit="cover"
+                      transition={250}
+                      style={{ width: '100%', height: 230, backgroundColor: colors.sunken }}
+                    />
+                  ))}
+                </ScrollView>
+                {/* Page dots — one per photo, so "there is more" is visible
+                    without a swipe that might never happen. */}
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'center',
+                    gap: 5,
+                    paddingVertical: 9,
+                  }}
+                >
+                  {gallery.map((uri, i) => (
+                    <View
+                      key={uri}
+                      style={{
+                        width: i === page ? 14 : 5,
+                        height: 5,
+                        borderRadius: 3,
+                        backgroundColor: i === page ? colors.primary : colors.line,
+                      }}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : (
+              <Image
+                source={{ uri: dish.image }}
+                contentFit="cover"
+                transition={250}
+                style={{ width: '100%', height: 230, backgroundColor: colors.sunken }}
+              />
+            )}
 
             <View style={{ padding: 20 }}>
               <View

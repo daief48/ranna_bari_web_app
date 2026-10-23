@@ -26,6 +26,7 @@ import Icon from '../../../src/components/Icon';
 import Reveal from '../../../src/components/Reveal';
 import Button from '../../../src/components/Button';
 import SectionHeader from '../../../src/components/SectionHeader';
+import ServiceAreaPicker from '../../../src/components/ServiceAreaPicker';
 import FloatLabelInput from '../../../src/components/FloatLabelInput';
 import {
   ActionRow,
@@ -105,6 +106,58 @@ export default function CookStoreHub() {
               : t('{name} is closed. Nothing can be bought.', { name: store.name })
           }
         />
+
+        {/* ---- the storefront's own words, back to the cook ---- */}
+        {store.tagline ? (
+          <Text
+            style={{
+              fontFamily: font.uiSemi,
+              fontSize: type.sm + 1,
+              color: colors.sage,
+              marginTop: -10,
+              marginBottom: 6,
+            }}
+          >
+            {store.tagline}
+          </Text>
+        ) : null}
+
+        {/* ---- who can see it ----
+            "Open" and "visible" kept getting confused: a cook flips the
+            shutter, still hears from nobody, and concludes the app is broken.
+            The same matcher the customer side runs is stated here, plainly —
+            coverage when it is set, the radius when it is not. */}
+        <Text
+          style={{
+            fontFamily: font.ui,
+            fontSize: type.xs + 1,
+            lineHeight: type.xs * 1.7,
+            color: colors.textMuted,
+            marginTop: -10,
+            marginBottom: 16,
+          }}
+        >
+          {store.allBangladesh
+            ? t('Customers all over Bangladesh can see this shop.')
+            : (store.serviceAreas ?? []).length
+              ? t('Customers in {list} can see this shop.', {
+                  list: store.serviceAreas
+                    .map((r) =>
+                      !(r.areas ?? []).length ? r.division : `${r.division}: ${r.areas.join(', ')}`,
+                    )
+                    .join('; '),
+                })
+              : store.deliveryRadiusKm > 0
+                ? store.area
+                  ? t('Customers within {n} km of {area} can see this shop.', {
+                      n: n(store.deliveryRadiusKm),
+                      area: store.area,
+                    })
+                  : t('Customers within {n} km can see this shop.', {
+                      n: n(store.deliveryRadiusKm),
+                    })
+                : t('No distance limit — customers anywhere can see this shop.')}
+        </Text>
 
         {/* ---- the switcher ----
             One kitchen, several shops: this row is how the hub says which
@@ -429,6 +482,20 @@ function Money({ label, amount, tone }) {
 }
 
 /**
+ * The vocabulary a shop names itself with. Deliberately short — five chips
+ * is a shelf sign, forty is a form. Displayed through t() like every string.
+ */
+const SHOP_TAGS = [
+  'Homemade',
+  'Achar',
+  'Pitha',
+  'Cakes & bakes',
+  'Dry snacks',
+  'Honey & ghee',
+  'Gift boxes',
+];
+
+/**
  * The steps between "no shop" and "a shop" — with nothing borrowed.
  *
  * The shop is the cook's *second* business, not an annex of the first: it is
@@ -459,11 +526,21 @@ function StoreSetup({ kitchen }) {
      the one thing this flow must not do. */
   const [name, setName] = useState('');
   const [tagline, setTagline] = useState('');
+  /* Shop label chips — what this shop *is*, in one tap each. */
+  const [tags, setTags] = useState([]);
   const [logo, setLogo] = useState('');
   const [cover, setCover] = useState('');
   const [area, setArea] = useState('');
   const [radiusKm, setRadiusKm] = useState(3);
+  /* Coverage, chosen in step 3. A new shop that never picks any keeps the
+     radius behaviour, exactly like every shop that predates the picker. */
+  const [coverage, setCoverage] = useState({ allBangladesh: false, serviceAreas: [] });
+  /* Delivery costs two prices now — crossing the country is not crossing a
+     thana. Left empty means "no opinion": the shop charges its one legacy fee
+     (`fee`) to everyone, which is what the field below still fills. */
   const [fee, setFee] = useState('0');
+  const [feeInside, setFeeInside] = useState('');
+  const [feeOutside, setFeeOutside] = useState('');
   const [freeOver, setFreeOver] = useState('');
 
   const STEPS = [t('The storefront'), t('Photos'), t('Delivery')];
@@ -521,6 +598,17 @@ function StoreSetup({ kitchen }) {
       setErrors({ fee: t('Delivery fee is a number of taka.') });
       return;
     }
+    /* A specific pair replaces the flat fee the moment either is written —
+       the server reads inside/outside first and only falls back to `fee`. */
+    const insideValue = feeInside.trim() === '' ? null : Number(feeInside);
+    const outsideValue = feeOutside.trim() === '' ? null : Number(feeOutside);
+    if (
+      (insideValue != null && (!Number.isFinite(insideValue) || insideValue < 0)) ||
+      (outsideValue != null && (!Number.isFinite(outsideValue) || outsideValue < 0))
+    ) {
+      setErrors({ fee: t('Delivery fee is a number of taka.') });
+      return;
+    }
     const overValue = freeOver.trim() ? Number(freeOver) : null;
     if (freeOver.trim() && (!Number.isFinite(overValue) || overValue < 0)) {
       setErrors({ fee: t('Free-delivery threshold is a number of taka.') });
@@ -531,11 +619,16 @@ function StoreSetup({ kitchen }) {
     const out = await shop.saveStore(kitchen.id, {
       name: name.trim(),
       tagline: tagline.trim(),
+      tags,
       logo,
       cover,
       area: area ? normaliseArea(area) : '',
       deliveryRadiusKm: radiusKm,
+      serviceAreas: coverage.serviceAreas,
+      allBangladesh: coverage.allBangladesh,
       deliveryFee: Math.max(0, Math.round(feeValue)),
+      deliveryFeeInsideDhaka: insideValue != null ? Math.round(insideValue) : null,
+      deliveryFeeOutsideDhaka: outsideValue != null ? Math.round(outsideValue) : null,
       freeDeliveryOver: freeOver.trim() ? Math.round(overValue) : null,
     });
     setSaving(false);
@@ -547,8 +640,15 @@ function StoreSetup({ kitchen }) {
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     /* Straight into settings, where the finer details live — the shop now
-       exists on its own terms. */
-    router.push('/cook/store/settings');
+       exists on its own terms. Settings names its shop on the route: without
+       `?shop=` it falls back to the first shop and the cook would be
+       polishing the older business while believing they were setting up this
+       one. The create response names the shop it made. */
+    const newId = out.result?.store?.id;
+    router.push({
+      pathname: '/cook/store/settings',
+      ...(newId ? { params: { shop: String(newId) } } : {}),
+    });
   };
 
   return (
@@ -586,6 +686,97 @@ function StoreSetup({ kitchen }) {
               onChangeText={setTagline}
               placeholder={t('One line on what this shop sells')}
             />
+            {/* Real sentences beat a blank line — three examples that fill the
+                field, and are meant to be edited afterwards, not kept. */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: -8, marginBottom: 10 }}>
+              {[
+                t('Small-batch achar, ground and bottled every week'),
+                t('Village-style pitha made to order'),
+                t('Home bakes — cakes, cupcakes, gift boxes'),
+              ].map((example) => (
+                <Pressable
+                  key={example}
+                  accessibilityRole="button"
+                  onPress={() => setTagline(example)}
+                  style={({ pressed }) => ({
+                    paddingVertical: 7,
+                    paddingHorizontal: 11,
+                    borderRadius: radius.pill,
+                    borderWidth: 1,
+                    borderColor: tagline === example ? colors.sage : colors.line,
+                    backgroundColor: tagline === example ? colors.sage50 : pressed ? colors.sunken : 'transparent',
+                  })}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      fontFamily: font.ui,
+                      fontSize: 11.5,
+                      color: colors.textMuted,
+                      maxWidth: 260,
+                    }}
+                  >
+                    {example}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* What this shop is, in chips. */}
+            <View style={{ marginBottom: 6 }}>
+              <Text
+                style={{
+                  fontFamily: font.uiSemi,
+                  fontSize: type.micro,
+                  letterSpacing: type.micro * tracking.label,
+                  textTransform: 'uppercase',
+                  color: colors.textMuted,
+                  marginBottom: 8,
+                }}
+              >
+                {t('Tags (up to 5)')}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                {SHOP_TAGS.map((tag) => {
+                  const on = tags.includes(tag);
+                  return (
+                    <Pressable
+                      key={tag}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      onPress={() =>
+                        setTags((prev) =>
+                          prev.includes(tag)
+                            ? prev.filter((x) => x !== tag)
+                            : prev.length >= 5
+                              ? prev
+                              : [...prev, tag],
+                        )
+                      }
+                      style={({ pressed }) => ({
+                        paddingVertical: 8,
+                        paddingHorizontal: 12,
+                        borderRadius: radius.pill,
+                        backgroundColor: on ? colors.sage : colors.surfaceSolid,
+                        borderWidth: 1,
+                        borderColor: on ? colors.sage : colors.line,
+                        transform: [{ scale: pressed ? 0.96 : 1 }],
+                      })}
+                    >
+                      <Text
+                        style={{
+                          fontFamily: on ? font.uiBold : font.uiSemi,
+                          fontSize: 12,
+                          color: on ? '#FFFFFF' : colors.textMuted,
+                        }}
+                      >
+                        {tag}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
 
             <Button
               label={t('Continue')}
@@ -824,6 +1015,14 @@ function StoreSetup({ kitchen }) {
               {t('How far this shop will deliver.')}
             </Body>
 
+            {/* ---- coverage: the divisions this shop will cross ----
+                The slider above is geometry; this is the answer customers
+                actually match against. Set any coverage and the radius stops
+                being consulted. */}
+            <View style={{ marginBottom: 22 }}>
+              <ServiceAreaPicker value={coverage} onChange={setCoverage} />
+            </View>
+
             <FloatLabelInput
               label={t('Delivery fee in taka')}
               value={fee}
@@ -834,6 +1033,33 @@ function StoreSetup({ kitchen }) {
               keyboardType="number-pad"
               placeholder="40"
             />
+
+            {/* Two prices, because Dhaka is not Chattogram. Leave both empty
+                and the flat fee above charges everyone the same. */}
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <FloatLabelInput
+                label={t('Delivery fee inside Dhaka')}
+                value={feeInside}
+                onChangeText={(v) => {
+                  setFeeInside(v.replace(/[^0-9]/g, ''));
+                  setErrors({});
+                }}
+                keyboardType="number-pad"
+                placeholder={t('Same for everyone')}
+                style={{ flex: 1 }}
+              />
+              <FloatLabelInput
+                label={t('Delivery fee outside Dhaka')}
+                value={feeOutside}
+                onChangeText={(v) => {
+                  setFeeOutside(v.replace(/[^0-9]/g, ''));
+                  setErrors({});
+                }}
+                keyboardType="number-pad"
+                placeholder={t('Same for everyone')}
+                style={{ flex: 1 }}
+              />
+            </View>
 
             <FloatLabelInput
               label={t('Free delivery over (optional)')}

@@ -294,6 +294,7 @@ const shapeStore = (store: StoreDoc, kitchen?: KitchenFace) => ({
   name: store.name,
   tagline: store.tagline,
   description: store.description,
+  tags: store.tags ?? [],
   logo: store.logo || kitchen?.avatar || '',
   cover: store.cover || kitchen?.coverImage || '',
   phone: store.phone,
@@ -301,7 +302,17 @@ const shapeStore = (store: StoreDoc, kitchen?: KitchenFace) => ({
   lat: store.lat ?? kitchen?.lat ?? null,
   lng: store.lng ?? kitchen?.lng ?? null,
   deliveryRadiusKm: store.deliveryRadiusKm ?? kitchen?.deliveryRadiusKm ?? null,
+  /* The shop's own coverage. Unlike the pin, this is never borrowed from the
+     kitchen: a shop that ships nationwide next to a kitchen that will not
+     cross the road is a legitimate thing to be. */
+  serviceAreas: store.serviceAreas ?? [],
+  allBangladesh: !!store.allBangladesh,
   deliveryFee: store.deliveryFee,
+  /* Both rates ride along, so a shop page can show what delivery will cost
+     before anything is in a basket. Null means "not set" — the customer falls
+     back to `deliveryFee`, which the shop page reads the same way. */
+  deliveryFeeInsideDhaka: store.deliveryFeeInsideDhaka ?? null,
+  deliveryFeeOutsideDhaka: store.deliveryFeeOutsideDhaka ?? null,
   freeDeliveryOver: store.freeDeliveryOver,
   isOpen: store.isOpen,
 });
@@ -395,6 +406,7 @@ const shapeOrder = (order: OrderDoc) => ({
   customerName: order.customerName,
   phone: order.phone,
   address: order.address,
+  note: order.note ?? '',
   lines: order.lines,
   subtotal: order.subtotal,
   deliveryFee: order.deliveryFee,
@@ -421,8 +433,11 @@ const shapeOrder = (order: OrderDoc) => ({
  */
 const storePatchSchema = z.object({
   name: z.string().optional(),
-  tagline: z.string().optional(),
+  tagline: z
+    .string()
+    .optional(),
   description: z.string().optional(),
+  tags: z.array(z.string()).max(5).optional(),
   logo: z.string().optional(),
   cover: z.string().optional(),
   phone: z.string().optional(),
@@ -430,7 +445,17 @@ const storePatchSchema = z.object({
   lat: z.coerce.number().nullable().optional(),
   lng: z.coerce.number().nullable().optional(),
   deliveryRadiusKm: z.coerce.number().nullable().optional(),
+  /* Coverage rows arrive as JSON from the picker; normalised in the logic
+     layer, which owns what gets written. */
+  serviceAreas: z
+    .array(
+      z.object({ division: z.string(), areas: z.array(z.string()).default([]) }),
+    )
+    .optional(),
+  allBangladesh: z.boolean().optional(),
   deliveryFee: z.coerce.number().optional(),
+  deliveryFeeInsideDhaka: z.coerce.number().nullable().optional(),
+  deliveryFeeOutsideDhaka: z.coerce.number().nullable().optional(),
   freeDeliveryOver: z.coerce.number().nullable().optional(),
   isOpen: z.boolean().optional(),
 });
@@ -1085,6 +1110,7 @@ export async function storeRoutes(app: FastifyInstance) {
         name: z.string().optional(),
         phone: z.string().optional(),
         address: z.unknown().optional(),
+        note: z.string().max(300).optional(),
       })
       .safeParse(request.body ?? {});
     if (!body.success) return fail(reply, ERR.NAME_REQUIRED);
@@ -1099,6 +1125,7 @@ export async function storeRoutes(app: FastifyInstance) {
         name: body.data.name ?? caller.name,
         phone: body.data.phone ?? caller.phone,
         address: body.data.address === undefined ? null : body.data.address,
+        note: body.data.note,
       },
     });
     if (!out.ok) return fail(reply, out.error, statusFor(out.error), out.detail);

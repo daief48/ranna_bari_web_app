@@ -1,6 +1,7 @@
 import { Types, type ClientSession } from 'mongoose';
 
 import {
+  Account,
   Cart,
   Notification,
   Order,
@@ -11,6 +12,7 @@ import {
 import { tx } from '../config/db.js';
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
 import { makeCode, taka } from '../lib/format.js';
+import { divisionOfDistrict, normaliseServiceAreas, type ServiceArea } from '../lib/bd-areas.js';
 import { balanceFor, post, refundEscrow } from './ledger.js';
 
 /**
@@ -197,6 +199,7 @@ export type StorePatch = Partial<{
   name: string;
   tagline: string;
   description: string;
+  tags: string[];
   logo: string;
   cover: string;
   phone: string;
@@ -204,7 +207,11 @@ export type StorePatch = Partial<{
   lat: number | null;
   lng: number | null;
   deliveryRadiusKm: number | null;
+  serviceAreas: ServiceArea[];
+  allBangladesh: boolean;
   deliveryFee: number;
+  deliveryFeeInsideDhaka: number | null;
+  deliveryFeeOutsideDhaka: number | null;
   freeDeliveryOver: number | null;
   isOpen: boolean;
 }>;
@@ -224,12 +231,29 @@ function storeFields(patch: StorePatch): Record<string, unknown> {
   for (const key of ['name', 'tagline', 'description', 'logo', 'cover', 'phone', 'area'] as const) {
     if (patch[key] != null) out[key] = String(patch[key]).trim();
   }
+  /* Replaced wholesale, like every other set field: the picker sends the
+     chips it is showing. Trimmed, de-duplicated, capped at five. */
+  if (patch.tags !== undefined) {
+    out.tags = [...new Set(patch.tags.map((t) => String(t ?? '').trim()).filter(Boolean))].slice(0, 5);
+  }
   for (const key of ['lat', 'lng', 'deliveryRadiusKm'] as const) {
     if (patch[key] !== undefined) {
       out[key] = patch[key] === null ? null : Number(patch[key]);
     }
   }
-  for (const key of ['deliveryFee', 'freeDeliveryOver'] as const) {
+  /* Coverage replaces wholesale — the picker sends the divisions it is
+     showing, so an unticked district has to be able to untick. Normalised,
+     because this arrived over HTTP. */
+  if (patch.serviceAreas !== undefined) {
+    out.serviceAreas = normaliseServiceAreas(patch.serviceAreas);
+  }
+  if (patch.allBangladesh !== undefined) out.allBangladesh = !!patch.allBangladesh;
+  for (const key of [
+    'deliveryFee',
+    'deliveryFeeInsideDhaka',
+    'deliveryFeeOutsideDhaka',
+    'freeDeliveryOver',
+  ] as const) {
     if (patch[key] !== undefined) {
       out[key] = patch[key] === null ? null : Math.round(Number(patch[key]));
     }
@@ -237,6 +261,64 @@ function storeFields(patch: StorePatch): Record<string, unknown> {
   if (patch.isOpen !== undefined) out.isOpen = !!patch.isOpen;
 
   return out;
+}
+
+/**
+ * The delivery fee this shop charges one address.
+ *
+ * A shop prices Dhaka and everywhere else differently — a jar crossing the
+ * country costs more than one crossing a thana. The customer's own division
+ * picks the number; a shop that never set the specific fields charges its one
+ * legacy fee to everyone, exactly as it always did.
+ *
+ * A division that cannot be resolved from the address is charged by this rule:
+ * the inside fee when that is the only specific fee the shop set (they priced
+ * their own doorstep), the untouched legacy fee otherwise — an unknown division
+ * never earns the outside guess.
+ */
+export function deliveryFeeFor(
+  store: {
+    deliveryFee?: number | null;
+    deliveryFeeInsideDhaka?: number | null;
+    deliveryFeeOutsideDhaka?: number | null;
+  } | null,
+  addr: { division?: string | null; district?: string | null; area?: string | null } | null,
+): number {
+  if (!store) return 0;
+  const inside = store.deliveryFeeInsideDhaka;
+  const outside = store.deliveryFeeOutsideDhaka;
+  if (inside == null && outside == null) return store.deliveryFee ?? 0;
+
+  const division =
+    addr?.division ||
+    divisionOfDistrict(String(addr?.district ?? '')) ||
+    divisionOfDistrict(String(addr?.area ?? ''));
+
+  if (!division) {
+    return outside == null ? (inside ?? store.deliveryFee ?? 0) : (store.deliveryFee ?? 0);
+  }
+  if (division === 'Dhaka') return inside ?? store.deliveryFee ?? 0;
+  return outside ?? store.deliveryFee ?? 0;
+}
+
+/**
+ * The customer's address as coverage reads it, from the account's selected
+ * one — the flat mirror `saveAddresses` keeps in step. Null when the account
+ * never said where it is.
+ */
+export async function coverageAddrOf(
+  customerKey: string,
+  session?: ClientSession,
+): Promise<{ division: string; district: string; area: string } | null> {
+  const account = await Account.findOne({ customerKey })
+    .select({ division: 1, district: 1, area: 1 })
+    .session(session ?? null)
+    .lean();
+  if (!account) return null;
+  const division = account.division ?? '';
+  const district = account.district ?? '';
+  const area = account.area ?? '';
+  return division || district || area ? { division, district, area } : null;
 }
 
 /** Every shop this kitchen owns, in creation order. */
@@ -953,9 +1035,10 @@ export async function priceCart(customerKey: string, session?: ClientSession) {
   }
 
   let delivery = 0;
+  const coverageAddr = await coverageAddrOf(customerKey, session);
   for (const { store, subtotal } of perStore.values()) {
     const free = store.freeDeliveryOver != null && subtotal >= store.freeDeliveryOver;
-    delivery += free ? 0 : (store.deliveryFee ?? 0);
+    delivery += free ? 0 : deliveryFeeFor(store, coverageAddr);
   }
 
   const subtotal = lines.reduce((sum, line) => sum + (line.problem ? 0 : line.lineTotal), 0);
@@ -1005,6 +1088,7 @@ export async function checkout({
     name?: string;
     phone?: string;
     address?: unknown;
+    note?: string;
   };
 }): Promise<Result<Record<string, unknown>[]>> {
   return tx(async (session) => {
@@ -1050,8 +1134,11 @@ export async function checkout({
        charged the same as an unsplit one. The free-delivery threshold is
        measured against the store's whole basket rather than this group's —
        a customer who spent enough to earn free delivery does not lose it
-       because one of the things they bought has to be baked to order. */
+       because one of the things they bought has to be baked to order. The
+       fee is the shop's inside/outside rate for this address — the same rule
+       `priceCart` showed the customer in the basket. */
     const feeTaken = new Set<string>();
+    const coverageAddr = await coverageAddrOf(customerKey, session);
     const plan = [];
 
     for (const group of groups.values()) {
@@ -1063,7 +1150,7 @@ export async function checkout({
 
       const free =
         group.store.freeDeliveryOver != null && storeSubtotal >= group.store.freeDeliveryOver;
-      const fee = feeTaken.has(storeId) || free ? 0 : (group.store.deliveryFee ?? 0);
+      const fee = feeTaken.has(storeId) || free ? 0 : deliveryFeeFor(group.store, coverageAddr);
       feeTaken.add(storeId);
 
       plan.push({
@@ -1115,6 +1202,7 @@ export async function checkout({
             customerName: customer.name ?? '',
             phone: customer.phone ?? '',
             address: customer.address ?? null,
+            note: String(customer.note ?? '').slice(0, 300),
 
             lines,
             subtotal: entry.subtotal,

@@ -573,6 +573,36 @@ export function StoreCard({ store, km, products, onPress, onSave, saved = false 
             ) : null}
           </View>
 
+          {/* What the shop is, in its own chips — up to three, so the card
+              stays a card. Old shops carry none and render exactly as before. */}
+          {(store.tags ?? []).length ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
+              {store.tags.slice(0, 3).map((tag) => (
+                <View
+                  key={tag}
+                  style={{
+                    paddingVertical: 2,
+                    paddingHorizontal: 8,
+                    borderRadius: radius.pill,
+                    backgroundColor: colors.sunken,
+                    borderWidth: 1,
+                    borderColor: colors.line2,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: font.uiSemi,
+                      fontSize: 9.5,
+                      color: colors.textMuted,
+                    }}
+                  >
+                    {t(tag)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           {/* Free delivery, on the card rather than only inside the shop.
              Five of sixteen shops offer it and a customer could not find out
              without opening one — which is the wrong way round for the only
@@ -676,7 +706,7 @@ export function OrderLines({ lines, style }) {
 }
 
 /** A totals block: what it cost, and why. */
-export function Totals({ subtotal, delivery, total }) {
+export function Totals({ subtotal, delivery, total, deliveryLabel }) {
   const { colors } = useTheme();
   const { t, n } = useLang();
 
@@ -718,7 +748,7 @@ export function Totals({ subtotal, delivery, total }) {
     >
       <Row label={t('Subtotal')} value={`৳${n(subtotal)}`} />
       <Row
-        label={t('Delivery')}
+        label={deliveryLabel ?? t('Delivery')}
         value={delivery ? `৳${n(delivery)}` : t('Free')}
       />
       <View style={{ height: 1, backgroundColor: colors.line2 }} />

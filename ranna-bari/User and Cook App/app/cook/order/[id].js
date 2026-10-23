@@ -257,6 +257,7 @@ export default function CookOrderScreen() {
                   >
                     {[order.address?.line, order.address?.area].filter(Boolean).join(', ')}
                   </Text>
+                  {/* The rider's note — gates, bells, landmarks. */}
                   {order.address?.instructions ? (
                     <View
                       style={{
@@ -270,17 +271,71 @@ export default function CookOrderScreen() {
                       }}
                     >
                       <Icon name="alertCircle" size={14} color={colors.saffron} />
-                      <Text
-                        style={{
-                          flex: 1,
-                          fontFamily: font.ui,
-                          fontSize: type.xs,
-                          lineHeight: 18,
-                          color: colors.text,
-                        }}
-                      >
-                        {order.address.instructions}
-                      </Text>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text
+                          style={{
+                            fontFamily: font.uiBold,
+                            fontSize: 9.5,
+                            letterSpacing: 0.7,
+                            textTransform: 'uppercase',
+                            color: colors.saffron,
+                            marginBottom: 2,
+                          }}
+                        >
+                          {t('Delivery instructions')}
+                        </Text>
+                        <Text
+                          style={{
+                            fontFamily: font.ui,
+                            fontSize: type.xs,
+                            lineHeight: 18,
+                            color: colors.text,
+                          }}
+                        >
+                          {order.address.instructions}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
+                  {/* The customer's own words for the food — a different
+                      question from the rider's, and worth its own block. */}
+                  {order.note ? (
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'flex-start',
+                        gap: 8,
+                        marginTop: 10,
+                        padding: 11,
+                        borderRadius: radius.sm,
+                        backgroundColor: colors.saffron50,
+                      }}
+                    >
+                      <Icon name="chat" size={14} color={colors.saffron} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text
+                          style={{
+                            fontFamily: font.uiBold,
+                            fontSize: 9.5,
+                            letterSpacing: 0.7,
+                            textTransform: 'uppercase',
+                            color: colors.saffron,
+                            marginBottom: 2,
+                          }}
+                        >
+                          {t('Note for the cook')}
+                        </Text>
+                        <Text
+                          style={{
+                            fontFamily: font.ui,
+                            fontSize: type.xs,
+                            lineHeight: 18,
+                            color: colors.text,
+                          }}
+                        >
+                          {order.note}
+                        </Text>
+                      </View>
                     </View>
                   ) : null}
                 </View>

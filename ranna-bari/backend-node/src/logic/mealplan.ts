@@ -842,6 +842,8 @@ export async function bookMeals(args: {
   kitchenId: string;
   month: string;
   selections: { date: string; slot: string }[];
+  /** The customer's words for the cook, capped at 300 by the route. */
+  note?: string;
 }): Promise<Result<{
   bookingId: string;
   code: string;
@@ -966,6 +968,9 @@ export async function bookMeals(args: {
          parent without a second pass over the rows. */
       const bookingId = new Types.ObjectId();
       const customer = args.customer ?? {};
+      /* One note for the month, stamped onto every plate it creates — the
+         cook reads it wherever the order shows, not only on the booking. */
+      const note = String(args.note ?? '').slice(0, 300);
 
       const created = await Order.create(
         selections.map((one, i) => ({
@@ -979,6 +984,7 @@ export async function bookMeals(args: {
           customerName: customer.name ?? '',
           phone: customer.phone ?? '',
           address: customer.address ?? null,
+          note,
           handover: 'delivery',
           serveDate: one.date,
           slot: one.slot,
@@ -1008,6 +1014,7 @@ export async function bookMeals(args: {
             categoryKey: category.key,
             categoryLabel: category.label,
             month,
+            note,
             // Snapshots. A cook re-pricing tomorrow does not re-price this.
             rate,
             minMeals: min,

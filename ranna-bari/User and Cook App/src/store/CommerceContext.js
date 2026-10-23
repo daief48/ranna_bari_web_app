@@ -54,10 +54,9 @@ import { onLiveEvent } from '../lib/liveEvents';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { distanceKm } from '../lib/geo';
-import { deliversTo } from '../lib/kitchen';
+import { coversCustomer, isOpenNow } from '../lib/kitchen';
 import * as S from '../lib/storeLogic';
 import * as R from '../lib/requestLogic';
-import { isOpenNow } from '../lib/kitchen';
 import { useKitchen } from './KitchenContext';
 import { useSession } from './SessionContext';
 import { call, hasServer } from '../lib/server';
@@ -922,6 +921,33 @@ export function CommerceProvider({ children }) {
     await Promise.all(mine.map((s) => ensureStore(s.id, { force: true })));
   }, [kitchenId, token, ensureStore]);
 
+  /**
+   * The kitchen's shops, asked for by name — no guard.
+   *
+   * `reloadMyStore` trusts client state to already know which shops exist,
+   * and that is exactly what is untrue the moment a new one is created: the
+   * public directory lists open shops only, so a shop born closed never
+   * entered `state.stores`, the zero-guard never tripped, and the hub's
+   * switcher stayed blind to the cook's own shop until a full restart. This
+   * asks the server for the whole set, whatever the client believes it has.
+   */
+  const reloadMyShops = useCallback(async () => {
+    if (!kitchenId) return;
+    const out = await call(`/stores?kitchenId=${encodeURIComponent(kitchenId)}`, { token });
+    if (!out.ok) return;
+    const rows = out.result.stores ?? [];
+    /* Merged, not replaced — `state.stores` also carries shops this kitchen
+       does not own (saved ones), which this lookup did not ask for. */
+    const known = new Set(rows.map((s) => String(s.id)));
+    patch({
+      stores: [
+        ...live.current.stores.filter((s) => !known.has(String(s.id))),
+        ...rows,
+      ],
+    });
+    await Promise.all(rows.map((s) => ensureStore(s.id, { force: true })));
+  }, [kitchenId, token, patch, ensureStore]);
+
   const reloadCart = useCallback(async () => {
     const out = await call('/cart', { token });
     if (out.ok) patch({ cart: out.result.cart ?? EMPTY.cart });
@@ -1082,25 +1108,46 @@ export function CommerceProvider({ children }) {
       storeOrders: (storeId) =>
         state.orders.filter((o) => o.kind === 'store' && String(o.storeId) === String(storeId)),
 
-      /** Shops a customer at `origin` can be delivered from, nearest first. */
-      storesNearby: (origin) =>
+      /** Shops for a customer at `origin` / `addr`, deliverers first.
+       *
+       * Out-of-range shops stay in the list, marked `near: false` and sorted
+       * behind the ones that deliver. Dropping them here made an open shop a
+       * total invisibility event — a new shop with no pin of its own borrows
+       * the kitchen's small radius, and a customer one district over saw
+       * nothing at all, with no word about why. The screen renders them in
+       * their own section and lets the shopper decide; the cart still
+       * refuses what the shop will not carry.
+       *
+       * `addr` is the account's selected address {division, district, area}:
+       * a shop that named its divisions is judged by coverage, at any
+       * distance, and one that named none keeps the radius answer. */
+      storesNearby: (origin, addr) =>
         state.stores
-          .map((store) => ({
-            store,
-            km:
+          .map((store) => {
+            const km =
               origin && typeof store.lat === 'number'
                 ? distanceKm(origin, { lat: store.lat, lng: store.lng })
-                : null,
-            /* Counted server-side across the whole shelf; counting the
-               products loaded here would say "0 items" for every shop the
-               customer has not opened yet. */
-            products:
-              store.productCount ??
-              state.products.filter((p) => String(p.storeId) === String(store.id) && p.active)
-                .length,
-          }))
-          .filter(({ store, km }) => deliversTo(store, km))
-          .sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity)),
+                : null;
+            return {
+              store,
+              km,
+              near: coversCustomer(store, addr, km),
+              /* Counted server-side across the whole shelf; counting the
+                 products loaded here would say "0 items" for every shop the
+                 customer has not opened yet. */
+              products:
+                store.productCount ??
+                state.products.filter((p) => String(p.storeId) === String(store.id) && p.active)
+                  .length,
+            };
+          })
+          .sort((a, b) =>
+            a.near === b.near
+              ? (a.km ?? Infinity) - (b.km ?? Infinity)
+              : a.near
+                ? -1
+                : 1,
+          ),
 
       /** Is this shop on the account's list? */
       isStoreSaved: (id) => state.savedStores.includes(String(id)),
@@ -1143,7 +1190,10 @@ export function CommerceProvider({ children }) {
       saveStore: (id, patchBody, { update = false } = {}) =>
         write('/stores/mine', {
           body: update ? { ...patchBody, storeId: String(id) } : patchBody,
-          after: reloadMyStore,
+          /* A create must land in the list at once — the hub's switcher reads
+             the list, not the write's response, and a shop born closed is in
+             no directory this context would otherwise consult. */
+          after: reloadMyShops,
         }),
       /* The route names its shop since a kitchen could own several — a body
          without a storeId reads as "no such shop" on the server. */
@@ -1241,12 +1291,12 @@ export function CommerceProvider({ children }) {
        * the app's preview of that answer, used to tell the customer how many
        * cooks will see the request before they commit to filing it.
        */
-      eligibleKitchens: (origin) =>
+      eligibleKitchens: (origin, addr) =>
         state.stores
           .filter((s) => isOpenNow(s))
           .filter((s) => {
             if (!origin || typeof s.lat !== 'number') return true;
-            return deliversTo(s, distanceKm(origin, { lat: s.lat, lng: s.lng }));
+            return coversCustomer(s, addr, distanceKm(origin, { lat: s.lat, lng: s.lng }));
           })
           .map((s) => String(s.kitchenId)),
 
@@ -1314,6 +1364,7 @@ export function CommerceProvider({ children }) {
     reloadRequests,
     reloadNotifications,
     reloadMyStore,
+    reloadMyShops,
     reloadCart,
   ]);
 

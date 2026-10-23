@@ -1,5 +1,6 @@
 import { Account, Dispute, Kitchen, Order, Review, type OrderDoc } from '../models/index.js';
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
+import { normaliseServiceAreas, type ServiceArea } from '../lib/bd-areas.js';
 import { quotePromotion, redeem } from './promotions.js';
 import { balanceFor, post } from './ledger.js';
 import { tx } from '../config/db.js';
@@ -92,6 +93,8 @@ export async function registerKitchen(
     lat?: number;
     lng?: number;
     deliveryRadiusKm?: number;
+    serviceAreas?: ServiceArea[];
+    allBangladesh?: boolean;
     isOpen?: boolean;
     payoutMethod?: string;
     payoutAccount?: string;
@@ -139,6 +142,14 @@ export async function registerKitchen(
       typeof kitchen.deliveryRadiusKm === 'number'
         ? kitchen.deliveryRadiusKm
         : (existing?.deliveryRadiusKm ?? 3),
+    /* Replaced wholesale, like the photo sets: the picker sends the divisions
+       it is showing, so unticking a district has to be able to untick it.
+       Normalised rather than trusted — this arrives as arbitrary JSON. */
+    serviceAreas: normaliseServiceAreas(kitchen.serviceAreas ?? existing?.serviceAreas ?? []),
+    allBangladesh:
+      typeof kitchen.allBangladesh === 'boolean'
+        ? kitchen.allBangladesh
+        : (existing?.allBangladesh ?? false),
     isOpen: typeof kitchen.isOpen === 'boolean' ? kitchen.isOpen : (existing?.isOpen ?? false),
     /* Where the cook's money goes. The cook names it, the panel reads it —
        the operator paying a run has a place to look besides a chat thread. */
@@ -190,6 +201,8 @@ export type OrderDraft = {
   handover?: string;
   contact?: { name?: string; phone?: string };
   address?: { label?: string; line?: string; area?: string; instructions?: string };
+  /** The customer's words for the cook, capped at 300 by the route. */
+  note?: string;
   createdAt?: string;
   history?: { status: string; at: string }[];
 };
@@ -290,6 +303,9 @@ export async function recordOrder(
     customerName: draft.contact?.name || caller.name || '',
     phone: draft.contact?.phone || caller.phone || '',
     address: draft.address ?? null,
+    /* "Jhal kom" — the cook's copy, distinct from address.instructions,
+       which is the rider's. Capped upstream by the route's zod body. */
+    note: String(draft.note ?? '').slice(0, 300),
 
     handover: draft.handover ?? 'delivery',
     lines: items,
@@ -409,6 +425,7 @@ export function shapeOrder(
     customerName: row.customerName,
     phone: row.phone,
     address: row.address,
+    note: row.note ?? '',
 
     handover: row.handover,
     serveDate: row.serveDate ?? null,

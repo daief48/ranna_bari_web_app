@@ -13,7 +13,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 
-import { toStorableImage } from '../../../src/lib/pickedImage';
+import { toStorableImage, toStorableImages, fitGallery, weighGallery, GALLERY_BUDGET_BYTES } from '../../../src/lib/pickedImage';
 
 import CookScreen from '../../../src/components/CookScreen';
 import { Container } from '../../../src/components/Screen';
@@ -50,6 +50,9 @@ const TAGS = [
    stock plate rather than an empty frame. The cook can replace it. */
 const PLACEHOLDER =
   'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&h=200&fit=crop';
+
+/** A dish carries up to five photos; the first is the cover everywhere. */
+const MAX_DISH_PHOTOS = 5;
 
 /**
  * The kitchen arrives from AsyncStorage a render or two late, so the form
@@ -118,9 +121,19 @@ function DishForm({ isNew, existing }) {
   const [name, setName] = useState(existing?.name ?? '');
   const [description, setDescription] = useState(existing?.description ?? '');
   const [price, setPrice] = useState(existing ? String(existing.price) : '');
-  const [image, setImage] = useState(existing?.image ?? PLACEHOLDER);
+  /* The set. `image` is derived — always `photos[0]`, or the stock plate when
+     the dish has none — so the preview and the payload stay one reading. */
+  const [photos, setPhotos] = useState(
+    existing?.photos?.length
+      ? existing.photos
+      : existing?.image
+        ? [existing.image]
+        : [PLACEHOLDER],
+  );
   const [tags, setTags] = useState(existing?.tags ?? []);
   const [available, setAvailable] = useState(existing ? existing.available !== false : true);
+
+  const image = photos[0] ?? PLACEHOLDER;
 
   /* Per-field errors, set on save and cleared the moment their own field is
      edited — so fixing one never means pressing save again to see the next. */
@@ -134,32 +147,73 @@ function DishForm({ isNew, existing }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const pickImage = async () => {
+    const room = MAX_DISH_PHOTOS - photos.length;
+    if (room <= 0) {
+      setPhotoNote(
+        t('A dish shows up to {max} photos. Remove one to add another.', {
+          max: n(MAX_DISH_PHOTOS),
+        }),
+      );
+      return;
+    }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       setPhotoNote(t('RannaBari needs photo access to set a dish photo.'));
       return;
     }
+    /* Multi-select, no crop — a dish can want more than one angle, and every
+       surface that shows one shows it square, which the tiles already are. */
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      // Square, because every surface that shows a dish shows it square.
-      aspect: [1, 1],
+      allowsMultipleSelection: true,
       quality: 0.6,
       base64: true,
     });
-    if (res.canceled || !res.assets?.[0]) return;
+    if (res.canceled || !res.assets?.length) return;
 
     setProcessingPhoto(true);
     setPhotoNote('');
-    const stored = await toStorableImage(res.assets[0], 'dish');
+    const { images, failed } = await toStorableImages(res.assets.slice(0, room), 'dish');
     setProcessingPhoto(false);
 
-    if (!stored) {
-      setPhotoNote(t('That photo could not be read. Please try another.'));
+    if (!images.length) {
+      setPhotoNote(t('Those photos could not be read. Please try different ones.'));
       return;
     }
-    setImage(stored);
+
+    const hadPlaceholder = photos[0] === PLACEHOLDER;
+    const base = hadPlaceholder ? [] : photos;
+    const fresh = images.filter((uri) => !base.includes(uri));
+    const overflow = Math.max(0, fresh.length - (MAX_DISH_PHOTOS - base.length));
+    /* The set posts in one request, so the budget is over the whole set. */
+    const { images: next, dropped } = fitGallery([
+      ...base,
+      ...fresh.slice(0, MAX_DISH_PHOTOS - base.length),
+    ]);
+    if (weighGallery(next) > GALLERY_BUDGET_BYTES) {
+      setPhotoNote(t('That photo would push the gallery over its size limit. Try a shorter one.'));
+      return;
+    }
+    setPhotos(next.length ? next : [PLACEHOLDER]);
+
+    const lost = failed + dropped;
+    if (overflow || lost) {
+      setPhotoNote(
+        overflow
+          ? t('A dish shows up to {max} photos, so {over} were not added.', {
+              max: n(MAX_DISH_PHOTOS),
+              over: n(overflow),
+            })
+          : t('{lost} could not be added. Try smaller photos.', { lost: n(lost) }),
+      );
+    }
     Haptics.selectionAsync().catch(() => {});
+  };
+
+  const removePhoto = (uri) => {
+    Haptics.selectionAsync().catch(() => {});
+    const next = photos.filter((p) => p !== uri);
+    setPhotos(next.length ? next : [PLACEHOLDER]);
   };
 
   const toggleTag = (tag) =>
@@ -206,7 +260,12 @@ function DishForm({ isNew, existing }) {
       name: name.trim(),
       description: description.trim() || t('Cooked to order.'),
       price: Math.round(priceValue),
-      image,
+      /* The cover leads, and the whole set travels with it. A dish left on
+         the stock plate sends no photos at all — the server keeps `image`
+         only, exactly as dishes always looked. */
+      ...(photos[0] && photos[0] !== PLACEHOLDER
+        ? { photos: photos.filter((p) => p !== PLACEHOLDER), image: photos[0] }
+        : { photos: [] }),
       tags,
       /* Sold-out is a state a cook sets, not a side effect of saving: a dish
          written down for tomorrow is a draft, and this is the switch that
@@ -278,9 +337,9 @@ function DishForm({ isNew, existing }) {
           </Reveal>
 
           {/* ---- Photo first ----
-              The whole width, at the size it is judged in. A thumbnail beside
-              a form makes a photograph feel like paperwork; this is the dish
-              as a customer will scroll past it. */}
+              A cover the width it is judged at, then the rest of the set as
+              square tiles: first tile is the cover, every tile removes on a
+              tap, and one dashed tile adds more in a single pick. */}
           {/* The remove-photo chip is a sibling of the photo press, not a
               child of it: on web each role="button" becomes a real <button>,
               and a button inside a button is invalid HTML. The Reveal view
@@ -370,7 +429,7 @@ function DishForm({ isNew, existing }) {
                       color: colors.onDark,
                     }}
                   >
-                    {image !== PLACEHOLDER ? t('Change photo') : t('Add a photo')}
+                    {image !== PLACEHOLDER ? t('Add or change photos') : t('Add a photo')}
                   </Text>
                 </View>
               )}
@@ -382,10 +441,7 @@ function DishForm({ isNew, existing }) {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t('Remove photo')}
-                onPress={() => {
-                  Haptics.selectionAsync().catch(() => {});
-                  setImage(PLACEHOLDER);
-                }}
+                onPress={() => removePhoto(photos[0])}
                 style={{
                   position: 'absolute',
                   top: 12,
@@ -402,6 +458,87 @@ function DishForm({ isNew, existing }) {
               >
                 <Icon name="x" size={14} color="#FFFFFF" strokeWidth={2.4} />
               </Pressable>
+            ) : null}
+
+            {/* The rest of the set — the cover leads; these are the angles
+                behind it. Tapping a tile removes it; the dish keeps the rest. */}
+            {photos.length > 1 ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                {photos.map((uri, i) =>
+                  i === 0 ? (
+                    <View
+                      key={uri}
+                      style={{ width: 64, height: 64, borderRadius: radius.sm, overflow: 'hidden', borderWidth: 1, borderColor: colors.sage }}
+                    >
+                      <Image
+                        source={{ uri }}
+                        contentFit="cover"
+                        style={{ width: '100%', height: '100%', backgroundColor: colors.sunken }}
+                      />
+                      <View
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          alignItems: 'center',
+                          backgroundColor: 'rgba(16, 12, 10, 0.55)',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontFamily: font.uiBold,
+                            fontSize: 8.5,
+                            letterSpacing: 0.6,
+                            textTransform: 'uppercase',
+                            color: '#FFFFFF',
+                            paddingVertical: 2,
+                          }}
+                        >
+                          {t('Cover')}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <Pressable
+                      key={uri}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('Remove photo')}
+                      onPress={() => removePhoto(uri)}
+                      style={({ pressed }) => ({
+                        width: 64,
+                        height: 64,
+                        borderRadius: radius.sm,
+                        overflow: 'hidden',
+                        borderWidth: 1,
+                        borderColor: colors.line,
+                        opacity: pressed ? 0.7 : 1,
+                      })}
+                    >
+                      <Image
+                        source={{ uri }}
+                        contentFit="cover"
+                        style={{ width: '100%', height: '100%', backgroundColor: colors.sunken }}
+                      />
+                      <View
+                        style={{
+                          position: 'absolute',
+                          right: 3,
+                          top: 3,
+                          width: 17,
+                          height: 17,
+                          borderRadius: 9,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: 'rgba(16, 12, 10, 0.55)',
+                        }}
+                      >
+                        <Icon name="x" size={9} color="#FFFFFF" strokeWidth={2.8} />
+                      </View>
+                    </Pressable>
+                  ),
+                )}
+              </View>
             ) : null}
           </Reveal>
 

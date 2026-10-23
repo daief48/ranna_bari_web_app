@@ -32,7 +32,7 @@ import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useAreas, useChefs, useMenus } from '../../src/data';
 import { useAuth } from '../../src/store/AuthContext';
 import { distanceKm, formatDistance } from '../../src/lib/geo';
-import { deliversTo, isOpenNow } from '../../src/lib/kitchen';
+import { coversCustomer, isOpenNow } from '../../src/lib/kitchen';
 import { RANK, makeMatcher } from '../../src/lib/search';
 import useRecentSearches from '../../src/lib/useRecentSearches';
 import { Placeholder } from '../../src/components/StoreBits';
@@ -69,12 +69,15 @@ const DIET_KEYS = DIETS.map((d) => d.key);
  * that, and folding them in would multiply the work the relaxation loop does
  * by four for no answer it could give.
  */
-function searchExtras({ meals, stores, products, query, kmOf, filters, area }) {
+function searchExtras({ meals, stores, products, query, kmOf, filters, area, addr }) {
   const matcher = makeMatcher(query);
   if (!matcher) return { meals: [], stores: [], products: [] };
 
   const byRank = (a, b) => a.rank - b.rank || (a.km ?? Infinity) - (b.km ?? Infinity);
-  const inArea = (row) => area === 'all' || row.area === area;
+  /* A shop whose area was never set matches every chip — the setup wizard
+     allows an empty area, and string-equality turned that into invisibility
+     the moment a customer picked one. */
+  const inArea = (row) => area === 'all' || !row.area || row.area === area;
 
   /* ---- tomorrow's meals ---- */
   const mealRows = [];
@@ -83,7 +86,7 @@ function searchExtras({ meals, stores, products, query, kmOf, filters, area }) {
     if (!inArea(meal)) continue;
 
     const away = kmOf(meal);
-    if (!deliversTo(meal, away)) continue;
+    if (!coversCustomer(meal, addr, away)) continue;
 
     const rank = matcher.rank({
       name: meal.title,
@@ -102,11 +105,11 @@ function searchExtras({ meals, stores, products, query, kmOf, filters, area }) {
     if (filters.freeDelivery && !store.freeDeliveryOver && store.deliveryFee) continue;
 
     const away = kmOf(store);
-    if (!deliversTo(store, away)) continue;
+    if (!coversCustomer(store, addr, away)) continue;
 
     const rank = matcher.rank({
       name: store.name,
-      tags: [store.area],
+      tags: [store.area, ...(store.tags ?? [])],
       text: `${store.tagline ?? ''} ${store.description ?? ''}`,
     });
     if (rank === RANK.NONE) continue;
@@ -129,7 +132,7 @@ function searchExtras({ meals, stores, products, query, kmOf, filters, area }) {
     if (!store || !store.isOpen || !inArea(store)) continue;
 
     const away = kmOf(store);
-    if (!deliversTo(store, away)) continue;
+    if (!coversCustomer(store, addr, away)) continue;
 
     const rank = matcher.rank({
       name: product.name,
@@ -154,7 +157,7 @@ function searchExtras({ meals, stores, products, query, kmOf, filters, area }) {
  * again several times -- once per active constraint, with that constraint
  * lifted -- to work out which one is responsible for the empty screen.
  */
-function runSearch({ chefs, dishIndex, query, filter, area, filters, kmOf }) {
+function runSearch({ chefs, dishIndex, query, filter, area, filters, kmOf, addr }) {
   const matcher = makeMatcher(query);
   const band = priceBand(filters.price);
   const { diet, openOnly, minRating, sort } = filters;
@@ -176,9 +179,11 @@ function runSearch({ chefs, dishIndex, query, filter, area, filters, kmOf }) {
   };
 
   /* Everything about the kitchen except whether it will come this far, which
-     is counted separately so the screen can own up to what it hid. */
+     is counted separately so the screen can own up to what it hid. Same rule
+     as the shops: a kitchen that never said which area it is in is visible
+     under every chip, not under none. */
   const chefPasses = (chef) => {
-    if (area !== 'all' && chef.area !== area) return false;
+    if (area !== 'all' && chef.area && chef.area !== area) return false;
     if (openOnly && !isOpenNow(chef)) return false;
     if (minRating > 0 && !(chef.rating >= minRating)) return false;
     if (filters.verifiedOnly && !chef.isVerified) return false;
@@ -192,7 +197,7 @@ function runSearch({ chefs, dishIndex, query, filter, area, filters, kmOf }) {
   for (const { dish, chef } of dishIndex) {
     const id = String(chef.id);
     const away = km.get(id);
-    if (!chefPasses(chef) || !deliversTo(chef, away)) continue;
+    if (!chefPasses(chef) || !coversCustomer(chef, addr, away)) continue;
     if (!dishPasses(dish)) continue;
 
     const seen = passingByChef.get(id);
@@ -224,7 +229,7 @@ function runSearch({ chefs, dishIndex, query, filter, area, filters, kmOf }) {
     const id = String(chef.id);
     const away = km.get(id);
     if (!chefPasses(chef)) continue;
-    if (!deliversTo(chef, away)) {
+    if (!coversCustomer(chef, addr, away)) {
       outOfRange++;
       continue;
     }
@@ -401,6 +406,20 @@ export default function BrowseScreen() {
     return fn;
   }, [origin]);
 
+  /**
+   * The address coverage answers against: the account's selected address,
+   * flat. A division on file is what makes the coverage model work — without
+   * one (a legacy address, a guest) every seller falls back to the radius
+   * answer, which is exactly the behaviour that predates the picker.
+   */
+  const addr = useMemo(
+    () =>
+      account
+        ? { division: account.division ?? '', district: account.district ?? '', area: account.area ?? '' }
+        : null,
+    [account],
+  );
+
   /** Every dish paired with the kitchen that cooks it, flattened once. */
   const dishIndex = useMemo(() => {
     const byId = new Map(chefs.map((c) => [String(c.id), c]));
@@ -421,7 +440,7 @@ export default function BrowseScreen() {
    * bring results back, largest first.
    */
   const { kitchens, dishes, outOfRange, relaxations } = useMemo(() => {
-    const base = { chefs, dishIndex, kmOf };
+    const base = { chefs, dishIndex, kmOf, addr };
     const main = runSearch({ ...base, query, filter, area, filters });
 
     if (main.dishes.length || main.kitchens.length) {
@@ -471,7 +490,7 @@ export default function BrowseScreen() {
       .slice(0, 3);
 
     return { ...main, relaxations: scored };
-  }, [chefs, dishIndex, kmOf, query, filter, area, filters]);
+  }, [chefs, dishIndex, kmOf, addr, query, filter, area, filters]);
 
   /**
    * Names worth offering while the word is still half-typed.
@@ -530,8 +549,9 @@ export default function BrowseScreen() {
         kmOf,
         filters,
         area,
+        addr,
       }),
-    [shop.stores, shop.products, query, kmOf, filters, area],
+    [shop.stores, shop.products, query, kmOf, filters, area, addr],
   );
 
   const total =

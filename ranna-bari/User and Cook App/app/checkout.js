@@ -80,6 +80,7 @@ function CheckoutForm() {
   );
   const [method, setMethod] = useState('cod');
   const [note, setNote] = useState('');
+  const [cookNote, setCookNote] = useState('');
   const [placing, setPlacing] = useState(false);
 
   const chefName = items[0]?.chefName ?? '';
@@ -134,6 +135,7 @@ function CheckoutForm() {
         lng: account?.lng ?? null,
         instructions: instructions.trim(),
       },
+      ...(cookNote.trim() ? { note: cookNote.trim().slice(0, 300) } : {}),
     });
 
     setPlacing(false);
@@ -306,8 +308,24 @@ function CheckoutForm() {
                   value={instructions}
                   onChangeText={setInstructions}
                   placeholder={t('Gate code, landmark, ring twice…')}
-                  style={{ marginBottom: 0 }}
                 />
+              </View>
+
+              {/* For the cook, not the rider — a separate question that used to
+                  have nowhere to be asked. "Jhal kom" goes to the kitchen. */}
+              <View style={{ marginTop: 14 }}>
+                <FloatLabelInput
+                  label={t('Note for the cook (optional)')}
+                  value={cookNote}
+                  onChangeText={setCookNote}
+                  placeholder={t('Anything the cook should know? Less spicy, less sweet…')}
+                  multiline
+                />
+                {cookNote.length > 260 ? (
+                  <Body muted size={11} style={{ marginTop: 2 }}>
+                    {n(300 - cookNote.length)}
+                  </Body>
+                ) : null}
               </View>
             </View>
           </Reveal>

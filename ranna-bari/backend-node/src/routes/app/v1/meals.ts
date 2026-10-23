@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { bearerFrom, identify, type AppIdentity } from '../../../auth/app-auth.js';
 import { ERR, errText, type Fail } from '../../../lib/domain.js';
 import { todayKey } from '../../../lib/format.js';
+import type { ServiceArea } from '../../../lib/bd-areas.js';
 import {
   addDish,
   bookMeals,
@@ -179,6 +180,8 @@ type KitchenLike = {
   lat?: number;
   lng?: number;
   deliveryRadiusKm?: number;
+  serviceAreas?: ServiceArea[];
+  allBangladesh?: boolean;
   rating?: number;
   reviewCount?: number;
 };
@@ -215,6 +218,10 @@ const shapeOffer = (
   lat: kitchen.lat ?? 0,
   lng: kitchen.lng ?? 0,
   deliveryRadiusKm: kitchen.deliveryRadiusKm ?? 3,
+  /* The coverage the Meals tab matches against — same fields the kitchen
+     directory carries, so the one matcher answers for both. */
+  serviceAreas: kitchen.serviceAreas ?? [],
+  allBangladesh: !!kitchen.allBangladesh,
   rating: kitchen.rating ?? 0,
   reviewCount: kitchen.reviewCount ?? 0,
   categoryKey: service.categoryKey,
@@ -228,6 +235,9 @@ const shapeOffer = (
      could be read. */
   month: '' as string,
   upcoming: [] as { date: string; slot: string; name: string }[],
+  /* 'cook' once the kitchen publishes a month of its own; 'system' while the
+     card shows the platform default menu; '' before any plan resolves. */
+  planSource: '' as string,
 });
 
 type BookingLike = {
@@ -236,6 +246,7 @@ type BookingLike = {
   customerKey: string;
   customerName: string;
   address?: unknown;
+  note?: string;
   kitchenId: string;
   cookName: string;
   categoryKey: string;
@@ -299,6 +310,7 @@ async function shapeBookings(rows: BookingLike[], opts: { reviewed?: boolean } =
     customerName: b.customerName,
     /* The receipt should be able to say where a month of food is going. */
     address: b.address ?? null,
+    note: b.note ?? '',
     categoryKey: b.categoryKey,
     categoryLabel: b.categoryLabel,
     month: b.month,
@@ -371,10 +383,15 @@ export async function mealRoutes(app: FastifyInstance) {
     const services = await MealService.find({ active: true }).lean();
     if (!services.length) return { services: [] };
 
+    /* `kycStatus: 'approved'` — the read side of the same gate the write side
+       enforces. A kitchen that cannot trade was still listing here whenever a
+       service row said `active`, which made "I never created any meal" a
+       complaint about somebody else's demo kitchen. */
     const [kitchens, categories] = await Promise.all([
       Kitchen.find({
         _id: { $in: services.map((s) => s.kitchenId).filter(isId) },
         suspended: false,
+        kycStatus: 'approved',
       }).lean(),
       mealCategoriesOf({ includeRetired: true }),
     ]);
@@ -424,6 +441,10 @@ export async function mealRoutes(app: FastifyInstance) {
 
         row.month = month;
         row.upcoming = upcoming.slice(0, 3);
+        /* Whether the dishes below are the cook's own published month or the
+           platform default they inherited — the card says so, so a customer
+           comparing menus is never reading the platform's words as the cook's. */
+        row.planSource = plan.scope;
       }),
     );
 
@@ -477,6 +498,9 @@ export async function mealRoutes(app: FastifyInstance) {
       service: shapeOffer(service, kitchen, category),
       month,
       days: plan?.days ?? [],
+      /* Same honesty as the list: the booking screen says when the month it
+         is showing is the platform default rather than the cook's own. */
+      planSource: plan?.scope ?? '',
       booked: booked.map((o) => ({
         date: o.serveDate,
         slot: o.slot,
@@ -510,6 +534,8 @@ export async function mealRoutes(app: FastifyInstance) {
         name: z.string().optional(),
         phone: z.string().optional(),
         address: z.record(z.unknown()).nullable().optional(),
+        /* "Jhal kom" — the customer's words for the cook, riding the month. */
+        note: z.string().max(300).optional(),
       })
       .safeParse(request.body ?? {});
     if (!body.success) return badBody(reply, body.error);
@@ -524,6 +550,7 @@ export async function mealRoutes(app: FastifyInstance) {
       kitchenId: body.data.kitchenId,
       month: body.data.month,
       selections: body.data.selections,
+      note: body.data.note,
     });
     if (!out.ok) return refuse(reply, out);
 

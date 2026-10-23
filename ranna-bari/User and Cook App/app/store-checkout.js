@@ -25,6 +25,8 @@ import { font, radius, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
 import { useCommerce } from '../src/store/CommerceContext';
 import { addressFromAccount, customerKeyOf } from '../src/lib/ledger';
+import { divisionOfDistrict } from '../src/lib/bd-areas';
+import FloatLabelInput from '../src/components/FloatLabelInput';
 import { useLang } from '../src/i18n/LanguageContext';
 import { useAlert } from '../src/components/Alert';
 
@@ -38,13 +40,33 @@ export default function StoreCheckoutScreen() {
 
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  /* For the cook, not the rider — shop goods too can be "sweet kom". */
+  const [cookNote, setCookNote] = useState('');
 
   const key = customerKeyOf(account);
   const priced = shop.priceCart(key);
   const balance = shop.wallet.customer;
 
+  /* Which side of the fee the customer is on, said where the number is. The
+     server picks the actual amount; this only names it. */
+  const anySplitFees = priced.lines.some(
+    (line) =>
+      line.store &&
+      (line.store.deliveryFeeInsideDhaka != null ||
+        line.store.deliveryFeeOutsideDhaka != null),
+  );
+  const division = account?.division || divisionOfDistrict(account?.district) || divisionOfDistrict(account?.area) || '';
+  const deliveryLabel = anySplitFees
+    ? division === 'Dhaka'
+      ? t('Delivery (inside Dhaka)')
+      : division
+        ? t('Delivery (outside Dhaka)')
+        : t('Delivery')
+    : null;
+
   const blocked = priced.problems.length > 0;
   const affordable = balance >= priced.total;
+  const hasAddress = !!addressFromAccount(account);
 
   const place = async () => {
     if (!isSignedIn) return router.push('/auth');
@@ -53,6 +75,7 @@ export default function StoreCheckoutScreen() {
       name: account?.name ?? '',
       phone: account?.phone ?? '',
       address: addressFromAccount(account),
+      ...(cookNote.trim() ? { note: cookNote.trim().slice(0, 300) } : {}),
     });
     setBusy(false);
 
@@ -121,6 +144,45 @@ export default function StoreCheckoutScreen() {
                 subtotal={priced.subtotal}
                 delivery={priced.delivery}
                 total={priced.total}
+                deliveryLabel={deliveryLabel}
+              />
+            </View>
+
+            {/* The fee only ever lands on the order the server prices; this
+                line is the "why" for a customer comparing ৳40 to ৳80. */}
+            {anySplitFees && !division ? (
+              <Pressable
+                accessibilityRole="link"
+                onPress={() => router.push('/addresses')}
+                style={({ pressed }) => ({
+                  marginTop: 12,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: 12,
+                  borderRadius: radius.sm,
+                  backgroundColor: colors.saffron50,
+                  borderWidth: 1,
+                  borderColor: colors.saffron100,
+                  opacity: pressed ? 0.8 : 1,
+                })}
+              >
+                <Icon name="pin" size={14} color={colors.saffron} />
+                <Text style={{ flex: 1, fontFamily: font.ui, fontSize: type.xs + 1, color: colors.text }}>
+                  {t('Add a delivery address with your division, so the right delivery fee applies.')}
+                </Text>
+                <Icon name="chevronRight" size={13} color={colors.saffron} />
+              </Pressable>
+            ) : null}
+
+            {/* For the cook, not the rider. */}
+            <View style={{ marginTop: 16 }}>
+              <FloatLabelInput
+                label={t('Note for the cook (optional)')}
+                value={cookNote}
+                onChangeText={setCookNote}
+                placeholder={t('Anything the cook should know? Less spicy, less sweet…')}
+                multiline
               />
             </View>
 

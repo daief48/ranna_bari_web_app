@@ -2955,4 +2955,107 @@ export const bn = {
   'Show 30 more': 'আরও ৩০টি দেখুন',
   'Show more': 'আরও দেখুন',
   order: 'অর্ডার',
+
+  /* ---------------- shop visibility (issue 8) ---------------- */
+  'Outside your delivery area': 'আপনার ডেলিভারি এলাকার বাইরে',
+  'Customers within {n} km of {area} can see this shop.':
+    '{area}-এর {n} কিমির মধ্যে থাকা ক্রেতারা এই দোকানটি দেখতে পাবেন।',
+  'Customers within {n} km can see this shop.':
+    '{n} কিমির মধ্যে থাকা ক্রেতারা এই দোকানটি দেখতে পাবেন।',
+  'No distance limit — customers anywhere can see this shop.':
+    'দূরত্বের সীমা নেই — যেকোনো জায়গার ক্রেতারা এই দোকানটি দেখতে পাবেন।',
+  'Customers all over Bangladesh can see this shop.':
+    'সারা বাংলাদেশের ক্রেতারা এই দোকানটি দেখতে পাবেন।',
+  'Customers in {list} can see this shop.':
+    '{list}-এর ক্রেতারা এই দোকানটি দেখতে পাবেন।',
+
+  /* ---------------- division → area coverage (issue 6) ---------------- */
+  'Where you deliver': 'আপনি কোথায় ডেলিভারি দেন',
+  'All over Bangladesh': 'সারা বাংলাদেশ',
+  'Every customer, in any division, can see and order from you.':
+    'যেকোনো বিভাগের যেকোনো ক্রেতা আপনাকে দেখতে পাবেন এবং অর্ডার করতে পারবেন।',
+  'Delivering all over Bangladesh.': 'সারা বাংলাদেশে ডেলিভারি দেওয়া হয়।',
+  'Delivering to: {list}': 'ডেলিভারি দেওয়া হয়: {list}',
+  'No coverage chosen — the delivery radius decides who sees you.':
+    'কভারেজ বাছাই করা হয়নি — ডেলিভারি রেডিয়াস ঠিক করবে কারা আপনাকে দেখবে।',
+  all: 'সব',
+  '{d} (all)': '{d} (সব)',
+  '{n} districts': '{n}টি জেলা',
+  'Select all of {division}': 'পুরো {division} বাছাই করুন',
+  'Unselect all of {division}': '{division}-এর বাছাই সরান',
+  Division: 'বিভাগ',
+  District: 'জেলা',
+  'The radius is not used while coverage is chosen above.':
+    'উপরে কভারেজ বাছাই করা থাকলে রেডিয়াস ব্যবহার হয় না।',
+  'The division and district decide which kitchens reach you. The pin fine-tunes it.':
+    'বিভাগ আর জেলা ঠিক করে কোন কোন রান্নাঘর আপনার কাছে পৌঁছাতে পারে। পিন সেটাকে আরও নিখুঁত করে।',
+  'Where do you live?': 'আপনি কোথায় থাকেন?',
+  'This decides which kitchens and shops can reach you — more useful than the pin.':
+    'এটাই ঠিক করে কোন কোন রান্নাঘর ও দোকান আপনার কাছে পৌঁছাতে পারে — পিনের চেয়ে বেশি কাজের।',
+  'Pick your division so kitchens know if they reach you.':
+    'আপনার বিভাগ বাছাই করুন, যাতে রান্নাঘরগুলো জানে তারা আপনার কাছে পৌঁছাতে পারে কি না।',
+  'Pick your district inside {division}.': '{division}-এর ভেতরে আপনার জেলা বাছাই করুন।',
+  'RannaBari default menu — the cook has not published their own yet':
+    'রান্নাবাড়ির ডিফল্ট মেনু — রাঁধুনি এখনো নিজের মেনু প্রকাশ করেননি',
+
+  /* ---------------- inside/outside Dhaka delivery fees (issue 7) ---------------- */
+  'Delivery fee inside Dhaka': 'ঢাকার ভেতরের ডেলিভারি চার্জ',
+  'Delivery fee outside Dhaka': 'ঢাকার বাইরের ডেলিভারি চার্জ',
+  'Same for everyone': 'সবার জন্য একই',
+  'Delivery (inside Dhaka)': 'ডেলিভারি (ঢাকার ভেতরে)',
+  'Delivery (outside Dhaka)': 'ডেলিভারি (ঢাকার বাইরে)',
+  'Add a delivery address with your division, so the right delivery fee applies.':
+    'বিভাগসহ ডেলিভারি ঠিকানা যোগ করুন, যাতে সঠিক ডেলিভারি চার্জ ধরা হয়।',
+  '৳{fee} inside Dhaka': 'ঢাকার ভেতরে ৳{fee}',
+  '৳{fee} outside Dhaka': 'ঢাকার বাইরে ৳{fee}',
+  'free over ৳{over}': '৳{over}-এর উপরে ফ্রি',
+
+  /* ---------------- note for the cook (issue 4) ---------------- */
+  'Note for the cook': 'রাঁধুনির জন্য নোট',
+  'Note for the cook (optional)': 'রাঁধুনির জন্য নোট (ঐচ্ছিক)',
+  'Anything the cook should know? Less spicy, less sweet…':
+    'রাঁধুনির কী জানা দরকার? ঝাল কম, মিষ্টি কম…',
+
+  /* ---------------- kitchen gallery manager (issue 2) ---------------- */
+  'Preparing your photos…': 'আপনার ছবিগুলো প্রস্তুত হচ্ছে…',
+  'Photo added.': 'ছবি যোগ হয়েছে।',
+  'Photo removed.': 'ছবি সরানো হয়েছে।',
+  'Tap to add. Tap a photo to remove it.': 'যোগ করতে ট্যাপ করুন। সরাতে ছবিতে ট্যাপ করুন।',
+  'Remove this photo?': 'এই ছবিটি সরাবেন?',
+  'It comes off the gallery at once. You can add it back any time.':
+    'ছবিটি সাথে সাথে গ্যালারি থেকে সরে যাবে। যেকোনো সময় আবার যোগ করতে পারবেন।',
+  'No photos yet. Add a few — customers and the verification queue both read this gallery.':
+    'এখনো ছবি নেই। কয়েকটি যোগ করুন — ক্রেতা আর যাচাইকরণ দুই পক্ষই এই গ্যালারি দেখে।',
+  'Those photos could not be read. Please try different ones.':
+    'ছবিগুলো পড়া যায়নি। অন্য ছবি দিয়ে চেষ্টা করুন।',
+  'A kitchen shows up to {max} photos. Remove one to add another.':
+    'একটি রান্নাঘরে সর্বোচ্চ {max}টি ছবি। আরেকটি যোগ করতে একটি সরান।',
+  'A kitchen shows up to {max} photos, so {over} were not added.':
+    'একটি রান্নাঘরে সর্বোচ্চ {max}টি ছবি, তাই {over}টি যোগ হয়নি।',
+  '{lost} could not be added, so your gallery has {kept}. Try smaller photos.':
+    '{lost}টি যোগ করা যায়নি, গ্যালারিতে {kept}টি আছে। ছোট ছবি দিয়ে চেষ্টা করুন।',
+
+  /* ---------------- dish multi-photo (issue 3) ---------------- */
+  'Add or change photos': 'ছবি যোগ বা বদলান',
+  Cover: 'কভার',
+  'A dish shows up to {max} photos. Remove one to add another.':
+    'একটি পদে সর্বোচ্চ {max}টি ছবি। আরেকটি যোগ করতে একটি সরান।',
+  'A dish shows up to {max} photos, so {over} were not added.':
+    'একটি পদে সর্বোচ্চ {max}টি ছবি, তাই {over}টি যোগ হয়নি।',
+  '{lost} could not be added. Try smaller photos.':
+    '{lost}টি ছবি যোগ করা যায়নি। ছোট ছবি দিয়ে চেষ্টা করুন।',
+
+  /* ---------------- shop tagline + tags (issue 5) ---------------- */
+  'Tags (up to 5)': 'ট্যাগ (সর্বোচ্চ ৫টি)',
+  Homemade: 'ঘরে তৈরি',
+  Achar: 'আচার',
+  Pitha: 'পিঠা',
+  'Cakes & bakes': 'কেক ও বেক্‌স',
+  'Dry snacks': 'শুকনো নাস্তা',
+  'Honey & ghee': 'মধু ও ঘি',
+  'Gift boxes': 'উপহারের বাক্স',
+  'Small-batch achar, ground and bottled every week':
+    'প্রতি সপ্তাহে বেটে বোতলে ভরা ছোট ব্যাচের আচার',
+  'Village-style pitha made to order': 'অর্ডারে বানানো গ্রামের স্বাদের পিঠা',
+  'Home bakes — cakes, cupcakes, gift boxes': 'ঘরোয়া বেকিং — কেক, কাপকেক, উপহারের বাক্স',
 };

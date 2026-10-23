@@ -12,7 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
-import { toStorableImage } from '../../../src/lib/pickedImage';
+import { toStorableImage, toStorableImages, fitGallery, weighGallery, GALLERY_BUDGET_BYTES } from '../../../src/lib/pickedImage';
 import * as Haptics from 'expo-haptics';
 
 import CookScreen from '../../../src/components/CookScreen';
@@ -31,6 +31,7 @@ import { useAuth } from '../../../src/store/AuthContext';
 import { useSession } from '../../../src/store/SessionContext';
 import { useOrders } from '../../../src/store/OrdersContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import { useAlert } from '../../../src/components/Alert';
 
 /**
  * KitchenContext hydrates from AsyncStorage asynchronously, so `kitchen` is
@@ -62,20 +63,96 @@ function KitchenForm({ kitchen }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
   const router = useRouter();
+  const alert = useAlert();
   const { updateKitchen, liveDishes } = useKitchen();
   const { account, setViewMode, signOut } = useAuth();
   const { signOutServer } = useSession();
   const { ordersForKitchen } = useOrders();
 
   /* Name, specialty, description and radius are edited on their own page now
-     — this screen only holds the two photographs and the rows that lead
-     elsewhere, so the only state left is what those need. */
+     — this screen holds the photographs and the rows that lead elsewhere.
+     The gallery state mirrors the server; every change posts immediately. */
   const [note, setNote] = useState('');
   const [confirmOut, setConfirmOut] = useState(false);
+  const photos = kitchen.photos ?? [];
+  const MAX_PHOTOS = 5;
 
   const delivered = ordersForKitchen(kitchen.id).filter(
     (o) => o.status === 'delivered',
   ).length;
+
+  const savePhotos = async (next, successNote = '') => {
+    const out = await updateKitchen({ photos: next });
+    if (out && !out.ok) {
+      setNote(t('That photo could not be saved. Try again.'));
+      return false;
+    }
+    setNote(successNote);
+    return true;
+  };
+
+  const addPhotos = async () => {
+    const room = MAX_PHOTOS - photos.length;
+    if (room <= 0) {
+      setNote(
+        t('A kitchen shows up to {max} photos. Remove one to add another.', {
+          max: n(MAX_PHOTOS),
+        }),
+      );
+      return;
+    }
+
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      setNote(t('RannaBari needs photo access to change your kitchen picture.'));
+      return;
+    }
+    /* Multi-select, no crop — same rules as the wizard's gallery step. */
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      quality: 0.6,
+      base64: true,
+    });
+    if (res.canceled || !res.assets?.length) return;
+
+    setNote(t('Preparing your photos…'));
+    const { images, failed } = await toStorableImages(res.assets, 'gallery');
+    if (!images.length) {
+      setNote(t('Those photos could not be read. Please try different ones.'));
+      return;
+    }
+
+    const fresh = images.filter((uri) => !photos.includes(uri));
+    const overflow = Math.max(0, fresh.length - room);
+    const { images: next, dropped } = fitGallery([...photos, ...fresh.slice(0, room)]);
+    const saved = await savePhotos(next);
+    if (!saved) return;
+
+    const lost = failed + dropped;
+    setNote(
+      overflow
+        ? t('A kitchen shows up to {max} photos, so {over} were not added.', {
+            max: n(MAX_PHOTOS),
+            over: n(overflow),
+          })
+        : lost
+          ? t('{lost} could not be added, so your gallery has {kept}. Try smaller photos.', {
+              lost: n(lost),
+              kept: n(next.length),
+            })
+          : t('Photo added.'),
+    );
+  };
+
+  const removePhoto = async (uri) => {
+    const next = photos.filter((p) => p !== uri);
+    if (weighGallery(next) > GALLERY_BUDGET_BYTES) {
+      setNote(t('That photo would push the gallery over its size limit. Try a shorter one.'));
+      return;
+    }
+    await savePhotos(next, t('Photo removed.'));
+  };
 
   const pickImage = async (field) => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -311,15 +388,15 @@ function KitchenForm({ kitchen }) {
           </Reveal>
 
           {/* ---- Kitchen photos ----
-              The gallery a customer scrolls, and the one an operator
-              approves the kitchen on. Registration collects these and, until
-              now, nothing could touch them again. */}
+              The gallery a customer scrolls, and the one an operator approves
+              the kitchen on. Each change posts at once — this is the photos
+              screen; the wizard keeps its save-at-the-end draft. */}
           <Reveal delay={2}>
             <View style={{ marginTop: 28 }}>
               <SectionHeader
                 lead={t('KITCHEN')}
                 accent={t('PHOTOS')}
-                subtitle={t('The photos you gave when you registered.')}
+                subtitle={t('Tap to add. Tap a photo to remove it.')}
               />
 
               <View
@@ -330,35 +407,99 @@ function KitchenForm({ kitchen }) {
                   marginTop: 14,
                 }}
               >
-                {(kitchen.photos ?? []).map((uri) => (
-                  <Image
+                {photos.map((uri) => (
+                  <Pressable
                     key={uri}
-                    source={{ uri }}
-                    contentFit="cover"
-                    transition={150}
-                    style={{
+                    accessibilityRole="button"
+                    accessibilityLabel={t('Remove photo')}
+                    onPress={() =>
+                      alert.confirm({
+                        title: t('Remove this photo?'),
+                        body: t('It comes off the gallery at once. You can add it back any time.'),
+                        confirmLabel: t('Remove'),
+                        onConfirm: () => removePhoto(uri),
+                      })
+                    }
+                    style={({ pressed }) => ({
+                      opacity: pressed ? 0.8 : 1,
+                    })}
+                  >
+                    <Image
+                      source={{ uri }}
+                      contentFit="cover"
+                      transition={150}
+                      style={{
+                        width: 96,
+                        height: 96,
+                        borderRadius: radius.lg,
+                        backgroundColor: colors.sunken,
+                        borderWidth: 1,
+                        borderColor: colors.line,
+                      }}
+                    />
+                    <View
+                      style={{
+                        position: 'absolute',
+                        right: 6,
+                        top: 6,
+                        width: 22,
+                        height: 22,
+                        borderRadius: 11,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: 'rgba(20, 16, 14, 0.55)',
+                      }}
+                    >
+                      <Icon name="x" size={12} color="#FFFFFF" strokeWidth={2.6} />
+                    </View>
+                  </Pressable>
+                ))}
+
+                {photos.length < MAX_PHOTOS ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('Add photos')}
+                    onPress={addPhotos}
+                    style={({ pressed }) => ({
                       width: 96,
                       height: 96,
                       borderRadius: radius.lg,
-                      backgroundColor: colors.sunken,
-                      borderWidth: 1,
-                      borderColor: colors.line,
-                    }}
-                  />
-                ))}
-
+                      borderWidth: 1.5,
+                      borderStyle: 'dashed',
+                      borderColor: pressed ? colors.sage : colors.line,
+                      backgroundColor: pressed ? colors.sage50 : 'transparent',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 5,
+                    })}
+                  >
+                    <Icon name="plus" size={19} color={colors.sage} strokeWidth={2.2} />
+                    <Text
+                      style={{
+                        fontFamily: font.uiSemi,
+                        fontSize: 10,
+                        letterSpacing: 0.5,
+                        textTransform: 'uppercase',
+                        color: colors.sage,
+                      }}
+                    >
+                      {t('Add')}
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
 
-              {(kitchen.photos ?? []).length === 0 ? (
+              {photos.length === 0 ? (
                 <Text
                   style={{
                     marginTop: 10,
                     fontFamily: font.ui,
                     fontSize: type.xs,
+                    lineHeight: type.xs * 1.6,
                     color: colors.textMuted,
                   }}
                 >
-                  {t('No photos on this kitchen. Contact support to change them.')}
+                  {t('No photos yet. Add a few — customers and the verification queue both read this gallery.')}
                 </Text>
               ) : null}
             </View>

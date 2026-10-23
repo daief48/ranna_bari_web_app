@@ -398,6 +398,9 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
               (order.handover === 'pickup' ? t('At the kitchen') : '—')
             }
           />
+          {/* Their own words, back to them — the tracker is the receipt for
+              meal plates and shop orders alike. */}
+          {order.note ? <Row label={t('Note for the cook')} value={order.note} /> : null}
           <Row label={t('Booked')} value={formatOrderDate(order.createdAt, lang)} />
         </View>
 

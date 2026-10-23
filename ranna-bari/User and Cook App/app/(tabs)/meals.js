@@ -25,8 +25,11 @@ import { Body } from '../../src/components/Typography';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius } from '../../src/theme/tokens';
 import { useSession } from '../../src/store/SessionContext';
+import { useAuth } from '../../src/store/AuthContext';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { makeMatcher } from '../../src/lib/search';
+import { coversCustomer } from '../../src/lib/kitchen';
+import { distanceKm } from '../../src/lib/geo';
 
 import { Chip, ChipRow, Empty, Loading, Panel } from '../../src/features/meal-plan/components';
 import { SLOT_LABEL, dateLabel, monthLabel } from '../../src/features/meal-plan/format';
@@ -36,6 +39,7 @@ export default function MealsTab() {
   const { colors } = useTheme();
   const router = useRouter();
   const { token } = useSession();
+  const { account } = useAuth();
   const { t, n } = useLang();
 
   const [services, setServices] = useState(null);
@@ -55,6 +59,26 @@ export default function MealsTab() {
     }, [token]),
   );
 
+  /* Where this customer is, for the same matching browse runs: coverage first,
+     the radius for kitchens that never named their divisions. This tab used to
+     have no location sense at all — a month is a commitment of hundreds of
+     deliveries, so "can they even reach me" leads here more than anywhere. */
+  const addr = useMemo(
+    () =>
+      account
+        ? {
+            division: account.division ?? '',
+            district: account.district ?? '',
+            area: account.area ?? '',
+          }
+        : null,
+    [account],
+  );
+  const origin =
+    typeof account?.lat === 'number' && typeof account?.lng === 'number'
+      ? { lat: account.lat, lng: account.lng }
+      : null;
+
   /* The categories actually on offer, not every category the platform has —
      a filter that returns nothing on every kitchen is a filter nobody wants. */
   const categories = useMemo(() => {
@@ -69,10 +93,15 @@ export default function MealsTab() {
     const match = query.trim() ? makeMatcher(query) : null;
     return (services ?? []).filter((s) => {
       if (category && s.categoryKey !== category) return false;
+      const km =
+        origin && typeof s.lat === 'number' && typeof s.lng === 'number'
+          ? distanceKm(origin, { lat: s.lat, lng: s.lng })
+          : null;
+      if (!coversCustomer(s, addr, km)) return false;
       if (!match) return true;
       return match(s.kitchenName) || match(s.cookName) || match(s.area);
     });
-  }, [services, category, query]);
+  }, [services, category, query, addr, origin]);
 
   return (
     <Screen>
@@ -295,6 +324,38 @@ export default function MealsTab() {
                           gap: 3,
                         }}
                       >
+                        {/* The menu's provenance, said once: a kitchen that
+                            has not published a month of its own is showing the
+                            platform's default, and the customer comparing
+                            menus should know whose words those are. */}
+                        {service.planSource === 'system' ? (
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 6,
+                              marginBottom: 5,
+                              alignSelf: 'flex-start',
+                              paddingVertical: 4,
+                              paddingHorizontal: 9,
+                              borderRadius: radius.pill,
+                              backgroundColor: colors.sunken,
+                              borderWidth: 1,
+                              borderColor: colors.line,
+                            }}
+                          >
+                            <Icon name="sparkles" size={11} color={colors.textMuted} />
+                            <Text
+                              style={{
+                                fontFamily: font.uiSemi,
+                                fontSize: 10.5,
+                                color: colors.textMuted,
+                              }}
+                            >
+                              {t('RannaBari default menu — the cook has not published their own yet')}
+                            </Text>
+                          </View>
+                        ) : null}
                         {service.upcoming.map((meal) => (
                           <View
                             key={`${meal.date}-${meal.slot}`}

@@ -112,6 +112,71 @@ function Steps({ at, total }) {
 }
 
 /* ------------------------------------------------------------------ *
+ * the customer's note, where work is triaged
+ * ------------------------------------------------------------------ */
+
+/**
+ * "Jhal kom diben", in the customer's own words, on the card.
+ *
+ * This used to live nowhere — the only free text on an order was
+ * `address.instructions`, which is the rider's note and answers a different
+ * question. Saffron, like the detail screen's callout, and capped at two
+ * lines with a tap to open: the note must be seen, but never own the card.
+ */
+function CookNote({ note }) {
+  const { colors } = useTheme();
+  const { t } = useLang();
+  const [open, setOpen] = useState(false);
+
+  if (!String(note ?? '').trim()) return null;
+
+  return (
+    <Pressable
+      accessibilityRole={String(note).length > 90 ? 'button' : 'text'}
+      onPress={String(note).length > 90 ? () => setOpen((v) => !v) : undefined}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 8,
+        padding: 10,
+        borderRadius: radius.sm,
+        backgroundColor: colors.saffron50,
+        borderWidth: 1,
+        borderColor: colors.saffron100,
+        opacity: pressed ? 0.9 : 1,
+      })}
+    >
+      <Icon name="chat" size={13} color={colors.saffron} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text
+          style={{
+            fontFamily: font.uiBold,
+            fontSize: 9.5,
+            letterSpacing: 0.7,
+            textTransform: 'uppercase',
+            color: colors.saffron,
+            marginBottom: 2,
+          }}
+        >
+          {t('Note for the cook')}
+        </Text>
+        <Text
+          numberOfLines={open ? undefined : 2}
+          style={{
+            fontFamily: font.ui,
+            fontSize: type.xs + 1,
+            lineHeight: (type.xs + 1) * 1.5,
+            color: colors.text,
+          }}
+        >
+          {note}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+/* ------------------------------------------------------------------ *
  * shop card
  * ------------------------------------------------------------------ */
 
@@ -174,6 +239,8 @@ function ShopCard({ order, onAdvance, onAnswer }) {
       </View>
 
       <OrderLines lines={order.lines ?? []} />
+
+      <CookNote note={order.note} />
 
       {formatAddress(order.address) ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -302,6 +369,10 @@ function MealPlate({ order, busy, onDeliver }) {
         </View>
         <Price size={17}>৳{n(order.amount)}</Price>
       </View>
+
+      {/* A plate's note, on the plate — a month of cooking carries the same
+          "jhal kom" every single day. */}
+      <CookNote note={order.note} />
 
       <Steps at={STEP_AT.meals[order.status] ?? 0} total={STEP_TOTAL.meals} />
 
@@ -569,6 +640,12 @@ function OrderCard({ order, onOpen }) {
           </View>
         ) : null}
       </Pressable>
+
+      {/* The customer's note, outside the pressed surface — tapping it to
+          expand must never open the order. */}
+      <View style={{ paddingHorizontal: 16, ...(order.note ? { paddingTop: 12 } : {}) }}>
+        <CookNote note={order.note} />
+      </View>
 
       {next ? (
         <View

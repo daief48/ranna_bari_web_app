@@ -107,11 +107,11 @@ export const fetchMealService = (token, kitchenId, month) =>
  * moment. A client that sent a total would be a client that could be wrong
  * about it.
  */
-export const bookMeals = (token, { kitchenId, month, selections, address }) =>
+export const bookMeals = (token, { kitchenId, month, selections, address, note }) =>
   call('/meal-bookings', {
     method: 'POST',
     token,
-    body: { kitchenId, month, selections, address },
+    body: { kitchenId, month, selections, address, ...(note?.trim() ? { note: note.trim() } : {}) },
   });
 
 export const fetchMyBookings = (token) => call('/meal-bookings', { token });

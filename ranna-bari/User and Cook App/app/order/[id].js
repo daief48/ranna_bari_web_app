@@ -513,6 +513,8 @@ export default function OrderScreen() {
             ) : (
               <Detail icon="pin" text={t('No delivery address on file.')} />
             )}
+            {/* Their own words, back to them — proof of what the cook was told. */}
+            {order.note ? <Detail icon="chat" text={order.note} /> : null}
           </View>
         </Reveal>
 

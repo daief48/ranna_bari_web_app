@@ -40,6 +40,7 @@ import Reveal from '../../src/components/Reveal';
 import Button from '../../src/components/Button';
 import FloatLabelInput from '../../src/components/FloatLabelInput';
 import LocationPicker from '../../src/components/LocationPicker';
+import ServiceAreaPicker from '../../src/components/ServiceAreaPicker';
 import {
   ActionRow,
   FieldError,
@@ -114,6 +115,12 @@ function Wizard({ kitchen }) {
      to wake up. */
   const [pin, setPin] = useState(null);
   const [radiusKm, setRadiusKm] = useState(kitchen.deliveryRadiusKm ?? 3);
+  /* Coverage — the divisions the kitchen will cross. Set any and the radius
+     above stops being consulted; set none and the old behaviour applies. */
+  const [coverage, setCoverage] = useState({
+    allBangladesh: !!kitchen.allBangladesh,
+    serviceAreas: kitchen.serviceAreas ?? [],
+  });
   const [open, setOpen] = useState(!!kitchen.isOpen);
 
   const stepLabels = useMemo(() => STEPS.map((s) => t(s)), [t]);
@@ -232,6 +239,8 @@ function Wizard({ kitchen }) {
       photos,
       area: area ? normaliseArea(area) : '',
       deliveryRadiusKm: radiusKm,
+      serviceAreas: coverage.serviceAreas,
+      allBangladesh: coverage.allBangladesh,
       /* Only sent when the pin was actually moved — see the draft note. */
       ...(pin ? { lat: pin.lat, lng: pin.lng } : {}),
       isOpen: open,
@@ -813,6 +822,15 @@ function Wizard({ kitchen }) {
               <Body muted size={13} style={{ marginTop: 4 }}>
                 {t('How far you will carry food. Further means more customers — and colder food.')}
               </Body>
+
+              {/* ---- coverage: the divisions this kitchen will cross ----
+                  The radius is a circle on a map; this is the answer customers
+                  are actually matched by. Any coverage here outranks the
+                  radius entirely, so both stay editable and the cook chooses
+                  which one speaks for them. */}
+              <View style={{ marginTop: 24 }}>
+                <ServiceAreaPicker value={coverage} onChange={setCoverage} />
+              </View>
             </Reveal>
           ) : null}
 

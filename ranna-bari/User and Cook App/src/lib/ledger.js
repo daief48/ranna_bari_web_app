@@ -95,6 +95,10 @@ export const addressFromAccount = (account) => {
     label: account?.addressLabel || 'Home',
     line,
     area,
+    /* The division pair rides along since coverage arrived: it is what picks
+       the inside/outside delivery fee and what a request broadcast matches. */
+    division: account?.division ?? '',
+    district: account?.district ?? '',
     lat: typeof account?.lat === 'number' ? account.lat : null,
     lng: typeof account?.lng === 'number' ? account.lng : null,
     instructions: '',
