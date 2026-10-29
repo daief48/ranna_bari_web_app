@@ -7,17 +7,17 @@ import Screen, { Container } from '../../src/components/Screen';
 import Icon from '../../src/components/Icon';
 import Reveal from '../../src/components/Reveal';
 import Button from '../../src/components/Button';
+import ShopCartLine from '../../src/components/ShopCartLine';
 import { Badge } from '../../src/components/Surfaces';
 import { Body, GradientText, Heading, Price, SectionTitle } from '../../src/components/Typography';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
-import { useCart } from '../../src/store/CartContext';
-import { useCommerce } from '../../src/store/CommerceContext';
-import { customerKeyOf } from '../../src/lib/ledger';
-import { useAuth } from '../../src/store/AuthContext';
+import { useUnifiedCart } from '../../src/store/useUnifiedCart';
 import { useMenus } from '../../src/data';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { useAlert } from '../../src/components/Alert';
+import { errorText } from '../../src/lib/errors';
 
 /** A cheap, honest pairing: the least expensive dish from another kitchen. */
 function usePairing(items) {
@@ -38,65 +38,85 @@ function usePairing(items) {
   }, [items, menus]);
 }
 
+/**
+ * The cart — kitchen dishes and shop products in one place.
+ *
+ * Two halves sit behind it (dishes on the device, shop products on the
+ * server) and `useUnifiedCart` is what lets this screen not care. Dishes are
+ * grouped by kitchen and shop products by shop, each under the same
+ * "From: …" badge; there is one summary and one way forward.
+ */
 export default function CartScreen() {
   const { colors, shadow } = useTheme();
   const r = useResponsive();
   const router = useRouter();
-  const {
-    items,
-    subtotal,
-    deliveryFee,
-    platformFee,
-    total,
-    updateQty,
-    remove,
-    add,
-  } = useCart();
+  const alert = useAlert();
+  const cart = useUnifiedCart();
+  const { t, n } = useLang();
+  const pairing = usePairing(cart.dishItems);
 
   const [instructions, setInstructions] = useState('');
-  const { t, n } = useLang();
-  const pairing = usePairing(items);
-
-  /* The shop basket, which is a different basket: wallet-paid, stock-checked
-     and held in escrow. Summarised here rather than merged in, because
-     merging two payment rails into one list would make the totals a lie. */
-  const { account, isSignedIn } = useAuth();
-  const shop = useCommerce();
-  const shopPriced = shop.priceCart(customerKeyOf(account));
-  const shopCount = shopPriced.lines.reduce((sum, l) => sum + l.qty, 0);
+  /* The shop line whose round trip is in flight. */
+  const [busyLine, setBusyLine] = useState(null);
 
   /* The cart badge on the navbar shows a single kitchen's order in the web
      build; group the rows the same way so the "FROM:" chip stays truthful. */
   const groups = useMemo(() => {
     const byChef = new Map();
-    for (const i of items) {
+    for (const i of cart.dishItems) {
       const key = i.chefName || 'Your kitchen';
       if (!byChef.has(key)) byChef.set(key, []);
       byChef.get(key).push(i);
     }
     return Array.from(byChef.entries());
-  }, [items]);
+  }, [cart.dishItems]);
 
-  /* Carry the instructions forward rather than asking for them again on the
-     next screen -- the field exists here because the web build had no
-     checkout page to put it on. */
+  /* A shop line's controls talk to the server, so a refusal (the last jar was
+     just bought) arrives after the tap and has to be said out loud. */
+  const withLine = async (line, run) => {
+    if (busyLine) return;
+    setBusyLine(line.key);
+    const out = await run();
+    setBusyLine(null);
+    if (out && out.ok === false) {
+      alert.error(errorText(out.error, t, n, { ...out, productName: line.name }));
+    }
+  };
+
+  /* The first thing the server would refuse, said next to the button that it
+     would have refused. */
+  const blocked = cart.problems.length > 0;
+  const blockedWhy = blocked
+    ? errorText(cart.problems[0].problem, t, n, { productName: cart.problems[0].name })
+    : '';
+
   /*
    * Sent to sign in from here rather than from checkout.
    *
-   * A guest could fill a basket, tap through, and only be told at the
-   * payment screen that the whole thing needs an account — two screens after
-   * the point where saying so would have cost them nothing.
+   * A guest could fill a cart, tap through, and only be told at the payment
+   * screen that the whole thing needs an account — two screens after the
+   * point where saying so would have cost them nothing.
+   *
+   * Carry the instructions forward rather than asking for them again on the
+   * next screen.
    */
   const checkout = () => {
-    if (!isSignedIn) return router.push('/auth');
+    if (!cart.isSignedIn) return router.push('/auth?next=/checkout');
     return router.push({
       pathname: '/checkout',
       params: instructions.trim() ? { note: instructions.trim() } : {},
     });
   };
 
-  const checkoutShelf = () =>
-    isSignedIn ? router.push('/store-checkout') : router.push('/auth');
+  /* Shop products need an account to exist at all, so what the shop part of
+     the delivery costs is only known once it is there. Said in the row's own
+     label rather than a footnote. */
+  const shopDeliveryLabel =
+    cart.shopSide === 'inside'
+      ? t('Delivery (inside {place})', { place: t(cart.shopHome) })
+      : cart.shopSide === 'outside'
+        ? t('Delivery (outside {place})', { place: t(cart.shopHome) })
+        : null;
 
   return (
     <Screen>
@@ -115,129 +135,7 @@ export default function CartScreen() {
           </GradientText>
         </View>
 
-        {shopCount ? (
-          <View
-            style={[
-              {
-                padding: 16,
-                marginBottom: 24,
-                borderRadius: radius.md,
-                backgroundColor: colors.surfaceSolid,
-                borderWidth: 1,
-                borderColor: colors.line,
-              },
-              shadow.sm,
-            ]}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 14,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: colors.primary50,
-                }}
-              >
-                <Icon name="box" size={19} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text
-                  style={{ fontFamily: font.uiSemi, fontSize: type.sm + 2, color: colors.text }}
-                >
-                  {t('From the shelf')}
-                </Text>
-                <Text
-                  style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
-                >
-                  {t('Paid from your wallet, and held until it reaches you.')}
-                </Text>
-              </View>
-            </View>
-
-            {/* The lines themselves, so nothing about this basket is hidden
-                behind a tap. */}
-            <View style={{ gap: 8, marginTop: 14 }}>
-              {shopPriced.lines.map((line) => (
-                <View
-                  key={line.key ?? line.productId}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
-                >
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      fontFamily: font.ui,
-                      fontSize: type.sm,
-                      color: colors.text,
-                    }}
-                  >
-                    {/* The server's cart line carries the name; the local
-                        product lookup is empty for a shop the customer has
-                        not opened, which is most of them. */}
-                    {line.name ?? line.product?.name ?? t('Item')}
-                    <Text style={{ color: colors.textMuted }}>{`  ×${n(line.qty)}`}</Text>
-                  </Text>
-                  {line.preorder ? (
-                    <Text
-                      style={{ fontFamily: font.uiBold, fontSize: 10, color: colors.saffron }}
-                    >
-                      {t('Pre-order')}
-                    </Text>
-                  ) : null}
-                  <Text
-                    style={{
-                      fontFamily: font.uiSemi,
-                      fontSize: type.sm,
-                      color: colors.text,
-                      fontVariant: ['tabular-nums'],
-                    }}
-                  >
-                    ৳{n(line.lineTotal)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginTop: 14,
-                paddingTop: 12,
-                borderTopWidth: 1,
-                borderTopColor: colors.line2,
-              }}
-            >
-              <Text
-                style={{ flex: 1, fontFamily: font.ui, fontSize: type.sm, color: colors.textMuted }}
-              >
-                {t('{n} items', { n: n(shopCount) })}
-              </Text>
-              <Text
-                style={{
-                  fontFamily: font.uiBold,
-                  fontSize: type.body,
-                  color: colors.text,
-                  fontVariant: ['tabular-nums'],
-                }}
-              >
-                ৳{n(shopPriced.total)}
-              </Text>
-            </View>
-
-            <Button
-              label={t('Place shop order')}
-              block
-              onPress={checkoutShelf}
-              style={{ marginTop: 12 }}
-            />
-          </View>
-        ) : null}
-
-        {!items.length ? (
+        {cart.isEmpty ? (
           <View style={{ alignItems: 'center', gap: 18, paddingVertical: 40 }}>
             <View
               style={{
@@ -251,22 +149,27 @@ export default function CartScreen() {
             >
               <Icon name="cart" size={30} color={colors.primary} />
             </View>
-            <Heading size={20}>
-              {shopCount ? t('No kitchen dishes yet') : t('Nothing here yet')}
-            </Heading>
+            <Heading size={20}>{t('Your cart is empty')}</Heading>
             <Body muted size={15} style={{ textAlign: 'center' }}>
-              {t('Pick a kitchen and the dishes you add will show up here.')}
+              {t('Pick a kitchen or a shop and what you add will show up here.')}
             </Body>
-            <Button
-              label={t('Browse artisans')}
-              icon="arrowRight"
-              onPress={() => router.replace('/browse')}
-            />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
+              <Button
+                label={t('Browse artisans')}
+                icon="arrowRight"
+                onPress={() => router.replace('/browse')}
+              />
+              <Button
+                variant="glass"
+                label={t('Browse shops')}
+                onPress={() => router.replace('/stores')}
+              />
+            </View>
           </View>
         ) : (
           <>
-            {/* ---- AI pairing suggestion ---- */}
-            {pairing ? (
+            {/* ---- AI pairing suggestion (dishes only) ---- */}
+            {pairing && cart.hasDish ? (
               <Reveal delay={1}>
                 <View
                   style={{
@@ -310,16 +213,19 @@ export default function CartScreen() {
                     label={t('Add')}
                     small
                     onPress={() =>
-                      add(pairing, { id: items[0].chefId, name: items[0].chefName })
+                      cart.addDish(pairing, {
+                        id: cart.dishItems[0].chefId,
+                        name: cart.dishItems[0].chefName,
+                      })
                     }
                   />
                 </View>
               </Reveal>
             ) : null}
 
-            {/* ---- Items, grouped by kitchen ---- */}
+            {/* ---- Kitchen dishes, grouped by kitchen ---- */}
             {groups.map(([chefName, rows], gi) => (
-              <View key={chefName} style={{ marginBottom: 8 }}>
+              <View key={`dish:${chefName}`} style={{ marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', marginBottom: 16 }}>
                   <Badge tone="accent" label={`${t('From:')} ${chefName}`} />
                 </View>
@@ -407,7 +313,7 @@ export default function CartScreen() {
                         <QtyButton
                           icon="minus"
                           label={t('Decrease quantity')}
-                          onPress={() => updateQty(item.id, -1)}
+                          onPress={() => cart.updateDishQty(item.id, -1)}
                         />
                         <Text
                           style={{
@@ -424,15 +330,15 @@ export default function CartScreen() {
                         <QtyButton
                           icon="plus"
                           label={t('Increase quantity')}
-                          onPress={() => updateQty(item.id, 1)}
+                          onPress={() => cart.updateDishQty(item.id, 1)}
                         />
                       </View>
 
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={`Remove ${item.name}`}
+                        accessibilityLabel={`${t('Remove')} ${item.name}`}
                         hitSlop={8}
-                        onPress={() => remove(item.id)}
+                        onPress={() => cart.removeDish(item.id)}
                         style={({ pressed }) => ({
                           position: 'absolute',
                           top: 8,
@@ -448,6 +354,54 @@ export default function CartScreen() {
                 ))}
               </View>
             ))}
+
+            {/* ---- Shop products, grouped by shop ---- */}
+            {cart.shopGroups.map((group, gi) => (
+              <View key={`shop:${group.storeId}`} style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                  <Badge
+                    tone="accent"
+                    label={`${t('From:')} ${group.storeName || t('Shop')}`}
+                  />
+                  <Badge tone="sage" icon="box" label={t('Shop')} />
+                </View>
+
+                {group.lines.map((line, i) => (
+                  <Reveal key={line.key} delay={groups.length + gi + i + 1}>
+                    <ShopCartLine
+                      line={line}
+                      busy={busyLine === line.key}
+                      onQty={(qty) => withLine(line, () => cart.setShopQty(line.key, qty))}
+                      onRemove={() => withLine(line, () => cart.removeShopLine(line.key))}
+                      onOpen={() => router.push(`/product/${line.productId}`)}
+                    />
+                  </Reveal>
+                ))}
+              </View>
+            ))}
+
+            {cart.hasPreorder ? (
+              <View
+                style={{
+                  gap: 6,
+                  padding: 14,
+                  marginBottom: 8,
+                  borderRadius: radius.sm,
+                  backgroundColor: colors.saffron50,
+                  borderWidth: 1,
+                  borderColor: colors.saffron100,
+                }}
+              >
+                <Text style={{ fontFamily: font.uiBold, fontSize: type.sm + 1, color: colors.text }}>
+                  {t('Some of this is a pre-order')}
+                </Text>
+                <Body muted size={13}>
+                  {t(
+                    'Pre-ordered items go to the cook as a request and are billed separately from the rest. If the cook cannot take them, that part is refunded in full.',
+                  )}
+                </Body>
+              </View>
+            ) : null}
 
             <Pressable
               onPress={() => router.push('/browse')}
@@ -485,9 +439,30 @@ export default function CartScreen() {
                   {t('Order Summary')}
                 </Heading>
 
-                <SummaryRow label={t('Subtotal')} value={n(subtotal)} />
-                <SummaryRow label={t('Delivery Fee')} value={n(deliveryFee)} />
-                <SummaryRow label={t('Platform Fee')} value={n(platformFee)} />
+                <SummaryRow label={t('Subtotal')} value={n(cart.subtotal)} />
+
+                {/* Dishes and shops are charged differently, so with both in
+                    the cart each gets its own line instead of one number
+                    nobody could check. */}
+                {cart.hasDish && cart.hasShop ? (
+                  <>
+                    <SummaryRow label={t('Delivery · kitchens')} value={n(cart.dishDelivery)} />
+                    <SummaryRow
+                      label={shopDeliveryLabel ?? t('Delivery · shops')}
+                      value={n(cart.shopDelivery)}
+                    />
+                  </>
+                ) : cart.hasShop ? (
+                  <SummaryRow
+                    label={shopDeliveryLabel ?? t('Delivery Fee')}
+                    value={n(cart.shopDelivery)}
+                  />
+                ) : (
+                  <SummaryRow label={t('Delivery Fee')} value={n(cart.dishDelivery)} />
+                )}
+                {cart.hasDish ? (
+                  <SummaryRow label={t('Platform Fee')} value={n(cart.platformFee)} />
+                ) : null}
 
                 <View
                   style={{
@@ -508,7 +483,7 @@ export default function CartScreen() {
                       letterSpacing: -0.46,
                     }}
                   >
-                    ৳{n(total)}
+                    ৳{n(cart.total)}
                   </GradientText>
                 </View>
 
@@ -532,7 +507,27 @@ export default function CartScreen() {
                   }}
                 />
 
-                <Button label={t('Proceed to checkout')} block onPress={checkout} />
+                <Button
+                  label={blocked ? t('Fix the cart to continue') : t('Proceed to checkout')}
+                  block
+                  disabled={blocked}
+                  onPress={checkout}
+                />
+
+                {blocked ? (
+                  <Text
+                    style={{
+                      marginTop: 12,
+                      textAlign: 'center',
+                      fontFamily: font.uiSemi,
+                      fontSize: type.xs + 1,
+                      lineHeight: (type.xs + 1) * 1.5,
+                      color: colors.saffron,
+                    }}
+                  >
+                    {blockedWhy}
+                  </Text>
+                ) : null}
 
                 <View
                   style={{
@@ -546,12 +541,18 @@ export default function CartScreen() {
                   <Icon name="banknote" size={15} color={colors.sage} />
                   <Text
                     style={{
+                      flex: 1,
+                      textAlign: 'center',
                       fontFamily: font.ui,
                       fontSize: type.xs,
                       color: colors.textMuted,
                     }}
                   >
-                    {t('Cash on delivery. Pay the rider at your door.')}
+                    {/* Payment is chosen at checkout; this only says which
+                        choices that will be, so nobody is surprised there. */}
+                    {cart.hasShop
+                      ? t('Shop items are paid from your wallet, and held until they reach you.')
+                      : t('Choose cash on delivery or your wallet at checkout.')}
                   </Text>
                 </View>
               </View>

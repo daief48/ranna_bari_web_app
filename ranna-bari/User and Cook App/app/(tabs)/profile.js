@@ -15,7 +15,6 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
 import { useSession } from '../../src/store/SessionContext';
-import { useCart } from '../../src/store/CartContext';
 import { useOrders } from '../../src/store/OrdersContext';
 import { useKitchen } from '../../src/store/KitchenContext';
 import { useCommerce } from '../../src/store/CommerceContext';
@@ -35,7 +34,6 @@ export default function ProfileScreen() {
      this handset inherits a token that can still spend the last one's
      wallet. */
   const { signOutServer, addresses } = useSession();
-  const { count } = useCart();
   const { orders, activeOrders } = useOrders();
   const { wallet, unreadFor, requestsForCustomer, savedStoresList } = useCommerce();
   const [confirmOut, setConfirmOut] = useState(false);

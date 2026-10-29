@@ -122,14 +122,18 @@ export default function ProductScreen() {
   const images = product.images?.length ? product.images : [''];
   const max = product.maxQty ?? (availability === 'in-stock' ? product.stock : null);
 
+  /* Shop products live in the same cart as kitchen dishes, so adding one lands
+     on the cart — the answer to "did that work, and what is in there now" —
+     and "Buy now" goes straight on to the one checkout. A signed-out customer
+     is sent to sign in and brought back to this product, rather than left
+     wherever sign-in happens to end. */
   const add = async (thenGo) => {
-    if (!isSignedIn) return router.push('/auth');
+    if (!isSignedIn) return router.push(`/auth?next=/product/${product.id}`);
     const out = await shop.addToCart(key, product.id, qty, option);
     if (!out.ok) {
       return alert.error(errorText(out.error, t, n, { ...out, productName: product.name }));
     }
-    if (thenGo) router.push('/store-checkout');
-    else router.back();
+    router.push(thenGo ? '/checkout' : '/cart');
   };
 
   return (
@@ -445,7 +449,7 @@ export default function ProductScreen() {
             </View>
 
             <Button
-              label={preorder ? t('Pre-order · ৳{n}', { n: n(unit * qty) }) : t('Add to basket')}
+              label={preorder ? t('Pre-order · ৳{n}', { n: n(unit * qty) }) : t('Add to cart')}
               icon={preorder ? 'clock' : 'plus'}
               iconPosition="left"
               block

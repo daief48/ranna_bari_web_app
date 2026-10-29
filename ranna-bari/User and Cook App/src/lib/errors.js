@@ -153,7 +153,7 @@ export function errorText(error, t, n, extra = {}) {
     case 'product-above-maximum':
       return t('You can order at most {n} of this.', { n: n(extra.max ?? 0) });
     case 'cart-empty':
-      return t('Your basket is empty.');
+      return t('Your cart is empty.');
     case 'category-in-use':
       return t('Move or delete its {n} products first.', { n: n(extra.count ?? 0) });
     case 'name-required':

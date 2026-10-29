@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import Icon from '../../src/components/Icon';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { useAuth } from '../../src/store/AuthContext';
-import { useCart } from '../../src/store/CartContext';
+import { useUnifiedCart } from '../../src/store/useUnifiedCart';
 import LiveOrderStrip from '../../src/components/LiveOrderStrip';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/ledger';
@@ -67,7 +67,8 @@ const BAR_HEIGHT = 74;
 function AppBar({ state, descriptors, navigation }) {
   const { colors, shadow, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const { count } = useCart();
+  /* Dishes and shop products together: the badge counts the one cart. */
+  const { count } = useUnifiedCart();
   const { account } = useAuth();
   const { orders } = useCommerce();
   const { t, n: num } = useLang();

@@ -480,7 +480,7 @@ function Form({ store }) {
             >
               {coverage.allBangladesh || (coverage.serviceAreas ?? []).length
                 ? t('The radius is not used while coverage is chosen above.')
-                : t('Charged once per order, however many things are in the basket.')}
+                : t('Charged once per order, however many things are in the cart.')}
             </Text>
           </View>
         </Reveal>

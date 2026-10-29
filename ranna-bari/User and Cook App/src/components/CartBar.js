@@ -6,7 +6,7 @@ import * as Haptics from 'expo-haptics';
 
 import Icon from './Icon';
 import { useTheme } from '../theme/ThemeProvider';
-import { useCart } from '../store/CartContext';
+import { useUnifiedCart } from '../store/useUnifiedCart';
 import { useLang } from '../i18n/LanguageContext';
 import { font, radius, type } from '../theme/tokens';
 
@@ -26,7 +26,8 @@ export default function CartBar() {
   const { colors, shadow } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { count, subtotal } = useCart();
+  /* Kitchen dishes and shop products together — it is the one cart. */
+  const { count, subtotal } = useUnifiedCart();
   const { t, n } = useLang();
 
   if (!count) return null;

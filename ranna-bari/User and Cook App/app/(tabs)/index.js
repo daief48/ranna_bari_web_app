@@ -17,6 +17,7 @@ import TestimonialSlider, { Stars } from '../../src/components/TestimonialSlider
 import Brand from '../../src/components/Brand';
 import { BentoBox, IconTile } from '../../src/components/Surfaces';
 import { useCart } from '../../src/store/CartContext';
+import { useUnifiedCart } from '../../src/store/useUnifiedCart';
 import { useOrders } from '../../src/store/OrdersContext';
 import {
   Body,
@@ -106,7 +107,9 @@ export default function HomeScreen() {
   const chefs = useChefs();
   const { account } = useAuth();
   const { orders } = useOrders();
-  const { reorder, count: cartCount } = useCart();
+  const { reorder } = useCart();
+  /* One cart: dishes and shop products together. */
+  const { count: cartCount } = useUnifiedCart();
 
   /**
    * The last three kitchens worth repeating.
@@ -415,7 +418,7 @@ export default function HomeScreen() {
                 icon: 'cart',
                 tone: 'saffron',
                 title: t(
-                  cartCount === 1 ? '1 item in your basket' : '{n} items in your basket',
+                  cartCount === 1 ? '1 item in your cart' : '{n} items in your cart',
                   { n: n(cartCount) },
                 ),
                 sub: t('Nothing is ordered until you check out'),
@@ -658,7 +661,7 @@ export default function HomeScreen() {
             <SectionHeader
               lead={t('ORDER')}
               accent={t('AGAIN')}
-              subtitle={t('Straight back into your basket.')}
+              subtitle={t('Straight back into your cart.')}
               action={t('All orders')}
               onAction={() => router.push('/orders')}
             />

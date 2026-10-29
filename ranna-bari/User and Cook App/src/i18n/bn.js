@@ -892,7 +892,7 @@ export const bn = {
   'Payouts run every Sunday': 'প্রতি রোববার পেআউট হয়',
   'Closed — nothing can be ordered': 'বন্ধ — কিছুই অর্ডার করা যাবে না',
 
-  // The shelf basket, now a section of the Cart.
+  // The shelf used to have a cart of its own; it is part of the one Cart now.
   'From the shelf': 'তাক থেকে',
   'Paid from your wallet, and held until it reaches you.': 'ওয়ালেট থেকে কাটা, আর আপনার কাছে পৌঁছানো পর্যন্ত জমা থাকবে।',
   'Place shop order': 'দোকানের অর্ডার দিন',
@@ -1162,8 +1162,8 @@ export const bn = {
   '৳{n} available': '৳{n} আছে',
   '৳{n} available · ৳{held} held': '৳{n} আছে · ৳{held} জমা',
   'Enter a valid amount.': 'সঠিক একটি পরিমাণ লিখুন।',
-  'One kitchen could not take its part of your order, so it is still in your basket: {reason}':
-    'একটি রান্নাঘর আপনার অর্ডারের অংশটি নিতে পারেনি, তাই সেটি এখনও আপনার ঝুড়িতে আছে: {reason}',
+  'One kitchen could not take its part of your order, so it is still in your cart: {reason}':
+    'একটি রান্নাঘর আপনার অর্ডারের অংশটি নিতে পারেনি, তাই সেটি এখনও আপনার কার্টে আছে: {reason}',
   'Insufficient balance. Top up ৳{n} to confirm this meal.':
     'ব্যালেন্স যথেষ্ট নয়। এই খাবারটি নিশ্চিত করতে ৳{n} টপ আপ করুন।',
 
@@ -1313,7 +1313,6 @@ export const bn = {
   SHOP: 'দোকান',
   SHOPS: 'দোকান',
   HOME: 'ঘরোয়া',
-  BASKET: 'ঝুড়ি',
   'Your shop': 'আপনার দোকান',
   'Home shops': 'ঘরোয়া দোকান',
   'That photo could not be saved. Try again.': 'ছবিটি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
@@ -1404,7 +1403,6 @@ export const bn = {
   'Tap to open your kitchen': 'রান্নাঘর খুলতে ট্যাপ করুন',
   'Orders start once your kitchen is verified.': 'রান্নাঘর যাচাই হলেই অর্ডার আসা শুরু হবে।',
   'Taking orders · tap to close': 'অর্ডার নিচ্ছে · বন্ধ করতে ট্যাপ করুন',
-  'Shop basket': 'দোকানের ঝুড়ি',
   'Shop orders': 'দোকানের অর্ডার',
   'Shop settings': 'দোকানের সেটিংস',
   'Shop name': 'দোকানের নাম',
@@ -1451,12 +1449,12 @@ export const bn = {
   'This shop has not listed anything yet.': 'এই দোকানে এখনো কিছু দেওয়া হয়নি।',
   'This category is empty. Try another one.': 'এই ক্যাটাগরি খালি। অন্যটা দেখুন।',
   '{n} products': '{n}টি পণ্য',
-  '{n} in basket': 'ঝুড়িতে {n}টি',
+  '{n} in cart': 'কার্টে {n}টি',
   'Delivery ৳{fee}': 'ডেলিভারি ৳{fee}',
   'Delivery ৳{fee} · free over ৳{over}': 'ডেলিভারি ৳{fee} · ৳{over}-এর বেশি হলে ফ্রি',
   '৳{fee}': '৳{fee}',
   '৳{fee}, free over ৳{over}': '৳{fee}, ৳{over}-এর বেশি হলে ফ্রি',
-  '{name} added to your basket.': '{name} ঝুড়িতে যোগ হয়েছে।',
+  '{name} added to your cart.': '{name} কার্টে যোগ হয়েছে।',
   '{name} added as a pre-order.': '{name} প্রি-অর্ডার হিসেবে যোগ হয়েছে।',
 
   /* ---------------- cook stores: a product ---------------- */
@@ -1472,13 +1470,11 @@ export const bn = {
   'Pre-order only': 'শুধু প্রি-অর্ডার',
   'This is out of stock, but {cook} makes it to order. Your payment is held while they decide, and returned in full if they cannot take it.':
     'এটি স্টকে নেই, তবে {cook} অর্ডার পেলে বানিয়ে দেন। তাঁরা সিদ্ধান্ত না নেওয়া পর্যন্ত টাকা জমা থাকবে, নিতে না পারলে পুরোটাই ফেরত।',
-  'Add to basket': 'ঝুড়িতে যোগ করুন',
   'Buy now': 'এখনই কিনুন',
   'Pre-order · ৳{n}': 'প্রি-অর্ডার · ৳{n}',
 
-  /* ---------------- cook stores: the basket ---------------- */
-  'Your basket is empty': 'আপনার ঝুড়ি খালি',
-  'Your basket is empty.': 'আপনার ঝুড়ি খালি।',
+  /* ---------------- cook stores: the cart ---------------- */
+  'Your cart is empty.': 'আপনার কার্ট খালি।',
   'Anything you add from a shop lands here.': 'দোকান থেকে যা যোগ করবেন এখানে আসবে।',
   'Paid from your wallet, and held until the food reaches you.':
     'ওয়ালেট থেকে টাকা যায়, আর খাবার না পৌঁছানো পর্যন্ত জমা থাকে।',
@@ -1486,8 +1482,34 @@ export const bn = {
   'Pre-ordered items go to the cook as a request and are billed separately from the rest. If the cook cannot take them, that part is refunded in full.':
     'প্রি-অর্ডারের জিনিসগুলো রাঁধুনির কাছে অনুরোধ হিসেবে যায় আর আলাদা বিল হয়। তাঁরা নিতে না পারলে ওই অংশ পুরোটাই ফেরত।',
   'Place order · ৳{n}': 'অর্ডার দিন · ৳{n}',
-  'Fix the basket to continue': 'এগোতে ঝুড়ি ঠিক করুন',
+  'Fix the cart to continue': 'এগোতে কার্ট ঠিক করুন',
   'Top up to continue': 'এগোতে টপ আপ করুন',
+
+  /* ---------------- one cart: dishes and shop products ---------------- */
+  '1 item in your cart': 'আপনার কার্টে ১টি জিনিস',
+  '{n} items in your cart': 'আপনার কার্টে {n}টি জিনিস',
+  'Straight back into your cart.': 'সরাসরি আপনার কার্টে।',
+  'Pick a kitchen or a shop and what you add will show up here.':
+    'একটা রান্নাঘর বা দোকান বেছে নিন, যা যোগ করবেন এখানে দেখা যাবে।',
+  'Delivery · kitchens': 'ডেলিভারি · রান্নাঘর',
+  'Delivery · shops': 'ডেলিভারি · দোকান',
+  'Shop items are paid from your wallet, and held until they reach you.':
+    'দোকানের জিনিসের দাম ওয়ালেট থেকে দেওয়া হয়, আর আপনার হাতে না পৌঁছানো পর্যন্ত জমা থাকে।',
+  'Choose cash on delivery or your wallet at checkout.':
+    'চেকআউটে ক্যাশ অন ডেলিভারি বা ওয়ালেট বেছে নিন।',
+  'Sign in to check out': 'চেকআউট করতে সাইন ইন করুন',
+  'Your cart will still be here when you come back.': 'ফিরে এলে আপনার কার্ট এখানেই থাকবে।',
+  'Add something before checking out.': 'চেকআউটের আগে কিছু যোগ করুন।',
+  'View my orders': 'আমার অর্ডারগুলো দেখুন',
+  'No delivery address saved yet.': 'এখনও কোনো ডেলিভারি ঠিকানা সেভ করা নেই।',
+  'Shop delivery is priced from this saved address.':
+    'দোকানের ডেলিভারি ফি এই সেভ করা ঠিকানা থেকে ধরা হয়।',
+  'Not available with shop items — they are paid from your wallet.':
+    'দোকানের জিনিস থাকলে এটা চলে না — সেগুলোর দাম ওয়ালেট থেকে দেওয়া হয়।',
+  'Your session ended. Sign in and your cart will still be here.':
+    'আপনার সেশন শেষ হয়ে গেছে। সাইন ইন করুন, আপনার কার্ট এখানেই থাকবে।',
+  'Your shop order was placed, but the kitchen order was not.':
+    'আপনার দোকানের অর্ডার হয়েছে, কিন্তু রান্নাঘরের অর্ডার হয়নি।',
   'Top up ৳{n} to place this order': 'এই অর্ডার দিতে ৳{n} টপ আপ করুন',
   '৳{n} left after this order': 'এই অর্ডারের পর ৳{n} থাকবে',
   'The cook is paid only after you confirm the food arrived.':
@@ -1539,8 +1561,8 @@ export const bn = {
   'Cakes, pitha and achar, made at home': 'ঘরে বানানো কেক, পিঠা আর আচার',
   'What you make, and how you make it': 'কী বানান, আর কীভাবে বানান',
   'Free over (optional)': 'কত টাকার বেশি হলে ফ্রি (ইচ্ছে হলে)',
-  'Charged once per order, however many things are in the basket.':
-    'ঝুড়িতে যতই থাকুক, প্রতি অর্ডারে একবারই নেওয়া হয়।',
+  'Charged once per order, however many things are in the cart.':
+    'কার্টে যতই থাকুক, প্রতি অর্ডারে একবারই নেওয়া হয়।',
   'RannaBari needs photo access to set a shop photo.':
     'দোকানের ছবি দিতে রান্নাবাড়ির ছবির অনুমতি লাগবে।',
   'Your own shelves, in the order customers will see them.':

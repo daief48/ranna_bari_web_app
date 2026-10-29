@@ -155,8 +155,9 @@ function Root() {
             expo-router says so on every launch. */}
         <Stack.Screen name="stores/[id]" />
         <Stack.Screen name="product/[id]" />
+        {/* Retired — a redirect to `/checkout`, kept so an old link still lands. */}
         <Stack.Screen name="store-checkout" />
-        {/* Paying replaces the basket with the receipt, the same one-way step
+        {/* Paying replaces the cart with the receipt, the same one-way step
             the other checkouts make. */}
         <Stack.Screen name="store-order/[id]" options={{ animation: 'fade' }} />
         {/* ---- food requests and bidding ---- */}

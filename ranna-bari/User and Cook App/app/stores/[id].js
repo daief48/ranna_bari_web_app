@@ -31,6 +31,8 @@ import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
 import { useCommerce } from '../../src/store/CommerceContext';
+import { useUnifiedCart } from '../../src/store/useUnifiedCart';
+import CartBar from '../../src/components/CartBar';
 import { customerKeyOf } from '../../src/lib/ledger';
 import DistanceChip from '../../src/components/DistanceChip';
 import { expand } from '../../src/lib/search';
@@ -49,6 +51,9 @@ export default function StoreScreen() {
   const router = useRouter();
   const { account, isSignedIn } = useAuth();
   const shop = useCommerce();
+  /* One cart for shop products and kitchen dishes — this is how many things
+     are in it, whichever kind they are. */
+  const cart = useUnifiedCart();
 
   const [category, setCategory] = useState(null);
   const [query, setQuery] = useState('');
@@ -166,11 +171,11 @@ export default function StoreScreen() {
     alert.success(
       shop.availability(product, store) === 'preorder'
         ? t('{name} added as a pre-order.', { name: product.name })
-        : t('{name} added to your basket.', { name: product.name }),
+        : t('{name} added to your cart.', { name: product.name }),
     );
   };
 
-  const basket = shop.cartOf(key).reduce((sum, l) => sum + l.qty, 0);
+  const inCart = cart.count;
 
   const saved = shop.isStoreSaved(store.id);
 
@@ -191,7 +196,7 @@ export default function StoreScreen() {
   };
 
   return (
-    <Screen contentStyle={{ paddingTop: 0 }}>
+    <Screen footer={<CartBar />} contentStyle={{ paddingTop: 0 }}>
       {/* ---- cover ---- */}
       <View>
         <Image
@@ -348,7 +353,7 @@ export default function StoreScreen() {
             </Body>
           ) : null}
 
-          {/* What delivery will cost, before anything is in the basket. */}
+          {/* What delivery will cost, before anything is in the cart. */}
           <View
             style={{
               flexDirection: 'row',
@@ -520,17 +525,17 @@ export default function StoreScreen() {
               : t('{n} products', { n: n(products.length) })
           }
           right={
-            basket ? (
+            inCart ? (
               <Pressable
                 accessibilityRole="link"
-                onPress={() => router.push('/store-checkout')}
+                onPress={() => router.push('/cart')}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
               >
                 <Icon name="cart" size={15} color={colors.primary} />
                 <Text
                   style={{ fontFamily: font.uiBold, fontSize: type.xs + 1, color: colors.primary }}
                 >
-                  {t('{n} in basket', { n: n(basket) })}
+                  {t('{n} in cart', { n: n(inCart) })}
                 </Text>
               </Pressable>
             ) : null
