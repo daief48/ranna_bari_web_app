@@ -38,7 +38,7 @@ import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useAction } from '../../../src/components/Alert';
-import { cookPayout, isClosed, timeAgo, useOrders } from '../../../src/store/OrdersContext';
+import { cookPayout, isClosed, stageOf, timeAgo, useOrders } from '../../../src/store/OrdersContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useChat } from '../../../src/store/ChatContext';
 import { useCookReviews } from '../../../src/data/cook';
@@ -215,7 +215,7 @@ export default function CookDashboard() {
 
     return {
       earned,
-      waiting: mine.filter((o) => o.status === 'placed').length,
+      waiting: mine.filter((o) => stageOf(o.status) === 'placed').length,
       /*
        * The cook's share of what the platform is holding.
        *
@@ -258,14 +258,14 @@ export default function CookDashboard() {
   const waiting = useMemo(
     () =>
       mine
-        .filter((o) => o.status === 'placed')
+        .filter((o) => stageOf(o.status) === 'placed')
         .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
         .slice(0, 3),
     [mine],
   );
 
   const inFlight = useMemo(
-    () => mine.filter((o) => !isClosed(o.status) && o.status !== 'placed'),
+    () => mine.filter((o) => !isClosed(o.status) && stageOf(o.status) !== 'placed'),
     [mine],
   );
 
@@ -471,7 +471,7 @@ export default function CookDashboard() {
     return mine.filter((o) => {
       if (isClosed(o.status)) return false;
       const idle = now - lastMovedAt(o);
-      return o.status === 'placed' ? idle > LATE_WAITING_MS : idle > LATE_IN_PASS_MS;
+      return stageOf(o.status) === 'placed' ? idle > LATE_WAITING_MS : idle > LATE_IN_PASS_MS;
     }).length;
   }, [mine]);
 
@@ -489,11 +489,11 @@ export default function CookDashboard() {
         (o.kind === 'cod' || o.kind === 'wallet' || o.kind === undefined),
     );
     return {
-      placed: today.filter((o) => o.status === 'placed').length,
+      placed: today.filter((o) => stageOf(o.status) === 'placed').length,
       cooking: today.filter(
-        (o) => o.status === 'accepted' || o.status === 'cooking',
+        (o) => stageOf(o.status) === 'accepted' || stageOf(o.status) === 'cooking',
       ).length,
-      delivering: today.filter((o) => o.status === 'on_the_way').length,
+      delivering: today.filter((o) => stageOf(o.status) === 'on_the_way').length,
       done: today.filter((o) => o.status === 'delivered' || o.status === 'completed')
         .length,
     };
@@ -1584,7 +1584,7 @@ export default function CookDashboard() {
                     ]}
                   >
                     <IconTile
-                      name={order.status === 'on_the_way' ? 'delivery' : 'pot'}
+                      name={stageOf(order.status) === 'on_the_way' ? 'delivery' : 'pot'}
                       variant="sage"
                       style={{ width: 42, height: 42, borderRadius: 14 }}
                     />
@@ -1617,9 +1617,9 @@ export default function CookDashboard() {
                           color: colors.textMuted,
                         }}
                       >
-                        {order.status === 'on_the_way'
+                        {stageOf(order.status) === 'on_the_way'
                           ? t('Out for delivery')
-                          : order.status === 'cooking'
+                          : stageOf(order.status) === 'cooking'
                             ? t('Cooking now')
                             : t('Accepted')}{' '}
                         · {timeAgo(order.createdAt, t, n)}

@@ -42,13 +42,38 @@ export const isClosed = (status) =>
   status === 'cancelled' ||
   status === 'rejected';
 
-/** What the cook's button says at each stage, and where it goes. */
+/** What the cook's button says at each stage, and where it goes. The first
+    four are the cash rail; the next four are the wallet (escrow) rail, whose
+    words differ. The server picks the real next step — this only says
+    whether there is one, and which verb to show. */
 export const NEXT_STEP = {
   placed: 'accepted',
   accepted: 'cooking',
   cooking: 'on_the_way',
   on_the_way: 'delivered',
+  confirmed: 'preparing',
+  preparing: 'ready',
+  ready: 'delivering',
+  delivering: 'delivered',
 };
+
+/**
+ * Which of the cook's four stages a status belongs to, on either rail.
+ *
+ * A cash order says placed → accepted → cooking → on_the_way; a wallet order
+ * says confirmed → preparing → ready → delivering. The cook's board, tab
+ * badge and dashboard were all written against the first vocabulary, so a
+ * wallet order matched no lane and simply was not there. Everything that
+ * asks "is this new / in the kitchen / out" asks through here instead, so
+ * the two rails can never be counted differently again.
+ */
+const STAGE_OF = {
+  confirmed: 'placed',
+  preparing: 'cooking',
+  ready: 'cooking',
+  delivering: 'on_the_way',
+};
+export const stageOf = (status) => STAGE_OF[status] ?? status;
 
 export const PAYMENT_METHODS = [
   {

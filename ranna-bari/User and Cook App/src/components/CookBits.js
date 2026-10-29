@@ -55,6 +55,41 @@ export function statusMeta(status, colors) {
         icon: 'delivery',
         action: 'Mark delivered',
       };
+    /* The wallet rail's words. `confirmed` is a paid order waiting on the
+       cook — the same decision `placed` is on the cash rail — and each step
+       after it says the verb that is actually owed. */
+    case 'confirmed':
+      return {
+        label: 'New',
+        bg: colors.primary50,
+        fg: colors.primary,
+        icon: 'alertCircle',
+        action: 'Accept order',
+      };
+    case 'preparing':
+      return {
+        label: 'Preparing',
+        bg: colors.saffron50,
+        fg: colors.saffron,
+        icon: 'pot',
+        action: 'Mark ready',
+      };
+    case 'ready':
+      return {
+        label: 'Ready',
+        bg: colors.saffron50,
+        fg: colors.saffron,
+        icon: 'chefHat',
+        action: 'Hand to rider',
+      };
+    case 'delivering':
+      return {
+        label: 'On the way',
+        bg: colors.sage50,
+        fg: colors.sage,
+        icon: 'delivery',
+        action: 'Mark delivered',
+      };
     case 'delivered':
       return {
         label: 'Delivered',

@@ -21,6 +21,7 @@ import {
   ORDER_STEPS,
   cookPayout,
   formatOrderDate,
+  stageOf,
   stepIndex,
   timeAgo,
   useOrders,
@@ -67,9 +68,13 @@ export default function CookOrderScreen() {
 
   const meta = statusMeta(order.status, colors);
   const next = NEXT_STEP[order.status];
-  const current = stepIndex(order.status);
+  /* The timeline below is the cash rail's five steps; a wallet order's
+     status and history are folded onto them so it draws the same way. */
+  const current = stepIndex(stageOf(order.status));
   const closed = order.status === 'cancelled' || order.status === 'rejected';
-  const stamps = Object.fromEntries((order.history ?? []).map((h) => [h.status, h.at]));
+  const stamps = Object.fromEntries(
+    (order.history ?? []).map((h) => [stageOf(h.status), h.at]),
+  );
 
   const call = () => {
     const phone = order.contact?.phone?.replace(/\s/g, '');
@@ -624,7 +629,7 @@ export default function CookOrderScreen() {
               }}
             />
 
-            {order.status === 'placed' ? (
+            {stageOf(order.status) === 'placed' ? (
               rejecting ? (
                 <View
                   style={{

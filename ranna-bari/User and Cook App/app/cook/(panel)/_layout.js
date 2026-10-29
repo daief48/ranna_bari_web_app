@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 
 import Icon from '../../../src/components/Icon';
 import { useTheme } from '../../../src/theme/ThemeProvider';
-import { useOrders } from '../../../src/store/OrdersContext';
+import { stageOf, useOrders } from '../../../src/store/OrdersContext';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
@@ -61,7 +61,7 @@ function CookBar({ state, descriptors, navigation }) {
   /* The one number worth interrupting a cook for: orders nobody has looked
      at yet. It rides the Orders tab so it is visible from every screen. */
   const waiting = kitchen
-    ? ordersForKitchen(kitchen.id).filter((o) => o.status === 'placed').length
+    ? ordersForKitchen(kitchen.id).filter((o) => stageOf(o.status) === 'placed').length
     : 0;
 
   /* Its equivalent for pre-booked meals: plates paid for and not yet

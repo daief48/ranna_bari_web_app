@@ -43,7 +43,7 @@ import {
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
-import { cookPayout, isClosed, useOrders } from '../../../src/store/OrdersContext';
+import { cookPayout, isClosed, stageOf, useOrders } from '../../../src/store/OrdersContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useSession } from '../../../src/store/SessionContext';
 import { ORDER_FILTERS, filterOrders } from '../../../src/lib/storeLogic';
@@ -63,9 +63,9 @@ import { useLang } from '../../../src/i18n/LanguageContext';
  * "History" is everything already settled.
  */
 const LANES = [
-  { key: 'new', label: 'New', match: (s) => s === 'placed' },
-  { key: 'cooking', label: 'Cooking', match: (s) => s === 'accepted' || s === 'cooking' },
-  { key: 'delivering', label: 'Delivering', match: (s) => s === 'on_the_way' },
+  { key: 'new', label: 'New', match: (s) => stageOf(s) === 'placed' },
+  { key: 'cooking', label: 'Cooking', match: (s) => stageOf(s) === 'accepted' || stageOf(s) === 'cooking' },
+  { key: 'delivering', label: 'Delivering', match: (s) => stageOf(s) === 'on_the_way' },
   { key: 'history', label: 'History', match: isClosed },
 ];
 
@@ -121,7 +121,7 @@ export default function CookOrders() {
      lane) settles it. Never auto-switches: yanking a cook out of the lane
      they chose is worse than a chip. */
   useEffect(() => {
-    const placed = mine.filter((o) => o.status === 'placed');
+    const placed = mine.filter((o) => stageOf(o.status) === 'placed');
     if (seenRef.current === null) {
       seenRef.current = new Set(placed.map((o) => String(o.id)));
       return;

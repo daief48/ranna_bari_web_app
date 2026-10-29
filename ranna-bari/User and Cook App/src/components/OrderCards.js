@@ -22,7 +22,7 @@ import { statusMeta } from './CookBits';
 import { useTheme } from '../theme/ThemeProvider';
 import { useLang } from '../i18n/LanguageContext';
 import { font, radius, type } from '../theme/tokens';
-import { cookPayout, NEXT_STEP, timeAgo, useOrders } from '../store/OrdersContext';
+import { cookPayout, NEXT_STEP, stageOf, timeAgo, useOrders } from '../store/OrdersContext';
 import { formatAddress } from '../lib/address';
 import { COOK_ADVANCES } from '../lib/ledger';
 import { SLOT_LABEL } from '../features/meal-plan/format';
@@ -443,7 +443,7 @@ function OrderCard({ order, onOpen }) {
 
   const meta = statusMeta(order.status, colors);
   const next = NEXT_STEP[order.status];
-  const isNew = order.status === 'placed';
+  const isNew = stageOf(order.status) === 'placed';
   const count = order.items.reduce((s, it) => s + it.qty, 0);
 
   /* The code is what a cook reads to a rider or pastes into a message, so it
