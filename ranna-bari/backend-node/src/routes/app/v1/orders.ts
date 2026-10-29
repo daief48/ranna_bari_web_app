@@ -8,6 +8,7 @@ import { Order } from '../../../models/index.js';
 import { publish } from '../../../realtime/hub.js';
 import { kitchenMayTrade } from '../../../logic/sync.js';
 import { leaveReview } from '../../../logic/reviews.js';
+import { decodeInlineImage } from '../../../lib/order-image.js';
 
 /**
  * The order rail, over HTTP — shared by every kind of order.
@@ -154,6 +155,40 @@ export async function orderRoutes(app: FastifyInstance) {
     );
   };
 
+  /**
+   * One picture on an order, as an image.
+   *
+   * Order lists carry pictures as URLs to here rather than inline — see
+   * lib/order-image.ts. No token: an `<img>` cannot send one, and what is
+   * served is the photograph of a dish or a product that the kitchen's own
+   * public page already shows to everyone. The order id is the only key, and
+   * it is not guessable. Cached for a year: an order's picture never changes.
+   */
+  app.get('/orders/:id/image/:key', async (request, reply) => {
+    const params = z
+      .object({ id: z.string().min(1), key: z.string().regex(/^(cover|\d{1,3})$/) })
+      .safeParse(request.params);
+    if (!params.success) return fail(reply, ERR.NO_ORDER, 404);
+
+    const row = await Order.findById(params.data.id)
+      .select({ image: 1, lines: 1 })
+      .lean()
+      .catch(() => null);
+    if (!row) return fail(reply, ERR.NO_ORDER, 404);
+
+    const lines = (Array.isArray(row.lines) ? row.lines : []) as { image?: unknown }[];
+    const stored =
+      params.data.key === 'cover' ? row.image : lines[Number(params.data.key)]?.image;
+    /* A line without a picture of its own falls back to the order's. */
+    const picture = decodeInlineImage(stored) ?? decodeInlineImage(row.image);
+    if (!picture) return fail(reply, ERR.NO_ORDER, 404);
+
+    reply
+      .header('content-type', picture.mime)
+      .header('cache-control', 'public, max-age=31536000, immutable');
+    return reply.send(picture.bytes);
+  });
+
   /** The cook pushes one order one step. The last step is not theirs to take. */
   app.post('/orders/:id/advance', async (request, reply) => {
     const cook = await cookOf(request, reply);
@@ -162,7 +197,14 @@ export async function orderRoutes(app: FastifyInstance) {
     const params = idParam.safeParse(request.params);
     if (!params.success) return fail(reply, ERR.NO_ORDER, 404);
 
-    const out = await advanceOrder({ orderId: params.data.id, kitchenId: cook.kitchenId });
+    /* `from`: the status the cook saw. See `advanceOrder` — a stale card must
+       not move the order a step further than the cook meant. */
+    const body = z.object({ from: z.string().optional() }).safeParse(request.body ?? {});
+    const out = await advanceOrder({
+      orderId: params.data.id,
+      kitchenId: cook.kitchenId,
+      from: body.success ? body.data.from : undefined,
+    });
     if (!out.ok) return refuse(reply, out);
 
     await announceOrder(params.data.id);

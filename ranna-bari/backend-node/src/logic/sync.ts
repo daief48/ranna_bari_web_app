@@ -5,7 +5,9 @@ import { normaliseServiceAreas, type ServiceArea } from '../lib/bd-areas.js';
 import { quotePromotion, redeem } from './promotions.js';
 import { balanceFor, post } from './ledger.js';
 import { tx } from '../config/db.js';
+import { Types } from 'mongoose';
 import type { AppIdentity } from '../auth/app-auth.js';
+import { SLIM_PICTURES, shapeOrderImages } from '../lib/order-image.js';
 
 /**
  * Bringing the app's own records to the server.
@@ -499,7 +501,9 @@ export function shapeOrder(
     kitchenId: row.kitchenId,
     cookName: row.cookName,
     title: row.title,
-    image: row.image,
+    /* `image` and `lines` — pictures as URLs, not as the 100 KB strings the
+       document holds. See lib/order-image.ts for why. */
+    ...shapeOrderImages(row),
 
     customerKey: row.customerKey,
     customerName: row.customerName,
@@ -511,7 +515,6 @@ export function shapeOrder(
     serveDate: row.serveDate ?? null,
     slot: row.slot ?? null,
 
-    lines: row.lines ?? [],
     subtotal: row.subtotal,
     deliveryFee: row.deliveryFee,
     platformFee: row.platformFee,
@@ -588,15 +591,22 @@ async function disputedAmong(ids: string[]): Promise<Set<string>> {
 export async function ordersFor(caller: AppIdentity, take = 50, before?: string) {
   const since = before && !Number.isNaN(new Date(before).getTime()) ? new Date(before) : null;
 
-  const rows = await Order.find({
-    ...(caller.kitchenId
-      ? { $or: [{ customerKey: caller.customerKey }, { kitchenId: caller.kitchenId }] }
-      : { customerKey: caller.customerKey }),
-    ...(since ? { createdAt: { $lt: since } } : {}),
-  })
-    .sort({ createdAt: -1 })
-    .limit(take)
-    .lean();
+  /* An aggregation rather than a find, for one stage: the pictures are
+     dropped inside the database (`SLIM_PICTURES`) instead of being pulled
+     over from Atlas — 3 MB for a cook's board — and discarded here. */
+  const rows: (OrderDoc & { _id: unknown })[] = await Order.aggregate([
+    {
+      $match: {
+        ...(caller.kitchenId
+          ? { $or: [{ customerKey: caller.customerKey }, { kitchenId: caller.kitchenId }] }
+          : { customerKey: caller.customerKey }),
+        ...(since ? { createdAt: { $lt: since } } : {}),
+      },
+    },
+    { $sort: { createdAt: -1 } },
+    { $limit: take },
+    SLIM_PICTURES,
+  ]);
 
   const ids = rows.map((row) => String(row._id));
   const [disputed, reviewed] = await Promise.all([
@@ -621,14 +631,22 @@ export async function ordersFor(caller: AppIdentity, take = 50, before?: string)
  * edit that forgets the check.
  */
 export async function orderFor(caller: AppIdentity, id: string) {
-  const row = await Order.findOne({
-    _id: id,
-    ...(caller.kitchenId
-      ? { $or: [{ customerKey: caller.customerKey }, { kitchenId: caller.kitchenId }] }
-      : { customerKey: caller.customerKey }),
-  })
-    .lean()
-    .catch(() => null);
+  /* `$match` in a pipeline does no casting, so the id is made an ObjectId
+     here; one that cannot be is simply not an order. */
+  if (!Types.ObjectId.isValid(id)) return null;
+  const rows: (OrderDoc & { _id: unknown })[] = await Order.aggregate([
+    {
+      $match: {
+        _id: new Types.ObjectId(id),
+        ...(caller.kitchenId
+          ? { $or: [{ customerKey: caller.customerKey }, { kitchenId: caller.kitchenId }] }
+          : { customerKey: caller.customerKey }),
+      },
+    },
+    { $limit: 1 },
+    SLIM_PICTURES,
+  ]).catch(() => []);
+  const row = rows[0];
 
   if (!row) return null;
 

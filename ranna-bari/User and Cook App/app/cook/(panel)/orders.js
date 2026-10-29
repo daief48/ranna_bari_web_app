@@ -110,7 +110,13 @@ export default function CookOrders() {
   const { kitchen } = useKitchen();
   const { ordersForKitchen, advanceOrder } = useOrders();
   const shop = useCommerce();
-  const { token } = useSession();
+  const { token, identity } = useSession();
+  /* The board's kitchen, by id. The loaded record when it is here; until then
+     the id the session already carries. `/kitchens/mine` brings the whole
+     gallery (hundreds of KB) and lands well after the orders do, and a board
+     that waited for it stood on "All done." with the orders already in hand —
+     or for good, the one time that fetch was dropped. */
+  const kitchenId = kitchen?.id ?? identity?.kitchenId ?? null;
   const alert = useAlert();
   const [lane, setLane] = useState(null);
   const [kind, setKind] = useState(null);
@@ -137,7 +143,7 @@ export default function CookOrders() {
      and quietly voided every `useMemo` below that lists it — the whole board
      was being re-sorted and re-counted on each tap, each poll, each keystroke
      in the history search. */
-  const mine = useMemo(() => ordersForKitchen(kitchen?.id), [ordersForKitchen, kitchen?.id]);
+  const mine = useMemo(() => ordersForKitchen(kitchenId), [ordersForKitchen, kitchenId]);
 
   /* The lanes, in one pass.
      Counts, the lane's worth, the rows and the history list used to be four
@@ -198,8 +204,8 @@ export default function CookOrders() {
      it walked in through. */
   const shopOrders = useMemo(
     () =>
-      (kitchen ? shop.myStores(kitchen.id) : []).flatMap((s) => shop.storeOrders(s.id)),
-    [shop, kitchen],
+      (kitchenId ? shop.myStores(kitchenId) : []).flatMap((s) => shop.storeOrders(s.id)),
+    [shop, kitchenId],
   );
   /* One walk over the shop's orders: how many are waiting on the cook, and how
      many sit under each filter chip. The chips used to run `filterOrders` once
@@ -288,13 +294,16 @@ export default function CookOrders() {
       setBusyMeal(orderId);
       const out = await advanceOrder(orderId);
       setBusyMeal(null);
+      /* Through `errorText`, like every other refusal on this board — the
+         server's own sentence does not know that "wrong state" usually means
+         "already done" here. */
       if (out && out.ok === false) {
-        alert.error(out.message ?? t('That did not work.'), t('Not updated'));
+        alert.error(errorText(out.error, t, n, out), t('Not updated'));
         return;
       }
       loadMeals();
     },
-    [advanceOrder, alert, t, loadMeals],
+    [advanceOrder, alert, t, n, loadMeals],
   );
 
   /* Opening a card is the one action every row shares, so the handler is
@@ -697,6 +706,10 @@ export default function CookOrders() {
                 <HistoryFromServer />
               ) : null}
             </View>
+          ) : !shop.ordersReady && !mine.length ? (
+            /* Still asking. "All done." before the first answer has landed is
+               a lie the cook acts on — they put the phone down. */
+            <EmptyState icon="clock" title={t('Loading orders…')} body="" />
           ) : (
             <EmptyState
               icon={boardQuiet ? 'sparkles' : 'pot'}
@@ -714,7 +727,7 @@ export default function CookOrders() {
 
         {/* ---- shop ---- */}
         {shownKind === 'shop' ? (
-          !(kitchen && shop.myStores(kitchen.id).length) ? (
+          !(kitchenId && shop.myStores(kitchenId).length) ? (
             <EmptyState
               icon="box"
               title={t('You have not opened a shop yet')}

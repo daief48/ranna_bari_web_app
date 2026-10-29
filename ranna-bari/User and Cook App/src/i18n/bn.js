@@ -1123,8 +1123,15 @@ export const bn = {
   /* ---------------- meal system: order tracking ---------------- */
   'Did your food arrive?': 'খাবার কি পৌঁছেছে?',
   'Food received': 'খাবার পেয়েছি',
+  'Loading orders…': 'অর্ডার আসছে…',
   '{code} moved to {status}': '{code} এখন {status}',
   Show: 'দেখুন',
+  'This order was cancelled, so there is nothing more to do on it.':
+    'এই অর্ডার বাতিল হয়ে গেছে, তাই এতে আর কিছু করার নেই।',
+  'This order was declined, so there is nothing more to do on it.':
+    'এই অর্ডার ফিরিয়ে দেওয়া হয়েছে, তাই এতে আর কিছু করার নেই।',
+  'This pre-order is still waiting for your answer — accept or decline it first.':
+    'এই প্রি-অর্ডার এখনও আপনার উত্তরের অপেক্ষায় — আগে গ্রহণ বা প্রত্যাখ্যান করুন।',
   'This order has already moved on, so that step is no longer possible. Check its latest status.':
     'এই অর্ডার ইতিমধ্যে এগিয়ে গেছে, তাই ওই ধাপ আর করা যাবে না। এর সর্বশেষ অবস্থা দেখে নিন।',
   'the kitchen': 'রান্নাঘর',

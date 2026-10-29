@@ -25,6 +25,7 @@ import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import { useAction } from '../../../src/components/Alert';
 
 /** The four questions a cook asks of their own catalogue. */
 const FILTERS = [
@@ -41,6 +42,7 @@ export default function StoreProducts() {
   const router = useRouter();
   const { kitchen } = useKitchen();
   const shop = useCommerce();
+  const run = useAction();
 
   const [filter, setFilter] = useState('all');
 
@@ -207,7 +209,10 @@ export default function StoreProducts() {
                       params: { shop: String(store.id) },
                     })
                   }
-                  onStock={(v) => shop.setStock(product.id, v)}
+                  /* Instant on the tap; a refusal says so and the number goes
+                     back. `run` speaks only on failure — no success dialog for
+                     a +1. */
+                  onStock={(v) => run(() => shop.setStock(product.id, v))}
                   onToggle={() => shop.toggleProduct(product.id)}
                 />
               </Reveal>

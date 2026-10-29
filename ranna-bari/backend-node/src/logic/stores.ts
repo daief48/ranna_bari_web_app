@@ -13,6 +13,7 @@ import { tx } from '../config/db.js';
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
 import { makeCode, taka } from '../lib/format.js';
 import { DIVISIONS, divisionOfDistrict, normaliseServiceAreas, type ServiceArea } from '../lib/bd-areas.js';
+import { SLIM_PICTURES } from '../lib/order-image.js';
 import { balanceFor, post, refundEscrow } from './ledger.js';
 
 /**
@@ -1355,14 +1356,18 @@ export async function checkout({
  * ------------------------------------------------------------------ */
 
 export function pendingPreorders(kitchenId?: string | null, session?: ClientSession) {
-  return Order.find({
-    kind: 'store',
-    status: 'pending',
-    ...(kitchenId == null ? {} : { kitchenId: String(kitchenId) }),
-  })
-    .sort({ createdAt: -1 })
-    .session(session ?? null)
-    .lean();
+  /* A pipeline, so the pictures stay in the database — see lib/order-image.ts. */
+  return Order.aggregate([
+    {
+      $match: {
+        kind: 'store',
+        status: 'pending',
+        ...(kitchenId == null ? {} : { kitchenId: String(kitchenId) }),
+      },
+    },
+    { $sort: { createdAt: -1 } },
+    SLIM_PICTURES,
+  ]).session(session ?? null);
 }
 
 type OrderLine = { productId?: string; qty?: number };

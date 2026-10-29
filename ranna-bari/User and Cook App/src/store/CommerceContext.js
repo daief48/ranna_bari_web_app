@@ -59,7 +59,7 @@ import * as S from '../lib/storeLogic';
 import * as R from '../lib/requestLogic';
 import { useKitchen } from './KitchenContext';
 import { useSession } from './SessionContext';
-import { call, hasServer } from '../lib/server';
+import { API_BASE, call, hasServer } from '../lib/server';
 import { COOK_ADVANCES } from '../lib/ledger';
 
 /**
@@ -77,6 +77,27 @@ const predictNext = (order) => {
   if (order.kind === 'cod') return COD_NEXT[order.status] ?? null;
   if (order.kind === 'meal') return MEAL_NEXT[order.status] ?? null;
   return COOK_ADVANCES[order.handover === 'pickup' ? 'pickup' : 'delivery'][order.status] ?? null;
+};
+
+/**
+ * Has an order got at least as far as a step?
+ *
+ * The rails in order, so "already past it" can be told from "not there yet".
+ * A cook pressing Accept on a card the server says is already `preparing`
+ * (or `ready`, or `delivered`) got what they asked for — somebody, maybe
+ * they themselves on another screen, did it first — and that is not an
+ * error. A cancelled or rejected order is on no rail, and never "reached".
+ */
+const RAILS = {
+  cod: ['placed', 'accepted', 'cooking', 'on_the_way', 'delivered', 'completed'],
+  meal: ['confirmed', 'preparing', 'delivered', 'completed'],
+  escrow: ['confirmed', 'preparing', 'ready', 'delivering', 'delivered', 'completed'],
+};
+const reached = (order, status, target) => {
+  const rail = order.kind === 'cod' ? RAILS.cod : order.kind === 'meal' ? RAILS.meal : RAILS.escrow;
+  const at = rail.indexOf(status);
+  const want = rail.indexOf(target);
+  return at >= 0 && want >= 0 && at >= want;
 };
 
 /*
@@ -98,12 +119,22 @@ const predictNext = (order) => {
  * order list and a customer's receipt cannot drift into disagreeing about
  * which is right.
  */
+/* An order's pictures arrive as paths under the API root (`/api/app/v1/
+   orders/…/image/0`) rather than as inline data — the server does not know
+   its public host, this does. Anything already absolute, or already inline
+   (an order the app drafted itself), is left alone. */
+const absolute = (src) =>
+  typeof src === 'string' && src.startsWith('/') ? `${API_BASE}${src}` : src;
+
 const asOrder = (o) =>
   !o
     ? o
     : {
         ...o,
-        items: o.items ?? o.lines ?? [],
+        image: absolute(o.image),
+        items: (o.items ?? o.lines ?? []).map((line) =>
+          line && typeof line === 'object' ? { ...line, image: absolute(line.image) } : line,
+        ),
         total: o.total ?? o.amount ?? 0,
         chefName: o.chefName ?? o.cookName ?? '',
         contact: o.contact ?? { name: o.customerName ?? '', phone: o.phone ?? '' },
@@ -296,13 +327,18 @@ export function CommerceProvider({ children }) {
      carries. `identity.kitchenId` is the authoritative one; the local record
      is the fallback while a kitchen built offline is still registering. */
   const { kitchen } = useKitchen();
-  const { token, identity, isVerified } = useSession();
+  const { token, identity, isVerified, hydrated: sessionHydrated } = useSession();
 
   const kitchenId = identity?.kitchenId ?? kitchen?.id ?? null;
 
   const [state, setState] = useState(EMPTY);
   const [hydrated, setHydrated] = useState(false);
   const [loading, setLoading] = useState(false);
+  /* Whether the account's own slices (orders among them) have been asked for
+     at least once. `loading` is false *before* the first refresh as well as
+     after it, so a board reading `loading` alone said "All done." for the
+     half-second between mounting and asking. */
+  const [privateSettled, setPrivateSettled] = useState(false);
   const [offline, setOffline] = useState(false);
 
   /* The authoritative copy. Writes read it to merge a server response into
@@ -495,6 +531,9 @@ export function CommerceProvider({ children }) {
       return reached;
     } finally {
       setLoading(false);
+      /* Settled however it went — a refusal is an answer too. In `finally`
+         so that nothing can leave a board on "Loading…" for good. */
+      if (isVerified) setPrivateSettled(true);
     }
   }, [loadPublic, loadPrivate, isVerified]);
 
@@ -578,6 +617,9 @@ export function CommerceProvider({ children }) {
   const inflight = useRef(new Map());
   /* Order ids with an advance on the wire — see `advanceOrder`. */
   const advancing = useRef(new Set());
+  /* Per product: a stock write in flight, the value wanted next, and the last
+     value the server confirmed — see `setStock`. */
+  const stockQueue = useRef(new Map());
 
   const ensureStore = useCallback(
     async (storeId, { force = false } = {}) => {
@@ -1126,6 +1168,12 @@ export function CommerceProvider({ children }) {
       hydrated,
       loading,
       offline,
+      /** False until the signed-in account's orders have been asked for once.
+          Not "ready" merely because there is no token yet: before the session
+          has read its token from storage, nobody is verified, and a board
+          that took that for "nothing to load" said "All done." to a cook with
+          ten orders waiting. */
+      ordersReady: privateSettled || (sessionHydrated && !isVerified),
       refresh,
       state,
 
@@ -1227,26 +1275,45 @@ export function CommerceProvider({ children }) {
           });
         }
 
-        const out = await write(`/orders/${id}/advance`);
+        /* `from` is the status this screen saw. A card that has gone stale
+           must be refused, not obeyed a step too far — see the server. */
+        const out = await write(`/orders/${id}/advance`, {
+          body: before ? { from: before.status } : undefined,
+        });
         advancing.current.delete(id);
 
         if (out.ok) {
           ensureOrder(id);
-        } else {
-          if (before && to) swap(before);
-          /* A refusal about state is proof the copy was stale (a second
-             device, the customer closing it, a reply that never landed) — read
-             that one order again so the card shows where it really is, and do
-             it *before* answering: the refusal is reported the moment this
-             returns, and a card that still offers the step that was just
-             refused makes the message look like a fault. One order, not the
-             list; the list is only the fallback if that read fails. */
-          if (out.error === 'order-wrong-state') {
-            const fresh = await ensureOrder(id);
-            if (!fresh) reloadOrders();
-          }
+          return out;
         }
-        return out;
+
+        if (out.error !== 'order-wrong-state') {
+          if (before && to) swap(before);
+          return out;
+        }
+
+        /* The server refused because the order is not where this screen
+           thought. That is news, not a fault: read where it really is (the
+           refusal says, and the full row is one read away) *before* answering,
+           so a card still offering the step just refused never sits under the
+           message. */
+        const fresh = (await ensureOrder(id)) ?? null;
+        if (!fresh) reloadOrders();
+        const status = fresh?.status ?? out.detail?.status ?? null;
+
+        /* Already there, or past it: the cook asked for a step that has been
+           taken — by them on another screen, by a poll that had not landed,
+           by the customer closing it. The order is exactly where they wanted
+           it or further. Nothing to apologise for, nothing to undo. */
+        if (before && to && status && reached(before, status, to)) {
+          return { ok: true, result: { status }, already: true };
+        }
+
+        /* Genuinely refused — cancelled, rejected, a pre-order nobody has
+           answered. The card goes back to what the server says, and the
+           message can name it. */
+        if (before && to && !fresh) swap(before);
+        return { ...out, detail: { ...(out.detail ?? {}), status } };
       },
       confirmReceived: async (orderId) => {
         /* One confirm per order on the wire. The reply takes a moment, and a
@@ -1439,8 +1506,69 @@ export function CommerceProvider({ children }) {
         }),
       removeProduct: (productId) =>
         write(`/products/${productId}/remove`, { after: reloadMyStore }),
-      setStock: (productId, stock) =>
-        write(`/products/${productId}/stock`, { body: { stock }, after: reloadMyStore }),
+      /*
+       * The number changes on the tap, not on the reply.
+       *
+       * This used to send the write and then re-download the whole shop
+       * (~240 KB over Atlas) before the figure moved, so each + or − sat still
+       * for seconds, and a cook adding ten jars tapped ten times at a number
+       * that did not budge. Now the stock is patched locally first and the
+       * write runs behind it.
+       *
+       * One request per product at a time. Taps made while one is in flight
+       * only update the wanted value; when the request lands, the latest
+       * wanted value goes out next. Ten taps are two requests, and the last
+       * word always wins — never ten requests racing to land in any order.
+       *
+       * A refusal puts the number back to what the server last confirmed. The
+       * reply carries the stock, so nothing is re-read.
+       */
+      setStock: (productId, stock) => {
+        const id = String(productId);
+        const value = Math.max(0, Math.round(Number(stock) || 0));
+        const show = (v) =>
+          patch({
+            products: live.current.products.map((p) =>
+              String(p.id) === id ? { ...p, stock: v } : p,
+            ),
+          });
+
+        let q = stockQueue.current.get(id);
+        if (!q) {
+          const now = live.current.products.find((p) => String(p.id) === id);
+          q = { busy: false, want: null, confirmed: now?.stock ?? 0 };
+          stockQueue.current.set(id, q);
+        }
+
+        show(value);
+        q.want = value;
+        if (q.busy) return Promise.resolve({ ok: true, result: value, queued: true });
+
+        q.busy = true;
+        return (async () => {
+          let last = { ok: true, result: value };
+          try {
+            while (q.want !== null) {
+              const send = q.want;
+              q.want = null;
+              const out = await write(`/products/${id}/stock`, { body: { stock: send } });
+              if (out.ok) {
+                q.confirmed = send;
+                last = out;
+              } else {
+                q.want = null;
+                show(q.confirmed);
+                last = out;
+                break;
+              }
+            }
+          } finally {
+            q.busy = false;
+            stockQueue.current.delete(id);
+          }
+          return last;
+        })();
+      },
       toggleProduct: (productId) =>
         write(`/products/${productId}/toggle`, { after: reloadMyStore }),
       togglePreorder: (productId) =>
@@ -1563,6 +1691,9 @@ export function CommerceProvider({ children }) {
     hydrated,
     loading,
     offline,
+    privateSettled,
+    isVerified,
+    sessionHydrated,
     kitchenId,
     identity,
     refresh,

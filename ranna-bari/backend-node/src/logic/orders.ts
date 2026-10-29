@@ -24,9 +24,12 @@ import { notify } from './wallet.js';
 
 const idOf = (doc: { _id: unknown }) => String(doc._id);
 
-/** A malformed id is a miss, not a crash — every caller here means NO_ORDER by it. */
+/** A malformed id is a miss, not a crash — every caller here means NO_ORDER by it.
+    Without the pictures: nothing in this file looks at them, and they are
+    ~200 KB of the document — most of what a step used to wait for. */
 const findOrder = (orderId: string, session?: ClientSession) =>
   Order.findById(orderId)
+    .select({ image: 0, 'lines.image': 0 })
     .session(session ?? null)
     .lean()
     .catch(() => null);
@@ -87,13 +90,28 @@ const TOLD: Record<string, [string, string]> = {
 export async function advanceOrder(args: {
   orderId: string;
   kitchenId?: string;
+  /**
+   * The status the cook was looking at when they pressed the button.
+   *
+   * Without it, "advance" meant "one step on from wherever the order is
+   * *now*" — and a card that had gone stale (the same order moved from
+   * another tab, or a poll not yet landed) took the order a step further
+   * than the cook meant: Accept on a card that was really `preparing` made it
+   * `ready`. With it, a stale press is refused rather than obeyed, and the
+   * refusal says where the order really is so the screen can catch up.
+   * Optional, for older clients.
+   */
+  from?: string;
 }): Promise<Result<{ status: string }>> {
   const order = await findOrder(args.orderId);
   if (!order) return fail(ERR.NO_ORDER);
   if (args.kitchenId && order.kitchenId !== args.kitchenId) return fail(ERR.FORBIDDEN);
+  if (args.from && args.from !== order.status) {
+    return fail(ERR.WRONG_STATE, { status: order.status });
+  }
 
   const to = nextStatus({ kind: order.kind, status: order.status, handover: order.handover });
-  if (!to) return fail(ERR.WRONG_STATE);
+  if (!to) return fail(ERR.WRONG_STATE, { status: order.status });
 
   const orderId = idOf(order);
 
@@ -112,7 +130,10 @@ export async function advanceOrder(args: {
       { session },
     );
     // Somebody else advanced it while we were deciding; their step stands.
-    if (moved.matchedCount === 0) return fail(ERR.WRONG_STATE);
+    if (moved.matchedCount === 0) {
+      const now = await findOrder(orderId, session);
+      return fail(ERR.WRONG_STATE, { status: now?.status ?? order.status });
+    }
 
     /* Every rail now ends with the customer's word, cash included — the
        doorstep confirmation is what closes a cash order and what puts its

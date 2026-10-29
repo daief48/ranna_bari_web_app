@@ -35,6 +35,7 @@ import {
 } from '../../../logic/stores.js';
 import { Account, Kitchen, Product, Store, StoreCategory } from '../../../models/index.js';
 import { kitchenMayTrade } from '../../../logic/sync.js';
+import { shapeOrderImages } from '../../../lib/order-image.js';
 
 /**
  * Cook stores over HTTP — the shop, its shelves, the basket and checkout.
@@ -406,13 +407,13 @@ const shapeOrder = (order: OrderDoc) => ({
   kitchenId: order.kitchenId,
   cookName: order.cookName,
   title: order.title,
-  image: order.image,
+  /* `image` and `lines` — pictures as URLs; see lib/order-image.ts. */
+  ...shapeOrderImages(order),
   customerKey: order.customerKey,
   customerName: order.customerName,
   phone: order.phone,
   address: order.address,
   note: order.note ?? '',
-  lines: order.lines,
   subtotal: order.subtotal,
   deliveryFee: order.deliveryFee,
   amount: order.amount,

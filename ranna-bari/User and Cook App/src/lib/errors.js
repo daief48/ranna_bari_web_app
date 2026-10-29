@@ -101,8 +101,15 @@ export function errorText(error, t, n, extra = {}) {
     case 'order-wrong-state':
       /* Usually not a fault: the order moved on while this screen was looking
          at an older copy (the customer closed it, another tab advanced it).
-         Said as that, so it reads as news rather than breakage. */
-      return t('This order has already moved on, so that step is no longer possible. Check its latest status.');
+         Said as that, so it reads as news rather than breakage — and when the
+         refusal says where the order is, say that instead of "somewhere". */
+      {
+        const status = extra.status ?? extra.detail?.status;
+        if (status === 'cancelled') return t('This order was cancelled, so there is nothing more to do on it.');
+        if (status === 'rejected') return t('This order was declined, so there is nothing more to do on it.');
+        if (status === 'pending') return t('This pre-order is still waiting for your answer — accept or decline it first.');
+        return t('This order has already moved on, so that step is no longer possible. Check its latest status.');
+      }
     case 'order-already-settled':
       return t('This order has already been settled.');
     case 'amount-invalid':

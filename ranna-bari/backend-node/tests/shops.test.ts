@@ -286,6 +286,66 @@ describe('an order through a shop', () => {
     expect((await Order.findById(order.id).lean())?.status).toBe('completed');
   });
 
+  it('refuses a step pressed on a stale card, and says where the order really is', async () => {
+    const shop = await openShop('Pantry');
+    const productId = await addProduct(shop, { name: 'Jar', price: 100 });
+    const buyer = await customer('+8801833300009');
+    await app.inject({ method: 'POST', url: '/api/app/v1/cart', headers: auth(buyer.token), payload: { productId, qty: 1 } });
+    const placed = await app.inject({
+      method: 'POST', url: '/api/app/v1/store-checkout', headers: auth(buyer.token),
+      payload: { name: 'Buyer', phone: '+8801833300009' },
+    });
+    const [order] = json(placed).orders;
+
+    /* The cook's screen says `confirmed`; the step is taken from there. */
+    const first = await cookPost(`/orders/${order.id}/advance`, { from: 'confirmed' });
+    expect(json(first).status).toBe('preparing');
+
+    /* A second screen still showing `confirmed` presses Accept again. Without
+       `from` this would have pushed the order on to `ready` — two steps for
+       one intent. */
+    const stale = await cookPost(`/orders/${order.id}/advance`, { from: 'confirmed' });
+    expect(stale.statusCode).toBeGreaterThanOrEqual(400);
+    expect(json(stale).error).toBe('order-wrong-state');
+    expect(json(stale).detail?.status).toBe('preparing');
+    expect((await Order.findById(order.id).lean())?.status).toBe('preparing');
+
+    /* No `from` keeps working, as it always did. */
+    const plain = await cookPost(`/orders/${order.id}/advance`, {});
+    expect(json(plain).status).toBe('ready');
+  });
+
+  it('sends pictures as URLs, never inline — and serves them', async () => {
+    const PNG =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    const shop = await openShop('Pictures');
+    const productId = await addProduct(shop, { name: 'Jar', price: 100, images: [PNG] });
+    const buyer = await customer('+8801833300010');
+    await app.inject({ method: 'POST', url: '/api/app/v1/cart', headers: auth(buyer.token), payload: { productId, qty: 1 } });
+    const placed = await app.inject({
+      method: 'POST', url: '/api/app/v1/store-checkout', headers: auth(buyer.token),
+      payload: { name: 'Buyer', phone: '+8801833300010' },
+    });
+    const [order] = json(placed).orders;
+
+    /* The document keeps the picture; the wire carries a path to it. */
+    expect((await Order.findById(order.id).lean())?.image).toBe(PNG);
+    expect(order.image).toBe(`/api/app/v1/orders/${order.id}/image/cover`);
+    expect(order.lines[0].image).toBe(`/api/app/v1/orders/${order.id}/image/0`);
+
+    const list = await app.inject({ method: 'GET', url: '/api/app/v1/orders', headers: auth(cookToken) });
+    expect(list.body).not.toContain('data:image');
+
+    const pic = await app.inject({ method: 'GET', url: order.image });
+    expect(pic.statusCode).toBe(200);
+    expect(pic.headers['content-type']).toBe('image/png');
+    expect(pic.headers['cache-control']).toContain('immutable');
+    expect(pic.rawPayload.length).toBe(Buffer.from(PNG.split(',')[1], 'base64').length);
+
+    expect((await app.inject({ method: 'GET', url: `/api/app/v1/orders/${order.id}/image/7` })).statusCode).toBe(200); // falls back to the cover
+    expect((await app.inject({ method: 'GET', url: `/api/app/v1/orders/000000000000000000000000/image/cover` })).statusCode).toBe(404);
+  });
+
   it('splits a basket across two shops into one order each', async () => {
     const a = await openShop('Shop A');
     const b = await openShop('Shop B');

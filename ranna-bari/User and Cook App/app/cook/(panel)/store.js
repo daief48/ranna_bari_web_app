@@ -46,6 +46,11 @@ import TagPicker from '../../../src/components/TagPicker';
 import DeliveryFees from '../../../src/components/DeliveryFees';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
+/* How many shops one kitchen may open — the server's own cap
+   (`STORES_PER_KITCHEN`); past it the "New shop" button goes away instead of
+   leading to a form that would be refused at the end. */
+const MAX_SHOPS = 5;
+
 export default function CookStoreHub() {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
@@ -163,9 +168,13 @@ export default function CookStoreHub() {
 
         {/* ---- the switcher ----
             One kitchen, several shops: this row is how the hub says which
-            one is open underneath. Hidden when there is only one — a
-            switcher with a single choice is chrome, not navigation. */}
-        {shops.length > 1 ? (
+            one is open underneath — and where "New shop" lives. It used to be
+            hidden whenever there was a single shop ("a switcher with one
+            choice is chrome"), which also hid the only button that opens a
+            second one: a cook with one shop had no way to make another. So it
+            shows until the cap is reached, and past that only when there is
+            something to switch between. */}
+        {shops.length > 1 || shops.length < MAX_SHOPS ? (
           <View
             style={{
               flexDirection: 'row',
@@ -213,7 +222,9 @@ export default function CookStoreHub() {
               );
             })}
             {/* Opening yet another shop reuses the setup flow — the same
-                three steps, starting empty. */}
+                three steps, starting empty. Gone at the cap, rather than
+                leading to a form the server would refuse at the end. */}
+            {shops.length < MAX_SHOPS ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('New shop')}
@@ -245,6 +256,7 @@ export default function CookStoreHub() {
                 {t('New shop')}
               </Text>
             </Pressable>
+            ) : null}
           </View>
         ) : null}
 
