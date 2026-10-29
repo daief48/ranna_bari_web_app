@@ -11,6 +11,7 @@ import Reveal from '../../src/components/Reveal';
 import ChatLauncher from '../../src/components/ChatLauncher';
 import Button from '../../src/components/Button';
 import RateSheet from '../../src/components/RateSheet';
+import FoodReceivedCard from '../../src/components/FoodReceivedCard';
 import { IconTile } from '../../src/components/Surfaces';
 import { Body, GradientText, Heading, Price } from '../../src/components/Typography';
 import { useTheme } from '../../src/theme/ThemeProvider';
@@ -269,6 +270,36 @@ export default function OrderScreen() {
           </Reveal>
         ) : null}
 
+        {/* ---- The last step on the rail ----
+            It belongs to the person reading this, so it sits at the top, right
+            under the order's own header — the same place a shop order shows
+            it — rather than at the foot of the page where a long order pushed
+            it out of sight. The same card as a shop order too: one copy of the
+            thing that closes an order. Where the money already is differs
+            (held, or cash at the door), so `cash` picks the wording; what
+            confirming does is the same on both rails. Absent the rest of the
+            time — an order still cooking has nothing to confirm, and a button
+            that refuses is worse than no button at all. */}
+        {canConfirm ? (
+          <FoodReceivedCard
+            amount={order.total}
+            cook={order.chefName || t('the kitchen')}
+            cash={isCod}
+            style={{ marginBottom: 16 }}
+            onConfirm={async () => {
+              /* No success alert on purpose. It is a full-screen modal,
+                 and the rating sheet is another — stacking them buries
+                 the rating behind a dialog the customer has to dismiss
+                 first, and most will dismiss both. The page repainting
+                 to "All done." is the acknowledgement; the sheet is the
+                 only thing that needs the foreground. Failures still
+                 speak, because `run` reports those. */
+              const out = await run(() => confirmReceived(order.id));
+              if (!out || out.ok !== false) setRating(true);
+            }}
+          />
+        ) : null}
+
         {/* ---- Status timeline ---- */}
         <Reveal delay={2}>
           <View style={[card(colors), shadow.sm]}>
@@ -520,78 +551,6 @@ export default function OrderScreen() {
 
         {/* ---- Actions ---- */}
         <View style={{ marginTop: 24, gap: 12 }}>
-          {/* The last step on the rail belongs to the person reading this, so
-              it sits above "browse more kitchens" and looks like the thing to
-              press. Absent the rest of the time — an order still cooking has
-              nothing to confirm, and a button that refuses is worse than no
-              button at all. */}
-          {canConfirm ? (
-            <View
-              style={[
-                {
-                  padding: 18,
-                  borderRadius: radius.lg,
-                  backgroundColor: colors.sage50,
-                  borderWidth: 1,
-                  borderColor: colors.sage100,
-                  gap: 12,
-                },
-                shadow.sm,
-              ]}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <IconTile
-                  name="shieldCheck"
-                  variant="sage"
-                  style={{ width: 42, height: 42, borderRadius: 14 }}
-                />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text
-                    style={{
-                      fontFamily: font.uiBold,
-                      fontSize: type.body,
-                      color: colors.text,
-                      marginBottom: 3,
-                    }}
-                  >
-                    {t('Did your food arrive?')}
-                  </Text>
-                  <Text
-                    style={{
-                      fontFamily: font.ui,
-                      fontSize: 12.5,
-                      lineHeight: 18,
-                      color: colors.textMuted,
-                    }}
-                  >
-                    {/* Where the money already is differs, what happens next
-                        no longer does: on both rails confirming is what lets
-                        RannaBari settle the kitchen's share. */}
-                    {isCod
-                      ? t('You paid the rider at the door. Confirming closes this order and lets RannaBari settle {kitchen}.', { kitchen: order.chefName || t('the kitchen') })
-                      : t('Confirming closes this order. RannaBari then releases the payment to {kitchen}.', { kitchen: order.chefName || t('the kitchen') })}
-                  </Text>
-                </View>
-              </View>
-              <Button
-                label={t('Yes, I got my order')}
-                icon="check"
-                block
-                onPress={async () => {
-                  /* No success alert on purpose. It is a full-screen modal,
-                     and the rating sheet is another — stacking them buries
-                     the rating behind a dialog the customer has to dismiss
-                     first, and most will dismiss both. The page repainting
-                     to "All done." is the acknowledgement; the sheet is the
-                     only thing that needs the foreground. Failures still
-                     speak, because `run` reports those. */
-                  const out = await run(() => confirmReceived(order.id));
-                  if (!out || out.ok !== false) setRating(true);
-                }}
-              />
-            </View>
-          ) : null}
-
           {/* The prompt after confirming is one tap from "Not now", and that
               used to be the end of it — the sheet never opened again and the
               rating was lost. `reviewed` comes from the server because one

@@ -17,7 +17,7 @@
  * RannaBari makes the second — so nothing here should promise money moving.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 
@@ -25,7 +25,9 @@ import Screen, { Container } from './Screen';
 import Icon from './Icon';
 import Button from './Button';
 import RateSheet from './RateSheet';
-import { Body, Heading, Price } from './Typography';
+import FoodReceivedCard from './FoodReceivedCard';
+import Confirm from './ConfirmDialog';
+import { Price } from './Typography';
 import { EmptyState, MealStatusPill, PaymentPill, errorText } from './MealBits';
 import { OrderLines, Totals } from './StoreBits';
 import { useTheme } from '../theme/ThemeProvider';
@@ -45,7 +47,7 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
   const shop = useCommerce();
 
   const [error, setError] = useState(null);
-  const [asking, setAsking] = useState(null); // 'receive' | 'cancel'
+  const [asking, setAsking] = useState(null); // 'cancel' — receiving asks inside FoodReceivedCard
   /* Opened by a successful receipt, not by a tap. */
   const [rating, setRating] = useState(false);
   const [flash, setFlash] = useState(null);
@@ -91,7 +93,6 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
 
   const receive = async () => {
     const out = await shop.confirmReceived(order.id);
-    setAsking(null);
     if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     alert.success(t('Thank you — this order is complete.'));
     /* Ask now, while they still have the meal in mind and the screen in
@@ -201,39 +202,14 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
           />
         ) : null}
 
-        {/* ---- the one thing that pays the cook ---- */}
+        {/* ---- the one thing that closes the order ---- */}
         {canReceive ? (
-          <View
-            style={{
-              gap: 12,
-              padding: 18,
-              marginTop: 16,
-              borderRadius: radius.md,
-              backgroundColor: colors.saffron50,
-              borderWidth: 1,
-              borderColor: colors.saffron100,
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Icon name="box" size={18} color={colors.saffron} />
-              <Heading size={17} style={{ flex: 1 }}>
-                {t('Did your food arrive?')}
-              </Heading>
-            </View>
-            <Body muted size={14}>
-              {t('Confirming closes this order. ৳{n} stays held until RannaBari releases it to {cook}.', {
-                n: n(order.amount),
-                cook: order.cookName,
-              })}
-            </Body>
-            <Button
-              label={t('Food received')}
-              icon="check"
-              iconPosition="left"
-              block
-              onPress={() => setAsking('receive')}
-            />
-          </View>
+          <FoodReceivedCard
+            amount={order.amount}
+            cook={order.cookName}
+            onConfirm={receive}
+            style={{ marginTop: 16 }}
+          />
         ) : null}
 
         {flash ? <Banner tone="sage" icon="shieldCheck" body={flash} /> : null}
@@ -424,18 +400,6 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
         </View>
       </Container>
 
-      <Confirm
-        open={asking === 'receive'}
-        title={t('Confirm you received the food?')}
-        body={t('This completes the order and cannot be undone. ৳{n} stays held until RannaBari releases it to {cook}.', {
-          n: n(order.amount),
-          cook: order.cookName,
-        })}
-        confirmLabel={t('Yes, it arrived')}
-        onConfirm={receive}
-        onClose={() => setAsking(null)}
-      />
-
       <RateSheet
         open={rating}
         cook={order.cookName}
@@ -556,49 +520,5 @@ function Row({ label, value, mono }) {
         {value}
       </Text>
     </View>
-  );
-}
-
-/** A yes/no the user has to mean. */
-function Confirm({ open, title, body, confirmLabel, onConfirm, onClose }) {
-  const { colors, shadow } = useTheme();
-  const { t } = useLang();
-
-  return (
-    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable
-        onPress={onClose}
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          padding: 20,
-          backgroundColor: 'rgba(20, 16, 14, 0.5)',
-        }}
-      >
-        <Pressable
-          onPress={(e) => e.stopPropagation()}
-          style={[
-            {
-              padding: 22,
-              gap: 14,
-              borderRadius: radius.md,
-              backgroundColor: colors.surfaceSolid,
-              borderWidth: 1,
-              borderColor: colors.line,
-            },
-            shadow.lg,
-          ]}
-        >
-          <Heading size={19}>{title}</Heading>
-          <Body muted size={14}>
-            {body}
-          </Body>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Button variant="glass" label={t('Never mind')} onPress={onClose} style={{ flex: 1 }} />
-            <Button label={confirmLabel} onPress={onConfirm} style={{ flex: 1 }} />
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
   );
 }

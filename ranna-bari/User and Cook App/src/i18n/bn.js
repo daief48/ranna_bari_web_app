@@ -1123,6 +1123,9 @@ export const bn = {
   /* ---------------- meal system: order tracking ---------------- */
   'Did your food arrive?': 'খাবার কি পৌঁছেছে?',
   'Food received': 'খাবার পেয়েছি',
+  'the kitchen': 'রান্নাঘর',
+  'This completes the order and cannot be undone. You paid the rider at the door; RannaBari settles {cook}.':
+    'এতে অর্ডার শেষ হয়ে যাবে, আর ফেরানো যাবে না। আপনি দরজায় রাইডারকে টাকা দিয়েছেন; {cook}-কে RannaBari মিটিয়ে দেবে।',
   'Confirming closes this order. ৳{n} stays held until RannaBari releases it to {cook}.':
     'নিশ্চিত করলে অর্ডারটি সম্পন্ন হবে। ৳{n} জমা থাকবে, রান্নাবাড়ি {cook}-কে পরে দেবে।',
   'Confirm you received the food?': 'খাবার পেয়েছেন নিশ্চিত করছেন?',
