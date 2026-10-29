@@ -186,7 +186,24 @@ export function RowHeading({ icon, title, action, onAction, style }) {
         style,
       ]}
     >
-      {icon ? <Icon name={icon} size={17} color={colors.sage} /> : null}
+      {/* The icon sits in a soft tile — a heading with a mark of its own reads
+          as a place to land, where a bare glyph read as decoration. */}
+      {icon ? (
+        <View
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 11,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: colors.sage50,
+            borderWidth: 1,
+            borderColor: colors.sage100,
+          }}
+        >
+          <Icon name={icon} size={16} color={colors.sage} />
+        </View>
+      ) : null}
       <Text
         style={{
           flex: 1,

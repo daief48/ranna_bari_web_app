@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../../src/components/Screen';
@@ -332,20 +333,107 @@ export default function CookMealPlan() {
         ) : (
           <>
             <Reveal delay={1}>
-              <Panel style={{ marginTop: 18 }} tone={status === 'published' ? 'good' : undefined}>
-                <Text style={{ fontFamily: font.uiBold, fontSize: 14.5, color: colors.text }}>
+              {/* Where the month stands, as one card: whose menu is live, and
+                  how much of the month is actually on offer. A bar says "most
+                  of it" faster than "93 meals" says anything. Green when the
+                  cook's own menu is live, amber while it is a draft or still
+                  the platform's — the colour is the answer before the words. */}
+              <LinearGradient
+                colors={
+                  status === 'published' ? ['#5E7B4A', '#36502A'] : ['#C9962E', '#8C6414']
+                }
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ marginTop: 18, padding: 18, borderRadius: 26 }}
+              >
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    alignSelf: 'flex-start',
+                    gap: 6,
+                    paddingVertical: 4,
+                    paddingHorizontal: 10,
+                    borderRadius: 99,
+                    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: 4,
+                      backgroundColor: status === 'published' ? '#C9F0A8' : '#FFE9B0',
+                    }}
+                  />
+                  <Text
+                    style={{
+                      fontFamily: font.uiBold,
+                      fontSize: 10,
+                      letterSpacing: 0.8,
+                      textTransform: 'uppercase',
+                      color: '#FFFFFF',
+                    }}
+                  >
+                    {status === 'published' ? t('Live') : hasOwn ? t('Draft') : t('Platform menu')}
+                  </Text>
+                </View>
+
+                <Text
+                  style={{
+                    marginTop: 10,
+                    fontFamily: font.displayBold,
+                    fontSize: 18,
+                    lineHeight: 23,
+                    letterSpacing: -0.2,
+                    color: '#FFFFFF',
+                  }}
+                >
                   {standing}
                 </Text>
-                <Body muted style={{ marginTop: 4, fontSize: 12.5 }}>
-                  {t('{n} meals on offer', { n: n(offering) })}
+
+                <View
+                  style={{
+                    marginTop: 14,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <View
+                    style={{
+                      width: `${Math.round((offering / Math.max(1, days.length * 3)) * 100)}%`,
+                      height: '100%',
+                      borderRadius: 4,
+                      backgroundColor: '#FFFFFF',
+                    }}
+                  />
+                </View>
+                <Text
+                  style={{
+                    marginTop: 8,
+                    fontFamily: font.uiSemi,
+                    fontSize: 12.5,
+                    color: 'rgba(255, 255, 255, 0.9)',
+                  }}
+                >
+                  {t('{n} of {total} meals on offer', { n: n(offering), total: n(days.length * 3) })}
                   {typed > 0 ? t(' · {n} changed by you', { n: n(typed) }) : ''}
-                </Body>
+                </Text>
                 {dirty ? (
-                  <Body style={{ marginTop: 8, color: colors.saffron, fontSize: 12.5 }}>
+                  <Text
+                    style={{
+                      marginTop: 6,
+                      fontFamily: font.uiBold,
+                      fontSize: 12.5,
+                      color: '#FFE9B0',
+                    }}
+                  >
                     {t('Unsaved changes.')}
-                  </Body>
+                  </Text>
                 ) : null}
-              </Panel>
+              </LinearGradient>
             </Reveal>
 
             <Reveal delay={2}>
@@ -383,6 +471,7 @@ export default function CookMealPlan() {
                     onCopyDown={copyDown}
                     disabled={busy}
                     dim={day.date < today}
+                    isToday={day.date === today}
                     t={t}
                   />
                 ))}

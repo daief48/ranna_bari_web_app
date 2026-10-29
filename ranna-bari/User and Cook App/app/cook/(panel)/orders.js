@@ -36,7 +36,6 @@ import Button from '../../../src/components/Button';
 import { EmptyState, errorText } from '../../../src/components/MealBits';
 import {
   Cloche,
-  MemoMealPlate,
   MemoOrderCard,
   MemoShopCard,
 } from '../../../src/components/OrderCards';
@@ -50,13 +49,14 @@ import { ORDER_FILTERS, filterOrders } from '../../../src/lib/storeLogic';
 import { fetchMealOrders } from '../../../src/features/meal-plan/api';
 import {
   dateLabel,
-  dayParts,
   todayKey,
 } from '../../../src/features/meal-plan/format';
 import { useAlert } from '../../../src/components/Alert';
 import { LoadMoreFooter } from '../../../src/lib/useInfinite';
 import { useLingering } from '../../../src/lib/useLingering';
 import MovedNote from '../../../src/components/MovedNote';
+import MealSitting from '../../../src/components/MealSitting';
+import DayStrip from '../../../src/components/DayStrip';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 /**
@@ -92,6 +92,10 @@ const stampOf = (order) => {
    the settled ones (completed, cancelled) that history covers. */
 const SHOP_CHIPS = ['all', 'pending', 'confirmed', 'preparing', 'ready', 'delivering', 'delivered'];
 
+/* A meal's own short rail: booked → cooking → delivered. */
+const MEAL_FLOW = { confirmed: 'preparing', preparing: 'delivered' };
+const MEAL_SLOTS = ['breakfast', 'lunch', 'dinner'];
+
 const KINDS = [
   { key: 'menu', label: 'Menu', icon: 'receipt' },
   { key: 'shop', label: 'Shop', icon: 'box' },
@@ -123,7 +127,6 @@ export default function CookOrders() {
   const [shopFilter, setShopFilter] = useState('all');
   const [mealDate, setMealDate] = useState(todayKey());
   const [meals, setMeals] = useState(null);
-  const [busyMeal, setBusyMeal] = useState(null);
   /* Pull-to-refresh — one gesture re-reads every kind. */
   const [refreshing, setRefreshing] = useState(false);
   /* History search + the window: the lane is unbounded, so it renders a
@@ -289,21 +292,81 @@ export default function CookOrders() {
   const mealDone = (o) => o.status === 'delivered' || o.status === 'completed';
   const mealOpen = mealOrders.filter((o) => !mealDone(o)).length;
 
-  const deliverMeal = useCallback(
-    async (orderId) => {
-      setBusyMeal(orderId);
+  /*
+   * A plate moves on the tap.
+   *
+   * The meal list is read from its own endpoint, not from the orders the rest
+   * of the app shares, so the order context's instant update never reached it:
+   * a cook tapped "Start cooking" and the plate sat unchanged until the request
+   * had landed and the whole day had been downloaded again — then did it a
+   * second time for "Mark delivered". Now the plate's status is changed here
+   * first, the step is sent behind it, and the day is re-read quietly only to
+   * settle on the server's word. A refusal puts the plate back and says why.
+   */
+  const mealsRef = useRef(null);
+  mealsRef.current = meals;
+
+  const advanceMeal = useCallback(
+    async (orderId, { settle = true } = {}) => {
+      const id = String(orderId);
+      const row = (mealsRef.current?.orders ?? []).find((o) => String(o.id) === id);
+      const to = row && MEAL_FLOW[row.status];
+      if (!row || !to) return;
+
+      const show = (status) =>
+        setMeals((m) =>
+          m ? { ...m, orders: m.orders.map((o) => (String(o.id) === id ? { ...o, status } : o)) } : m,
+        );
+
+      show(to);
       const out = await advanceOrder(orderId);
-      setBusyMeal(null);
-      /* Through `errorText`, like every other refusal on this board — the
-         server's own sentence does not know that "wrong state" usually means
-         "already done" here. */
       if (out && out.ok === false) {
+        show(row.status);
         alert.error(errorText(out.error, t, n, out), t('Not updated'));
         return;
       }
-      loadMeals();
+      if (settle) loadMeals();
     },
     [advanceOrder, alert, t, n, loadMeals],
+  );
+
+  /* A whole sitting in one tap. Every plate changes at once; the day is
+     re-read once at the end rather than once per plate. */
+  const advanceMeals = useCallback(
+    async (ids) => {
+      await Promise.all(ids.map((id) => advanceMeal(id, { settle: false })));
+      loadMeals();
+    },
+    [advanceMeal, loadMeals],
+  );
+
+  /* The day, in sittings — breakfast, lunch, dinner — each with its plates. */
+  const sittings = useMemo(
+    () =>
+      MEAL_SLOTS.map((slot) => ({
+        slot,
+        plates: mealOrders.filter((o) => (MEAL_SLOTS.includes(o.slot) ? o.slot : 'lunch') === slot),
+      })).filter((g) => g.plates.length),
+    [mealOrders],
+  );
+  /* Plates per date, as far as is known: the week the server sent, and the
+     day on screen counted from its own list. */
+  const dayCounts = useMemo(() => {
+    const out = {};
+    for (const d of meals?.week ?? []) out[d.date] = d.count;
+    if (meals) out[mealDate] = mealOrders.length;
+    return out;
+  }, [meals, mealDate, mealOrders.length]);
+
+  const mealDay = useMemo(
+    () => ({
+      total: mealOrders.length,
+      done: mealOrders.filter(mealDone).length,
+      /* The plates' own price. `cookPayout` reads `subtotal`, which a meal does
+         not carry, so it said ৳0 for a day of ৳750. */
+      worth: mealOrders.reduce((sum, o) => sum + (o.amount ?? o.total ?? 0), 0),
+    }),
+    [mealOrders],
   );
 
   /* Opening a card is the one action every row shares, so the handler is
@@ -450,7 +513,12 @@ export default function CookOrders() {
               n: n(mealOpen),
               date: dateLabel(mealDate),
             })
-          : t('No plates booked for {date}.', { date: dateLabel(mealDate) });
+          : mealOrders.length
+            ? t('All {n} plates for {date} are handed over.', {
+                n: n(mealOrders.length),
+                date: dateLabel(mealDate),
+              })
+            : t('No plates booked for {date}.', { date: dateLabel(mealDate) });
 
   /* A quiet board is worth saying out loud: nothing in any of the three
      kinds needs the cook right now. History lanes don't count — settled
@@ -607,71 +675,9 @@ export default function CookOrders() {
 
         {shownKind === 'meals' ? (
           <View style={{ marginTop: 12 }}>
-            {meals?.week?.length ? (
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                {meals.week.map((day) => {
-                  const on = day.date === mealDate;
-                  return (
-                    <Pressable
-                      key={day.date}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: on }}
-                      accessibilityLabel={t('{date}, {n} plates', {
-                        date: dateLabel(day.date),
-                        n: n(day.count),
-                      })}
-                      onPress={() => setMealDate(day.date)}
-                      style={({ pressed }) => ({
-                        flex: 1,
-                        alignItems: 'center',
-                        paddingVertical: 8,
-                        borderRadius: radius.md,
-                        borderWidth: 1,
-                        borderColor: on ? colors.sage : colors.line,
-                        backgroundColor: on ? colors.sage50 : colors.sunken,
-                        opacity: pressed ? 0.75 : 1,
-                      })}
-                    >
-                      <Text style={{ fontFamily: font.ui, fontSize: 10.5, color: colors.textMuted }}>
-                        {dayParts(day.date).weekday}
-                      </Text>
-                      <Text
-                        style={{
-                          fontFamily: font.uiBold,
-                          fontSize: 14,
-                          marginTop: 1,
-                          color: on ? colors.sage : colors.text,
-                        }}
-                      >
-                        {n(dayParts(day.date).day)}
-                      </Text>
-                      <Text
-                        style={{
-                          fontFamily: font.ui,
-                          fontSize: 10.5,
-                          marginTop: 2,
-                          color: day.count ? colors.primary : colors.textMuted,
-                        }}
-                      >
-                        {day.count ? n(day.count) : '·'}
-                      </Text>
-                      {/* You-are-here mark: with seven boxes of numbers,
-                          the eye needs one that is not a number. */}
-                      <View
-                        style={{
-                          width: 4,
-                          height: 4,
-                          borderRadius: 2,
-                          marginTop: 3,
-                          backgroundColor:
-                            day.date === todayKey() ? colors.saffron : 'transparent',
-                        }}
-                      />
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : null}
+            {/* Sixty days to swipe through, not the one week the server
+                happened to answer with. Counts are shown where known. */}
+            <DayStrip value={mealDate} onChange={setMealDate} counts={dayCounts} />
           </View>
         ) : null}
       </Container>
@@ -760,13 +766,57 @@ export default function CookOrders() {
         {/* ---- meals ---- */}
         {shownKind === 'meals' ? (
           meals === null ? null : mealOrders.length ? (
-            <View style={{ gap: 12 }}>
-              {mealOrders.map((order) => (
-                <MemoMealPlate
-                  key={String(order.id)}
-                  order={order}
-                  busy={busyMeal === order.id}
-                  onDeliver={deliverMeal}
+            <View style={{ gap: 14 }}>
+              {/* The day at a glance: how many plates, how far along, and what
+                  the day is worth — the three things a cook asks before
+                  lighting the stove. */}
+              <View
+                style={{
+                  padding: 16,
+                  borderRadius: 24,
+                  backgroundColor: colors.sage50,
+                  borderWidth: 1,
+                  borderColor: colors.sage100,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                  <View>
+                    <Text style={{ fontFamily: font.displayExtra, fontSize: 30, lineHeight: 34, letterSpacing: -0.7, color: colors.text }}>
+                      {n(mealDay.done)}
+                      <Text style={{ fontSize: 18, color: colors.textMuted }}>{` / ${n(mealDay.total)}`}</Text>
+                    </Text>
+                    <Text style={{ fontFamily: font.uiSemi, fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: colors.textMuted }}>
+                      {t('plates handed over')}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ fontFamily: font.displayExtra, fontSize: 22, letterSpacing: -0.4, color: colors.saffron }}>
+                      ৳{n(mealDay.worth)}
+                    </Text>
+                    <Text style={{ fontFamily: font.uiSemi, fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: colors.textMuted }}>
+                      {t('Total')}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ marginTop: 12, height: 8, borderRadius: 4, backgroundColor: colors.line2, overflow: 'hidden' }}>
+                  <View
+                    style={{
+                      width: `${Math.round((mealDay.done / Math.max(1, mealDay.total)) * 100)}%`,
+                      height: '100%',
+                      borderRadius: 4,
+                      backgroundColor: colors.sage,
+                    }}
+                  />
+                </View>
+              </View>
+
+              {sittings.map((g) => (
+                <MealSitting
+                  key={g.slot}
+                  slot={g.slot}
+                  plates={g.plates}
+                  onAdvance={advanceMeal}
+                  onAdvanceAll={advanceMeals}
                 />
               ))}
               <Button

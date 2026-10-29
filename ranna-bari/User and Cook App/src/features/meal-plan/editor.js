@@ -157,40 +157,111 @@ export function DishSheet({ open, slot, date, value, suggestions, fallback, onPi
  * a rotation, and whether the second week has to be typed at all is the
  * difference between filling a month and abandoning it.
  */
-export function PlanDayTapRow({ day, placeholders, onOpen, onCopyDown, disabled, dim, t }) {
-  const { colors } = useTheme();
+/**
+ * Each sitting's own colour and mark — a morning, a table, an evening.
+ *
+ * Three identical grey bars per day, thirty days down, read as one wall of
+ * boxes; a cook looking for "Thursday's dinner" had to read every label. A
+ * colour and an icon per sitting turn the column into three lanes the eye can
+ * run down without reading, which is the whole job of a month view.
+ */
+const SLOT_LOOK = {
+  breakfast: { icon: 'sun', tone: 'saffron' },
+  lunch: { icon: 'utensils', tone: 'sage' },
+  dinner: { icon: 'moon', tone: 'primary' },
+};
+
+export function PlanDayTapRow({ day, placeholders, onOpen, onCopyDown, disabled, dim, isToday, t }) {
+  const { colors, shadow } = useTheme();
   const parts = dayParts(day.date);
   const say = t ?? ((s) => s);
 
+  /* The date block says what kind of day it is: today is filled, the weekend
+     is tinted in the accent, an ordinary day in the calm green. */
+  const badgeBg = isToday ? colors.primary : parts.weekend ? colors.primary50 : colors.sage50;
+  const badgeInk = isToday ? '#FFFFFF' : parts.weekend ? colors.primary : colors.text;
+
   return (
     <View
-      style={{
-        flexDirection: 'row',
-        gap: 10,
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.line,
-        opacity: dim ? 0.45 : 1,
-      }}
+      style={[
+        {
+          flexDirection: 'row',
+          gap: 12,
+          padding: 12,
+          marginBottom: 10,
+          borderRadius: 22,
+          backgroundColor: colors.surfaceSolid,
+          borderWidth: isToday ? 1.5 : 1,
+          borderColor: isToday ? colors.primary : colors.line,
+          opacity: dim ? 0.5 : 1,
+        },
+        isToday ? shadow.md : shadow.xs,
+      ]}
     >
-      <View style={{ width: 40, paddingTop: 5 }}>
-        <Text
+      <View style={{ width: 54, alignItems: 'center', gap: 8 }}>
+        <View
           style={{
-            fontFamily: font.displayBold,
-            fontSize: 17,
-            color: parts.weekend ? colors.primary : colors.text,
+            width: 54,
+            paddingVertical: 9,
+            borderRadius: 17,
+            alignItems: 'center',
+            backgroundColor: badgeBg,
           }}
         >
-          {parts.day}
-        </Text>
-        <Label style={{ color: colors.textMuted }}>{parts.weekday}</Label>
+          <Text
+            style={{
+              fontFamily: font.displayExtra,
+              fontSize: 23,
+              lineHeight: 26,
+              color: badgeInk,
+              fontVariant: ['tabular-nums'],
+            }}
+          >
+            {parts.day}
+          </Text>
+          <Text
+            style={{
+              fontFamily: font.uiBold,
+              fontSize: 9.5,
+              letterSpacing: 0.8,
+              textTransform: 'uppercase',
+              color: isToday ? 'rgba(255, 255, 255, 0.85)' : colors.textMuted,
+            }}
+          >
+            {isToday ? say('Today') : parts.weekday}
+          </Text>
+        </View>
+
+        {!disabled ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={say('Copy this day down the month')}
+            onPress={() => onCopyDown(day.date)}
+            hitSlop={8}
+            style={({ pressed }) => ({
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: colors.line,
+              backgroundColor: pressed ? colors.sage50 : colors.sunken,
+            })}
+          >
+            <Icon name="copy" size={14} color={colors.textMuted} />
+          </Pressable>
+        ) : null}
       </View>
 
-      <View style={{ flex: 1, gap: 6 }}>
+      <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
         {SLOTS.map((slot) => {
           const mine = String(day[slot] ?? '').trim();
           const theirs = String(placeholders?.[slot] ?? '').trim();
           const shown = mine || theirs;
+          const look = SLOT_LOOK[slot];
+          const tint = colors[look.tone];
+          const tintSoft = colors[`${look.tone}50`];
 
           return (
             <Pressable
@@ -201,53 +272,64 @@ export function PlanDayTapRow({ day, placeholders, onOpen, onCopyDown, disabled,
               style={({ pressed }) => ({
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: 8,
-                paddingHorizontal: 10,
-                paddingVertical: 8,
-                borderRadius: radius.md,
-                borderWidth: 1,
-                borderColor: mine ? colors.sage : colors.line,
+                gap: 10,
+                paddingLeft: 6,
+                paddingRight: 10,
+                paddingVertical: 6,
+                borderRadius: 16,
                 backgroundColor: mine ? colors.sage50 : colors.sunken,
+                borderWidth: 1,
+                borderColor: mine ? colors.sage100 : 'transparent',
                 opacity: pressed ? 0.75 : 1,
               })}
             >
-              <Text
-                style={{ width: 58, fontFamily: font.ui, fontSize: 11.5, color: colors.textMuted }}
-              >
-                {say(SLOT_LABEL[slot])}
-              </Text>
-              <Text
-                numberOfLines={1}
+              <View
                 style={{
-                  flex: 1,
-                  fontFamily: font.ui,
-                  fontSize: 13.5,
-                  color: mine ? colors.text : colors.textMuted,
+                  width: 30,
+                  height: 30,
+                  borderRadius: 11,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: tintSoft,
                 }}
               >
-                {shown || '—'}
-              </Text>
+                <Icon name={look.icon} size={15} color={tint} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    fontFamily: font.uiBold,
+                    fontSize: 9,
+                    letterSpacing: 0.7,
+                    textTransform: 'uppercase',
+                    color: tint,
+                  }}
+                >
+                  {say(SLOT_LABEL[slot])}
+                </Text>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    fontFamily: mine ? font.uiSemi : font.ui,
+                    fontSize: 13.5,
+                    color: mine ? colors.text : colors.textMuted,
+                  }}
+                >
+                  {shown || '—'}
+                </Text>
+              </View>
+              {/* A dish the cook chose themselves carries a dot — down a month
+                  of rows, the touched days are the ones worth finding. */}
+              {mine ? (
+                <View
+                  style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.sage }}
+                />
+              ) : null}
             </Pressable>
           );
         })}
       </View>
-
-      {!disabled ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={say('Copy this day down the month')}
-          onPress={() => onCopyDown(day.date)}
-          hitSlop={8}
-          style={({ pressed }) => ({
-            width: 26,
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: pressed ? 0.55 : 1,
-          })}
-        >
-          <Icon name="chevronDown" size={16} color={colors.textMuted} />
-        </Pressable>
-      ) : null}
     </View>
   );
 }

@@ -173,6 +173,14 @@ function Form({ store }) {
     }
     setNote(null);
     setSaved(true);
+
+    /* Saved means done here: back to the shop's page, which already shows what
+       just changed. `dismissTo` rather than `back()` — this screen is also
+       pushed on top of the setup wizard right after a shop is created, and
+       going "back" from there would land on the wizard, not the shop. It
+       returns to the hub if that is already in the stack, so no second copy
+       of it piles up underneath. */
+    router.dismissTo({ pathname: '/cook/store', params: { shop: String(store.id) } });
   };
 
   return (

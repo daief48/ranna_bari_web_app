@@ -180,7 +180,8 @@ export default function CookDashboard() {
      the more urgent of the two: the cook has already done the work of
      stocking it, and none of it is reachable. */
   const shopClosed = myShops.length > 0 && closedShops === myShops.length;
-  const waitingPreorders = kitchen ? meals.pendingPreorders(kitchen.id).length : 0;
+  const preorderRows = kitchen ? meals.pendingPreorders(kitchen.id) : [];
+  const waitingPreorders = preorderRows.length;
   /*
    * Products a customer can see and cannot buy.
    *
@@ -314,6 +315,24 @@ export default function CookDashboard() {
   }, [mine]);
 
   const trendBusy = trend.some((b) => b.count > 0);
+
+  /* Each shop's own week — the card per shop draws its sparkline from here
+     rather than from the one aggregate, so a quiet shop beside a busy one
+     does not borrow the busy one's shape. */
+  const shopTrends = useMemo(() => {
+    const starts = Array.from({ length: 7 }, (_, i) => dayStart(6 - i));
+    const byShop = new Map();
+    for (const o of mine) {
+      if (o.kind !== 'store' || o.status === 'rejected' || o.status === 'cancelled') continue;
+      const at = new Date(o.createdAt).getTime();
+      const idx = starts.findIndex((st) => at >= st && at < st + DAY);
+      if (idx < 0) continue;
+      const key = String(o.storeId);
+      if (!byShop.has(key)) byShop.set(key, [0, 0, 0, 0, 0, 0, 0]);
+      byShop.get(key)[idx] += 1;
+    }
+    return byShop;
+  }, [mine]);
 
   /* ---- per-business week totals ----
      The breakdown panels' headline figures, folded from the same buckets. */
@@ -518,6 +537,18 @@ export default function CookDashboard() {
     0,
   );
 
+  /* One shop's figures, for its own card. The four numbers the aggregates
+     above sum are each a per-shop fact first. */
+  const shopFigures = (store) => ({
+    preorders: preorderRows.filter((o) => String(o.storeId) === String(store.id)).length,
+    outOfStock: meals.storeOverview(store)?.outOfStock ?? 0,
+    activeOrders: meals
+      .storeOrders(store.id)
+      .filter((o) => !['delivered', 'completed', 'cancelled', 'rejected'].includes(o.status)).length,
+    products: meals.productsOf(store.id).length,
+    trend: shopTrends.get(String(store.id)) ?? [0, 0, 0, 0, 0, 0, 0],
+  });
+
   if (!kitchen) {
     return (
       <CookScreen>
@@ -563,12 +594,15 @@ export default function CookDashboard() {
   /* The shop card's own shutter — the first shop's, when there is exactly
      one. Several shops are steered to the hub, whose switcher can say which
      one a tap would flip; a card this small cannot. */
-  const setShopShutter = () => {
-    if (!shopStore) return;
+  const setShopShutter = (store) => {
+    if (!store) return;
     Haptics.selectionAsync().catch(() => {});
     run(
-      () => meals.toggleStoreOpen(shopStore.id),
-      () => (shopStore.isOpen ? t('Shop closed.') : t('Shop is open.')),
+      () => meals.toggleStoreOpen(store.id),
+      () =>
+        store.isOpen
+          ? t('{name} closed.', { name: store.name || t('Shop') })
+          : t('{name} is open.', { name: store.name || t('Shop') }),
     );
   };
 
@@ -623,7 +657,7 @@ export default function CookDashboard() {
               shadow.md,
             ]}
           >
-            <View style={{ height: 158 }}>
+            <View style={{ height: 206 }}>
               {/* A kitchen that has not uploaded a banner yet is the ordinary
                   state of a new one, and `{ uri: undefined }` renders a real
                   <img> with no src for it — a broken-image glyph rather than
@@ -678,7 +712,69 @@ export default function CookDashboard() {
                 </Text>
               </View>
 
-              <View style={{ position: 'absolute', left: 16, right: 16, bottom: 14 }}>
+              {/* Today at a glance, set into the photograph: the three numbers
+                  a cook opens this screen to read, so they are the first thing
+                  on it rather than a scroll away. Glass over the image — it
+                  takes the picture's colour instead of fighting it. */}
+              <View
+                style={{
+                  position: 'absolute',
+                  left: 12,
+                  right: 12,
+                  bottom: 12,
+                  flexDirection: 'row',
+                  paddingVertical: 10,
+                  borderRadius: 20,
+                  backgroundColor: 'rgba(24, 17, 12, 0.52)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(255, 255, 255, 0.22)',
+                }}
+              >
+                {[
+                  { value: `৳${n(stats.earned)}`, label: t('Earned today') },
+                  { value: n(kitchenOrdersToday), label: t('Today') },
+                  { value: n(stats.waiting), label: t('Waiting'), hot: stats.waiting > 0 },
+                ].map((m, i) => (
+                  <View
+                    key={m.label}
+                    style={{
+                      flex: 1,
+                      alignItems: 'center',
+                      borderLeftWidth: i ? 1 : 0,
+                      borderLeftColor: 'rgba(255, 255, 255, 0.24)',
+                    }}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      style={{
+                        fontFamily: font.displayExtra,
+                        fontSize: 20,
+                        lineHeight: 24,
+                        letterSpacing: -0.4,
+                        color: m.hot ? '#FFD3C2' : '#FFFFFF',
+                        fontVariant: ['tabular-nums'],
+                      }}
+                    >
+                      {m.value}
+                    </Text>
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        fontFamily: font.uiSemi,
+                        fontSize: 9,
+                        letterSpacing: 0.7,
+                        textTransform: 'uppercase',
+                        color: 'rgba(255, 255, 255, 0.78)',
+                      }}
+                    >
+                      {m.label}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={{ position: 'absolute', left: 16, right: 16, bottom: 76 }}>
                 <Text
                   style={{
                     fontFamily: font.displayItalic,
@@ -722,6 +818,7 @@ export default function CookDashboard() {
           <RowHeading icon="home" title={t('Your businesses')} style={{ marginTop: 22 }} />
           <View style={{ gap: 12 }}>
             {/* ---- the kitchen ---- */}
+            <GroupLabel kind="kitchen" label={t('Kitchen')} style={{ marginBottom: -4 }} />
             <View
               style={[
                 {
@@ -734,6 +831,21 @@ export default function CookDashboard() {
                 shadow.sm,
               ]}
             >
+              {/* The business's colour down its left edge — sage for the
+                  kitchen, saffron for a shop — so the two kinds read apart
+                  before a word is read. */}
+              <View
+                pointerEvents="none"
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 4,
+                  backgroundColor: colors.sage,
+                  zIndex: 2,
+                }}
+              />
               <Pressable
                 accessibilityRole="link"
                 accessibilityLabel={t('Kitchen')}
@@ -747,6 +859,13 @@ export default function CookDashboard() {
                   opacity: pressed ? 0.92 : 1,
                 })}
               >
+                <LinearGradient
+                  colors={[colors.sage100, colors.sage50, colors.surfaceSolid]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  pointerEvents="none"
+                  style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+                />
                 <Image
                   source={kitchen.coverImage ? { uri: kitchen.coverImage } : null}
                   contentFit="cover"
@@ -761,6 +880,7 @@ export default function CookDashboard() {
                   }}
                 />
                 <View style={{ flex: 1, minWidth: 0 }}>
+                  <TypeTag kind="kitchen" label={t('Kitchen')} />
                   <Text
                     numberOfLines={1}
                     style={{
@@ -882,8 +1002,17 @@ export default function CookDashboard() {
                 shaped like the card it will become, so a new cook can see
                 this account holds two businesses and the second one is one
                 tap from existing. */}
-            {shopStore ? (
+            <GroupLabel
+              kind="shop"
+              label={myShops.length > 1 ? t('Shops · {n}', { n: n(myShops.length) }) : t('Shop')}
+              style={{ marginTop: 10, marginBottom: -4 }}
+            />
+            {myShops.length ? (
+              myShops.map((store) => {
+                const fig = shopFigures(store);
+                return (
               <View
+                key={String(store.id)}
                 style={[
                   {
                     borderRadius: 26,
@@ -895,11 +1024,23 @@ export default function CookDashboard() {
                   shadow.sm,
                 ]}
               >
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 4,
+                    backgroundColor: colors.saffron,
+                    zIndex: 2,
+                  }}
+                />
                 <Pressable
                   accessibilityRole="link"
-                  accessibilityLabel={shopStore.name || t('Shop')}
+                  accessibilityLabel={store.name || t('Shop')}
                   onPress={() =>
-                    router.push({ pathname: '/cook/store', params: { shop: String(shopStore.id) } })
+                    router.push({ pathname: '/cook/store', params: { shop: String(store.id) } })
                   }
                   style={({ pressed }) => ({
                     flexDirection: 'row',
@@ -910,10 +1051,17 @@ export default function CookDashboard() {
                     opacity: pressed ? 0.92 : 1,
                   })}
                 >
+                  <LinearGradient
+                    colors={[colors.saffron100, colors.saffron50, colors.surfaceSolid]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    pointerEvents="none"
+                    style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+                  />
                   <Image
                     source={
-                      shopStore.cover || shopStore.logo
-                        ? { uri: shopStore.cover || shopStore.logo }
+                      store.cover || store.logo
+                        ? { uri: store.cover || store.logo }
                         : null
                     }
                     contentFit="cover"
@@ -928,6 +1076,7 @@ export default function CookDashboard() {
                     }}
                   />
                   <View style={{ flex: 1, minWidth: 0 }}>
+                    <TypeTag kind="shop" label={t('Shop')} />
                     <Text
                       numberOfLines={1}
                       style={{
@@ -937,7 +1086,7 @@ export default function CookDashboard() {
                         color: colors.text,
                       }}
                     >
-                      {shopStore.name || t('Shop')}
+                      {store.name || t('Shop')}
                     </Text>
                     <Text
                       numberOfLines={1}
@@ -947,50 +1096,21 @@ export default function CookDashboard() {
                         color: colors.textMuted,
                       }}
                     >
-                      {myShops.length > 1
-                        ? t('{n} shops · {state}', {
-                            n: n(myShops.length),
-                            state: shopStore.isOpen ? t('Open') : t('Closed'),
-                          })
-                        : t('{area} · {state}', {
-                            area: shopStore.area,
-                            state: shopStore.isOpen ? t('Open for orders') : t('Closed'),
-                          })}
+                      {t('{area} · {state}', {
+                        area: store.area,
+                        state: store.isOpen ? t('Open for orders') : t('Closed'),
+                      })}
                     </Text>
                   </View>
-                  {myShops.length > 1 ? (
-                    /* Several shops: one switch cannot say which shop it
-                       flips, so the card hands over to the hub, whose
-                       switcher can. */
-                    <View
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 12,
-                        borderRadius: radius.pill,
-                        backgroundColor: colors.surfaceSolid,
-                        borderWidth: 1,
-                        borderColor: colors.line,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontFamily: font.uiBold,
-                          fontSize: 12,
-                          color: colors.text,
-                          fontVariant: ['tabular-nums'],
-                        }}
-                      >
-                        {n(myShops.length)}
-                      </Text>
-                    </View>
-                  ) : (
+                  {/* This shop's own shutter. Each shop has one, so it can say
+                      which shop it flips. */}
                     <Pressable
                       accessibilityRole="switch"
-                      accessibilityState={{ checked: !!shopStore.isOpen }}
+                      accessibilityState={{ checked: !!store.isOpen }}
                       accessibilityLabel={
-                        shopStore.isOpen ? t('Shop closed.') : t('Tap to open your shop')
+                        store.isOpen ? t('Shop closed.') : t('Tap to open your shop')
                       }
-                      onPress={setShopShutter}
+                      onPress={() => setShopShutter(store)}
                       hitSlop={6}
                       style={({ pressed }) => ({
                         width: 46,
@@ -998,8 +1118,8 @@ export default function CookDashboard() {
                         borderRadius: 14,
                         padding: 3,
                         justifyContent: 'center',
-                        alignItems: shopStore.isOpen ? 'flex-end' : 'flex-start',
-                        backgroundColor: shopStore.isOpen ? colors.sage : colors.line,
+                        alignItems: store.isOpen ? 'flex-end' : 'flex-start',
+                        backgroundColor: store.isOpen ? colors.sage : colors.line,
                         opacity: pressed ? 0.85 : 1,
                       })}
                     >
@@ -1012,48 +1132,47 @@ export default function CookDashboard() {
                         }}
                       />
                     </Pressable>
-                  )}
                 </Pressable>
 
                 <StatBand
                   items={[
                     {
-                      value: waitingPreorders,
+                      value: fig.preorders,
                       label: t('Pre-orders'),
-                      tone: waitingPreorders ? colors.primary : null,
+                      tone: fig.preorders ? colors.primary : null,
                       onPress: () =>
                         router.push({
                           pathname: '/cook/store/preorders',
-                          params: { shop: String(shopStore.id) },
+                          params: { shop: String(store.id) },
                         }),
                     },
                     {
-                      value: outOfStock,
+                      value: fig.outOfStock,
                       label: t('Out of stock'),
-                      tone: outOfStock ? colors.saffron : null,
+                      tone: fig.outOfStock ? colors.saffron : null,
                       onPress: () =>
                         router.push({
                           pathname: '/cook/store/products',
-                          params: { shop: String(shopStore.id) },
+                          params: { shop: String(store.id) },
                         }),
                     },
                     {
-                      value: shopActiveOrders,
+                      value: fig.activeOrders,
                       label: t('Active orders'),
-                      tone: shopActiveOrders ? colors.saffron : null,
+                      tone: fig.activeOrders ? colors.saffron : null,
                       onPress: () =>
                         router.push({
                           pathname: '/cook/store/orders',
-                          params: { shop: String(shopStore.id) },
+                          params: { shop: String(store.id) },
                         }),
                     },
                     {
-                      value: shopProducts,
+                      value: fig.products,
                       label: t('Products'),
                       onPress: () =>
                         router.push({
                           pathname: '/cook/store/products',
-                          params: { shop: String(shopStore.id) },
+                          params: { shop: String(store.id) },
                         }),
                     },
                   ]}
@@ -1082,10 +1201,13 @@ export default function CookDashboard() {
                     {t('Last 7 days')}
                   </Text>
                   <View style={{ flex: 1, alignItems: 'center' }}>
-                    <Sparkline values={trend.map((b) => b.store)} color={colors.saffron} />
+                    <Sparkline values={fig.trend} color={colors.saffron} />
                   </View>
                 </View>
               </View>
+
+                );
+              })
             ) : (
               /* No shop yet — an invitation in the shape of the card it will
                  become: same width, same header rhythm, one line of what a
@@ -2976,6 +3098,71 @@ function LateChip({ since, after, label }) {
       >
         {label}
       </Text>
+    </View>
+  );
+}
+
+/**
+ * Which kind of business a card is, said in colour and a word.
+ *
+ * The kitchen and the shops sit in the same list, shaped alike, and a cook
+ * with three of them could not tell at a glance which card was the kitchen and
+ * which were shops. The kitchen is sage and a pot; a shop is saffron and a
+ * box — the same pairing the cards' own headers already use — and the word is
+ * there for anyone who does not read colour.
+ */
+function TypeTag({ kind, label }) {
+  const { colors } = useTheme();
+  const shop = kind === 'shop';
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        gap: 4,
+        paddingVertical: 2,
+        paddingHorizontal: 7,
+        marginBottom: 3,
+        borderRadius: radius.pill,
+        backgroundColor: shop ? colors.saffron100 : colors.sage100,
+      }}
+    >
+      <Icon name={shop ? 'box' : 'pot'} size={10} color={shop ? colors.saffron : colors.sage} />
+      <Text
+        style={{
+          fontFamily: font.uiBold,
+          fontSize: 9,
+          letterSpacing: 0.7,
+          textTransform: 'uppercase',
+          color: shop ? colors.saffron : colors.sage,
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+/** The heading over a group of cards of one kind. */
+function GroupLabel({ kind, label, style }) {
+  const { colors } = useTheme();
+  const shop = kind === 'shop';
+  return (
+    <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 8 }, style]}>
+      <Icon name={shop ? 'box' : 'pot'} size={14} color={shop ? colors.saffron : colors.sage} />
+      <Text
+        style={{
+          fontFamily: font.uiBold,
+          fontSize: type.micro,
+          letterSpacing: type.micro * 0.12,
+          textTransform: 'uppercase',
+          color: shop ? colors.saffron : colors.sage,
+        }}
+      >
+        {label}
+      </Text>
+      <View style={{ flex: 1, height: 1, backgroundColor: colors.line2 }} />
     </View>
   );
 }
