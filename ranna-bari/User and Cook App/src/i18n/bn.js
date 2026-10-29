@@ -1144,6 +1144,8 @@ export const bn = {
   'Meals are paid for from here, and held until the food arrives.':
     'খাবারের টাকা এখান থেকেই যায়, আর খাবার পৌঁছানো পর্যন্ত জমা থাকে।',
   'Top up': 'টপ আপ',
+  'Balance ৳{have} — add ৳{short} more to use the wallet. Top up':
+    'ব্যালেন্স ৳{have} — ওয়ালেট ব্যবহার করতে আরও ৳{short} যোগ করুন। টপ আপ',
   'Other amount': 'অন্য পরিমাণ',
   'Demo top-up: no payment gateway is connected, so the balance is added straight away.':
     'ডেমো টপ আপ: কোনো পেমেন্ট গেটওয়ে যুক্ত নেই, তাই ব্যালেন্স সঙ্গে সঙ্গেই যোগ হয়।',
@@ -1398,6 +1400,10 @@ export const bn = {
   'Pre-orderable': 'প্রি-অর্ডারযোগ্য',
   'Shop open': 'দোকান খোলা',
   'Shop closed': 'দোকান বন্ধ',
+  'Kitchen open': 'রান্নাঘর খোলা',
+  'Tap to open your kitchen': 'রান্নাঘর খুলতে ট্যাপ করুন',
+  'Orders start once your kitchen is verified.': 'রান্নাঘর যাচাই হলেই অর্ডার আসা শুরু হবে।',
+  'Taking orders · tap to close': 'অর্ডার নিচ্ছে · বন্ধ করতে ট্যাপ করুন',
   'Shop basket': 'দোকানের ঝুড়ি',
   'Shop orders': 'দোকানের অর্ডার',
   'Shop settings': 'দোকানের সেটিংস',

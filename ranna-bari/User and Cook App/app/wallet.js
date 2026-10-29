@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, Text, TextInput, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../src/components/Screen';
 import Icon from '../src/components/Icon';
@@ -31,7 +31,13 @@ export default function WalletScreen() {
   const { isSignedIn } = useAuth();
   const meals = useCommerce();
 
-  const [amount, setAmount] = useState('');
+  /* Checkout sends the shortfall (`?need=`) when the wallet could not cover an
+     order, so the amount box opens already holding what is missing. */
+  const { need } = useLocalSearchParams();
+  const [amount, setAmount] = useState(() => {
+    const short = Math.ceil(Number(Array.isArray(need) ? need[0] : need));
+    return Number.isFinite(short) && short > 0 ? String(short) : '';
+  });
   const [error, setError] = useState(null);
   const [done, setDone] = useState(null);
 

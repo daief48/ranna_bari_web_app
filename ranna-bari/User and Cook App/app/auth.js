@@ -887,6 +887,10 @@ export default function AuthScreen() {
                   setAddressLabel,
                   radiusKm,
                   setRadiusKm,
+                  suDivision,
+                  setSuDivision,
+                  suDistrict,
+                  setSuDistrict,
                 }}
                 pwLevel={pwLevel}
                 place={place}
@@ -1229,6 +1233,9 @@ function SignUpView({
 }) {
   const { colors, shadow } = useTheme();
   const { t } = useLang();
+  /* Division/district live up in AuthScreen (submit() posts them), so they
+     arrive through `fields` like every other signup value. */
+  const { suDivision, setSuDivision, suDistrict, setSuDistrict } = fields;
 
   const heads = {
     1: {

@@ -1081,8 +1081,16 @@ export function CommerceProvider({ children }) {
          The order writes below stay exactly as they were, because a booked
          meal *is* an order and walks the same rail — which is why a cook
          delivering one and a customer confirming it needed nothing new. */
-      advanceOrder: (orderId) =>
-        write(`/orders/${orderId}/advance`, { after: reloadOrders }),
+      advanceOrder: async (orderId) => {
+        const out = await write(`/orders/${orderId}/advance`, { after: reloadOrders });
+        /* `write` only re-reads on success, so a board that is a step behind
+           the server (a double tap, a second device, a reply that never
+           landed) would stay behind and refuse every further tap the same
+           way. The refusal itself is the proof the copy is stale — read the
+           books again so the card shows where the order really is. */
+        if (!out.ok && out.error === 'order-wrong-state') await reloadOrders();
+        return out;
+      },
       confirmReceived: (orderId) =>
         write(`/orders/${orderId}/received`, {
           after: async () => {

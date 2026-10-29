@@ -366,13 +366,24 @@ function CheckoutForm() {
                   const affordable = (wallet?.customer ?? 0) >= total;
                   const usable = m.key === 'wallet' ? affordable : m.available;
                   const on = method === m.key;
+                  /* A wallet that cannot cover the order is still a door, not a
+                     dead row: tapping it goes to the top-up page, with the
+                     shortfall filled in. */
+                  const topUpFirst = m.key === 'wallet' && !affordable;
                   return (
                     <Pressable
                       key={m.key}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: on, disabled: !usable }}
-                      disabled={!usable}
-                      onPress={() => setMethod(m.key)}
+                      accessibilityRole={topUpFirst ? 'link' : 'radio'}
+                      accessibilityState={{ selected: on, disabled: !usable && !topUpFirst }}
+                      disabled={!usable && !topUpFirst}
+                      onPress={() =>
+                        topUpFirst
+                          ? router.push({
+                              pathname: '/wallet',
+                              params: { need: String(Math.max(0, total - (wallet?.customer ?? 0))) },
+                            })
+                          : setMethod(m.key)
+                      }
                       style={[
                         {
                           flexDirection: 'row',
@@ -447,6 +458,26 @@ function CheckoutForm() {
                         >
                           {t(m.desc)}
                         </Text>
+                        {/* A disabled row that says nothing reads as broken. The
+                            only reason the wallet can be locked is the balance,
+                            so say that, with the gap and the way to close it. */}
+                        {m.key === 'wallet' && !usable ? (
+                          <View style={{ marginTop: 8 }}>
+                            <Text
+                              style={{
+                                fontFamily: font.uiSemi,
+                                fontSize: 12.5,
+                                lineHeight: 18,
+                                color: colors.primary,
+                              }}
+                            >
+                              {t('Balance ৳{have} — add ৳{short} more to use the wallet. Top up', {
+                                have: n(wallet?.customer ?? 0),
+                                short: n(Math.max(0, total - (wallet?.customer ?? 0))),
+                              })}
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
 
                       <View

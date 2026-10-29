@@ -314,15 +314,13 @@ export async function recordOrder(
      make a fresh order look old to anything that ages on it. */
   const createdAt = new Date();
 
-  /* Only the two words an order may open with. The app sends `placed`; the
-     escrow rail's own default is `confirmed`. Anything further along the
-     rail — `delivered` — is not a way to begin. */
-  const openingStatus =
-    draft.status === 'placed' || draft.status === 'confirmed'
-      ? draft.status
-      : kind === 'wallet'
-        ? 'confirmed'
-        : 'placed';
+  /* The rung an order opens on belongs to its rail, not to the draft. The app
+     stamps every draft `placed` — that is the cash rail's first word — and
+     honouring it here opened wallet orders on a rung the escrow rail does not
+     have: `COOK_ADVANCES` has no `placed`, so the cook's Accept came back
+     `order-wrong-state` and the order could never move. Cash opens `placed`,
+     escrow opens `confirmed`; whatever the draft says is ignored. */
+  const openingStatus = kind === 'wallet' ? 'confirmed' : 'placed';
 
   /*
    * Wallet orders take the money now; cash orders take it at the door.

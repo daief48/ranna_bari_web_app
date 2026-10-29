@@ -24,7 +24,9 @@ const inter = Inter({
  */
 const bengali = Noto_Sans_Bengali({
   subsets: ['bengali'],
-  weight: ['400', '500', '600', '700'],
+  // Variable font: omitting `weight` loads the whole axis in one request.
+  // An explicit weight list makes Turbopack emit several queries for this
+  // family, which its Google-font loader rejects ("exactly one entry").
   variable: '--font-bengali',
   display: 'swap',
 });

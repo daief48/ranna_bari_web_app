@@ -31,7 +31,7 @@ import { useAuth } from '../../../src/store/AuthContext';
 import { useSession } from '../../../src/store/SessionContext';
 import { useOrders } from '../../../src/store/OrdersContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
-import { useAlert } from '../../../src/components/Alert';
+import { useAlert, useAction } from '../../../src/components/Alert';
 
 /**
  * KitchenContext hydrates from AsyncStorage asynchronously, so `kitchen` is
@@ -64,7 +64,8 @@ function KitchenForm({ kitchen }) {
   const { t, n } = useLang();
   const router = useRouter();
   const alert = useAlert();
-  const { updateKitchen, liveDishes } = useKitchen();
+  const { updateKitchen, toggleOpen, liveDishes, saving } = useKitchen();
+  const run = useAction();
   const { account, setViewMode, signOut } = useAuth();
   const { signOutServer } = useSession();
   const { ordersForKitchen } = useOrders();
@@ -224,6 +225,80 @@ function KitchenForm({ kitchen }) {
             onContact={() => router.push('/chat')}
             style={{ marginBottom: 18 }}
           />
+
+          {/* ---- The shutter ----
+              The same switch the dashboard carries, through the same
+              toggleOpen, so the two can never disagree about whether the
+              kitchen is taking orders. Closing keeps the listing visible but
+              stops new orders; a kitchen still waiting on verification can
+              flip it too, but the server only lets orders through once it is
+              approved — so the line under the title says so rather than
+              letting an "open" kitchen sit silent. */}
+          <Reveal delay={1}>
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityState={{ checked: !!kitchen.isOpen, busy: !!saving }}
+              accessibilityLabel={
+                kitchen.isOpen ? t('Kitchen open') : t('Tap to open your kitchen')
+              }
+              disabled={!!saving}
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+                run(
+                  () => toggleOpen(),
+                  () => (kitchen.isOpen ? t('Kitchen closed.') : t('Kitchen is open for orders.')),
+                );
+              }}
+              style={({ pressed }) => [
+                {
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 16,
+                  padding: 18,
+                  marginBottom: 18,
+                  borderRadius: radius.md,
+                  backgroundColor: kitchen.isOpen ? colors.sage : colors.sunken,
+                  borderWidth: 1,
+                  borderColor: kitchen.isOpen ? 'transparent' : colors.line,
+                  opacity: saving ? 0.7 : 1,
+                  transform: [{ scale: pressed ? 0.99 : 1 }],
+                },
+                kitchen.isOpen ? shadow.md : shadow.sm,
+              ]}
+            >
+              <Icon
+                name={kitchen.isOpen ? 'utensils' : 'moon'}
+                size={22}
+                color={kitchen.isOpen ? '#FFFFFF' : colors.textMuted}
+              />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text
+                  style={{
+                    fontFamily: font.displayExtra,
+                    fontSize: 20,
+                    letterSpacing: -0.4,
+                    color: kitchen.isOpen ? '#FFFFFF' : colors.text,
+                  }}
+                >
+                  {kitchen.isOpen ? t('Kitchen open') : t('Kitchen closed')}
+                </Text>
+                <Text
+                  style={{
+                    marginTop: 2,
+                    fontFamily: font.ui,
+                    fontSize: type.xs + 1,
+                    color: kitchen.isOpen ? 'rgba(255,255,255,0.9)' : colors.textMuted,
+                  }}
+                >
+                  {kitchen.kycStatus !== 'approved'
+                    ? t('Orders start once your kitchen is verified.')
+                    : kitchen.isOpen
+                      ? t('Taking orders · tap to close')
+                      : t('Tap to start taking orders')}
+                </Text>
+              </View>
+            </Pressable>
+          </Reveal>
 
           {/* ---- The listing, as a customer sees it ---- */}
           <Reveal delay={1}>
