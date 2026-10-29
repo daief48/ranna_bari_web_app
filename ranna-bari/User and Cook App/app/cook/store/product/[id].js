@@ -25,6 +25,7 @@ import { toStorableImage } from '../../../../src/lib/pickedImage';
 import CookScreen from '../../../../src/components/CookScreen';
 import { Container } from '../../../../src/components/Screen';
 import Icon from '../../../../src/components/Icon';
+import CategoryIcon from '../../../../src/components/CategoryIcon';
 import Reveal from '../../../../src/components/Reveal';
 import Button from '../../../../src/components/Button';
 import FloatLabelInput from '../../../../src/components/FloatLabelInput';
@@ -558,7 +559,7 @@ function Form({ store, product, isNew }) {
                         transform: [{ scale: pressed ? 0.97 : 1 }],
                       })}
                     >
-                      {c.emoji ? <Text style={{ fontSize: 13 }}>{c.emoji}</Text> : null}
+                      <CategoryIcon category={c} size={16} />
                       <Text
                         style={{
                           fontFamily: font.uiSemi,

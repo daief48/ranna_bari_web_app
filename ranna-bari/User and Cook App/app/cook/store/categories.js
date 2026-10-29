@@ -24,9 +24,8 @@ import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { useAlert } from '../../../src/components/Alert';
-
-/** Fallbacks, for a shelf the platform list has no word for. */
-const EMOJI = ['🎂', '🥮', '🫙', '🍪', '🍰', '🍛', '🎁', '🍞', '🍯', '🥧', '🍮', '🧁'];
+import CategoryIcon from '../../../src/components/CategoryIcon';
+import CategoryIconPicker, { EMOJI } from '../../../src/components/CategoryIconPicker';
 
 export default function StoreCategories() {
   const { colors, shadow } = useTheme();
@@ -38,6 +37,8 @@ export default function StoreCategories() {
 
   const [name, setName] = useState('');
   const [emoji, setEmoji] = useState(EMOJI[0]);
+  /* An uploaded picture, when the cook chose one instead of an emoji. */
+  const [image, setImage] = useState('');
   const [editing, setEditing] = useState(null);
   const [note, setNote] = useState(null);
 
@@ -51,10 +52,18 @@ export default function StoreCategories() {
   const categories = store ? shop.categoriesOf(store.id) : [];
 
   const add = async () => {
-    const out = await shop.addCategory(store.id, name, emoji);
+    const out = await shop.addCategory(store.id, name, emoji, image);
     if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     setNote(null);
     setName('');
+    setImage('');
+  };
+
+  /* Re-icon a shelf that already exists. */
+  const reicon = async (id, next) => {
+    const out = await shop.updateCategory(id, next);
+    if (!out.ok) alert.error(errorText(out.error, t, n, out));
+    else setNote(null);
   };
 
   const rename = async (id, value) => {
@@ -157,7 +166,10 @@ export default function StoreCategories() {
                         accessibilityLabel={`${t('Start from a common one')} ${t(c.label)}`}
                         onPress={() => {
                           setName(t(c.label));
-                          if (c.emoji) setEmoji(c.emoji);
+                          if (c.emoji) {
+                            setEmoji(c.emoji);
+                            setImage('');
+                          }
                         }}
                         style={({ pressed }) => ({
                           flexDirection: 'row',
@@ -183,33 +195,15 @@ export default function StoreCategories() {
               </View>
             ) : null}
 
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {EMOJI.map((e) => {
-                const active = emoji === e;
-                return (
-                  <Pressable
-                    key={e}
-                    accessibilityRole="button"
-                    aria-pressed={active}
-                    accessibilityState={{ selected: active }}
-                    accessibilityLabel={`${t('Icon')} ${e}`}
-                    onPress={() => setEmoji(e)}
-                    style={{
-                      width: 40,
-                      height: 40,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: radius.sm,
-                      backgroundColor: active ? colors.sage50 : colors.sunken,
-                      borderWidth: 1,
-                      borderColor: active ? colors.sage : colors.line,
-                    }}
-                  >
-                    <Text style={{ fontSize: 18 }}>{e}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            {/* An emoji from the list, one the cook types, or a picture. */}
+            <CategoryIconPicker
+              emoji={emoji}
+              image={image}
+              onChange={(next) => {
+                setEmoji(next.emoji);
+                setImage(next.image);
+              }}
+            />
 
             <Button
               label={t('Add category')}
@@ -227,8 +221,8 @@ export default function StoreCategories() {
         {/* ---- the list ---- */}
         <View style={{ marginTop: 26, gap: 10 }}>
           {categories.map((c, i) => (
+            <React.Fragment key={c.id}>
             <View
-              key={c.id}
               style={[
                 {
                   flexDirection: 'row',
@@ -259,7 +253,7 @@ export default function StoreCategories() {
                 />
               </View>
 
-              <Text style={{ fontSize: 20 }}>{c.emoji || '•'}</Text>
+              <CategoryIcon category={c} size={28} fallback="•" />
 
               {editing === c.id ? (
                 <View style={{ flex: 1 }}>
@@ -307,6 +301,29 @@ export default function StoreCategories() {
                 <Icon name="x" size={16} color={colors.textLight} />
               </Pressable>
             </View>
+
+            {/* Tapping the name opens the shelf for editing: its name above,
+                and here its icon — the same picker the add form uses. */}
+            {editing === c.id ? (
+              <View
+                style={{
+                  gap: 12,
+                  padding: 14,
+                  borderRadius: radius.sm,
+                  backgroundColor: colors.surfaceSolid,
+                  borderWidth: 1,
+                  borderColor: colors.line,
+                }}
+              >
+                <CategoryIconPicker
+                  emoji={c.emoji}
+                  image={c.image}
+                  onChange={(next) => reicon(c.id, next)}
+                />
+                <Button label={t('Done')} block onPress={() => setEditing(null)} />
+              </View>
+            ) : null}
+            </React.Fragment>
           ))}
 
           {!categories.length ? (

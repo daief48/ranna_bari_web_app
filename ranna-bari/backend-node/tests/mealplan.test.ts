@@ -450,6 +450,30 @@ describe('the rail under a booking', () => {
     expect(third.ok).toBe(false);
   });
 
+  it('two confirms at once close the order once, and neither is an error', async () => {
+    const { orderIds } = await booked();
+    await advanceOrder({ orderId: orderIds[0], kitchenId: kitchenA });
+    await advanceOrder({ orderId: orderIds[0], kitchenId: kitchenA });
+
+    /* A double tap. Both used to see `delivered` before either wrote, so the
+       order got two `completed` history rows and the later reply was refused
+       "cannot be done at this stage" about an order that had just succeeded. */
+    const [a, b] = await Promise.all([
+      confirmReceived({ orderId: orderIds[0], customerKey: CUSTOMER }),
+      confirmReceived({ orderId: orderIds[0], customerKey: CUSTOMER }),
+    ]);
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
+
+    const order = await Order.findById(orderIds[0]).lean();
+    expect(order?.status).toBe('completed');
+    const history = (order?.history ?? []) as { status: string }[];
+    expect(history.filter((h) => h.status === 'completed')).toHaveLength(1);
+
+    /* And a later retry reads as the same success, not a stage error. */
+    expect((await confirmReceived({ orderId: orderIds[0], customerKey: CUSTOMER })).ok).toBe(true);
+  });
+
   it('a customer confirming does not pay the cook', async () => {
     const { orderIds } = await booked();
 

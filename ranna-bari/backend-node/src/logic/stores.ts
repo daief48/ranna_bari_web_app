@@ -12,7 +12,7 @@ import {
 import { tx } from '../config/db.js';
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
 import { makeCode, taka } from '../lib/format.js';
-import { divisionOfDistrict, normaliseServiceAreas, type ServiceArea } from '../lib/bd-areas.js';
+import { DIVISIONS, divisionOfDistrict, normaliseServiceAreas, type ServiceArea } from '../lib/bd-areas.js';
 import { balanceFor, post, refundEscrow } from './ledger.js';
 
 /**
@@ -210,6 +210,7 @@ export type StorePatch = Partial<{
   serviceAreas: ServiceArea[];
   allBangladesh: boolean;
   deliveryFee: number;
+  homeDivision: string;
   deliveryFeeInsideDhaka: number | null;
   deliveryFeeOutsideDhaka: number | null;
   freeDeliveryOver: number | null;
@@ -234,7 +235,11 @@ function storeFields(patch: StorePatch): Record<string, unknown> {
   /* Replaced wholesale, like every other set field: the picker sends the
      chips it is showing. Trimmed, de-duplicated, capped at five. */
   if (patch.tags !== undefined) {
-    out.tags = [...new Set(patch.tags.map((t) => String(t ?? '').trim()).filter(Boolean))].slice(0, 5);
+    /* Tags are free text now, so each is cut to the length the app's own
+       input allows — a hand-made request cannot park a paragraph in a chip. */
+    out.tags = [
+      ...new Set(patch.tags.map((t) => String(t ?? '').trim().slice(0, 24)).filter(Boolean)),
+    ].slice(0, 5);
   }
   for (const key of ['lat', 'lng', 'deliveryRadiusKm'] as const) {
     if (patch[key] !== undefined) {
@@ -248,6 +253,12 @@ function storeFields(patch: StorePatch): Record<string, unknown> {
     out.serviceAreas = normaliseServiceAreas(patch.serviceAreas);
   }
   if (patch.allBangladesh !== undefined) out.allBangladesh = !!patch.allBangladesh;
+  /* One of the eight divisions or nothing — it decides which fee a customer
+     is charged, so a made-up name would quietly make every order "outside". */
+  if (patch.homeDivision !== undefined) {
+    const wanted = String(patch.homeDivision ?? '').trim();
+    out.homeDivision = DIVISIONS.some((d) => d.name === wanted) ? wanted : '';
+  }
   for (const key of [
     'deliveryFee',
     'deliveryFeeInsideDhaka',
@@ -279,6 +290,7 @@ function storeFields(patch: StorePatch): Record<string, unknown> {
 export function deliveryFeeFor(
   store: {
     deliveryFee?: number | null;
+    homeDivision?: string | null;
     deliveryFeeInsideDhaka?: number | null;
     deliveryFeeOutsideDhaka?: number | null;
   } | null,
@@ -288,6 +300,10 @@ export function deliveryFeeFor(
   const inside = store.deliveryFeeInsideDhaka;
   const outside = store.deliveryFeeOutsideDhaka;
   if (inside == null && outside == null) return store.deliveryFee ?? 0;
+  /* "Inside" means inside the shop's own division — Chattogram for a shop
+     that sits there. A shop that never said defaults to Dhaka, which is what
+     these two fees meant before they could say anything else. */
+  const home = store.homeDivision || 'Dhaka';
 
   const division =
     addr?.division ||
@@ -297,7 +313,7 @@ export function deliveryFeeFor(
   if (!division) {
     return outside == null ? (inside ?? store.deliveryFee ?? 0) : (store.deliveryFee ?? 0);
   }
-  if (division === 'Dhaka') return inside ?? store.deliveryFee ?? 0;
+  if (division === home) return inside ?? store.deliveryFee ?? 0;
   return outside ?? store.deliveryFee ?? 0;
 }
 
@@ -427,16 +443,48 @@ export async function toggleStoreOpen({
    category as ERR.NO_PRODUCT and three codebases branch on that string, so
    inventing one here would break a switch in two of them. */
 
+/**
+ * What a shelf's icon may be.
+ *
+ * The emoji is whatever the cook typed or ticked, cut to a length that holds
+ * a family emoji and nothing longer — a field that took a paragraph would put
+ * one in front of every customer. The image is a data URI of a picture, and a
+ * small one: the app resizes to icon size before sending (a few KB), so this
+ * ceiling is far above honest use and exists only so a hand-made request
+ * cannot park a megabyte on every shelf the shop list loads.
+ */
+const MAX_ICON_IMAGE_CHARS = 120_000;
+const MAX_ICON_EMOJI_CHARS = 16;
+
+function cleanIcon(patch: { emoji?: string; image?: string }): Result<Record<string, string>> {
+  const out: Record<string, string> = {};
+  if (patch.emoji !== undefined) {
+    out.emoji = String(patch.emoji ?? '').trim().slice(0, MAX_ICON_EMOJI_CHARS);
+  }
+  if (patch.image !== undefined) {
+    const image = String(patch.image ?? '');
+    if (image && (!image.startsWith('data:image/') || image.length > MAX_ICON_IMAGE_CHARS)) {
+      return fail(ERR.BAD_REQUEST);
+    }
+    out.image = image;
+  }
+  return ok(out);
+}
+
 export async function addCategory({
   storeId,
   name,
   emoji,
+  image,
 }: {
   storeId: string;
   name: string;
   emoji?: string;
+  image?: string;
 }): Promise<Result<Record<string, unknown>>> {
   if (!String(name ?? '').trim()) return fail(ERR.NAME_REQUIRED);
+  const icon = cleanIcon({ emoji: emoji ?? '', image: image ?? '' });
+  if (!icon.ok) return icon;
 
   return tx(async (session) => {
     const store = await storeById(storeId, session);
@@ -454,7 +502,7 @@ export async function addCategory({
         {
           storeId: String(storeId),
           name: String(name).trim(),
-          emoji: emoji ?? '',
+          ...icon.result,
           order,
         },
       ],
@@ -470,7 +518,7 @@ export async function updateCategory({
   patch,
 }: {
   categoryId: string;
-  patch?: { name?: string; emoji?: string };
+  patch?: { name?: string; emoji?: string; image?: string };
 }): Promise<Result<null>> {
   if (patch?.name != null && !String(patch.name).trim()) return fail(ERR.NAME_REQUIRED);
 
@@ -482,7 +530,9 @@ export async function updateCategory({
 
   const fields: Record<string, unknown> = {};
   if (patch?.name != null) fields.name = String(patch.name).trim();
-  if (patch?.emoji !== undefined) fields.emoji = String(patch.emoji ?? '');
+  const icon = cleanIcon({ emoji: patch?.emoji, image: patch?.image });
+  if (!icon.ok) return icon;
+  Object.assign(fields, icon.result);
 
   if (Object.keys(fields).length) await StoreCategory.updateOne({ _id: id }, fields);
   return ok(null);

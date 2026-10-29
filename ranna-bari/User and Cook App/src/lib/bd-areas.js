@@ -147,6 +147,44 @@ export function divisionOfDistrict(name) {
   return null;
 }
 
+/* The spellings a geocoder or a person actually writes, mapped to the names
+   this app uses. Only the ones that differ — the rest match as they are. */
+const SPELLINGS = {
+  chittagong: 'Chattogram',
+  barisal: 'Barishal',
+  dacca: 'Dhaka',
+  comilla: 'Cumilla',
+  bogra: 'Bogura',
+  jessore: 'Jashore',
+  'cox’s bazar': "Cox's Bazar",
+};
+
+/**
+ * Which division a place name belongs to, read out of free text — "Agrabad,
+ * Chittagong, Chattogram Division, Bangladesh" is Chattogram. A division named
+ * outright wins; failing that, any part that is a district decides it.
+ * Null when nothing in the text is a place this data knows, which is the
+ * caller's cue to ask rather than guess.
+ */
+export function divisionFromText(text) {
+  const parts = String(text ?? '')
+    .split(/[,،]/)
+    .map((p) => p.replace(/\bdivision\b/i, '').trim())
+    .filter(Boolean)
+    .map((p) => SPELLINGS[p.toLowerCase()] ?? p);
+
+  const named = (p) => DIVISION_NAMES.find((d) => d.toLowerCase() === p.toLowerCase());
+  for (const p of parts) {
+    const hit = named(p);
+    if (hit) return hit;
+  }
+  for (const p of parts) {
+    const hit = divisionOfDistrict(p.charAt(0).toUpperCase() + p.slice(1));
+    if (hit) return hit;
+  }
+  return null;
+}
+
 /**
  * Is a district-or-area name a place inside a division's coverage row?
  * Case-insensitive on purpose — "gopalgonj" typed on a phone is still

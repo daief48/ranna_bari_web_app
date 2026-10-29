@@ -12,6 +12,7 @@ import { Animated, Easing, Pressable, ScrollView, Text, View } from 'react-nativ
 import { Image } from 'expo-image';
 
 import Icon from './Icon';
+import CategoryIcon from './CategoryIcon';
 import { Price } from './Typography';
 import { useTheme } from '../theme/ThemeProvider';
 import { font, radius, tracking, type } from '../theme/tokens';
@@ -318,7 +319,7 @@ export function CategoryTabs({ categories, value, onChange, gutter = 0 }) {
               active ? shadow.primary : shadow.xs,
             ]}
           >
-            {c.emoji ? <Text style={{ fontSize: 13 }}>{c.emoji}</Text> : null}
+            <CategoryIcon category={c} size={16} />
             <Text
               style={{
                 fontFamily: font.uiSemi,

@@ -435,9 +435,15 @@ const storeSchema = new Schema(
     },
     allBangladesh: { type: Boolean, default: false },
     deliveryFee: { type: Number, default: 0 },
-    /* Inside/outside Dhaka fees. Null means "no opinion" — the effective fee
-       is the specific field when set, else this legacy `deliveryFee`, so an
-       old shop charges everyone the same number exactly as before. */
+    /* The division the shop itself sits in — what "inside" and "outside" below
+       are measured against. Empty on every shop that predates it, and an empty
+       one is read as 'Dhaka', which is what these fees always meant. */
+    homeDivision: { type: String, default: '' },
+    /* Inside/outside fees — inside or outside `homeDivision`. The names still
+       say Dhaka because they are the wire format the app and the panel already
+       speak; renaming them would break both silently. Null means "no opinion":
+       the effective fee is the specific field when set, else this legacy
+       `deliveryFee`, so an old shop charges everyone the same as before. */
     deliveryFeeInsideDhaka: { type: Number, default: null },
     deliveryFeeOutsideDhaka: { type: Number, default: null },
     freeDeliveryOver: { type: Number, default: null },
@@ -453,7 +459,12 @@ const storeCategorySchema = new Schema(
   {
     storeId: { type: String, required: true, index: true },
     name: { type: String, required: true },
+    /* The shelf's icon is one of two things: an emoji, or a small picture the
+       cook uploaded. Both are stored so the picker can show what was chosen;
+       where a picture exists the screens draw it and ignore the emoji. */
     emoji: { type: String, default: '' },
+    /* A data URI, a few KB at icon size. Empty for every shelf that predates it. */
+    image: { type: String, default: '' },
     order: { type: Number, default: 0 },
   },
   opts,

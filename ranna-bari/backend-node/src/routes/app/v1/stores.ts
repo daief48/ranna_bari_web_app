@@ -308,6 +308,8 @@ const shapeStore = (store: StoreDoc, kitchen?: KitchenFace) => ({
   serviceAreas: store.serviceAreas ?? [],
   allBangladesh: !!store.allBangladesh,
   deliveryFee: store.deliveryFee,
+  /* What "inside" and "outside" are measured against; empty reads as Dhaka. */
+  homeDivision: store.homeDivision ?? '',
   /* Both rates ride along, so a shop page can show what delivery will cost
      before anything is in a basket. Null means "not set" — the customer falls
      back to `deliveryFee`, which the shop page reads the same way. */
@@ -329,6 +331,9 @@ const shapeCategory = (category: CategoryDoc) => ({
   storeId: category.storeId,
   name: category.name,
   emoji: category.emoji,
+  /* The uploaded picture, when there is one — screens draw it in place of the
+     emoji. Empty for a shelf that never had one. */
+  image: category.image ?? '',
   order: category.order,
 });
 
@@ -454,6 +459,7 @@ const storePatchSchema = z.object({
     .optional(),
   allBangladesh: z.boolean().optional(),
   deliveryFee: z.coerce.number().optional(),
+  homeDivision: z.string().optional(),
   deliveryFeeInsideDhaka: z.coerce.number().nullable().optional(),
   deliveryFeeOutsideDhaka: z.coerce.number().nullable().optional(),
   freeDeliveryOver: z.coerce.number().nullable().optional(),
@@ -855,6 +861,7 @@ export async function storeRoutes(app: FastifyInstance) {
         storeId: z.string(),
         name: z.string(),
         emoji: z.string().optional(),
+        image: z.string().optional(),
       })
       .safeParse(request.body);
     if (!body.success) return fail(reply, ERR.NAME_REQUIRED);
@@ -866,6 +873,7 @@ export async function storeRoutes(app: FastifyInstance) {
       storeId: String(mine.store._id),
       name: body.data.name,
       emoji: body.data.emoji,
+      image: body.data.image,
     });
     if (!out.ok) return fail(reply, out.error, statusFor(out.error), out.detail);
 
@@ -878,7 +886,11 @@ export async function storeRoutes(app: FastifyInstance) {
     if (!owned) return;
 
     const body = z
-      .object({ name: z.string().optional(), emoji: z.string().optional() })
+      .object({
+        name: z.string().optional(),
+        emoji: z.string().optional(),
+        image: z.string().optional(),
+      })
       .safeParse(request.body ?? {});
     if (!body.success) return fail(reply, ERR.NAME_REQUIRED);
 

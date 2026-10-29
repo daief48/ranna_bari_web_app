@@ -466,6 +466,9 @@ export function deliveryFeeFor(store, addr) {
   const inside = store.deliveryFeeInsideDhaka;
   const outside = store.deliveryFeeOutsideDhaka;
   if (inside == null && outside == null) return store.deliveryFee ?? 0;
+  /* "Inside" is inside the shop's own division; a shop that never said is read
+     as Dhaka, which is what these two fees meant before they could say more. */
+  const home = store.homeDivision || 'Dhaka';
 
   const division =
     addr?.division || divisionOfDistrict(addr?.district) || divisionOfDistrict(addr?.area);
@@ -473,7 +476,7 @@ export function deliveryFeeFor(store, addr) {
   if (!division) {
     return outside == null ? (inside ?? store.deliveryFee ?? 0) : (store.deliveryFee ?? 0);
   }
-  if (division === 'Dhaka') return inside ?? store.deliveryFee ?? 0;
+  if (division === home) return inside ?? store.deliveryFee ?? 0;
   return outside ?? store.deliveryFee ?? 0;
 }
 

@@ -687,10 +687,17 @@ export default function CookProfile() {
                   />
                   <DetailRow
                     label={t('Delivery')}
-                    value={t('৳{n} fee · free over ৳{m}', {
-                      n: n(firstShop.deliveryFee ?? 0),
-                      m: n(firstShop.freeDeliveryOver ?? 0),
-                    })}
+                    value={
+                      firstShop.deliveryFeeInsideDhaka != null &&
+                      firstShop.deliveryFeeOutsideDhaka != null &&
+                      firstShop.deliveryFeeInsideDhaka !== firstShop.deliveryFeeOutsideDhaka
+                        ? t('৳{a} inside {place} · ৳{b} outside', {
+                            a: n(firstShop.deliveryFeeInsideDhaka),
+                            b: n(firstShop.deliveryFeeOutsideDhaka),
+                            place: t(firstShop.homeDivision || 'Dhaka'),
+                          })
+                        : t('৳{n} delivery fee', { n: n(firstShop.deliveryFee ?? 0) })
+                    }
                   />
                   <DetailRow
                     label={t('Status')}

@@ -53,6 +53,9 @@ export const IMAGE_ROLES = {
   cover: { max: 1280, quality: 0.72 },
   gallery: { max: 1400, quality: 0.74 },
   dish: { max: 1000, quality: 0.75 },
+  /* A shelf's icon is drawn at 16–40px, so 160 covers a 4× screen with room to
+     spare and weighs a few KB — it rides inside every shop's category list. */
+  icon: { max: 160, quality: 0.8 },
 };
 
 /** Roughly what a data URI will cost in the document. base64 is 4 bytes per 3. */

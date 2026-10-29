@@ -23,6 +23,8 @@ import { useTheme } from '../theme/ThemeProvider';
 import { useLang } from '../i18n/LanguageContext';
 import { font, radius, type } from '../theme/tokens';
 import { cookPayout, NEXT_STEP, stageOf, timeAgo, useOrders } from '../store/OrdersContext';
+import { useAlert } from './Alert';
+import { errorText } from '../lib/errors';
 import { formatAddress } from '../lib/address';
 import { COOK_ADVANCES } from '../lib/ledger';
 import { SLOT_LABEL } from '../features/meal-plan/format';
@@ -439,7 +441,16 @@ function OrderCard({ order, onOpen }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
   const { advanceOrder } = useOrders();
+  const alert = useAlert();
   const [copied, setCopied] = useState(false);
+
+  /* The card has already moved by the time the server answers, so a refusal
+     arrives after the fact — say so, the card is put back by the context. */
+  const advance = async () => {
+    Haptics.selectionAsync().catch(() => {});
+    const out = await advanceOrder(order.id);
+    if (out && out.ok === false) alert.error(errorText(out.error, t, n, out));
+  };
 
   const meta = statusMeta(order.status, colors);
   const next = NEXT_STEP[order.status];
@@ -634,9 +645,9 @@ function OrderCard({ order, onOpen }) {
 
         {/* Where this order stands on its way to done — the pill names the
             stage, the dots say how much of the road is behind it. */}
-        {STEP_AT.menu[order.status] !== undefined ? (
+        {STEP_AT.menu[stageOf(order.status)] !== undefined ? (
           <View style={{ marginTop: 13, marginBottom: 2 }}>
-            <Steps at={STEP_AT.menu[order.status]} total={STEP_TOTAL.menu} />
+            <Steps at={STEP_AT.menu[stageOf(order.status)]} total={STEP_TOTAL.menu} />
           </View>
         ) : null}
       </Pressable>
@@ -696,10 +707,7 @@ function OrderCard({ order, onOpen }) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t(meta.action)}
-            onPress={() => {
-              Haptics.selectionAsync().catch(() => {});
-              advanceOrder(order.id);
-            }}
+            onPress={advance}
             style={({ pressed }) => ({
               flex: isNew ? 1.35 : 1,
               flexDirection: 'row',

@@ -172,21 +172,31 @@ export async function confirmReceived(args: {
   /** The customer acting. Only they can say the food arrived. */
   customerKey?: string;
 }): Promise<Result<{ amount: number }>> {
-  const order = await findOrder(args.orderId);
-  if (!order) return fail(ERR.NO_ORDER);
-  if (args.customerKey && order.customerKey !== args.customerKey) return fail(ERR.FORBIDDEN);
-  if (order.status !== 'delivered') return fail(ERR.WRONG_STATE);
-  const cash = order.payment === 'cod';
-  /* A hold that has already been paid out or given back has nothing left to
-     confirm against; a cash order has nothing to confirm against by design,
-     and that is fine. */
-  if (!cash && order.payment !== 'held') return fail(ERR.ALREADY_SETTLED);
-
-  const orderId = idOf(order);
-
+  /* Read inside the transaction, not before it. This used to check the status
+     first and open the transaction after, so two taps landing together both
+     saw `delivered`, both wrote `completed` (two history rows, a cash order's
+     hold posted twice into a unique key) and the loser of any retry was told
+     "cannot be done at this stage" about an order that had just succeeded.
+     Inside, a competing write makes Mongo re-run this with the fresh row. */
   return tx(async (session) => {
+    const order = await findOrder(args.orderId, session);
+    if (!order) return fail(ERR.NO_ORDER);
+    if (args.customerKey && order.customerKey !== args.customerKey) return fail(ERR.FORBIDDEN);
+    /* Already closed — a second tap, a retry after a dropped reply. The
+       customer's intent is done, so the answer is the same as the first
+       time's, not an error. */
+    if (order.status === 'completed') return ok({ amount: order.amount });
+    if (order.status !== 'delivered') return fail(ERR.WRONG_STATE);
+    const cash = order.payment === 'cod';
+    /* A hold that has already been paid out or given back has nothing left to
+       confirm against; a cash order has nothing to confirm against by design,
+       and that is fine. */
+    if (!cash && order.payment !== 'held') return fail(ERR.ALREADY_SETTLED);
+
+    const orderId = idOf(order);
+
     await Order.updateOne(
-      { _id: orderId },
+      { _id: orderId, status: 'delivered' },
       {
         $set: { status: 'completed' },
         $push: { history: historyStep('completed', 'customer') },
@@ -300,20 +310,26 @@ export async function cancelOrder(args: {
   by?: 'cook' | 'customer' | 'admin';
   reason?: string;
 }): Promise<Result<{ refunded: number }>> {
-  const order = await findOrder(args.orderId);
-  if (!order) return fail(ERR.NO_ORDER);
-  if (isFinished(order.status)) return fail(ERR.ALREADY_SETTLED);
-  if (order.status === 'delivering' || order.status === 'delivered') {
-    return fail(ERR.WRONG_STATE);
-  }
-  if (order.payment !== 'held') return fail(ERR.ALREADY_SETTLED);
-
-  const orderId = idOf(order);
   const by = args.by ?? 'customer';
   const reason = String(args.reason ?? '').trim() || 'Order cancelled';
   const tell = by === 'cook' ? 'customer' : 'cook';
 
   return tx(async (session) => {
+    /* Checked inside the transaction, against the row as it is now. Read
+       beforehand, a cook moving the order to "out for delivery" between the
+       check and the write still got it cancelled and refunded — the food on
+       its way and the customer's money already back. Inside, that competing
+       write makes Mongo re-run this with the fresh status, which refuses. */
+    const order = await findOrder(args.orderId, session);
+    if (!order) return fail(ERR.NO_ORDER);
+    if (isFinished(order.status)) return fail(ERR.ALREADY_SETTLED);
+    if (order.status === 'delivering' || order.status === 'delivered') {
+      return fail(ERR.WRONG_STATE);
+    }
+    if (order.payment !== 'held') return fail(ERR.ALREADY_SETTLED);
+
+    const orderId = idOf(order);
+
     const back = await refundEscrow(session, orderId, { note: reason });
     if (!back.ok) return back;
 

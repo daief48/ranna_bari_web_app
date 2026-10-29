@@ -25,6 +25,7 @@ import {
 } from '../src/modules/meal-management/calc.js';
 import { can, permissionsFor } from '../src/modules/meal-management/access.js';
 import * as mm from '../src/modules/meal-management/service.js';
+import { todayIn } from '../src/modules/meal-management/service/context.js';
 
 /**
  * Meal management — the rules, not the happy paths.
@@ -981,8 +982,12 @@ describe('assistant', () => {
 
   it('answers a balance question from the records', async () => {
     const { ctx } = await makeMess({ approvals: false });
-    await mm.setMeal(ctx, { date: day(1), values: { lunch: 1 } });
-    await mm.createExpense(ctx, { date: day(1), amount: 100, categoryKey: 'bazar' });
+    /* "This month" is the assistant's own clock, not the suite's fixed
+       MONTH — a hardcoded month passed in September and failed from October.
+       Writing on the mess's own today keeps the two in the same month. */
+    const today = todayIn(ctx);
+    await mm.setMeal(ctx, { date: today, values: { lunch: 1 } });
+    await mm.createExpense(ctx, { date: today, amount: 100, categoryKey: 'bazar' });
 
     const out = ok<{ kind: string; reply: string }>(
       await mm.assistantAsk(ctx, 'আমার কত খরচ হয়েছে?'),

@@ -386,10 +386,16 @@ export default function StoreScreen() {
               >
                 {[
                   store.deliveryFeeInsideDhaka != null
-                    ? t('৳{fee} inside Dhaka', { fee: n(store.deliveryFeeInsideDhaka) })
+                    ? t('৳{fee} inside {place}', {
+                        fee: n(store.deliveryFeeInsideDhaka),
+                        place: t(store.homeDivision || 'Dhaka'),
+                      })
                     : null,
                   store.deliveryFeeOutsideDhaka != null
-                    ? t('৳{fee} outside Dhaka', { fee: n(store.deliveryFeeOutsideDhaka) })
+                    ? t('৳{fee} outside {place}', {
+                        fee: n(store.deliveryFeeOutsideDhaka),
+                        place: t(store.homeDivision || 'Dhaka'),
+                      })
                     : null,
                 ]
                   .filter(Boolean)

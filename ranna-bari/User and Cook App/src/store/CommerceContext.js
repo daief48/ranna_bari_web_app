@@ -60,6 +60,24 @@ import * as R from '../lib/requestLogic';
 import { useKitchen } from './KitchenContext';
 import { useSession } from './SessionContext';
 import { call, hasServer } from '../lib/server';
+import { COOK_ADVANCES } from '../lib/ledger';
+
+/**
+ * Where a cook's tap will take an order, worked out on the device.
+ *
+ * Only a prediction, used to move the card at once while the server does the
+ * real work — the server owns the answer and its reply is read back right
+ * after. It mirrors `nextStatus` in the backend's domain.ts: the cash rail,
+ * a meal's short rail, and the escrow rail (which skips "delivering" for a
+ * pickup). `null` means "no step I can predict", and the tap simply waits.
+ */
+const COD_NEXT = { placed: 'accepted', accepted: 'cooking', cooking: 'on_the_way', on_the_way: 'delivered' };
+const MEAL_NEXT = { confirmed: 'preparing', preparing: 'delivered' };
+const predictNext = (order) => {
+  if (order.kind === 'cod') return COD_NEXT[order.status] ?? null;
+  if (order.kind === 'meal') return MEAL_NEXT[order.status] ?? null;
+  return COOK_ADVANCES[order.handover === 'pickup' ? 'pickup' : 'delivery'][order.status] ?? null;
+};
 
 /*
  * Written by earlier versions of this app and now cleared on first run, so a
@@ -558,6 +576,8 @@ export function CommerceProvider({ children }) {
    * alternative is the directory costing one request per shop to render.
    */
   const inflight = useRef(new Map());
+  /* Order ids with an advance on the wire — see `advanceOrder`. */
+  const advancing = useRef(new Set());
 
   const ensureStore = useCallback(
     async (storeId, { force = false } = {}) => {
@@ -1081,24 +1101,69 @@ export function CommerceProvider({ children }) {
          The order writes below stay exactly as they were, because a booked
          meal *is* an order and walks the same rail — which is why a cook
          delivering one and a customer confirming it needed nothing new. */
+      /*
+       * The card moves on the tap, not on the reply.
+       *
+       * This used to send the write, then re-read the entire order list
+       * (hundreds of kB over Atlas) before anything on screen changed, so every
+       * "Accept" / "Mark ready" sat on a spinner for seconds. Now the new
+       * status is applied locally first, the write runs behind it, and only
+       * the one order is read back afterwards to settle on the server's word.
+       * A refusal puts the card back where it was.
+       *
+       * One advance per order at a time: with the status changing instantly a
+       * second tap would otherwise ask for a step the server has not taken yet.
+       */
       advanceOrder: async (orderId) => {
-        const out = await write(`/orders/${orderId}/advance`, { after: reloadOrders });
-        /* `write` only re-reads on success, so a board that is a step behind
-           the server (a double tap, a second device, a reply that never
-           landed) would stay behind and refuse every further tap the same
-           way. The refusal itself is the proof the copy is stale — read the
-           books again so the card shows where the order really is. */
-        if (!out.ok && out.error === 'order-wrong-state') await reloadOrders();
+        const id = String(orderId);
+        if (advancing.current.has(id)) return { ok: true, result: null, skipped: true };
+        advancing.current.add(id);
+
+        const before = live.current.orders.find((o) => String(o.id) === id);
+        const to = before ? predictNext(before) : null;
+        const swap = (row) =>
+          patch({ orders: live.current.orders.map((o) => (String(o.id) === id ? row : o)) });
+        if (before && to) {
+          swap({
+            ...before,
+            status: to,
+            history: [...(before.history ?? []), { status: to, at: new Date().toISOString(), by: 'cook' }],
+          });
+        }
+
+        const out = await write(`/orders/${id}/advance`);
+        advancing.current.delete(id);
+
+        if (out.ok) {
+          ensureOrder(id);
+        } else {
+          if (before && to) swap(before);
+          /* A refusal about state is proof the copy was stale (a second
+             device, a reply that never landed) — read the books again so the
+             card shows where the order really is. */
+          if (out.error === 'order-wrong-state') reloadOrders();
+        }
         return out;
       },
-      confirmReceived: (orderId) =>
-        write(`/orders/${orderId}/received`, {
-          after: async () => {
-            await Promise.all([reloadOrders(), reloadWallet(), reloadNotifications()]);
-          },
-          // "৳{n} has been released to the cook" — the order's amount.
-          shape: (r) => r.amount ?? 0,
-        }),
+      confirmReceived: async (orderId) => {
+        /* One confirm per order on the wire. The reply takes a moment, and a
+           second tap in that gap is the same sentence said twice — the server
+           now answers it as a success, but there is no reason to send it. */
+        const key = `received:${orderId}`;
+        if (advancing.current.has(key)) return { ok: true, result: 0, skipped: true };
+        advancing.current.add(key);
+        try {
+          return await write(`/orders/${orderId}/received`, {
+            after: async () => {
+              await Promise.all([reloadOrders(), reloadWallet(), reloadNotifications()]);
+            },
+            // "৳{n} has been released to the cook" — the order's amount.
+            shape: (r) => r.amount ?? 0,
+          });
+        } finally {
+          advancing.current.delete(key);
+        }
+      },
       /* Rate the kitchen an order came from. Scoped to the order because that
          is what proves the customer ate the food, and what makes "once"
          mean anything. */
@@ -1249,9 +1314,9 @@ export function CommerceProvider({ children }) {
           body: { storeId: String(storeId) },
           after: reloadMyStore,
         }),
-      addCategory: (storeId, name, emoji) =>
+      addCategory: (storeId, name, emoji, image) =>
         write('/stores/mine/categories', {
-          body: { storeId: String(storeId), name, emoji },
+          body: { storeId: String(storeId), name, emoji, image },
           after: reloadMyStore,
         }),
       updateCategory: (categoryId, patchBody) =>
@@ -1398,6 +1463,7 @@ export function CommerceProvider({ children }) {
     kitchenId,
     identity,
     refresh,
+    patch,
     write,
     cartWrite,
     ensureStore,

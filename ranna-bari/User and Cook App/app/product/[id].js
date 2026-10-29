@@ -224,7 +224,9 @@ export default function ProductScreen() {
                   color: colors.textMuted,
                 }}
               >
-                {category.emoji ? `${category.emoji} ` : ''}
+                {/* An uploaded picture cannot sit inside this text line, so the
+                    heading simply goes without a glyph in that case. */}
+                {category.emoji && !category.image ? `${category.emoji} ` : ''}
                 {category.name}
               </Text>
             ) : null}

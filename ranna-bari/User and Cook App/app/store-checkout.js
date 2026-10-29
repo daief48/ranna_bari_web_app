@@ -56,11 +56,20 @@ export default function StoreCheckoutScreen() {
         line.store.deliveryFeeOutsideDhaka != null),
   );
   const division = account?.division || divisionOfDistrict(account?.district) || divisionOfDistrict(account?.area) || '';
+  /* Inside or outside is measured against the shop the line came from — the
+     first split-fee shop in the basket names it. A basket from shops in two
+     divisions is rare, and the number beside the label is the server's. */
+  const splitShop = priced.lines.find(
+    (line) =>
+      line.store &&
+      (line.store.deliveryFeeInsideDhaka != null || line.store.deliveryFeeOutsideDhaka != null),
+  )?.store;
+  const shopHome = splitShop?.homeDivision || 'Dhaka';
   const deliveryLabel = anySplitFees
-    ? division === 'Dhaka'
-      ? t('Delivery (inside Dhaka)')
+    ? division === shopHome
+      ? t('Delivery (inside {place})', { place: t(shopHome) })
       : division
-        ? t('Delivery (outside Dhaka)')
+        ? t('Delivery (outside {place})', { place: t(shopHome) })
         : t('Delivery')
     : null;
 

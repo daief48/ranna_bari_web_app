@@ -31,6 +31,8 @@ import LocationPicker from '../../../src/components/LocationPicker';
 import ServiceAreaPicker from '../../../src/components/ServiceAreaPicker';
 import { RadiusSlider } from '../../../src/components/CookBits';
 import { useAlert } from '../../../src/components/Alert';
+import TagPicker from '../../../src/components/TagPicker';
+import DeliveryFees from '../../../src/components/DeliveryFees';
 
 /** The vocabulary a shop names itself with — same list the setup wizard offers. */
 const SHOP_TAGS = [
@@ -97,17 +99,17 @@ function Form({ store }) {
   const [area, setArea] = useState(store.area ?? '');
   const [logo, setLogo] = useState(store.logo ?? '');
   const [cover, setCover] = useState(store.cover ?? '');
-  const [fee, setFee] = useState(String(store.deliveryFee ?? 0));
-  /* Null means "no opinion" — the flat fee above then charges everyone the
-     same, which is every shop that predates the split. */
+  /* Two prices, inside the shop's own division and everywhere else. A shop
+     that only ever had one flat fee opens with that number in both boxes —
+     same price for everyone, exactly what it charged, and one edit away from
+     being two. */
+  const { kitchen } = useKitchen();
+  const [home, setHome] = useState(store.homeDivision ?? '');
   const [feeInside, setFeeInside] = useState(
-    store.deliveryFeeInsideDhaka == null ? '' : String(store.deliveryFeeInsideDhaka),
+    String(store.deliveryFeeInsideDhaka ?? store.deliveryFee ?? 0),
   );
   const [feeOutside, setFeeOutside] = useState(
-    store.deliveryFeeOutsideDhaka == null ? '' : String(store.deliveryFeeOutsideDhaka),
-  );
-  const [freeOver, setFreeOver] = useState(
-    store.freeDeliveryOver == null ? '' : String(store.freeDeliveryOver),
+    String(store.deliveryFeeOutsideDhaka ?? store.deliveryFee ?? 0),
   );
   const [note, setNote] = useState(null);
   const [saved, setSaved] = useState(false);
@@ -128,9 +130,13 @@ function Form({ store }) {
   };
 
   const save = async () => {
-    /* A specific pair replaces the flat fee the moment either is written. */
-    const insideValue = feeInside.trim() === '' ? null : Math.round(Number(feeInside) || 0);
-    const outsideValue = feeOutside.trim() === '' ? null : Math.round(Number(feeOutside) || 0);
+    const insideValue = Math.max(0, Math.round(Number(feeInside) || 0));
+    const outsideValue = Math.max(0, Math.round(Number(feeOutside) || 0));
+    /* Two different prices need to know which side is which. */
+    if (insideValue !== outsideValue && !home) {
+      alert.error(t('Pick the division your shop is in.'));
+      return;
+    }
     /* A kitchen owns several shops now — editing must name the one on
        screen, or the server would read the save as "open another one". */
     const out = await shop.saveStore(
@@ -144,10 +150,14 @@ function Form({ store }) {
       area: area.trim(),
       logo,
       cover,
-      deliveryFee: Math.max(0, Math.round(Number(fee) || 0)),
+      /* The flat `deliveryFee` follows the inside price, so every screen that
+         still reads one number (cards, the dashboard) shows the home fee. */
+      deliveryFee: insideValue,
+      homeDivision: home,
       deliveryFeeInsideDhaka: insideValue,
       deliveryFeeOutsideDhaka: outsideValue,
-      freeDeliveryOver: freeOver.trim() ? Math.round(Number(freeOver)) : null,
+      /* Free-over is gone from the form; sending null clears one set before. */
+      freeDeliveryOver: null,
       deliveryRadiusKm: radiusKm,
       serviceAreas: coverage.serviceAreas,
       allBangladesh: coverage.allBangladesh,
@@ -355,58 +365,9 @@ function Form({ store }) {
               ))}
             </View>
 
-            {/* What this shop is, in chips. */}
-            <Text
-              style={{
-                fontFamily: font.uiSemi,
-                fontSize: type.micro,
-                letterSpacing: type.micro * 0.09,
-                textTransform: 'uppercase',
-                color: colors.textMuted,
-                marginBottom: 8,
-              }}
-            >
-              {t('Tags (up to 5)')}
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-              {SHOP_TAGS.map((tag) => {
-                const on = tags.includes(tag);
-                return (
-                  <Pressable
-                    key={tag}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                    onPress={() =>
-                      setTags((prev) =>
-                        prev.includes(tag)
-                          ? prev.filter((x) => x !== tag)
-                          : prev.length >= 5
-                            ? prev
-                            : [...prev, tag],
-                      )
-                    }
-                    style={({ pressed }) => ({
-                      paddingVertical: 8,
-                      paddingHorizontal: 12,
-                      borderRadius: radius.pill,
-                      backgroundColor: on ? colors.sage : colors.surfaceSolid,
-                      borderWidth: 1,
-                      borderColor: on ? colors.sage : colors.line,
-                      transform: [{ scale: pressed ? 0.96 : 1 }],
-                    })}
-                  >
-                    <Text
-                      style={{
-                        fontFamily: on ? font.uiBold : font.uiSemi,
-                        fontSize: 12,
-                        color: on ? '#FFFFFF' : colors.textMuted,
-                      }}
-                    >
-                      {t(tag)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+            {/* What this shop is: the shortlist, plus tags the cook writes. */}
+            <View style={{ marginBottom: 12 }}>
+              <TagPicker value={tags} onChange={setTags} suggestions={SHOP_TAGS} max={5} />
             </View>
             <FloatLabelInput
               label={t('Description')}
@@ -464,45 +425,28 @@ function Form({ store }) {
         <Reveal delay={4}>
           <View style={{ marginTop: 26 }}>
             <BlockLabel text={t('Delivery')} />
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <FloatLabelInput
-                label={t('Delivery fee')}
-                value={fee}
-                onChangeText={(v) => setFee(v.replace(/[^0-9]/g, ''))}
-                keyboardType="number-pad"
-                style={{ flex: 1 }}
-              />
-              <FloatLabelInput
-                label={t('Free over (optional)')}
-                value={freeOver}
-                onChangeText={(v) => setFreeOver(v.replace(/[^0-9]/g, ''))}
-                keyboardType="number-pad"
-                placeholder={t('Never')}
-                style={{ flex: 1 }}
-              />
-            </View>
-
-            {/* Two prices, because Dhaka is not Chattogram. The customer's
-                division picks which one they are charged; leave both empty and
-                the flat fee above applies to everyone. */}
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 14 }}>
-              <FloatLabelInput
-                label={t('Delivery fee inside Dhaka')}
-                value={feeInside}
-                onChangeText={(v) => setFeeInside(v.replace(/[^0-9]/g, ''))}
-                keyboardType="number-pad"
-                placeholder={t('Same for everyone')}
-                style={{ flex: 1 }}
-              />
-              <FloatLabelInput
-                label={t('Delivery fee outside Dhaka')}
-                value={feeOutside}
-                onChangeText={(v) => setFeeOutside(v.replace(/[^0-9]/g, ''))}
-                keyboardType="number-pad"
-                placeholder={t('Same for everyone')}
-                style={{ flex: 1 }}
-              />
-            </View>
+            {/* Two prices: inside the shop's own division, and everywhere
+                else. Which division is read off the map pin. */}
+            <DeliveryFees
+              home={home}
+              onHome={(d) => {
+                setHome(d);
+                setSaved(false);
+              }}
+              inside={feeInside}
+              onInside={(v) => {
+                setFeeInside(v);
+                setSaved(false);
+              }}
+              outside={feeOutside}
+              onOutside={(v) => {
+                setFeeOutside(v);
+                setSaved(false);
+              }}
+              address={pin?.address}
+              lat={store.lat ?? kitchen?.lat}
+              lng={store.lng ?? kitchen?.lng}
+            />
 
             {/* ---- where this shop will go ----
                 Divisions and districts, not just a circle on a map. When
