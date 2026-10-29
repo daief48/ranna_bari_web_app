@@ -99,7 +99,10 @@ export function errorText(error, t, n, extra = {}) {
     case 'order-missing':
       return t('That order no longer exists.');
     case 'order-wrong-state':
-      return t('That cannot be done at this stage of the order.');
+      /* Usually not a fault: the order moved on while this screen was looking
+         at an older copy (the customer closed it, another tab advanced it).
+         Said as that, so it reads as news rather than breakage. */
+      return t('This order has already moved on, so that step is no longer possible. Check its latest status.');
     case 'order-already-settled':
       return t('This order has already been settled.');
     case 'amount-invalid':

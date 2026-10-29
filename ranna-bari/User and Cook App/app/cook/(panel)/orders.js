@@ -55,6 +55,8 @@ import {
 } from '../../../src/features/meal-plan/format';
 import { useAlert } from '../../../src/components/Alert';
 import { LoadMoreFooter } from '../../../src/lib/useInfinite';
+import { useLingering } from '../../../src/lib/useLingering';
+import MovedNote from '../../../src/components/MovedNote';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 /**
@@ -69,8 +71,26 @@ const LANES = [
   { key: 'history', label: 'History', match: isClosed },
 ];
 
+/* A card's age, read once. The lanes sort by it, and `new Date(createdAt)` inside
+   a comparator parses the same string over and over — n·log n times per sort,
+   on every change to the board. An order is replaced rather than mutated, so a
+   WeakMap keyed by the object is exactly as fresh as the order is. */
+const stamps = new WeakMap();
+const stampOf = (order) => {
+  let at = stamps.get(order);
+  if (at === undefined) {
+    at = Date.parse(order.createdAt) || 0;
+    stamps.set(order, at);
+  }
+  return at;
+};
+
 /* SHOP_NEXT and MEAL_NEXT — what each kind's button says per stage — live
    with the cards that render them, in src/components/OrderCards. */
+
+/* The shop's filter chips: all of the statuses an order spends time in, and not
+   the settled ones (completed, cancelled) that history covers. */
+const SHOP_CHIPS = ['all', 'pending', 'confirmed', 'preparing', 'ready', 'delivering', 'delivered'];
 
 const KINDS = [
   { key: 'menu', label: 'Menu', icon: 'receipt' },
@@ -111,8 +131,49 @@ export default function CookOrders() {
   const seenRef = useRef(null);
   const [newCount, setNewCount] = useState(0);
 
-  /* ---- menu ---- */
-  const mine = ordersForKitchen(kitchen?.id);
+  /* ---- menu ----
+     Memoised on the orders themselves. `ordersForKitchen` builds a new array
+     on every call, so reading it bare made `mine` a new value on every render
+     and quietly voided every `useMemo` below that lists it — the whole board
+     was being re-sorted and re-counted on each tap, each poll, each keystroke
+     in the history search. */
+  const mine = useMemo(() => ordersForKitchen(kitchen?.id), [ordersForKitchen, kitchen?.id]);
+
+  /* The lanes, in one pass.
+     Counts, the lane's worth, the rows and the history list used to be four
+     separate filters over the same orders, each re-run per render. The lanes
+     are disjoint by status, so one walk files every order in its lane, adds up
+     what the lane is worth, and the sorts happen once — oldest first for the
+     work lanes (the longest wait is the one going cold), newest first for
+     history. */
+  const lanes = useMemo(() => {
+    const rows = { new: [], cooking: [], delivering: [], history: [] };
+    const money = { new: 0, cooking: 0, delivering: 0, history: 0 };
+    for (const o of mine) {
+      const lane = LANES.find((l) => l.match(o.status));
+      if (!lane) continue;
+      rows[lane.key].push(o);
+      money[lane.key] += cookPayout(o);
+    }
+    for (const key of ['new', 'cooking', 'delivering']) {
+      rows[key].sort((a, b) => stampOf(a) - stampOf(b));
+    }
+    rows.history.sort((a, b) => stampOf(b) - stampOf(a));
+    return {
+      rows,
+      money,
+      counts: {
+        new: rows.new.length,
+        cooking: rows.cooking.length,
+        delivering: rows.delivering.length,
+        history: rows.history.length,
+      },
+    };
+  }, [mine]);
+  const counts = lanes.counts;
+
+  /* Every order by id, for "where did that card go" — see `useLingering`. */
+  const mineById = useMemo(() => new Map(mine.map((o) => [String(o.id), o])), [mine]);
 
   /* ---- new orders while the board is open ----
      The socket already re-reads the list live; this only notices. Ids seen
@@ -121,7 +182,7 @@ export default function CookOrders() {
      lane) settles it. Never auto-switches: yanking a cook out of the lane
      they chose is worse than a chip. */
   useEffect(() => {
-    const placed = mine.filter((o) => stageOf(o.status) === 'placed');
+    const placed = lanes.rows.new;
     if (seenRef.current === null) {
       seenRef.current = new Set(placed.map((o) => String(o.id)));
       return;
@@ -129,13 +190,7 @@ export default function CookOrders() {
     const fresh = placed.filter((o) => !seenRef.current.has(String(o.id))).length;
     setNewCount(fresh);
     for (const o of placed) seenRef.current.add(String(o.id));
-  }, [mine]);
-
-  const counts = useMemo(() => {
-    const out = {};
-    for (const l of LANES) out[l.key] = mine.filter((o) => l.match(o.status)).length;
-    return out;
-  }, [mine]);
+  }, [lanes]);
 
   /* ---- shop ----
      Every shop this kitchen owns — the board folds their orders into one
@@ -146,13 +201,25 @@ export default function CookOrders() {
       (kitchen ? shop.myStores(kitchen.id) : []).flatMap((s) => shop.storeOrders(s.id)),
     [shop, kitchen],
   );
-  const shopNeeds = useMemo(
-    () =>
-      shopOrders.filter((o) => o.status === 'pending' || o.status === 'confirmed').length,
-    [shopOrders],
-  );
-  const shopOpen = useMemo(
-    () => shopOrders.filter((o) => !['delivered', 'completed', 'cancelled', 'rejected'].includes(o.status)).length,
+  /* One walk over the shop's orders: how many are waiting on the cook, and how
+     many sit under each filter chip. The chips used to run `filterOrders` once
+     each, on every render, just to print a number. A rejected pre-order counts
+     under "Cancelled", as the filter itself does. */
+  const shopStats = useMemo(() => {
+    const byFilter = { all: shopOrders.length };
+    for (const f of ORDER_FILTERS) if (f.key !== 'all') byFilter[f.key] = 0;
+    let needs = 0;
+    for (const o of shopOrders) {
+      const key = o.status === 'rejected' ? 'cancelled' : o.status;
+      if (key in byFilter) byFilter[key] += 1;
+      if (o.status === 'pending' || o.status === 'confirmed') needs += 1;
+    }
+    return { byFilter, needs };
+  }, [shopOrders]);
+  const shopNeeds = shopStats.needs;
+
+  const shopById = useMemo(
+    () => new Map(shopOrders.map((o) => [String(o.id), o])),
     [shopOrders],
   );
 
@@ -199,10 +266,17 @@ export default function CookOrders() {
 
   /* Meals are dated, so this refetches on focus and on every day change —
      the same contract the cooking board keeps. */
+  /* The orders too, and for the same reason: there is no socket on this host to
+     say a customer closed an order or another tab moved one, so coming back to
+     the board is the moment to find out — cheaply, the latest few rows rather
+     than the whole list. `syncOrders` is stable, so this runs on focus and not
+     on every change the sync itself makes. */
+  const { syncOrders } = shop;
   useFocusEffect(
     useCallback(() => {
       loadMeals();
-    }, [loadMeals]),
+      syncOrders();
+    }, [loadMeals, syncOrders]),
   );
 
   const mealOrders = meals?.orders ?? [];
@@ -237,42 +311,38 @@ export default function CookOrders() {
 
   /* History searched + windowed separately from the working lanes: the
      lane is unbounded, so it renders a sliding window that grows on
-     demand, and the search narrows the whole set before the window cuts. */
+     demand, and the search narrows the whole set before the window cuts.
+     Already sorted, newest first, by the lane pass above. */
   const historySearched = useMemo(() => {
-    let list = mine.filter((o) => isClosed(o.status));
-    list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    if (query.trim()) {
-      const q = query.trim().toLowerCase();
-      list = list.filter(
-        (o) =>
-          (o.code ?? '').toLowerCase().includes(q) ||
-          (o.contact?.name ?? '').toLowerCase().includes(q) ||
-          (o.items ?? []).some((it) => (it.name ?? '').toLowerCase().includes(q)),
-      );
-    }
-    return list;
-  }, [mine, query]);
+    const q = query.trim().toLowerCase();
+    if (!q) return lanes.rows.history;
+    return lanes.rows.history.filter(
+      (o) =>
+        (o.code ?? '').toLowerCase().includes(q) ||
+        (o.contact?.name ?? '').toLowerCase().includes(q) ||
+        (o.items ?? []).some((it) => (it.name ?? '').toLowerCase().includes(q)),
+    );
+  }, [lanes, query]);
 
-  const menuRows = useMemo(() => {
-    if (shownLane === 'history') return historySearched.slice(0, historyLimit);
-    const active = LANES.find((l) => l.key === shownLane);
-    /* Work lanes put the longest wait first -- that is the one going cold. */
-    return mine
-      .filter((o) => active.match(o.status))
-      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  }, [mine, shownLane, historySearched, historyLimit]);
+  /* Work lanes arrive oldest first, which is the longest wait first -- the
+     one going cold. */
+  const menuRows = useMemo(
+    () =>
+      shownLane === 'history'
+        ? historySearched.slice(0, historyLimit)
+        : lanes.rows[shownLane],
+    [lanes, shownLane, historySearched, historyLimit],
+  );
+
+  /* A card that moves on leaves a note where it was, instead of vanishing. */
+  const menuList = useLingering(menuRows, (id) => mineById.get(id), `menu:${shownLane}`);
 
   const historyHasMore = historySearched.length > historyLimit;
 
   /* The lane's money — what the visible queue is worth at the cook's rate.
      A count says how many; the taka says whether any of it is worth
      staying late for. */
-  const laneMoney = useMemo(() => {
-    const active = LANES.find((l) => l.key === shownLane);
-    return mine
-      .filter((o) => active.match(o.status))
-      .reduce((sum, o) => sum + cookPayout(o), 0);
-  }, [mine, shownLane]);
+  const laneMoney = lanes.money[shownLane];
 
   /* ---- pull-to-refresh ----
      One gesture re-reads everything the board draws: orders, shops, meals. */
@@ -287,6 +357,42 @@ export default function CookOrders() {
     [shopOrders, shopFilter],
   );
 
+  /* Same courtesy as the menu lanes: moving a parcel to the next step takes it
+     out of the filter it was in, and it should say where it went. */
+  const shopList = useLingering(shopRows, (id) => shopById.get(id), `shop:${shopFilter}`);
+
+  const shopChips = useMemo(
+    () =>
+      ORDER_FILTERS.filter((f) => SHOP_CHIPS.includes(f.key)).map((f) => ({
+        key: f.key,
+        label: f.label,
+        count: shopStats.byFilter[f.key] ?? 0,
+      })),
+    [shopStats],
+  );
+
+  const laneItems = useMemo(
+    () =>
+      LANES.map((l) => ({
+        key: l.key,
+        label: l.label,
+        count: counts[l.key],
+        badgeless: l.key === 'history',
+      })),
+    [counts],
+  );
+
+  /* Take the cook to where an order went — the lane its status belongs to, or
+     the shop filter for it. */
+  const showMenu = useCallback((order) => {
+    const lane = LANES.find((l) => l.match(order.status));
+    if (lane) setLane(lane.key);
+  }, []);
+  const showShop = useCallback((order) => {
+    const key = order.status === 'rejected' ? 'cancelled' : order.status;
+    setShopFilter(ORDER_FILTERS.some((f) => f.key === key) ? key : 'all');
+  }, []);
+
   /* ---- which kind opens ----
      The one that most needs the cook: an unpaid-decision order beats a
      parcel waiting to be packed beats a plate. A tap pins the choice. */
@@ -300,15 +406,14 @@ export default function CookOrders() {
           : 'menu';
   const shownKind = kind ?? autoKind;
 
-  const kindItems = KINDS.map((k) => ({
-    ...k,
-    count:
-      k.key === 'menu'
-        ? counts.new
-        : k.key === 'shop'
-          ? shopNeeds
-          : mealOpen,
-  }));
+  const kindItems = useMemo(
+    () =>
+      KINDS.map((k) => ({
+        ...k,
+        count: k.key === 'menu' ? counts.new : k.key === 'shop' ? shopNeeds : mealOpen,
+      })),
+    [counts, shopNeeds, mealOpen],
+  );
 
   const subtitle =
     shownKind === 'menu'
@@ -416,7 +521,7 @@ export default function CookOrders() {
         {shownKind === 'menu' ? (
           <View style={{ marginTop: 12 }}>
             <Segmented
-              items={LANES.map((l) => ({ key: l.key, label: l.label, count: counts[l.key], badgeless: l.key === 'history' }))}
+              items={laneItems}
               value={shownLane}
               onChange={setLane}
             />
@@ -483,9 +588,7 @@ export default function CookOrders() {
         {shownKind === 'shop' ? (
           <View style={{ marginTop: 12 }}>
             <Segmented
-              items={ORDER_FILTERS.filter((f) =>
-                ['all', 'pending', 'confirmed', 'preparing', 'ready', 'delivering', 'delivered'].includes(f.key),
-              ).map((f) => ({ key: f.key, label: f.label, count: filterOrders(shopOrders, f.key).length }))}
+              items={shopChips}
               value={shopFilter}
               onChange={setShopFilter}
               scroll
@@ -572,11 +675,15 @@ export default function CookOrders() {
             local window by button, then the server's older pages by the
             footer once the window has shown everything the context holds. */}
         {shownKind === 'menu' ? (
-          menuRows.length ? (
+          menuList.length ? (
             <View style={{ gap: 12 }}>
-              {menuRows.map((order) => (
-                <MemoOrderCard key={String(order.id)} order={order} onOpen={openOrder} />
-              ))}
+              {menuList.map((row) =>
+                row.ghost ? (
+                  <MovedNote key={`moved:${row.id}`} order={row.order} onShow={() => showMenu(row.order)} />
+                ) : (
+                  <MemoOrderCard key={row.id} order={row.order} onOpen={openOrder} />
+                ),
+              )}
               {shownLane === 'history' && historyHasMore ? (
                 <Button
                   variant="glass"
@@ -613,16 +720,20 @@ export default function CookOrders() {
               title={t('You have not opened a shop yet')}
               body={t('A shop sells the things you make to keep. Open one and its orders land here.')}
             />
-          ) : shopRows.length ? (
+          ) : shopList.length ? (
             <View style={{ gap: 12 }}>
-              {shopRows.map((order) => (
-                <MemoShopCard
-                  key={String(order.id)}
-                  order={order}
-                  onAdvance={advanceShop}
-                  onAnswer={answerPreorder}
-                />
-              ))}
+              {shopList.map((row) =>
+                row.ghost ? (
+                  <MovedNote key={`moved:${row.id}`} order={row.order} onShow={() => showShop(row.order)} />
+                ) : (
+                  <MemoShopCard
+                    key={row.id}
+                    order={row.order}
+                    onAdvance={advanceShop}
+                    onAnswer={answerPreorder}
+                  />
+                ),
+              )}
             </View>
           ) : (
             <EmptyState

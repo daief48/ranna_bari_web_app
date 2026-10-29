@@ -1123,6 +1123,10 @@ export const bn = {
   /* ---------------- meal system: order tracking ---------------- */
   'Did your food arrive?': 'খাবার কি পৌঁছেছে?',
   'Food received': 'খাবার পেয়েছি',
+  '{code} moved to {status}': '{code} এখন {status}',
+  Show: 'দেখুন',
+  'This order has already moved on, so that step is no longer possible. Check its latest status.':
+    'এই অর্ডার ইতিমধ্যে এগিয়ে গেছে, তাই ওই ধাপ আর করা যাবে না। এর সর্বশেষ অবস্থা দেখে নিন।',
   'the kitchen': 'রান্নাঘর',
   'This completes the order and cannot be undone. You paid the rider at the door; RannaBari settles {cook}.':
     'এতে অর্ডার শেষ হয়ে যাবে, আর ফেরানো যাবে না। আপনি দরজায় রাইডারকে টাকা দিয়েছেন; {cook}-কে RannaBari মিটিয়ে দেবে।',

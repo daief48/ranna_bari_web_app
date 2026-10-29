@@ -945,6 +945,99 @@ export function CommerceProvider({ children }) {
      listener only ever reads it when an event actually arrives. */
   reloadOrdersRef.current = reloadOrders;
 
+  /**
+   * Bring the newest orders up to date, cheaply.
+   *
+   * `reloadOrders` re-reads fifty orders and replaces the list — right after a
+   * write, far too heavy to do on a timer. This asks for the latest few and
+   * folds them in: a row already held is replaced by the server's copy, a row
+   * not held is added, everything older is left alone. Nothing is committed
+   * unless something actually changed, so an idle poll does not re-render a
+   * board that is being looked at.
+   */
+  const syncOrders = useCallback(async () => {
+    if (!hasServer || !token) return false;
+    const out = await call('/orders?take=20', { token });
+    if (!out.ok) return false;
+
+    /* An order whose step is on the wire is left alone. Its row here already
+       shows the step the cook just took (the card moved at once), while the
+       server may not have written it yet — folding the server's older copy in
+       would put the card back for a moment, then take it away again. The
+       reply to that step reads the order itself. */
+    const settling = advancing.current;
+    const fresh = asOrders(out.result.orders ?? []).filter((o) => !settling.has(String(o.id)));
+    const held = new Map(live.current.orders.map((o) => [String(o.id), o]));
+
+    /* "Changed" is the status, how far along its history is, and the payment
+       state — the three things a board draws a card from. */
+    const moved = (a, b) =>
+      a.status !== b.status ||
+      (a.history?.length ?? 0) !== (b.history?.length ?? 0) ||
+      a.payment !== b.payment;
+
+    const added = fresh.filter((o) => !held.has(String(o.id)));
+    const changed = fresh.filter((o) => {
+      const was = held.get(String(o.id));
+      return was && moved(was, o);
+    });
+    if (!added.length && !changed.length) return true;
+
+    const byId = new Map(fresh.map((o) => [String(o.id), o]));
+    const merged = [...added, ...live.current.orders.map((o) => byId.get(String(o.id)) ?? o)];
+    merged.sort((a, b) => new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0));
+    patch({ orders: merged });
+    return true;
+  }, [token, patch]);
+
+  /*
+   * Orders, without a socket.
+   *
+   * The server announces every transition down a WebSocket, but the deploy is
+   * Netlify functions, which cannot hold one open — so on this host nothing
+   * ever arrives. A cook's board then sat on whatever it had when it was
+   * opened: a customer confirming the food, or the same order moved from
+   * another tab, was invisible, and the next button pressed was refused as
+   * "not at this stage" for an order that had long since moved on.
+   *
+   * Pulling on a timer is the honest answer (chat does the same). It only runs
+   * when there is something to watch for — a kitchen waiting on new orders, or
+   * a customer with an order still open — and not while the app is in the
+   * background. It stands down on its own once a socket has spoken: a live
+   * event inside the last minute means the socket is delivering.
+   */
+  const lastLiveRef = useRef(0);
+  useEffect(() => {
+    if (!hydrated || !isVerified) return undefined;
+    return onLiveEvent(() => {
+      lastLiveRef.current = Date.now();
+    });
+  }, [hydrated, isVerified]);
+
+  const watching =
+    !!kitchenId ||
+    state.orders.some((o) => !['completed', 'cancelled', 'rejected'].includes(o.status));
+
+  useEffect(() => {
+    if (!hydrated || !isVerified || !watching) return undefined;
+
+    let busy = false;
+    const tick = async () => {
+      if (busy) return;
+      if (AppState.currentState !== 'active') return;
+      if (Date.now() - lastLiveRef.current < 60_000) return;
+      busy = true;
+      try {
+        await syncOrders();
+      } finally {
+        busy = false;
+      }
+    };
+
+    const interval = setInterval(tick, 15_000);
+    return () => clearInterval(interval);
+  }, [hydrated, isVerified, watching, syncOrders]);
+
   const reloadRequests = useCallback(async () => {
     const [requests, offers] = await Promise.all([
       call('/requests', { token }),
@@ -1054,6 +1147,9 @@ export function CommerceProvider({ children }) {
          the orders list on its behalf. */
       reloadWallet,
       reloadOrders,
+      /** The latest few orders folded in cheaply — for focus and timers, where
+          `reloadOrders` (fifty rows, replaced) is too heavy. */
+      syncOrders,
       /** Scroll-to-load-more for the order lists; `{more:false}` at the end. */
       loadMoreOrders,
       ordersCursor: state.ordersCursor ?? null,
@@ -1139,9 +1235,16 @@ export function CommerceProvider({ children }) {
         } else {
           if (before && to) swap(before);
           /* A refusal about state is proof the copy was stale (a second
-             device, a reply that never landed) — read the books again so the
-             card shows where the order really is. */
-          if (out.error === 'order-wrong-state') reloadOrders();
+             device, the customer closing it, a reply that never landed) — read
+             that one order again so the card shows where it really is, and do
+             it *before* answering: the refusal is reported the moment this
+             returns, and a card that still offers the step that was just
+             refused makes the message look like a fault. One order, not the
+             list; the list is only the fallback if that read fails. */
+          if (out.error === 'order-wrong-state') {
+            const fresh = await ensureOrder(id);
+            if (!fresh) reloadOrders();
+          }
         }
         return out;
       },
@@ -1472,6 +1575,7 @@ export function CommerceProvider({ children }) {
     reloadSavedStores,
     ensureRequest,
     ensureOrder,
+    syncOrders,
     reloadOrders,
     reloadWallet,
     reloadRequests,
