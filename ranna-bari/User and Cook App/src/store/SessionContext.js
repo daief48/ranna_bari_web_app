@@ -184,7 +184,11 @@ export function SessionProvider({ children }) {
    */
   const adopt = useCallback(
     async (account) => {
-      if (!account) return null;
+      /* A response that lands after sign-out has nobody to belong to. Adopting
+         it recreated `account` and persisted it, which is the half-state — a
+         name and role on screen, no credential behind them — that the expiry
+         handler below exists to avoid. */
+      if (!account || !tokenRef.current) return null;
       setAddresses(account.addresses ?? []);
       await updateAccount(account);
       return account;
@@ -199,6 +203,8 @@ export function SessionProvider({ children }) {
     if (!token || !hasServer) return null;
     try {
       const out = await api('/account', { token });
+      // Signed out, or into a different account, while this was in flight.
+      if (tokenRef.current !== token) return null;
       return adopt(out.account);
     } catch {
       /* An unreachable server leaves the cached profile alone; it is better
@@ -218,6 +224,7 @@ export function SessionProvider({ children }) {
       if (!auth || !hasServer) return { ok: false, error: 'unauthenticated' };
       try {
         const out = await api(path, { method: 'POST', token: auth, body });
+        if (tokenRef.current !== auth) return { ok: false, error: 'unauthenticated' };
         await adopt(out.account);
         return { ok: true, account: out.account };
       } catch (error) {
@@ -247,10 +254,21 @@ export function SessionProvider({ children }) {
   );
 
   const signOutServer = useCallback(async () => {
+    const ending = tokenRef.current;
     setAddresses([]);
     setToken(null);
     setIdentity(null);
     await AsyncStorage.multiRemove([TOKEN_KEY, IDENTITY_KEY]).catch(() => {});
+
+    /* Revoke it on the server as well. Forgetting the token locally left it
+       valid for its whole 30 days, so a copy taken off the handset before
+       sign-out kept working. Deliberately not awaited: the device is already
+       signed out, and a sign-out button that hangs for 12 seconds on a bad
+       connection is worse than a revoke that has to wait for the next
+       request. Best effort — the server also expires it on its own. */
+    if (ending && hasServer) {
+      api('/auth/logout', { method: 'POST', token: ending }).catch(() => {});
+    }
   }, []);
 
   /*
@@ -263,8 +281,12 @@ export function SessionProvider({ children }) {
    * call and this is what listens: the app stops claiming to be signed in,
    * and the sign-in screen is one tap away instead of a mystery.
    */
-  useEffect(() => onSessionExpired(() => {
+  useEffect(() => onSessionExpired((deadToken) => {
     if (!tokenRef.current) return;
+    /* Which token died matters. A poll started under the previous account can
+       come back 401 after somebody else has signed in, and signing the new,
+       perfectly good session out for it is how a login "doesn't stick". */
+    if (deadToken && deadToken !== tokenRef.current) return;
     signOutServer();
     /* And the profile with it. The token lives here, but "am I signed in" is
        answered by `AuthContext.account` — clearing only one leaves the app

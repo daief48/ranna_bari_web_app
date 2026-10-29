@@ -11,6 +11,7 @@ import {
   type Audience,
 } from '../../../logic/wallet.js';
 import { ERR, errText } from '../../../lib/domain.js';
+import { devFlowsAllowed } from '../../../config/env.js';
 import { SearchTerm } from '../../../models/index.js';
 
 /**
@@ -91,6 +92,12 @@ export async function walletRoutes(app: FastifyInstance) {
   app.post('/wallet/topup', async (request, reply) => {
     const caller = await callerOf(request);
     if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    /* With no gateway behind it this route creates money out of a request
+       body: top up ৳1,000,000, pay a colluding cook, run the payout. In
+       production it stays shut until a real payment confirmation replaces it,
+       unless ALLOW_DEV_FLOWS is set on purpose. */
+    if (!devFlowsAllowed()) return fail(reply, 'topup-unavailable', 403);
 
     const body = z
       .object({

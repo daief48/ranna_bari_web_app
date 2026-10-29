@@ -47,10 +47,14 @@ const OTP_MAX_ATTEMPTS = 5;
 const OTP_MAX_PER_HOUR = 5;
 
 function secret(): Uint8Array {
-  const value =
-    process.env.APP_AUTH_SECRET ||
-    'rannabari-app-dev-secret-change-me-in-production-000';
-  return new TextEncoder().encode(value);
+  const value = process.env.APP_AUTH_SECRET;
+  if (value) return new TextEncoder().encode(value);
+
+  // Public dev fallback; production must set the real secret.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('APP_AUTH_SECRET is not set.');
+  }
+  return new TextEncoder().encode('rannabari-app-dev-secret-change-me-in-production-000');
 }
 
 

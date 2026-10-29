@@ -49,10 +49,15 @@ export class BackendError extends Error {
 }
 
 function serviceToken(): string {
-  const token =
-    process.env.BACKEND_SERVICE_TOKEN ||
-    'rb-dev-service-token-143e8ae9ea9a9f58e75c2fb19dff2eaf';
-  return token;
+  const token = process.env.BACKEND_SERVICE_TOKEN;
+  if (token) return token;
+
+  /* A committed literal: fine against a local backend, a master key anywhere
+     else. Production refuses to start talking without the real one. */
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('BACKEND_SERVICE_TOKEN is not set.');
+  }
+  return 'rb-dev-service-token-143e8ae9ea9a9f58e75c2fb19dff2eaf';
 }
 
 

@@ -52,7 +52,9 @@ const makeClientId = () =>
  * it — see the polling effect below.
  */
 export function ChatProvider({ children }) {
-  const { token, isVerified } = useSession();
+  const { token, isVerified, identity } = useSession();
+  // `customerKey` is on every shape the identity arrives in (token reply, /auth/me, profile).
+  const accountId = identity?.customerKey ?? identity?.accountId ?? identity?.id ?? null;
 
   const [threads, setThreads] = useState([]);
   const [messages, setMessages] = useState({}); // threadId -> message[]
@@ -91,6 +93,29 @@ export function ChatProvider({ children }) {
   const persistOutbox = useCallback((next) => {
     AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify(next)).catch(() => {});
   }, []);
+
+  /*
+   * Nothing here outlives the account that made it.
+   *
+   * The threads, the loaded messages and the persisted outbox were all kept
+   * across a sign-out, so the next person to sign in on the handset saw the
+   * last one's conversations — and `drain` posted the last one's queued
+   * messages under *their* token, into threads they did not own. The outbox is
+   * also stamped with its owner on the way in (see `send`), so a queue that
+   * survives a kill between sign-out and this effect is still refused by
+   * `drain` rather than trusted.
+   */
+  const ownerRef = useRef(null);
+  useEffect(() => {
+    const previous = ownerRef.current;
+    ownerRef.current = accountId;
+    if (previous && previous !== accountId) {
+      setThreads([]);
+      setMessages({});
+      setOutbox([]);
+      AsyncStorage.removeItem(OUTBOX_KEY).catch(() => {});
+    }
+  }, [accountId]);
 
   /* ---------------- reads ---------------- */
 
@@ -431,7 +456,13 @@ export function ChatProvider({ children }) {
       let queue = await AsyncStorage.getItem(OUTBOX_KEY)
         .then((raw) => (raw ? JSON.parse(raw) : []))
         .catch(() => []);
-      if (!Array.isArray(queue) || queue.length === 0) return;
+      if (!Array.isArray(queue)) return;
+
+      /* Only this account's own messages. Anything stamped with another owner
+         — or with none, from a build before the stamp existed — was written by
+         somebody who may not be the person holding this token. */
+      queue = queue.filter((m) => m && m.owner && m.owner === accountId);
+      if (queue.length === 0) return;
 
       const remaining = [...queue];
 
@@ -486,7 +517,7 @@ export function ChatProvider({ children }) {
     } finally {
       drainingRef.current = false;
     }
-  }, [token, persistOutbox]);
+  }, [token, accountId, persistOutbox]);
 
   /**
    * Send a message.
@@ -518,14 +549,14 @@ export function ChatProvider({ children }) {
         [threadId]: [...(prev[threadId] ?? []), optimistic],
       }));
 
-      const queued = [...outbox, { threadId, body: text, clientId }];
+      const queued = [...outbox, { threadId, body: text, clientId, owner: accountId }];
       setOutbox(queued);
       persistOutbox(queued);
 
       drain();
       return optimistic;
     },
-    [outbox, persistOutbox, drain],
+    [outbox, accountId, persistOutbox, drain],
   );
 
   /* ---------------- threads ---------------- */

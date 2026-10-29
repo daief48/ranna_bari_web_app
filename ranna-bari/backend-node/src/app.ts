@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 
 import { loadEnv } from './config/env.js';
 import { errText } from './lib/domain.js';
+import { hit, LIMITS } from './lib/rate-limit.js';
 import { appRoutes } from './routes/app/v1/index.js';
 import { mealRoutes } from './routes/app/v1/meals.js';
 import { orderRoutes } from './routes/app/v1/orders.js';
@@ -130,6 +131,43 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   app.setNotFoundHandler((_request, reply) => {
     reply.status(404).send({ error: 'not-found', message: 'No such endpoint.' });
+  });
+
+  /**
+   * A net under the sign-in doors.
+   *
+   * Runs after the body is parsed, because the admin and cook sign-ins are
+   * limited by the credential being guessed rather than by address. Off under
+   * test, where every request comes from one address and a limit would
+   * measure the suite; the rate-limit test turns it back on.
+   */
+  app.addHook('preHandler', async (request, reply) => {
+    if (request.method !== 'POST') return;
+    if (env.NODE_ENV === 'test' && process.env.RATE_LIMIT_TEST !== '1') return;
+
+    const path = request.url.split('?')[0];
+    for (const limit of LIMITS) {
+      if (!path.endsWith(limit.tail)) continue;
+
+      const who =
+        limit.per === 'ip'
+          ? request.ip
+          : String((request.body as { email?: unknown } | null)?.email ?? '')
+              .trim()
+              .toLowerCase();
+      if (!who) continue;
+
+      const count = await hit(`${limit.tail}:${limit.per}:${who}`, limit.windowSeconds);
+      if (count > limit.max) {
+        return reply
+          .status(429)
+          .header('retry-after', String(limit.windowSeconds))
+          .send({
+            error: 'rate-limited',
+            message: 'Too many attempts. Wait a few minutes and try again.',
+          });
+      }
+    }
   });
 
   await app.register(internalRoutes);

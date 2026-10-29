@@ -47,11 +47,17 @@ export type Session = {
  * still apart: this is the operator one, and `APP_AUTH_SECRET` is never it.
  */
 export function sessionSecret(): Uint8Array {
-  const value =
-    process.env.ADMIN_AUTH_SECRET ||
-    process.env.AUTH_SECRET ||
-    'change-me-admin-secret-at-least-32-characters-long';
-  return new TextEncoder().encode(value);
+  const value = process.env.ADMIN_AUTH_SECRET || process.env.AUTH_SECRET;
+  if (value) return new TextEncoder().encode(value);
+
+  /* The fallback below is the literal value in the backend's .env.example, so
+     it is public. It exists so `npm run dev` works against a local backend;
+     in production a missing secret must stop the request, not quietly accept
+     tokens anybody can sign. */
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('ADMIN_AUTH_SECRET is not set.');
+  }
+  return new TextEncoder().encode('change-me-admin-secret-at-least-32-characters-long');
 }
 
 

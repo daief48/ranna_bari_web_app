@@ -33,7 +33,14 @@ const schema = z.object({
   MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
 
   PORT: z.coerce.number().int().positive().default(4000),
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  /* A serverless container is a deployment, never a developer's machine. Left
+     to a flat 'development' default, a Netlify function with NODE_ENV unset
+     ran with every dev branch open — codes returned in responses, SMTP
+     optional, no proxy trust. Detected from the platform's own variables so
+     the safe answer does not depend on someone remembering the dashboard. */
+  NODE_ENV: z
+    .enum(['development', 'test', 'production'])
+    .default(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY ? 'production' : 'development'),
   LOG_LEVEL: z.string().default('info'),
 
   /* Two realms, two secrets — and they must differ. Sharing one would make an
@@ -59,6 +66,17 @@ const schema = z.object({
   SMTP_USER: z.string().default(''),
   SMTP_PASS: z.string().default(''),
   MAIL_FROM: z.string().default('RannaBari <no-reply@rannabari.app>'),
+
+  /* The explicit, loud way to keep the unverified dev flows (an OTP handed back
+     in the response, a wallet top-up with no payment behind it) alive in a
+     production deploy — a demo, a staging box with NODE_ENV=production.
+     Defaults off, so production fails closed: with no SMS provider and no
+     payment gateway wired in, anyone could otherwise sign in as any phone
+     number and print wallet money. */
+  ALLOW_DEV_FLOWS: z
+    .enum(['true', 'false', '1', '0'])
+    .default('false')
+    .transform((v) => v === 'true' || v === '1'),
 
   ADMIN_ORIGIN: z.string().default('http://localhost:3100'),
 
@@ -101,6 +119,14 @@ export const isProd = () => loadEnv().NODE_ENV === 'production';
 /** The outside address of this service, for URLs it stores on rows. */
 export const publicBaseUrl = () =>
   loadEnv().PUBLIC_BASE_URL || `http://localhost:${loadEnv().PORT}`;
+/**
+ * May a flow that has no real verification behind it run?
+ *
+ * Yes everywhere except production, and in production only when someone has
+ * set `ALLOW_DEV_FLOWS` on purpose. Guards the phone OTP being returned in the
+ * response and the ungated wallet top-up.
+ */
+export const devFlowsAllowed = () => !isProd() || loadEnv().ALLOW_DEV_FLOWS;
 export const smsIsLive = () => {
   const provider = loadEnv().SMS_PROVIDER;
   return !!provider && provider !== 'none';

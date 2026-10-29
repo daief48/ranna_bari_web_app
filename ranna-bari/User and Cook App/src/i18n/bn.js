@@ -1160,6 +1160,8 @@ export const bn = {
   '৳{n} available': '৳{n} আছে',
   '৳{n} available · ৳{held} held': '৳{n} আছে · ৳{held} জমা',
   'Enter a valid amount.': 'সঠিক একটি পরিমাণ লিখুন।',
+  'One kitchen could not take its part of your order, so it is still in your basket: {reason}':
+    'একটি রান্নাঘর আপনার অর্ডারের অংশটি নিতে পারেনি, তাই সেটি এখনও আপনার ঝুড়িতে আছে: {reason}',
   'Insufficient balance. Top up ৳{n} to confirm this meal.':
     'ব্যালেন্স যথেষ্ট নয়। এই খাবারটি নিশ্চিত করতে ৳{n} টপ আপ করুন।',
 

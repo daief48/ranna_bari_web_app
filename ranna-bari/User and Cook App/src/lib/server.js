@@ -119,10 +119,10 @@ export function onSessionExpired(fn) {
   return () => expiredWatchers.delete(fn);
 }
 
-const notifyExpired = () => {
+const notifyExpired = (deadToken) => {
   expiredWatchers.forEach((fn) => {
     try {
-      fn();
+      fn(deadToken);
     } catch {
       /* One bad listener must not stop the others, or swallow the request. */
     }
@@ -208,7 +208,7 @@ async function apiOnce(path, { method = 'GET', token, body, signal } = {}) {
        * Announced rather than handled here, because this module knows nothing
        * about sessions. `SessionContext` subscribes and does the signing out.
        */
-      if (response.status === 401 && token) notifyExpired();
+      if (response.status === 401 && token) notifyExpired(token);
 
       throw new ApiError(payload.message || 'That did not work.', {
         status: response.status,

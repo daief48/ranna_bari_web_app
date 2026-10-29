@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { startTestDb, stopTestDb } from './setup.js';
 import { buildApp } from '../src/app.js';
 import { hashPassword } from '../src/auth/admin-auth.js';
-import { AdminUser, Kitchen, Order, Setting, TaxonomyCategory, Zone } from '../src/models/index.js';
+import { AdminUser, Dish, Kitchen, Order, Setting, TaxonomyCategory, Zone } from '../src/models/index.js';
 import { DEFAULT_SETTINGS } from '../src/logic/settings.js';
 
 /**
@@ -21,6 +21,8 @@ import { DEFAULT_SETTINGS } from '../src/logic/settings.js';
  */
 
 let app: FastifyInstance;
+/** A dish on the seeded kitchen: orders are priced from the menu now, so a line has to name one. */
+let dishId: string;
 
 const json = (res: { body: string }) => JSON.parse(res.body);
 
@@ -44,7 +46,7 @@ beforeAll(async () => {
     role: 'superadmin',
     passwordHash: await hashPassword('rannabari'),
   });
-  await Kitchen.create({
+  const kitchen = await Kitchen.create({
     legacyId: 4,
     name: "Khalid's Kitchen",
     ownerName: 'Khalid H.',
@@ -52,7 +54,10 @@ beforeAll(async () => {
     lat: 23.7,
     lng: 90.4,
     isOpen: true,
+    // Orders are only taken from a kitchen an operator has approved.
+    kycStatus: 'approved',
   });
+  dishId = String((await Dish.create({ kitchenId: String(kitchen._id), name: 'Shorshe Ilish', price: 520 }))._id);
 }, 180_000);
 
 afterAll(async () => {
@@ -174,9 +179,7 @@ describe('orders', () => {
               // The app names kitchens by their bundle id, not by _id.
               chefId: '4',
               title: 'Shorshe Ilish',
-              items: [{ name: 'Shorshe Ilish', price: 520, qty: 2 }],
-              subtotal: 1040,
-              total: 1090,
+              items: [{ id: dishId, name: 'Shorshe Ilish', price: 520, qty: 2 }],
               status: 'placed',
             },
           ],
@@ -194,7 +197,7 @@ describe('orders', () => {
   it('does not create a second order for a replayed code', async () => {
     const customer = await signInApp('01777700011');
     const code = 'RB-TEST02';
-    const payload = { orders: [{ code, chefId: '4', total: 500 }] };
+    const payload = { orders: [{ code, chefId: '4', items: [{ id: dishId, name: 'Shorshe Ilish', price: 520, qty: 1 }] }] };
 
     await app.inject({ method: 'POST', url: '/api/app/v1/orders', headers: auth(customer.token), payload });
     const again = json(
@@ -214,7 +217,7 @@ describe('orders', () => {
       method: 'POST',
       url: '/api/app/v1/orders',
       headers: auth(owner.token),
-      payload: { orders: [{ code, chefId: '4', total: 500 }] },
+      payload: { orders: [{ code, chefId: '4', items: [{ id: dishId, name: 'Shorshe Ilish', price: 520, qty: 1 }] }] },
     });
 
     const hijack = json(
@@ -222,7 +225,7 @@ describe('orders', () => {
         method: 'POST',
         url: '/api/app/v1/orders',
         headers: auth(stranger.token),
-        payload: { orders: [{ code, chefId: '4', total: 500 }] },
+        payload: { orders: [{ code, chefId: '4', items: [{ id: dishId, name: 'Shorshe Ilish', price: 520, qty: 1 }] }] },
       }),
     );
 

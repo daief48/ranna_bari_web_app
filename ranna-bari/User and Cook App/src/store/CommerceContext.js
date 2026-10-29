@@ -304,6 +304,41 @@ export function CommerceProvider({ children }) {
     [commit],
   );
 
+  /* The token the newest render holds, readable from inside an `await`. */
+  const tokenNow = useRef(token);
+  tokenNow.current = token;
+
+  /*
+   * Nothing private outlives the account it was read for.
+   *
+   * State starts as EMPTY once and `loadPrivate` only merges into it, so after
+   * a sign-out the next person to sign in on the handset saw the last one's
+   * orders, wallet, ledger and notifications until their own reads landed —
+   * and kept them for any slice whose read failed. The public catalogue is
+   * not the account's and stays.
+   */
+  const ownerKey = identity?.customerKey ?? null;
+  const ownerRef = useRef(ownerKey);
+  useEffect(() => {
+    const previous = ownerRef.current;
+    ownerRef.current = ownerKey;
+    if (previous === ownerKey) return;
+    patch({
+      cart: EMPTY.cart,
+      requests: [],
+      offers: [],
+      orders: [],
+      preorders: [],
+      ledger: [],
+      notifications: [],
+      wallet: EMPTY.wallet,
+      ordersCursor: undefined,
+      summaries: {},
+      overviews: {},
+      savedStores: [],
+    });
+  }, [ownerKey, patch]);
+
   /* ---------------- start ---------------- */
 
   /* Nothing to restore, so this only clears what older versions left behind.
@@ -418,6 +453,10 @@ export function CommerceProvider({ children }) {
       const extra = rows.filter((s) => !known.has(String(s.id)));
       if (extra.length) fields.stores = [...live.current.stores, ...extra];
     }
+
+    /* Signed out, or into someone else, while those eight reads were in the
+       air: their answers belong to an account that is no longer here. */
+    if (tokenNow.current !== token) return false;
 
     if (Object.keys(fields).length) patch(fields);
 

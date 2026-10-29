@@ -195,16 +195,25 @@ export async function verifyEmailOtp(
   const generic = 'That code is wrong or has expired.';
   if (!challenge) return { ok: false, error: generic };
 
-  if (challenge.attempts >= EMAIL_OTP_MAX_ATTEMPTS) {
+  /* Counted before it is compared, in one conditional update — see the phone
+     path: read-then-increment lets a parallel burst exceed the cap. */
+  const slot = await EmailOtpChallenge.findOneAndUpdate(
+    { _id: challenge._id, consumedAt: null, attempts: { $lt: EMAIL_OTP_MAX_ATTEMPTS } },
+    { $inc: { attempts: 1 } },
+  );
+  if (!slot) {
     await EmailOtpChallenge.updateOne({ _id: challenge._id }, { consumedAt: new Date() });
     return { ok: false, error: 'Too many wrong tries. Ask for a new code.' };
   }
 
   if (!(await verifyCode(String(rawCode ?? '').replace(/\D/g, ''), challenge.codeHash))) {
-    await EmailOtpChallenge.updateOne({ _id: challenge._id }, { $inc: { attempts: 1 } });
     return { ok: false, error: generic };
   }
 
-  await EmailOtpChallenge.updateOne({ _id: challenge._id }, { consumedAt: new Date() });
+  const spent = await EmailOtpChallenge.updateOne(
+    { _id: challenge._id, consumedAt: null },
+    { consumedAt: new Date() },
+  );
+  if (!spent.modifiedCount) return { ok: false, error: generic };
   return { ok: true };
 }

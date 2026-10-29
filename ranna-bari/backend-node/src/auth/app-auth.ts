@@ -3,7 +3,7 @@ import { randomBytes, randomInt, scrypt as _scrypt, timingSafeEqual } from 'node
 import { promisify } from 'node:util';
 
 import { Account, AppSession, Kitchen, OtpChallenge } from '../models/index.js';
-import { loadEnv, smsIsLive } from '../config/env.js';
+import { devFlowsAllowed, loadEnv, smsIsLive } from '../config/env.js';
 
 const scrypt = promisify(_scrypt) as (
   password: string,
@@ -140,6 +140,16 @@ export async function requestOtp(
   const phone = normalisePhone(rawPhone);
   if (!phone) return { ok: false, error: phoneProblem(rawPhone) };
 
+  /* Nothing can deliver a code and the dev branch is closed: refuse before a
+     challenge exists, rather than minting one nobody can ever receive. This is
+     what stops `devCode` reaching a production response. */
+  if (!smsIsLive() && !devFlowsAllowed()) {
+    return {
+      ok: false,
+      error: 'Phone sign-in is not available right now. Please try again later.',
+    };
+  }
+
   const recent = await OtpChallenge.countDocuments({
     phone,
     createdAt: { $gte: new Date(Date.now() - 3_600_000) },
@@ -229,17 +239,31 @@ export async function verifyOtp(
   const generic = 'That code is wrong or has expired.';
   if (!challenge) return { ok: false, error: generic };
 
-  if (challenge.attempts >= OTP_MAX_ATTEMPTS) {
+  /* The guess is counted *before* it is checked, and the count is a
+     conditional update. Read-then-increment let a burst of parallel requests
+     all read `attempts: 0` and each try a code, so five tries became as many
+     as the attacker could send at once. Here only five requests can ever win
+     the `$lt` and reach the comparison. */
+  const slot = await OtpChallenge.findOneAndUpdate(
+    { _id: challenge._id, consumedAt: null, attempts: { $lt: OTP_MAX_ATTEMPTS } },
+    { $inc: { attempts: 1 } },
+  );
+  if (!slot) {
     await OtpChallenge.updateOne({ _id: challenge._id }, { consumedAt: new Date() });
     return { ok: false, error: 'Too many wrong tries. Ask for a new code.' };
   }
 
   if (!(await verifyCode(code.replace(/\D/g, ''), challenge.codeHash))) {
-    await OtpChallenge.updateOne({ _id: challenge._id }, { $inc: { attempts: 1 } });
     return { ok: false, error: generic };
   }
 
-  await OtpChallenge.updateOne({ _id: challenge._id }, { consumedAt: new Date() });
+  /* Spent exactly once: two correct submissions racing both pass the
+     comparison, and only one may turn it into a session. */
+  const spent = await OtpChallenge.updateOne(
+    { _id: challenge._id, consumedAt: null },
+    { consumedAt: new Date() },
+  );
+  if (!spent.modifiedCount) return { ok: false, error: generic };
 
   const existing = await Account.findOne({
     $or: [{ phone }, { customerKey: phone }],
@@ -466,6 +490,24 @@ export function bearerFrom(header: string | undefined): string | undefined {
 /** Sign one device out. The row stays so a stolen token can be traced. */
 export async function revokeSession(tokenId: string) {
   await AppSession.updateOne({ tokenId, revokedAt: null }, { revokedAt: new Date() });
+}
+
+/**
+ * Sign out whichever session this token belongs to.
+ *
+ * Answers nothing either way: a token that is already dead, expired or not
+ * ours has nothing left to revoke, and "sign out" has succeeded in every one
+ * of those cases. The signature is checked first, so a made-up `jti` cannot
+ * be used to revoke somebody else's session.
+ */
+export async function revokeByToken(token: string | undefined) {
+  if (!token) return;
+  try {
+    const { payload } = await jwtVerify(token, secret());
+    if (payload.jti) await revokeSession(payload.jti);
+  } catch {
+    /* Invalid or expired: nothing to revoke. */
+  }
 }
 
 /** Sign every device out at once — a lost handset, or a suspension. */

@@ -163,6 +163,26 @@ otpSchema.index({ phone: 1, createdAt: -1 });
 export const OtpChallenge = model('OtpChallenge', otpSchema);
 
 /**
+ * One counter per (bucket, time window), for `lib/rate-limit.ts`.
+ *
+ * In the database rather than in memory because the API runs as serverless
+ * functions: every container would keep its own count, and an attacker only
+ * needs the next cold start. The window is part of `key`, so a counter is never
+ * reset — it just stops being read and the TTL index sweeps it.
+ */
+const rateLimitSchema = new Schema(
+  {
+    key: { type: String, required: true, unique: true },
+    count: { type: Number, default: 0 },
+    expiresAt: { type: Date, required: true },
+  },
+  opts,
+);
+rateLimitSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+export const RateLimit = model('RateLimit', rateLimitSchema);
+
+/**
  * The emailed twin of `OtpChallenge`, for the cook flow.
  *
  * Keyed on the address rather than the handset, and carrying `purpose` so a

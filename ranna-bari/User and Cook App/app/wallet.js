@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -62,6 +62,8 @@ export default function WalletScreen() {
     return t('Transaction');
   };
 
+  const toppingUp = useRef(false);
+
   const topUp = async (value) => {
     /*
      * A number, not whatever the field held.
@@ -72,17 +74,28 @@ export default function WalletScreen() {
      * nonsense box is answered on the spot instead of after a round trip.
      */
     const taka = Number(value);
-    if (!Number.isFinite(taka) || taka <= 0) {
+    /* Whole taka only: money here is never a fraction, and 12.5 would be
+       rounded by the server into an amount the customer did not type. */
+    if (!Number.isInteger(taka) || taka <= 0) {
       return alert.error(t('Enter a valid amount.'));
     }
 
-    const out = await meals.topUp(taka, 'bKash');
-    if (!out.ok) {
-      alert.error(errorText(out.error, t, n, out));
-      return;
+    /* Every top-up is a credit, and nothing identifies one as a repeat of the
+       last — so a double tap was two credits. One at a time, closed in the
+       same frame (a ref, not state, which only closes after a render). */
+    if (toppingUp.current) return;
+    toppingUp.current = true;
+    try {
+      const out = await meals.topUp(taka, 'bKash');
+      if (!out.ok) {
+        alert.error(errorText(out.error, t, n, out));
+        return;
+      }
+      setAmount('');
+      alert.success(t('৳{n} added to your wallet.', { n: n(out.result) }));
+    } finally {
+      toppingUp.current = false;
     }
-    setAmount('');
-    alert.success(t('৳{n} added to your wallet.', { n: n(out.result) }));
   };
 
   return (

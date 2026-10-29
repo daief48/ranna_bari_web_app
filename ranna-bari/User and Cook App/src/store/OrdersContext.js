@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useMemo,
+  useRef,
 } from 'react';
 import { call } from '../lib/server';
 import { useCommerce } from './CommerceContext';
@@ -148,6 +149,19 @@ export function OrdersProvider({ children }) {
    * whole array and answers per row, so one kitchen refusing does not lose
    * the other.
    */
+  /*
+   * The codes of an attempt that has not finished.
+   *
+   * The code is the server's idempotency key, and `makeCode()` ran inside
+   * every call — so the retry after a dropped response carried a *fresh* key,
+   * the server saw a different order, and the customer who tapped again was
+   * charged twice (twice held, on the wallet). A code now belongs to the
+   * basket it was drawn for: the same kitchen, the same lines, the same
+   * payment method keep it until the server has answered for it. Change the
+   * basket and the key changes with it, so a genuinely new order is still one.
+   */
+  const attempts = useRef(new Map());
+
   const placeOrder = useCallback(
     async (draft) => {
       const byKitchen = new Map();
@@ -163,11 +177,19 @@ export function OrdersProvider({ children }) {
         const deliveryFee = i === 0 ? draft.deliveryFee : 0;
         const platformFee = i === 0 ? draft.platformFee : 0;
 
+        const basketKey = [
+          draft.paymentMethod,
+          chefId,
+          ...items.map((it) => `${it.id}:${it.qty}`).sort(),
+        ].join('|');
+        if (!attempts.current.has(basketKey)) attempts.current.set(basketKey, makeCode());
+
         return {
           /* The app's own code is the idempotency key on the server, so a
              retry after a dropped connection returns the order that already
              exists rather than making a second one. */
-          code: makeCode(),
+          code: attempts.current.get(basketKey),
+          basketKey,
           /* The rail this order runs on, which is decided by where the
              money is: cash ends at delivered, the wallet is held in escrow
              and needs the customer to confirm receipt before it is released. */
@@ -192,10 +214,21 @@ export function OrdersProvider({ children }) {
         };
       });
 
-      const out = await call('/orders', { method: 'POST', token, body: { orders: drafts } });
+      const out = await call('/orders', {
+        method: 'POST',
+        token,
+        body: { orders: drafts.map(({ basketKey, ...wire }) => wire) },
+      });
+      /* A dropped connection keeps its codes: the server may well have made the
+         order, and the retry must ask about the same one. */
       if (!out.ok) return out;
 
       const results = out.result.results ?? [];
+
+      /* The server has now answered for each of these, either way. A success
+         is done; a refusal is a real answer and a retry deserves a fresh code. */
+      for (const draftRow of drafts) attempts.current.delete(draftRow.basketKey);
+
       const failed = results.find((row) => !row.ok);
       /* Every row refused is a failure worth reporting; a partial success is
          not, because the orders that were taken are real and the customer has
@@ -207,8 +240,16 @@ export function OrdersProvider({ children }) {
       await shop.refresh();
 
       const ids = new Set(results.filter((r) => r.ok).map((r) => r.orderId));
+
+      /* Which kitchens were refused, so the basket can keep exactly those. */
+      const codeToKitchen = new Map(drafts.map((d) => [d.code, d.chefId]));
+      const refused = results
+        .filter((r) => !r.ok)
+        .map((r) => ({ chefId: codeToKitchen.get(r.code), error: r.error }));
+
       return {
         ok: true,
+        refused,
         result: results
           .filter((r) => r.ok)
           .map((r) => ({ id: r.orderId, code: r.code })),

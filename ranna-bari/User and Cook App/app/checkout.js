@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -65,6 +65,7 @@ function CheckoutForm() {
     platformFee,
     total,
     clear,
+    remove,
   } = useCart();
 
   /* Prefill from the account the signup flow saved -- the pin it dropped is
@@ -82,6 +83,9 @@ function CheckoutForm() {
   const [note, setNote] = useState('');
   const [cookNote, setCookNote] = useState('');
   const [placing, setPlacing] = useState(false);
+  /* `placing` is state: the button only disables after a re-render, so two taps
+     in the same frame both got through `submit`. A ref closes at once. */
+  const placingRef = useRef(false);
 
   const chefName = items[0]?.chefName ?? '';
   const itemCount = useMemo(
@@ -113,6 +117,8 @@ function CheckoutForm() {
       setNote(t('That phone number looks too short for the rider to call.'));
       return;
     }
+    if (placingRef.current) return;
+    placingRef.current = true;
     setNote('');
     setPlacing(true);
 
@@ -138,6 +144,7 @@ function CheckoutForm() {
       ...(cookNote.trim() ? { note: cookNote.trim().slice(0, 300) } : {}),
     });
 
+    placingRef.current = false;
     setPlacing(false);
 
     /* The order is the server's now, so this can genuinely fail -- a kitchen
@@ -167,6 +174,23 @@ function CheckoutForm() {
       }
 
       setNote(errorText(out.error, t, n, out));
+      return;
+    }
+
+    /* A basket spanning two kitchens can be half taken: one cook closed, one
+       dish sold out. Clearing it whole threw the refused kitchen's items away
+       with no word. Only what was ordered leaves the basket; the rest stays,
+       with the reason beside it. */
+    if (out.refused?.length) {
+      const refusedKitchens = new Set(out.refused.map((r) => String(r.chefId)));
+      items
+        .filter((it) => !refusedKitchens.has(String(it.chefId ?? 'unknown')))
+        .forEach((it) => remove(it.id));
+      setNote(
+        t('One kitchen could not take its part of your order, so it is still in your basket: {reason}', {
+          reason: errorText(out.refused[0].error, t, n, out),
+        }),
+      );
       return;
     }
 

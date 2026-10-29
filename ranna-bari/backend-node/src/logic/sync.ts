@@ -1,4 +1,5 @@
-import { Account, Dispute, Kitchen, Order, Review, type OrderDoc } from '../models/index.js';
+import { Account, Dish, Dispute, Kitchen, Order, Review, type OrderDoc } from '../models/index.js';
+import { getSettings } from './settings.js';
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
 import { normaliseServiceAreas, type ServiceArea } from '../lib/bd-areas.js';
 import { quotePromotion, redeem } from './promotions.js';
@@ -214,12 +215,12 @@ export type OrderDraft = {
  * after a dropped connection returns the stored order rather than creating a
  * second one, exactly like a replayed chat message.
  *
- * What is **not** trusted: the customer. Whoever holds the token is the
- * customer on the order, whatever the body says. Everything else on a
- * cash-on-delivery order is the device's business — no money moves here, the
- * rider takes cash — so totals are recorded as sent rather than recomputed.
- * An escrow order would be a different function, because there the amount
- * decides what gets held.
+ * What is **not** trusted: the device. Whoever holds the token is the
+ * customer on the order, whatever the body says, and the money is the
+ * server's: prices come from the menu, fees from the platform settings, the
+ * opening status and clock from here. Cash orders are priced the same way as
+ * wallet ones, because release pays the cook out of the recorded amount
+ * either way.
  */
 export async function recordOrder(
   caller: AppIdentity,
@@ -235,17 +236,93 @@ export async function recordOrder(
     return ok({ orderId: String(existing._id), code, created: false });
   }
 
+  /* This endpoint opens the two rails a dish order can run on. Meal, store and
+     request orders are created by their own server-side paths, where the
+     money is held in the same transaction. Taking `kind` from the body let a
+     client file a `store` order as `held` with no hold behind it, and the
+     release then paid the cook out of money nobody had deposited. */
+  const kind = draft.kind ?? 'cod';
+  if (kind !== 'cod' && kind !== 'wallet') return fail(ERR.BAD_REQUEST, { field: 'kind' });
+
   const kitchen = await resolveKitchen(draft.chefId, caller);
   if (!kitchen) return fail(ERR.NO_KITCHEN);
 
-  const items = draft.items ?? [];
-  const subtotal =
-    draft.subtotal ?? items.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const deliveryFee = draft.deliveryFee ?? 0;
-  const platformFee = draft.platformFee ?? 0;
-  const total = draft.total ?? subtotal + deliveryFee + platformFee;
-  const createdAt = draft.createdAt ? new Date(draft.createdAt) : new Date();
-  const kind = draft.kind ?? 'cod';
+  /* The same gate every other trading path asks. An unapproved kitchen has
+     proved nothing yet, and a cook ordering from their own kitchen is only
+     ever moving money in a circle. */
+  if (kitchen.kycStatus !== 'approved') return fail(ERR.NO_KITCHEN);
+  if (kitchen.accountId === caller.accountId) {
+    return fail(ERR.BAD_REQUEST, { field: 'chefId' });
+  }
+
+  /*
+   * Priced here, from the menu, and never from the device.
+   *
+   * The old comment argued a cash order moves no money, so the totals could be
+   * recorded as sent. They do move money: `confirmReceived` books the order's
+   * `amount` as cash collected and release pays the cook out of it, so a total
+   * of ৳50,000 on a ৳100 dish was a payout. Every line has to name a dish
+   * this kitchen actually sells, and its price is the dish's.
+   */
+  const sent = draft.items ?? [];
+  if (!sent.length || sent.length > 50) return fail(ERR.EMPTY_CART);
+
+  const items: NonNullable<OrderDraft['items']> = [];
+  for (const line of sent) {
+    const qty = Number(line?.qty);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 100) {
+      return fail(ERR.BAD_REQUEST, { field: 'qty' });
+    }
+
+    const dish = line?.id
+      ? await Dish.findOne({ _id: String(line.id), kitchenId: String(kitchen._id) })
+          .lean()
+          .catch(() => null)
+      : null;
+    if (!dish || dish.available === false) {
+      return fail(ERR.BAD_REQUEST, { field: 'items', id: line?.id ?? null });
+    }
+
+    items.push({
+      id: String(dish._id),
+      name: dish.name,
+      price: dish.price,
+      qty,
+      image: line.image ?? dish.image ?? '',
+    });
+  }
+
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
+
+  /* Fees are the platform's setting. The app still carries the old 40/10
+     constants, so a number above the current setting is clamped to it rather
+     than refused — a stale build keeps working, and a hand-made request cannot
+     inflate the charge. Below it is taken as sent: the app sends 0 for every
+     kitchen after the first in a basket. */
+  const settings = await getSettings();
+  const clampFee = (sentFee: unknown, ceiling: number) => {
+    const n = Math.round(Number(sentFee ?? 0));
+    return Number.isFinite(n) ? Math.min(Math.max(n, 0), ceiling) : 0;
+  };
+  const deliveryFee = clampFee(draft.deliveryFee, settings.deliveryFee);
+  const platformFee = clampFee(draft.platformFee, settings.platformFee);
+
+  const total = subtotal + deliveryFee + platformFee;
+  if (!Number.isSafeInteger(total) || total <= 0) return fail(ERR.BAD_AMOUNT);
+
+  /* The order's clock is the server's. A backdated `createdAt` is a way to
+     make a fresh order look old to anything that ages on it. */
+  const createdAt = new Date();
+
+  /* Only the two words an order may open with. The app sends `placed`; the
+     escrow rail's own default is `confirmed`. Anything further along the
+     rail — `delivered` — is not a way to begin. */
+  const openingStatus =
+    draft.status === 'placed' || draft.status === 'confirmed'
+      ? draft.status
+      : kind === 'wallet'
+        ? 'confirmed'
+        : 'placed';
 
   /*
    * Wallet orders take the money now; cash orders take it at the door.
@@ -319,69 +396,74 @@ export async function recordOrder(
     /* The two rails start with different words: COD opens at `placed`,
        escrow at `confirmed`, and a wallet order that opened at `placed`
        would sit on a rail with no step of that name. */
-    status: draft.status ?? (payFromWallet ? 'confirmed' : 'placed'),
+    status: openingStatus,
     /* Cash on delivery never touches escrow — the rider takes the money.
        Anything else is held until the customer says the food arrived. */
     payment: kind === 'cod' ? 'cod' : 'held',
 
-    history: draft.history ?? [
-      {
-        status: draft.status ?? (payFromWallet ? 'confirmed' : 'placed'),
-        at: createdAt.toISOString(),
-      },
-    ],
+    history: [{ status: openingStatus, at: createdAt.toISOString() }],
     createdAt,
   });
 
   if (payFromWallet) {
     const orderId = String(order._id);
 
-    await tx(async (session) => {
-      /* `fromRef` is the customer's key and not decoration: `balanceFor` folds
-         a debit only when it can see whose it was, so a hold posted without one
-         leaves the wallet reading as though nothing had been spent. */
-      if (paid > 0) {
-        await post(session, {
-          kind: 'hold',
-          amount: paid,
-          from: 'customer',
-          to: 'held',
-          fromRef: caller.customerKey,
-          orderId,
-          note: `Held for ${order.title}`,
-          idemKey: `hold:${orderId}`,
-        });
-      }
+    try {
+      await tx(async (session) => {
+        /* `fromRef` is the customer's key and not decoration: `balanceFor` folds
+           a debit only when it can see whose it was, so a hold posted without one
+           leaves the wallet reading as though nothing had been spent. */
+        if (paid > 0) {
+          await post(session, {
+            kind: 'hold',
+            amount: paid,
+            from: 'customer',
+            to: 'held',
+            fromRef: caller.customerKey,
+            orderId,
+            note: `Held for ${order.title}`,
+            idemKey: `hold:${orderId}`,
+          });
+        }
 
-      /* The platform's half. Escrow ends up holding the full gross, so the
-         release splits what the cook was promised and the discount lands
-         where it belongs — on the platform's own account. */
-      if (discount > 0 && quote?.ok) {
-        await post(session, {
-          kind: 'promo',
-          amount: discount,
-          from: 'platform',
-          to: 'held',
-          orderId,
-          note: `${quote.result.code} on ${order.title}`,
-          idemKey: `promo:${orderId}`,
-        });
+        /* The platform's half. Escrow ends up holding the full gross, so the
+           release splits what the cook was promised and the discount lands
+           where it belongs — on the platform's own account. */
+        if (discount > 0 && quote?.ok) {
+          await post(session, {
+            kind: 'promo',
+            amount: discount,
+            from: 'platform',
+            to: 'held',
+            orderId,
+            note: `${quote.result.code} on ${order.title}`,
+            idemKey: `promo:${orderId}`,
+          });
 
-        await redeem(session, {
-          quote: quote.result,
-          customerKey: caller.customerKey,
-          orderId,
-        });
+          await redeem(session, {
+            quote: quote.result,
+            customerKey: caller.customerKey,
+            orderId,
+          });
 
-        await Order.updateOne(
-          { _id: orderId },
-          { discount, promoCode: quote.result.code, paid },
-          { session },
-        );
-      } else {
-        await Order.updateOne({ _id: orderId }, { paid }, { session });
-      }
-    });
+          await Order.updateOne(
+            { _id: orderId },
+            { discount, promoCode: quote.result.code, paid },
+            { session },
+          );
+        } else {
+          await Order.updateOne({ _id: orderId }, { paid }, { session });
+        }
+      });
+    } catch (err) {
+      /* The order was written before the hold, so a hold that fails leaves a
+         `held` order with nothing behind it — and a retry on the same code
+         would take the replay branch above and never repair it. The ledger has
+         no entry for this order (the transaction rolled back), so removing the
+         row is safe and leaves the customer free to try again. */
+      await Order.deleteOne({ _id: orderId }).catch(() => undefined);
+      throw err;
+    }
   }
 
   return ok({ orderId: String(order._id), code, created: true });

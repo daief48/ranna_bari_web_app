@@ -9,6 +9,7 @@ import {
   issueSession,
   requestOtp,
   revokeAllSessions,
+  revokeByToken,
   verifyOtp,
   type AppIdentity,
 } from '../../../auth/app-auth.js';
@@ -889,8 +890,9 @@ export async function appRoutes(app: FastifyInstance) {
     return {
       ok: true,
       expiresAt: out.expiresAt,
-      /* Dev only. `requestOtp` refuses to reach this branch once a provider
-         is configured, so it cannot survive into production by accident. */
+      /* Dev only. `requestOtp` refuses outright in production unless
+         ALLOW_DEV_FLOWS is set, so a code cannot reach a production response
+         by accident. */
       ...(out.devCode ? { devCode: out.devCode } : {}),
     };
   });
@@ -923,6 +925,18 @@ export async function appRoutes(app: FastifyInstance) {
     const caller = await callerOf(request);
     if (!caller) return fail(reply, 'unauthenticated', 401);
     return { account: caller };
+  });
+
+  /**
+   * End this device's session on the server.
+   *
+   * The app used to forget its token locally and nothing more, so a token
+   * copied off a handset before sign-out stayed good for its whole 30 days.
+   * Always succeeds: signing out something already dead is not an error.
+   */
+  app.post('/auth/logout', async (request) => {
+    await revokeByToken(bearerFrom(request.headers.authorization));
+    return { ok: true };
   });
 
   /* ---------------- cook sign-up and email codes ---------------- */

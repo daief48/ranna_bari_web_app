@@ -64,21 +64,33 @@ export async function registerCook(
 
   /* One query answers "phone taken", "email taken" and "half-finished
      registration" at once — the three states this form can collide with. */
-  const existing = await Account.findOne({
+  const matches = await Account.find({
     $or: [{ customerKey: email }, { email }, { phone }],
   });
 
-  if (existing?.emailVerifiedAt) {
+  /* Only a registration that *this form* started may be resumed: a cook
+     account whose email was never verified and whose phone was never proved at
+     a sign-in. Anything else matching the phone or email — a customer who
+     signed in by OTP, a verified cook — belongs to somebody who has proved
+     they hold it, and typing their phone number into a form proves nothing.
+     Resuming it would hand the typist that account's password, role and (via
+     the email OTP they then verify) a session on it. */
+  const resumable = (a: (typeof matches)[number]) =>
+    a.role === 'cook' && !a.emailVerifiedAt && !a.phoneVerifiedAt;
+
+  if (matches.some((a) => !resumable(a)) || matches.length > 1) {
     return fail(ERR.ACCOUNT_EXISTS);
   }
+
+  const existing = matches[0] ?? null;
 
   const passwordHash = await hashPassword(input.password);
 
   if (existing) {
-    /* An unverified account is a registration that never finished — an email
-       that bounced, an app killed mid-flow. Refusing it would weld the door
-       shut behind the first attempt. The form's answers win: the person is
-       looking at the fields they just typed. */
+    /* An unverified registration never finished — an email that bounced, an
+       app killed mid-flow. Refusing it would weld the door shut behind the
+       first attempt. The form's answers win: the person is looking at the
+       fields they just typed. */
     await Account.updateOne(
       { _id: existing._id },
       {
