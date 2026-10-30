@@ -12,6 +12,7 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius } from '../../src/theme/tokens';
 import { useSession } from '../../src/store/SessionContext';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { withKitchenGate } from '../../src/components/CookBits';
 
 import { Chip, Empty, GroupLabel, Loading, Panel } from '../../src/features/meal-plan/components';
 import { addMyDish, fetchMyDishes, retireMyDish } from '../../src/features/meal-plan/api';
@@ -29,7 +30,10 @@ import { SLOTS, SLOT_LABEL } from '../../src/features/meal-plan/format';
  * wall of grey text next to a form, which is a strange thing to show somebody
  * and then not let them use.
  */
-export default function CookMealDishes() {
+/* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
+export default withKitchenGate(CookMealDishes);
+
+function CookMealDishes() {
   const router = useRouter();
   const { token } = useSession();
   const { colors } = useTheme();

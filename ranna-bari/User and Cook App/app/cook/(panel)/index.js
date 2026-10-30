@@ -38,7 +38,16 @@ import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
 import { useAction } from '../../../src/components/Alert';
-import { cookPayout, isClosed, stageOf, timeAgo, useOrders } from '../../../src/store/OrdersContext';
+import { cookPayout, timeAgo, useOrders } from '../../../src/store/OrdersContext';
+import {
+  businessOf,
+  inFlight as stillMoving,
+  isKitchenOrder,
+  moneyHeld,
+  moneyReleased,
+  settledAt,
+  stageOf,
+} from '../../../src/lib/orderRails';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useChat } from '../../../src/store/ChatContext';
 import { useCookReviews } from '../../../src/data/cook';
@@ -51,7 +60,10 @@ import {
 import {
   countMeals,
   dateLabel,
+  dayKeyOf,
   dayParts,
+  recentDayKeys,
+  setPlanLanguage,
   spreadMonth,
   todayKey,
 } from '../../../src/features/meal-plan/format';
@@ -68,7 +80,6 @@ import { useLang } from '../../../src/i18n/LanguageContext';
 const LATE_WAITING_MS = 10 * 60 * 1000;
 const LATE_IN_PASS_MS = 45 * 60 * 1000;
 
-const DAY = 86_400_000;
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /** When this order last did anything, which is what "late" is measured from. */
@@ -78,34 +89,36 @@ const lastMovedAt = (order) => {
   return new Date(last ?? order?.createdAt ?? Date.now()).getTime();
 };
 
-const isToday = (iso) => {
-  const d = new Date(iso);
-  const now = new Date();
-  return (
-    d.getDate() === now.getDate() &&
-    d.getMonth() === now.getMonth() &&
-    d.getFullYear() === now.getFullYear()
-  );
-};
+/*
+ * "Today" is the Dhaka day, the one the meal calendar and the ledger use.
+ *
+ * This compared the phone's local date, which is the wrong boundary for a
+ * kitchen in Dhaka on any handset not set to Dhaka time — and the wrong one
+ * even there for the dashboard's money, which was bucketed by the day an
+ * order was *placed*. A dinner ordered at 11pm and delivered at half past
+ * midnight is tomorrow's earnings; counting it on the day it was ordered
+ * made "Earned today" disagree with the earnings tab, which reads delivery.
+ * Orders are still *counted* on the day they were placed (that is when the
+ * work arrived); money is counted on the day it was handed over.
+ */
+const isToday = (iso) => dayKeyOf(iso) === todayKey();
 
-/** Midnight at the start of the day `back` days ago — the buckets the week reads into. */
-const dayStart = (back = 0) => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime() - back * DAY;
-};
+/** The day an order's money belongs to — delivery, or placement until then. */
+const moneyDayOf = (order) => dayKeyOf(settledAt(order) ?? order.createdAt);
 
 export default function CookDashboard() {
   const { colors, shadow } = useTheme();
   const router = useRouter();
   const { kitchen, toggleOpen, liveDishes, loaded } = useKitchen();
-  const { ordersForKitchen, advanceOrder, hydrated: ordersLoaded } = useOrders();
+  const { ordersForKitchen, advanceOrder, hydrated: ordersLoaded, payoutRates } = useOrders();
   const meals = useCommerce();
   const { t, n, lang } = useLang();
   /* The charts read digits through the same numerals the rest of the screen
      uses — Bengali digits in Bengali, Latin in English — set here rather
-     than threaded through every chart prop. */
+     than threaded through every chart prop. The meal dates follow the same
+     rule through the same mechanism. */
   setChartNumerals(n);
+  setPlanLanguage(lang);
   const { token } = useSession();
   /* Every write below reports what happened. */
   const run = useAction();
@@ -203,20 +216,27 @@ export default function CookDashboard() {
         .length
     : 0;
 
-  const mine = ordersForKitchen(kitchen?.id);
+  /* Every order on this kitchen, memoised on the list itself. `ordersForKitchen`
+     builds a fresh array per call, so reading it bare made every `useMemo`
+     below that lists `mine` recompute on every render — the whole week was
+     being re-folded on each tap. Same fix the board has. */
+  const mine = useMemo(() => ordersForKitchen(kitchen?.id), [ordersForKitchen, kitchen?.id]);
+
+  /* The kitchen's own queue — dishes and won requests. Shop parcels and meal
+     plates travel on the same `kitchenId` and arrive `confirmed`, which is
+     the "new" stage on the wallet rail, so without this filter a jar of achar
+     was "waiting on you" on the kitchen card and in the Waiting list below,
+     wearing an Accept button that belongs to the shop tab. */
+  const kitchenMine = useMemo(() => mine.filter(isKitchenOrder), [mine]);
 
   const stats = useMemo(() => {
     const earned = mine
-      .filter(
-        (o) =>
-          isToday(o.createdAt) &&
-          (o.status === 'delivered' || o.status === 'completed'),
-      )
-      .reduce((s, o) => s + cookPayout(o), 0);
+      .filter((o) => moneyReleased(o) && isToday(settledAt(o) ?? o.createdAt))
+      .reduce((s, o) => s + cookPayout(o, payoutRates), 0);
 
     return {
       earned,
-      waiting: mine.filter((o) => stageOf(o.status) === 'placed').length,
+      waiting: kitchenMine.filter((o) => stageOf(o.status) === 'placed').length,
       /*
        * The cook's share of what the platform is holding.
        *
@@ -224,17 +244,16 @@ export default function CookDashboard() {
        * cook asks about least — they know what they cooked. The question that
        * actually gets asked is where the rest of it is, and the answer is
        * here: earned, not yet released, because the customer has not
-       * confirmed the food arrived. It was on the earnings tab and nowhere a
-       * cook would think to look for it.
+       * confirmed the food arrived. Delivered on an escrow rail and not yet
+       * confirmed — not `payment: 'held'`, which the wire also says of an
+       * order still on the stove, and that is a promise rather than pay.
        */
-      held: mine
-        .filter((o) => o.payment === 'held')
-        .reduce((s, o) => s + cookPayout(o), 0),
+      held: mine.filter(moneyHeld).reduce((s, o) => s + cookPayout(o, payoutRates), 0),
       /* Orders whose money is frozen by a case rather than by the ordinary
          wait. Both read `held`, which is why one of them needed saying. */
       disputed: mine.filter((o) => o.disputed).length,
     };
-  }, [mine]);
+  }, [mine, kitchenMine, payoutRates]);
 
   /*
    * Plates to cook — the number the tab badge carries, read the same way.
@@ -244,13 +263,18 @@ export default function CookDashboard() {
    * includes this date, so the confirmed bookings *are* the count. Drawing it
    * from the same source as the badge means the tile and the tab can never
    * disagree about how much cooking is waiting.
+   *
+   * Today's plates, not the month's: a customer who booked thirty dinners has
+   * thirty confirmed plates on the wire from day one, and a tile that read
+   * "30 plates to cook" on the first morning was a number nobody could act on.
    */
   const platesToCook = kitchen
     ? meals.orders.filter(
         (o) =>
           String(o.kitchenId) === String(kitchen.id) &&
+          o.kind === 'meal' &&
           o.status === 'confirmed' &&
-          (o.kind === 'meal' || o.kind === undefined),
+          o.serveDate === todayKey(),
       ).length
     : 0;
 
@@ -258,16 +282,19 @@ export default function CookDashboard() {
      nobody has accepted yet. The full board lives one tab over. */
   const waiting = useMemo(
     () =>
-      mine
+      kitchenMine
         .filter((o) => stageOf(o.status) === 'placed')
         .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
         .slice(0, 3),
-    [mine],
+    [kitchenMine],
   );
 
+  /* Still the kitchen's to move — accepted through out-the-door. A wallet
+     order marked delivered is no longer in the pass; it is held money, and
+     counted above. */
   const inFlight = useMemo(
-    () => mine.filter((o) => !isClosed(o.status) && stageOf(o.status) !== 'placed'),
-    [mine],
+    () => kitchenMine.filter((o) => stillMoving(o) && stageOf(o.status) !== 'placed'),
+    [kitchenMine],
   );
 
   /* ---- the week, both halves ----
@@ -278,41 +305,43 @@ export default function CookDashboard() {
      panels below draw every chart here from this one fold of one list, so
      no two charts on this screen can ever disagree. */
   const trend = useMemo(() => {
-    const buckets = Array.from({ length: 7 }, (_, i) => {
-      const start = dayStart(6 - i);
-      return {
-        start,
-        label: WEEKDAY[new Date(start).getDay()],
-        count: 0,
-        revenue: 0,
-        dish: 0,
-        store: 0,
-        meal: 0,
-        dishRev: 0,
-        storeRev: 0,
-        mealRev: 0,
-      };
-    });
+    const keys = recentDayKeys(7);
+    const buckets = keys.map((key) => ({
+      start: key,
+      label: WEEKDAY[new Date(`${key}T00:00:00Z`).getUTCDay()],
+      count: 0,
+      revenue: 0,
+      dish: 0,
+      store: 0,
+      meal: 0,
+      dishRev: 0,
+      storeRev: 0,
+      mealRev: 0,
+    }));
 
     for (const o of mine) {
       if (o.status === 'rejected' || o.status === 'cancelled') continue;
-      const at = new Date(o.createdAt).getTime();
-      const idx = buckets.findIndex((b) => at >= b.start && at < b.start + DAY);
-      if (idx < 0) continue;
-      buckets[idx].count += 1;
-      const isMeal = o.kind === 'meal';
-      const isStore = o.kind === 'store';
-      const kind = isMeal ? 'meal' : isStore ? 'store' : 'dish';
-      buckets[idx][kind] += 1;
-      if (o.status === 'delivered' || o.status === 'completed') {
-        const pay = cookPayout(o);
-        buckets[idx].revenue += pay;
-        buckets[idx][`${kind}Rev`] += pay;
+      const kind = businessOf(o);
+      /* Counted on the day it was placed — that is when the work arrived. */
+      const placedIdx = keys.indexOf(dayKeyOf(o.createdAt));
+      if (placedIdx >= 0) {
+        buckets[placedIdx].count += 1;
+        buckets[placedIdx][kind] += 1;
+      }
+      /* Paid on the day it was handed over — the same basis the earnings
+         tab uses, so the two screens agree about every bar. */
+      if (moneyReleased(o)) {
+        const paidIdx = keys.indexOf(moneyDayOf(o));
+        if (paidIdx >= 0) {
+          const pay = cookPayout(o, payoutRates);
+          buckets[paidIdx].revenue += pay;
+          buckets[paidIdx][`${kind}Rev`] += pay;
+        }
       }
     }
 
     return buckets;
-  }, [mine]);
+  }, [mine, payoutRates]);
 
   const trendBusy = trend.some((b) => b.count > 0);
 
@@ -320,12 +349,11 @@ export default function CookDashboard() {
      rather than from the one aggregate, so a quiet shop beside a busy one
      does not borrow the busy one's shape. */
   const shopTrends = useMemo(() => {
-    const starts = Array.from({ length: 7 }, (_, i) => dayStart(6 - i));
+    const keys = recentDayKeys(7);
     const byShop = new Map();
     for (const o of mine) {
       if (o.kind !== 'store' || o.status === 'rejected' || o.status === 'cancelled') continue;
-      const at = new Date(o.createdAt).getTime();
-      const idx = starts.findIndex((st) => at >= st && at < st + DAY);
+      const idx = keys.indexOf(dayKeyOf(o.createdAt));
       if (idx < 0) continue;
       const key = String(o.storeId);
       if (!byShop.has(key)) byShop.set(key, [0, 0, 0, 0, 0, 0, 0]);
@@ -363,11 +391,14 @@ export default function CookDashboard() {
      anchored at 4am so a 2am order lands in "রাত" where it belongs. */
   const hourMix = useMemo(() => {
     const parts = [0, 0, 0, 0, 0, 0];
-    const since = dayStart(6);
+    const week = new Set(recentDayKeys(7));
     for (const o of mine) {
-      if (new Date(o.createdAt).getTime() < since) continue;
+      if (!week.has(dayKeyOf(o.createdAt))) continue;
       if (o.status === 'rejected' || o.status === 'cancelled') continue;
-      const h = new Date(o.createdAt).getHours();
+      /* The hour in Dhaka, where the kitchen is — not on the handset. */
+      const h = new Date(
+        new Date(o.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }),
+      ).getHours();
       parts[Math.floor(((h - 4 + 24) % 24) / 4)] += 1;
     }
     return parts;
@@ -383,15 +414,12 @@ export default function CookDashboard() {
      (declared below) — a dependency this early would be a use-before-init. */
   const wow = useMemo(() => {
     const prev = { dish: 0, store: 0, meal: 0 };
-    const since = dayStart(13);
-    const until = dayStart(6);
+    /* The seven days before this week's seven. */
+    const before = new Set(recentDayKeys(14).slice(0, 7));
     for (const o of mine) {
-      const at = new Date(o.createdAt).getTime();
-      if (at < since || at >= until) continue;
+      if (!before.has(dayKeyOf(o.createdAt))) continue;
       if (o.status === 'rejected' || o.status === 'cancelled') continue;
-      if (o.kind === 'store') prev.store += 1;
-      else if (o.kind === 'meal') prev.meal += 1;
-      else prev.dish += 1;
+      prev[businessOf(o)] += 1;
     }
     const cur = trend.reduce(
       (acc, b) => ({
@@ -434,8 +462,9 @@ export default function CookDashboard() {
      whatever the orders it travelled on looked like. */
   const topDishes = useMemo(() => {
     const counts = new Map();
+    const week = new Set(recentDayKeys(7));
     for (const o of mine) {
-      if (new Date(o.createdAt).getTime() < dayStart(6)) continue;
+      if (!week.has(dayKeyOf(o.createdAt))) continue;
       if (o.status === 'rejected' || o.status === 'cancelled') continue;
       for (const item of o.items ?? []) {
         if (!item?.name) continue;
@@ -487,25 +516,24 @@ export default function CookDashboard() {
      is what decides there is a row at all. */
   const lateCount = useMemo(() => {
     const now = Date.now();
-    return mine.filter((o) => {
-      if (isClosed(o.status)) return false;
+    return kitchenMine.filter((o) => {
+      /* Delivered-awaiting-confirmation is the customer's wait, not the
+         cook's; only what is still the kitchen's to move can be late. */
+      if (!stillMoving(o)) return false;
       const idle = now - lastMovedAt(o);
       return stageOf(o.status) === 'placed' ? idle > LATE_WAITING_MS : idle > LATE_IN_PASS_MS;
     }).length;
-  }, [mine]);
+  }, [kitchenMine]);
 
   /* ---- today's pipeline ----
      Where today's orders physically stand, stage by stage. The waiting and
      in-pass lists below name the ones that need a hand; this bar says how
      the whole day is shaped — mostly done, stuck mid-kitchen, or still
-     arriving. */
+     arriving. Kitchen orders only, won requests included: they are cooked
+     at this stove. */
   const pipeline = useMemo(() => {
-    const today = mine.filter(
-      (o) =>
-        isToday(o.createdAt) &&
-        o.status !== 'rejected' &&
-        o.status !== 'cancelled' &&
-        (o.kind === 'cod' || o.kind === 'wallet' || o.kind === undefined),
+    const today = kitchenMine.filter(
+      (o) => isToday(o.createdAt) && o.status !== 'rejected' && o.status !== 'cancelled',
     );
     return {
       placed: today.filter((o) => stageOf(o.status) === 'placed').length,
@@ -516,7 +544,7 @@ export default function CookDashboard() {
       done: today.filter((o) => o.status === 'delivered' || o.status === 'completed')
         .length,
     };
-  }, [mine]);
+  }, [kitchenMine]);
   const pipelineTotal =
     pipeline.placed + pipeline.cooking + pipeline.delivering + pipeline.done;
 
@@ -607,14 +635,11 @@ export default function CookDashboard() {
   };
 
   /* The kitchen card counts only what the kitchen cooked — à la carte dish
-     orders. Store and meal orders travel on the same kitchenId, so the raw
-     count would put the shop's jars on the kitchen's card. */
-  const kitchenOrdersToday = mine.filter(
-    (o) =>
-      isToday(o.createdAt) &&
-      o.status !== 'rejected' &&
-      o.status !== 'cancelled' &&
-      (o.kind === 'cod' || o.kind === 'wallet' || o.kind === undefined),
+     orders and won requests. Store and meal orders travel on the same
+     kitchenId, so the raw count would put the shop's jars on the kitchen's
+     card. */
+  const kitchenOrdersToday = kitchenMine.filter(
+    (o) => isToday(o.createdAt) && o.status !== 'rejected' && o.status !== 'cancelled',
   ).length;
 
   /* How verification reads as a tile: one line, one colour, one place to tap.
@@ -900,10 +925,17 @@ export default function CookDashboard() {
                       color: colors.textMuted,
                     }}
                   >
-                    {t('{area} · {state}', {
-                      area: kitchen.area,
-                      state: open ? t('Open for orders') : t('Closed'),
-                    })}
+                    {/* A kitchen registered without an area — the wizard asks
+                        for one later — reads as just its state rather than
+                        " · Open". */}
+                    {kitchen.area
+                      ? t('{area} · {state}', {
+                          area: kitchen.area,
+                          state: open ? t('Open for orders') : t('Closed'),
+                        })
+                      : open
+                        ? t('Open for orders')
+                        : t('Closed')}
                   </Text>
                 </View>
                 {/* This business's own shutter. A sibling of the numbers
@@ -1512,7 +1544,16 @@ export default function CookDashboard() {
               tone: 'primary',
               title: t('Shop: {n} pre-orders to confirm', { n: n(waitingPreorders) }),
               sub: t('They are waiting on you before they can pay'),
-              onPress: () => router.push('/cook/store'),
+              /* Straight to the shop the oldest waiting pre-order belongs
+                 to. The hub opens the first shop otherwise, which for a cook
+                 with two is the wrong one half the time. */
+              onPress: () =>
+                router.push({
+                  pathname: '/cook/store/preorders',
+                  params: preorderRows[0]?.storeId
+                    ? { shop: String(preorderRows[0].storeId) }
+                    : {},
+                }),
             },
 
             shopClosed &&
@@ -1620,7 +1661,7 @@ export default function CookDashboard() {
                           label={t('Waiting')}
                         />
                         <View style={{ flex: 1 }} />
-                        <Price size={16}>৳{n(cookPayout(order))}</Price>
+                        <Price size={16}>৳{n(cookPayout(order, payoutRates))}</Price>
                       </View>
 
                       <Text

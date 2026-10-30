@@ -16,7 +16,9 @@ import { useTheme } from '../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../src/theme/tokens';
 import { useAuth } from '../src/store/AuthContext';
 import { useCommerce } from '../src/store/CommerceContext';
+import { useConfig } from '../src/store/ConfigContext';
 import { formatOrderDate } from '../src/store/OrdersContext';
+import { foldDigits } from '../src/lib/format';
 import { useLang } from '../src/i18n/LanguageContext';
 import { useAlert } from '../src/components/Alert';
 
@@ -30,6 +32,23 @@ export default function WalletScreen() {
   const router = useRouter();
   const { isSignedIn } = useAuth();
   const meals = useCommerce();
+  const { flags } = useConfig();
+
+  /*
+   * Whether there is any point drawing the top-up form.
+   *
+   * There is no payment gateway behind `/wallet/topup`: outside development
+   * the server answers `topup-unavailable` (403) to every amount, and an
+   * operator can switch the whole feature off with the `system.topup` flag.
+   * The form used to be drawn regardless and every tap on ৳500 became an
+   * error dialog. Two signals close it: the flag, when `/config` has said
+   * it is off (an unspoken flag keeps the form, because "the server has not
+   * answered yet" is not "top-ups are shut"), and the refusal itself, the
+   * first time it comes back — after which the panel below stands in for
+   * the form until the screen is next opened.
+   */
+  const [shut, setShut] = useState(false);
+  const topUpsOpen = flags?.['system.topup'] !== false && !shut;
 
   /* Checkout sends the shortfall (`?need=`) when the wallet could not cover an
      order, so the amount box opens already holding what is missing. */
@@ -79,7 +98,7 @@ export default function WalletScreen() {
      * back "amount-invalid" every time. Checked here as well so an empty or
      * nonsense box is answered on the spot instead of after a round trip.
      */
-    const taka = Number(value);
+    const taka = Number(foldDigits(value));
     /* Whole taka only: money here is never a fraction, and 12.5 would be
        rounded by the server into an amount the customer did not type. */
     if (!Number.isInteger(taka) || taka <= 0) {
@@ -94,6 +113,9 @@ export default function WalletScreen() {
     try {
       const out = await meals.topUp(taka, 'bKash');
       if (!out.ok) {
+        /* The door is shut, not the amount wrong: swap the form for the
+           panel so the next tap is not the same dialog again. */
+        if (out.error === 'topup-unavailable' || out.error === 'feature-off') setShut(true);
         alert.error(errorText(out.error, t, n, out));
         return;
       }
@@ -161,7 +183,40 @@ export default function WalletScreen() {
             {t('Top up')}
           </Text>
 
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          {!topUpsOpen ? (
+            <View
+              style={[
+                {
+                  gap: 8,
+                  padding: 16,
+                  borderRadius: radius.md,
+                  backgroundColor: colors.saffron50,
+                  borderWidth: 1,
+                  borderColor: colors.saffron100,
+                },
+                shadow.xs,
+              ]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Icon name="clock" size={16} color={colors.saffron} />
+                <Text style={{ flex: 1, fontFamily: font.uiBold, fontSize: type.sm + 1, color: colors.text }}>
+                  {t('Top-ups are coming soon')}
+                </Text>
+              </View>
+              <Text
+                style={{
+                  fontFamily: font.ui,
+                  fontSize: type.sm,
+                  lineHeight: type.sm * 1.55,
+                  color: colors.textMuted,
+                }}
+              >
+                {t('Top-ups are not open yet. Your balance grows from refunds for now — contact support if you need help.')}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, display: topUpsOpen ? 'flex' : 'none' }}>
             {PRESETS.map((value) => (
               <Pressable
                 key={value}
@@ -195,7 +250,7 @@ export default function WalletScreen() {
             ))}
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 12, display: topUpsOpen ? 'flex' : 'none' }}>
             <View
               style={[
                 {
@@ -220,7 +275,7 @@ export default function WalletScreen() {
               </Text>
               <TextInput
                 value={amount}
-                onChangeText={(v) => setAmount(v.replace(/[^0-9]/g, ''))}
+                onChangeText={(v) => setAmount(foldDigits(v).replace(/[^0-9]/g, ''))}
                 placeholder={t('Other amount')}
                 placeholderTextColor={colors.textLight}
                 keyboardType="number-pad"
@@ -245,17 +300,19 @@ export default function WalletScreen() {
             />
           </View>
 
-          <Text
-            style={{
-              fontFamily: font.ui,
-              fontSize: type.xs,
-              lineHeight: type.xs * 1.6,
-              color: colors.textLight,
-              marginTop: 12,
-            }}
-          >
-            {t('Demo top-up: no payment gateway is connected, so the balance is added straight away.')}
-          </Text>
+          {topUpsOpen ? (
+            <Text
+              style={{
+                fontFamily: font.ui,
+                fontSize: type.xs,
+                lineHeight: type.xs * 1.6,
+                color: colors.textLight,
+                marginTop: 12,
+              }}
+            >
+              {t('Demo top-up: no payment gateway is connected, so the balance is added straight away.')}
+            </Text>
+          ) : null}
 
           {error ? <Flash tone="primary" icon="alertCircle" text={error} /> : null}
           {done ? <Flash tone="sage" icon="check" text={done} /> : null}

@@ -15,9 +15,14 @@
 /**
  * MapTiler client key. This is a browser key -- it ships in the page by
  * design and is meant to be protected by an origin allowlist, not by
- * secrecy. Lock it to your app in the MapTiler dashboard.
+ * secrecy. It MUST be domain-restricted in the MapTiler dashboard (the web
+ * origin and the app's bundle id), because anyone can read it out of the
+ * bundle; a key with no allowlist is a key anyone can bill tiles to.
+ *
+ * Read from `EXPO_PUBLIC_MAPTILER_KEY` so a deployment rotates it without a
+ * code change; the literal is the fallback for a checkout with no `.env`.
  */
-export const MAPTILER_KEY = 'SxjK1zJHWJ8lvm7cplMH';
+export const MAPTILER_KEY = process.env.EXPO_PUBLIC_MAPTILER_KEY || 'SxjK1zJHWJ8lvm7cplMH';
 
 export const TILE_STYLE = { light: 'streets-v2', dark: 'streets-v2-dark' };
 

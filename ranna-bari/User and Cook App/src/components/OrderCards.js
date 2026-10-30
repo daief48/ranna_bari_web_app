@@ -22,7 +22,8 @@ import { statusMeta } from './CookBits';
 import { useTheme } from '../theme/ThemeProvider';
 import { useLang } from '../i18n/LanguageContext';
 import { font, radius, type } from '../theme/tokens';
-import { cookPayout, NEXT_STEP, stageOf, timeAgo, useOrders } from '../store/OrdersContext';
+import { cookPayout, timeAgo, useOrders } from '../store/OrdersContext';
+import { NEXT_STEP, awaitingConfirmation, stageOf } from '../lib/orderRails';
 import { useAlert } from './Alert';
 import { errorText } from '../lib/errors';
 import { formatAddress } from '../lib/address';
@@ -440,7 +441,10 @@ function Cloche() {
 function OrderCard({ order, onOpen }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
-  const { advanceOrder } = useOrders();
+  /* `payoutRates` is read so a memoised card repaints when `/config` lands
+     after the orders did — the cut is the one figure here that depends on
+     something other than the order. */
+  const { advanceOrder, payoutRates } = useOrders();
   const alert = useAlert();
   const [copied, setCopied] = useState(false);
 
@@ -604,7 +608,7 @@ function OrderCard({ order, onOpen }) {
           </View>
 
           <View style={{ alignItems: 'flex-end' }}>
-            <Price size={19}>৳{n(cookPayout(order))}</Price>
+            <Price size={19}>৳{n(cookPayout(order, payoutRates))}</Price>
             <Text
               style={{
                 fontFamily: font.uiBold,
@@ -724,6 +728,36 @@ function OrderCard({ order, onOpen }) {
               {t(meta.action)}
             </Text>
           </Pressable>
+        </View>
+      ) : null}
+
+      {/* Delivered on the wallet rail: the cook's part is done and the money is
+          not theirs yet. The card stays on the board, in Delivering, until the
+          customer confirms — and it says so, so a cook does not re-press a
+          button that is no longer there. */}
+      {awaitingConfirmation(order) ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: 9,
+            paddingHorizontal: 16,
+            paddingTop: 12,
+            paddingBottom: 16,
+          }}
+        >
+          <Icon name="clock" size={15} color={colors.saffron} />
+          <Text
+            style={{
+              flex: 1,
+              fontFamily: font.ui,
+              fontSize: type.xs,
+              lineHeight: 18,
+              color: colors.textMuted,
+            }}
+          >
+            {t('Waiting for the customer to confirm they got it.')}
+          </Text>
         </View>
       ) : null}
 

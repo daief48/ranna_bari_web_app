@@ -35,6 +35,7 @@ import { COOK_ADVANCES } from '../../../src/lib/ledger';
 import { ORDER_FILTERS, filterOrders } from '../../../src/lib/storeLogic';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { useAlert } from '../../../src/components/Alert';
+import { ShopNotFound, resolveShop, withKitchenGate } from '../../../src/components/CookBits';
 
 /** What the cook's button says at each stage. */
 const NEXT_LABEL = {
@@ -44,7 +45,10 @@ const NEXT_LABEL = {
   delivering: 'Mark delivered',
 };
 
-export default function StoreOrders() {
+/* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
+export default withKitchenGate(StoreOrders);
+
+function StoreOrders() {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
   const alert = useAlert();
@@ -57,12 +61,12 @@ export default function StoreOrders() {
   const [error, setError] = useState(null);
 
   /* The shop this screen is working on, named by the route's `?shop=`
-     param and defaulting to the kitchen's first — the hub always names one,
-     so the default only covers a link that arrived without it. */
+     param and defaulting to the kitchen's first when the route named none.
+     A param that names a shop this kitchen does not have is not quietly
+     swapped for the first one — see `resolveShop`. */
   const { shop: shopParam } = useLocalSearchParams();
   const shops = kitchen ? shop.myStores(kitchen.id) : [];
-  const store =
-    shops.find((s) => String(s.id) === String(shopParam)) ?? shops[0] ?? null;
+  const { store, missing } = resolveShop(shops, shopParam);
   const all = useMemo(() => (store ? shop.storeOrders(store.id) : []), [shop, store]);
   const orders = useMemo(() => filterOrders(all, filter), [all, filter]);
 
@@ -71,6 +75,16 @@ export default function StoreOrders() {
     if (!out.ok) alert.error(errorText(out.error, t, n, out));
     else setError(null);
   };
+
+  if (missing) {
+    return (
+      <CookScreen>
+        <Container>
+          <ShopNotFound onBack={() => router.replace('/cook/store')} />
+        </Container>
+      </CookScreen>
+    );
+  }
 
   return (
     <CookScreen>

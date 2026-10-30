@@ -12,7 +12,13 @@ import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { useRouter } from 'expo-router';
-import { KitchenPending, KitchenSuspended } from '../../../src/components/CookBits';
+import {
+  KitchenPending,
+  KitchenSuspended,
+  KitchenUnknown,
+} from '../../../src/components/CookBits';
+import { isKitchenOrder } from '../../../src/lib/orderRails';
+import { todayKey } from '../../../src/features/meal-plan/format';
 import { font, radius } from '../../../src/theme/tokens';
 
 /*
@@ -58,19 +64,28 @@ function CookBar({ state, descriptors, navigation }) {
   const { orders: mealOrders } = useCommerce();
   const { t, n: num } = useLang();
 
-  /* The one number worth interrupting a cook for: orders nobody has looked
-     at yet. It rides the Orders tab so it is visible from every screen. */
+  /* The one number worth interrupting a cook for: kitchen orders nobody has
+     looked at yet. It rides the Orders tab so it is visible from every
+     screen. Kitchen orders only — a shop parcel or a meal plate arrives
+     `confirmed`, which is the same stage, and belongs to its own tab. */
   const waiting = kitchen
-    ? ordersForKitchen(kitchen.id).filter((o) => stageOf(o.status) === 'placed').length
+    ? ordersForKitchen(kitchen.id).filter(
+        (o) => isKitchenOrder(o) && stageOf(o.status) === 'placed',
+      ).length
     : 0;
 
-  /* Its equivalent for pre-booked meals: plates paid for and not yet
-     started. This is the number the cook shops against, so it should be
-     legible from wherever they are standing. */
+  /* Its equivalent for pre-booked meals: today's plates, paid for and not
+     yet started. This is the number the cook shops against, so it should be
+     legible from wherever they are standing — and it is today's, because a
+     month of bookings is thirty confirmed plates from the first morning. */
   const toCook = kitchen
-    ? mealOrders
-        .filter((o) => String(o.kitchenId) === String(kitchen.id))
-        .filter((o) => o.status === 'confirmed').length
+    ? mealOrders.filter(
+        (o) =>
+          String(o.kitchenId) === String(kitchen.id) &&
+          o.kind === 'meal' &&
+          o.status === 'confirmed' &&
+          o.serveDate === todayKey(),
+      ).length
     : 0;
 
   return (
@@ -281,7 +296,7 @@ function useWatchForApproval(waiting, reload) {
 }
 
 export default function CookPanelLayout() {
-  const { kitchen, hydrated, reload } = useKitchen();
+  const { kitchen, hydrated, loaded, reload } = useKitchen();
   const router = useRouter();
 
   /* The one screen whose whole purpose is waiting has to notice when the wait
@@ -319,6 +334,29 @@ export default function CookPanelLayout() {
         kitchen={kitchen}
         onCompleteDocuments={() => router.push('/cook-documents')}
         onOpenDetails={() => router.push('/cook/kitchen-details')}
+        onBack={() => router.replace('/')}
+      />
+    );
+  }
+
+  /*
+   * No kitchen in hand is "unknown", not "approved".
+   *
+   * The two gates above read `kitchen`, and a null one passed both — so the
+   * tabs opened over nothing while the read was still in flight, and stayed
+   * open when it failed or when the server said there is no kitchen on this
+   * account: a dashboard of zeros whose every write came back `no-kitchen`.
+   * The provider says which it is: `loaded` false is a read still on its way;
+   * `loaded` true with nothing is the server's answer, which during sign-up
+   * lasts the few seconds `ensureKitchen` takes to register and otherwise
+   * means the account genuinely has none. Neither is a reason to show a
+   * working panel. The retry asks again; the way out stays open.
+   */
+  if (!kitchen) {
+    return (
+      <KitchenUnknown
+        loading={!loaded}
+        onRetry={() => reload()}
         onBack={() => router.replace('/')}
       />
     );

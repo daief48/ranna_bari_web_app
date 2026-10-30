@@ -1,6 +1,3 @@
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-
 /**
  * Where the server is, and how to talk to it.
  *
@@ -8,49 +5,18 @@ import { Platform } from 'react-native';
  * off AsyncStorage and works on a plane; chat cannot, so the whole module is
  * written on the assumption that the server is *usually* unreachable and the
  * app has to stay usable anyway.
- *
- * ## Finding the host in development
- *
- * A phone on the same wifi cannot reach `localhost` — that is the phone. Expo
- * already knows the machine's LAN address, because that is where it is
- * serving the bundle from, so the host is lifted off the packager URL rather
- * than hardcoded into a file somebody has to edit per machine.
  */
-
-/**
- * The backend's port, not the admin panel's.
- *
- * This was 3100 when the panel was the only thing serving `/api/app/v1`.
- * `backend-node` owns that surface now and listens on 4000; the panel is a
- * client of it like everything else. Pointing the app at 3100 today reaches
- * a Next.js app that no longer answers for the whole API.
- */
-const PORT = 4000;
-
-function inferHost() {
-  // Expo web: the app and the API can share an origin behind a proxy, but in
-  // dev they are two ports on the same machine.
-  if (Platform.OS === 'web' && typeof location !== 'undefined') {
-    return `${location.protocol}//${location.hostname}:${PORT}`;
-  }
-
-  /* `hostUri` is "192.168.2.103:8081" — the machine serving this bundle,
-     which is also the machine running the admin panel in development. */
-  const hostUri =
-    Constants.expoConfig?.hostUri ??
-    Constants.expoGoConfig?.debuggerHost ??
-    Constants.manifest2?.extra?.expoClient?.hostUri;
-
-  const host = typeof hostUri === 'string' ? hostUri.split(':')[0] : null;
-  return host ? `http://${host}:${PORT}` : null;
-}
 
 /**
  * The API base.
  *
  * `EXPO_PUBLIC_API_URL` wins, so a real deployment points at a real host
- * without touching this file. Falling back to the packager's machine is a
- * development convenience and nothing more.
+ * without touching this file; local development sets it to the machine's
+ * LAN address and port 4000 (`backend-node`). The deployed Netlify function
+ * is the fallback. The packager-host inference that used to sit here is
+ * gone: nothing read it once the fallback became a real URL, and a dead
+ * code path that computes a `localhost:4000` is exactly the kind that gets
+ * resurrected by mistake.
  */
 export const API_BASE =
   process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ||

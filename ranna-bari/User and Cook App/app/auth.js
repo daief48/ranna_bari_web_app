@@ -30,6 +30,7 @@ import { useAlert } from '../src/components/Alert';
 import { useLang } from '../src/i18n/LanguageContext';
 import { normaliseArea } from '../src/lib/areas';
 import { errorText } from '../src/lib/errors';
+import { foldDigits } from '../src/lib/format';
 import { useSpecialties } from '../src/store/KitchenContext';
 import {
   cookRegister,
@@ -183,6 +184,10 @@ export default function AuthScreen() {
 
   const aside = ASIDE[tab === 'signup' && role ? role : 'none'];
   const pwLevel = passwordScore(pw);
+  /* The banner photograph is hot-linked stock imagery — decorative, behind a
+     veil, with a dark ground already painted under it. When it fails to
+     load the ground and the veil stand alone rather than an empty frame. */
+  const [asideBroken, setAsideBroken] = useState(false);
 
   /* ---- validation, port of js/auth.js validate() ---- */
   const goStep = (target) => {
@@ -282,7 +287,9 @@ export default function AuthScreen() {
       return alert.error(t('Pick your division so kitchens know if they reach you.'));
     }
     if (role === 'user' && !suDistrict) {
-      return alert.error(t('Pick your district inside {division}.', { division: suDivision }));
+      /* The division's own name is in the catalogue, so it reads as ঢাকা
+         inside a Bengali sentence rather than as "Dhaka". */
+      return alert.error(t('Pick your district inside {division}.', { division: t(suDivision) }));
     }
     if (!phone.trim()) {
       return alert.error(t('We need your mobile number to send a code.'));
@@ -318,7 +325,7 @@ export default function AuthScreen() {
       try {
         const out = await cookRegister({
           name: name.trim(),
-          phone: phone.trim(),
+          phone: foldDigits(phone).trim(),
           email: email.trim(),
           password: pw,
           kitchenName: kitchen.trim(),
@@ -390,7 +397,9 @@ export default function AuthScreen() {
     if (suStage === 'form') {
       setSuBusy(true);
       try {
-        const out = await requestCode(phone.trim());
+        /* Bengali numerals folded before a number or a code leaves the
+           device — the server's normaliser only reads ASCII digits. */
+        const out = await requestCode(foldDigits(phone).trim());
         setSuStage('code');
         if (out.devCode) setSuCode(String(out.devCode));
       } catch (error) {
@@ -407,7 +416,7 @@ export default function AuthScreen() {
 
     setSuBusy(true);
     try {
-      const identity = await verifyCode(phone.trim(), suCode.trim(), name.trim());
+      const identity = await verifyCode(foldDigits(phone).trim(), foldDigits(suCode).trim(), name.trim());
 
       /* Everything the steps collected, in one shape: it is what this device
          stores and what the server is told. A cook never reaches this path
@@ -520,7 +529,7 @@ export default function AuthScreen() {
     }
     setSiBusy(true);
     try {
-      const out = await requestCode(siPhone.trim());
+      const out = await requestCode(foldDigits(siPhone).trim());
       setSiStage('code');
       /* With no SMS provider wired in the server hands the code back so the
          flow can be walked end to end. It refuses to once one is configured,
@@ -594,7 +603,7 @@ export default function AuthScreen() {
     }
     setSiBusy(true);
     try {
-      const identity = await verifyCode(siPhone.trim(), siCode.trim());
+      const identity = await verifyCode(foldDigits(siPhone).trim(), foldDigits(siCode).trim());
       /* The server decides the role: an account with a kitchen is a cook,
          whatever this device previously believed about itself. */
       const acct = await signIn({
@@ -645,12 +654,15 @@ export default function AuthScreen() {
               backgroundColor: 'rgb(20, 16, 14)',
             }}
           >
-            <Image
-              source={{ uri: aside.img }}
-              contentFit="cover"
-              transition={900}
-              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-            />
+            {asideBroken ? null : (
+              <Image
+                source={{ uri: aside.img }}
+                contentFit="cover"
+                transition={900}
+                onError={() => setAsideBroken(true)}
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+              />
+            )}
             {/* Warm terracotta veil. A plain black scrim greys the food out. */}
             <LinearGradient
               pointerEvents="none"

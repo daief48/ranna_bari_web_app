@@ -26,6 +26,7 @@ import { DIVISION_NAMES, districtNamesOf } from '../src/lib/bd-areas';
 import { useAuth } from '../src/store/AuthContext';
 import { useSession } from '../src/store/SessionContext';
 import { useLang } from '../src/i18n/LanguageContext';
+import { digitsOnly } from '../src/lib/format';
 
 const SPECIALTIES = [
   'Traditional Heritage',
@@ -195,7 +196,7 @@ function EditProfileForm({ account }) {
       setNote('That email address does not look right.');
       return;
     }
-    if (phone.trim() && phone.replace(/\D/g, '').length < 10) {
+    if (phone.trim() && digitsOnly(phone).length < 10) {
       setNote('That phone number looks too short to call.');
       return;
     }

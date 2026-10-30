@@ -70,6 +70,15 @@ import { COOK_ADVANCES } from '../lib/ledger';
  * after. It mirrors `nextStatus` in the backend's domain.ts: the cash rail,
  * a meal's short rail, and the escrow rail (which skips "delivering" for a
  * pickup). `null` means "no step I can predict", and the tap simply waits.
+ *
+ * THE SOURCE OF TRUTH IS `backend-node/src/lib/domain.ts` — `COD_ADVANCES`,
+ * `MEAL_ADVANCES`, `COOK_ADVANCES` and `nextStatus`. These tables are a copy
+ * for the optimistic swap only, and must be changed there first and here
+ * second. The same ladders are also spelled out in `lib/ledger.COOK_ADVANCES`
+ * and, for the cook's screens, in `lib/orderRails.js`; this copy should be
+ * folded into that module rather than grow into a fourth spelling.
+ * A `request` order has no rail of its own on either side: the server sends
+ * it down `COOK_ADVANCES` by handover, exactly as the fallthrough below does.
  */
 const COD_NEXT = { placed: 'accepted', accepted: 'cooking', cooking: 'on_the_way', on_the_way: 'delivered' };
 const MEAL_NEXT = { confirmed: 'preparing', preparing: 'delivered' };
@@ -99,6 +108,21 @@ const reached = (order, status, target) => {
   const want = rail.indexOf(target);
   return at >= 0 && want >= 0 && at >= want;
 };
+
+/**
+ * An order code of the shape dish orders draw — `RB-` and six glyphs from an
+ * alphabet with no I, O, 0 or 1, so a code read over the phone cannot be
+ * misheard. The same generator lives in `OrdersContext`; the shop checkout
+ * needs one for the same reason, as the idempotency key a retry carries.
+ */
+const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+function makeOrderCode() {
+  let out = '';
+  for (let i = 0; i < 6; i++) {
+    out += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+  }
+  return `RB-${out}`;
+}
 
 /*
  * Written by earlier versions of this app and now cleared on first run, so a
@@ -620,6 +644,9 @@ export function CommerceProvider({ children }) {
   /* Per product: a stock write in flight, the value wanted next, and the last
      value the server confirmed — see `setStock`. */
   const stockQueue = useRef(new Map());
+  /* The shop checkout's codes for attempts the server has not answered —
+     basket signature → code. See `checkout` in the value below. */
+  const checkoutAttempts = useRef(new Map());
 
   const ensureStore = useCallback(
     async (storeId, { force = false } = {}) => {
@@ -798,12 +825,25 @@ export function CommerceProvider({ children }) {
    * what stops a receipt from becoming a 404 because the customer has eaten
    * fifty times since.
    */
+  /*
+   * `verdict: true` answers `{ ok, order, error, status }` instead of the
+   * order-or-null, for the one screen that has to tell "the server said this
+   * order does not exist" from "the server did not answer". Both used to come
+   * back as null, and the receipt page said "Order not found" to somebody in
+   * a tunnel. The bare form is kept for every other caller, which only wants
+   * the row if there is one.
+   */
   const ensureOrder = useCallback(
-    async (orderId) => {
-      if (!orderId || !hasServer || !token) return null;
+    async (orderId, { verdict = false } = {}) => {
+      const answer = (ok, order, out) =>
+        verdict ? { ok, order, error: out?.error ?? null, status: out?.status ?? 0 } : order;
+
+      if (!orderId || !hasServer || !token) {
+        return answer(false, null, { error: token ? 'network' : 'unauthenticated', status: 0 });
+      }
       const id = String(orderId);
       const out = await call(`/orders/${id}`, { token });
-      if (!out.ok) return null;
+      if (!out.ok) return answer(false, null, out);
 
       commit({
         ...live.current,
@@ -811,7 +851,7 @@ export function CommerceProvider({ children }) {
           ? live.current.orders.map((o) => (String(o.id) === id ? asOrder(out.result.order) : o))
           : [asOrder(out.result.order), ...live.current.orders],
       });
-      return asOrder(out.result.order);
+      return answer(true, asOrder(out.result.order), out);
     },
     [token, commit],
   );
@@ -918,7 +958,19 @@ export function CommerceProvider({ children }) {
 
       const out = await call(`/stores/${id}/save`, { method: 'POST', token });
       if (!out.ok) {
-        patch({ savedStores: before });
+        /* Undo this one toggle, against the list as it is *now*. Restoring
+           the snapshot taken before the request put back whatever other
+           shop was saved or unsaved while this one was in flight — two
+           quick taps on two hearts, and the first refusal erased the second
+           tap. */
+        const now = live.current.savedStores;
+        patch({
+          savedStores: had
+            ? now.includes(id)
+              ? now
+              : [id, ...now]
+            : now.filter((s) => s !== id),
+        });
         return out;
       }
 
@@ -1267,6 +1319,18 @@ export function CommerceProvider({ children }) {
         const to = before ? predictNext(before) : null;
         const swap = (row) =>
           patch({ orders: live.current.orders.map((o) => (String(o.id) === id ? row : o)) });
+        /* Undo only the optimistic step, and only if the row still carries it.
+           A socket event, a poll or `ensureOrder` may have landed a fresher
+           row in the meantime; restoring the whole pre-tap snapshot would
+           write stale history/payment/disputed flags over it. */
+        const undo = () =>
+          patch({
+            orders: live.current.orders.map((o) =>
+              String(o.id) === id && o.status === to
+                ? { ...o, status: before.status, history: before.history ?? [] }
+                : o
+            ),
+          });
         if (before && to) {
           swap({
             ...before,
@@ -1288,7 +1352,7 @@ export function CommerceProvider({ children }) {
         }
 
         if (out.error !== 'order-wrong-state') {
-          if (before && to) swap(before);
+          if (before && to) undo();
           return out;
         }
 
@@ -1312,7 +1376,7 @@ export function CommerceProvider({ children }) {
         /* Genuinely refused — cancelled, rejected, a pre-order nobody has
            answered. The card goes back to what the server says, and the
            message can name it. */
-        if (before && to && !fresh) swap(before);
+        if (before && to && !fresh) undo();
         return { ...out, detail: { ...(out.detail ?? {}), status } };
       },
       confirmReceived: async (orderId) => {
@@ -1582,16 +1646,61 @@ export function CommerceProvider({ children }) {
         cartWrite('/cart/remove', { body: { key: lineKey } }),
       clearCart: () => cartWrite('/cart/clear'),
 
-      checkout: (key, customer) =>
-        write('/store-checkout', {
-          body: customer,
+      /*
+       * Pay for the shop half of the cart.
+       *
+       * Two things a dropped connection used to get wrong here. The code: a
+       * retry after a timeout sent a second, identical request with nothing
+       * to tie it to the first, and a server that had in fact taken the
+       * first charged the wallet twice. The basket now draws a code the way
+       * dish orders do — one per basket-as-it-stands, kept until the server
+       * has answered for it — and sends it as `code` so the server can
+       * recognise a repeat. (Today's `/store-checkout` strips unknown body
+       * fields and does not read it yet; sending it costs nothing and is
+       * what the backend is being changed to honour.)
+       *
+       * And the answer: "could not reach the server" after a request that
+       * may well have arrived left the customer looking at a full cart and a
+       * retry button, with the money already held. So on a network failure
+       * the cart, orders and wallet are re-read *before* the refusal is
+       * returned, and if the cart has come back empty the refusal says so —
+       * `maybePlaced` — because an empty server cart after a checkout is the
+       * order having gone through.
+       */
+      checkout: async (key, customer) => {
+        const lines = live.current.cart?.lines ?? [];
+        const basketKey = [
+          'shop',
+          ...lines.map((l) => `${l.key ?? l.productId}:${l.qty}`).sort(),
+        ].join('|');
+        if (!checkoutAttempts.current.has(basketKey)) {
+          checkoutAttempts.current.set(basketKey, makeOrderCode());
+        }
+        const code = checkoutAttempts.current.get(basketKey);
+
+        const out = await write('/store-checkout', {
+          body: { ...customer, code },
           after: async () => {
             await Promise.all([reloadCart(), reloadOrders(), reloadWallet()]);
           },
           /* A basket spanning two shops comes back as two orders, and the
              screen routes to the first one's receipt. */
           shape: (r) => asOrders(r.orders),
-        }),
+        });
+
+        if (out.ok || out.error !== 'network') {
+          /* Answered, either way: a refusal is a real answer and the next
+             attempt is a new order with a new code. */
+          checkoutAttempts.current.delete(basketKey);
+          return out;
+        }
+
+        const hadLines = lines.length > 0;
+        await Promise.all([reloadCart(), reloadOrders(), reloadWallet()]).catch(() => {});
+        const emptiedByServer = hadLines && (live.current.cart?.lines ?? []).length === 0;
+        if (emptiedByServer) checkoutAttempts.current.delete(basketKey);
+        return { ...out, maybePlaced: emptiedByServer };
+      },
       acceptPreorder: (orderId) =>
         write(`/preorders/${orderId}/accept`, {
           after: async () => {

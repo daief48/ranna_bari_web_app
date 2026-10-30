@@ -69,8 +69,14 @@ function statusTone(status, kind, colors) {
 export default function OrdersScreen() {
   const { colors, shadow } = useTheme();
   const router = useRouter();
-  const { orders, hydrated } = useOrders();
-  const { loadMoreOrders, ordersCursor } = useCommerce();
+  const { orders } = useOrders();
+  /* `ordersReady`, not `hydrated`: the latter only says the provider has
+     cleared its old cache, and went true before `/orders` had been asked
+     for — so this screen said "No orders yet" to every returning customer
+     for as long as the read took. `ordersReady` is true once the account's
+     orders have been asked for once, or at once for a guest, who has none
+     to wait for. */
+  const { loadMoreOrders, ordersCursor, ordersReady: hydrated } = useCommerce();
   const [moreLoading, setMoreLoading] = React.useState(false);
   const { t, n, lang } = useLang();
 

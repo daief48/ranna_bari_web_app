@@ -29,10 +29,16 @@ import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import LocationPicker from '../../../src/components/LocationPicker';
 import ServiceAreaPicker from '../../../src/components/ServiceAreaPicker';
-import { RadiusSlider } from '../../../src/components/CookBits';
+import {
+  RadiusSlider,
+  ShopNotFound,
+  resolveShop,
+  withKitchenGate,
+} from '../../../src/components/CookBits';
 import { useAlert } from '../../../src/components/Alert';
 import TagPicker from '../../../src/components/TagPicker';
 import DeliveryFees from '../../../src/components/DeliveryFees';
+import { toStorableImage } from '../../../src/lib/pickedImage';
 
 /** The vocabulary a shop names itself with — same list the setup wizard offers. */
 const SHOP_TAGS = [
@@ -45,16 +51,31 @@ const SHOP_TAGS = [
   'Gift boxes',
 ];
 
-export default function StoreSettings() {  const { kitchen } = useKitchen();
+/* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
+export default withKitchenGate(StoreSettings);
+
+function StoreSettings() {
+  const { kitchen } = useKitchen();
   const shop = useCommerce();
+  const router = useRouter();
 
   /* The shop this screen is working on, named by the route's `?shop=`
-     param and defaulting to the kitchen's first — the hub always names one,
-     so the default only covers a link that arrived without it. */
+     param and defaulting to the kitchen's first when the route named none.
+     A param that names a shop this kitchen does not have is not quietly
+     swapped for the first one — see `resolveShop`. */
   const { shop: shopParam } = useLocalSearchParams();
   const shops = kitchen ? shop.myStores(kitchen.id) : [];
-  const store =
-    shops.find((s) => String(s.id) === String(shopParam)) ?? shops[0] ?? null;
+  const { store, missing } = resolveShop(shops, shopParam);
+
+  if (missing) {
+    return (
+      <CookScreen>
+        <Container>
+          <ShopNotFound onBack={() => router.replace('/cook/store')} />
+        </Container>
+      </CookScreen>
+    );
+  }
 
   /* The form only mounts once there is something to fill it with, so the
      fields are never initialised from a document that has not loaded. */
@@ -114,7 +135,12 @@ function Form({ store }) {
   const [note, setNote] = useState(null);
   const [saved, setSaved] = useState(false);
 
-  const pick = async (setter, aspect) => {
+  /* A fresh pick is resized to the role it will live at and stored as a data
+     URI — the picker's own `uri` is a `blob:`/`file:` handle that dies with
+     the device that chose it, and this screen used to save that handle
+     straight into the shop. See `lib/pickedImage`. The same rule the setup
+     wizard and the kitchen editor follow. */
+  const pick = async (setter, role) => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       alert.error(t('RannaBari needs photo access to set a shop photo.'));
@@ -123,10 +149,19 @@ function Form({ store }) {
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect,
-      quality: 0.8,
+      aspect: role === 'cover' ? [16, 9] : [1, 1],
+      quality: 0.6,
+      base64: true,
     });
-    if (!res.canceled && res.assets?.[0]?.uri) setter(res.assets[0].uri);
+    if (res.canceled || !res.assets?.[0]) return;
+
+    const stored = await toStorableImage(res.assets[0], role);
+    if (!stored) {
+      alert.error(t('That photo could not be read. Please try another.'));
+      return;
+    }
+    setter(stored);
+    setSaved(false);
   };
 
   const save = async () => {
@@ -225,7 +260,7 @@ function Form({ store }) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('Change cover photo')}
-            onPress={() => pick(setCover, [16, 9])}
+            onPress={() => pick(setCover, 'cover')}
             style={({ pressed }) => [
               {
                 height: 150,
@@ -277,7 +312,7 @@ function Form({ store }) {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('Change shop logo')}
-              onPress={() => pick(setLogo, [1, 1])}
+              onPress={() => pick(setLogo, 'avatar')}
               style={({ pressed }) => [
                 { opacity: pressed ? 0.9 : 1 },
                 shadow.sm,

@@ -21,7 +21,15 @@ import Icon from '../../../src/components/Icon';
 import Reveal from '../../../src/components/Reveal';
 import Button from '../../../src/components/Button';
 import FloatLabelInput from '../../../src/components/FloatLabelInput';
-import { FieldError, PublishSwitch, RowHeading } from '../../../src/components/CookBits';
+import {
+  FieldError,
+  MAX_TAKA,
+  PublishSwitch,
+  RowHeading,
+  parseTaka,
+  withKitchenGate,
+} from '../../../src/components/CookBits';
+import { digitsOnly, foldDigits } from '../../../src/lib/format';
 import { BentoBox, Tag } from '../../../src/components/Surfaces';
 import { Body, Heading, Price } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
@@ -60,7 +68,10 @@ const MAX_DISH_PHOTOS = 5;
  * would capture blanks and then quietly save them over the real one. The
  * editor mounts only once the dish is in hand.
  */
-export default function DishEditor() {
+/* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
+export default withKitchenGate(DishEditor);
+
+function DishEditor() {
   const { id } = useLocalSearchParams();
   const { colors } = useTheme();
   const { t } = useLang();
@@ -223,9 +234,13 @@ function DishForm({ isNew, existing }) {
     });
 
   /* One read of the price, everywhere. A half-typed "4" is not an error —
-     it is somebody mid-typing — so the preview simply waits for a number. */
-  const priceValue = Number(price);
-  const priceValid = Number.isFinite(priceValue) && priceValue > 0;
+     it is somebody mid-typing — so the preview simply waits for a number.
+     Whole taka, 1 to 1,00,000, Bengali digits welcome — see `parseTaka`:
+     `Number()` took "1e6" as a million and refused "৫০" outright. */
+  const priceValue = parseTaka(price);
+  const priceValid = priceValue !== null;
+  const priceTooHigh =
+    /^\d+$/.test(foldDigits(price).trim()) && Number(foldDigits(price).trim()) > MAX_TAKA;
 
   /* The preview is the customer's menu row, drawn with the same proportions
      the menu list uses — 62px photo, one line of description, price and the
@@ -235,7 +250,7 @@ function DishForm({ isNew, existing }) {
       image,
       name: name.trim(),
       description: description.trim(),
-      price: priceValid ? Math.round(priceValue) : null,
+      price: priceValid ? priceValue : null,
       tag: tags[0],
     }),
     [image, name, description, priceValid, priceValue, tags],
@@ -244,7 +259,11 @@ function DishForm({ isNew, existing }) {
   const validate = () => {
     const next = {};
     if (!name.trim()) next.name = t('Give the dish a name.');
-    if (!priceValid) next.price = t('Set a price above zero, in taka.');
+    if (!priceValid) {
+      next.price = priceTooHigh
+        ? t('The price can be at most ৳{max}.', { max: n(MAX_TAKA) })
+        : t('Set a whole price above zero, in taka.');
+    }
     if (!tags.length) next.tags = t('Pick at least one tag so customers can find it.');
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -259,7 +278,7 @@ function DishForm({ isNew, existing }) {
     const payload = {
       name: name.trim(),
       description: description.trim() || t('Cooked to order.'),
-      price: Math.round(priceValue),
+      price: priceValue,
       /* The cover leads, and the whole set travels with it. A dish left on
          the stock plate sends no photos at all — the server keeps `image`
          only, exactly as dishes always looked. */
@@ -590,7 +609,7 @@ function DishForm({ isNew, existing }) {
               label={t('Price in taka')}
               value={price}
               onChangeText={(v) => {
-                setPrice(v.replace(/[^0-9]/g, ''));
+                setPrice(digitsOnly(v));
                 setErrors((e) => ({ ...e, price: undefined }));
               }}
               placeholder="450"

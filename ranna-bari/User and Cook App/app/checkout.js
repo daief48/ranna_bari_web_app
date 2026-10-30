@@ -25,6 +25,7 @@ import { useAuth } from '../src/store/AuthContext';
 import { PAYMENT_METHODS, useOrders } from '../src/store/OrdersContext';
 import { useCommerce } from '../src/store/CommerceContext';
 import { addressFromAccount } from '../src/lib/ledger';
+import { digitsOnly, foldDigits } from '../src/lib/format';
 import { useLang } from '../src/i18n/LanguageContext';
 import { errorText } from '../src/lib/errors';
 
@@ -104,6 +105,10 @@ function CheckoutForm() {
   /* How many orders a half-finished attempt already placed, so the screen can
      say so and point at them instead of leaving the customer to wonder. */
   const [placedCount, setPlacedCount] = useState(0);
+  /* A shop checkout whose reply was lost but whose cart came back empty: the
+     order very probably exists, and the link to the orders list is the
+     honest next step rather than a retry button. */
+  const [maybePlaced, setMaybePlaced] = useState(false);
   /* `placing` is state: the button only disables after a re-render, so two taps
      in the same frame both got through `submit`. A ref closes at once. */
   const placingRef = useRef(false);
@@ -150,11 +155,14 @@ function CheckoutForm() {
     }
 
     const hasWhere = hasShop ? !!saved?.line || !!saved?.area : !!line.trim();
-    if (!name.trim() || !phone.trim() || !hasWhere) {
+    /* Folded to ASCII before anything counts or sends it: a Bengali keyboard
+       types ০১৭১২, and a check written for 01712 called that "too short". */
+    const phoneAscii = foldDigits(phone).trim();
+    if (!name.trim() || !phoneAscii || !hasWhere) {
       setNote(t('We need a name, a phone number and a street address to deliver.'));
       return;
     }
-    if (phone.replace(/\D/g, '').length < 10) {
+    if (digitsOnly(phoneAscii).length < 10) {
       setNote(t('That phone number looks too short for the rider to call.'));
       return;
     }
@@ -171,6 +179,7 @@ function CheckoutForm() {
     placingRef.current = true;
     setNote('');
     setPlacedCount(0);
+    setMaybePlaced(false);
     setPlacing(true);
     /* Remember wallet if a shop product forced it: a retry after a half-placed
        cart must not quietly turn the rest into cash. */
@@ -204,7 +213,7 @@ function CheckoutForm() {
     if (hasShop) {
       const out = await shop.checkout(cart.key, {
         name: name.trim(),
-        phone: phone.trim(),
+        phone: phoneAscii,
         address,
         ...cookWords,
       });
@@ -213,6 +222,16 @@ function CheckoutForm() {
         if (out.error === 'unauthenticated') {
           setNote(t('Your session ended. Sign in and your cart will still be here.'));
           toSignIn();
+          return;
+        }
+        /* The reply was lost, and the server's cart has since come back
+           empty — which is what a checkout that went through leaves behind.
+           Saying "could not reach the server" here invites a second order. */
+        if (out.maybePlaced) {
+          setMaybePlaced(true);
+          setNote(
+            t('We lost the connection, but your shop order may have gone through — check your orders before trying again.'),
+          );
           return;
         }
         setNote(errorText(out.error, t, n, out));
@@ -234,10 +253,23 @@ function CheckoutForm() {
         deliveryFee: cart.dishDelivery,
         platformFee: cart.platformFee,
         total: cart.dishTotal,
-        contact: { name: name.trim(), phone: phone.trim() },
+        contact: { name: name.trim(), phone: phoneAscii },
         address,
         ...cookWords,
       });
+
+      /* A refusal that names a dish: `request-invalid` with `detail.field`
+         of `items` means a line is no longer on that kitchen's menu, and
+         `detail.id` says which. Taking it out of the basket is the only
+         repair the customer could make, so it is made for them, and the
+         sentence beside the cart says why it shrank. */
+      const dropGoneDish = (detail) => {
+        if (detail?.field !== 'items') return false;
+        const gone = detail.id != null ? String(detail.id) : null;
+        const line = gone ? cart.dishItems.find((it) => String(it.id) === gone) : null;
+        if (line) cart.removeDish(line.id);
+        return !!line;
+      };
 
       /* What was already placed above is real and stays real: say so, and
          leave the kitchen part in the cart exactly as it was. */
@@ -265,6 +297,17 @@ function CheckoutForm() {
           toSignIn();
           return;
         }
+        /* `out.detail` is the refused row's detail once `placeOrder` passes
+           it through: the real shortfall for `wallet-low-balance`, the dish
+           id for `request-invalid`. */
+        dropGoneDish(out.detail);
+        if (out.error === 'wallet-low-balance' && out.detail?.short != null) {
+          /* The server's own shortfall, not the one worked out from the
+             preview — the two differ exactly when the fees did. */
+          setNote(`${prefix}${errorText(out.error, t, n, out)}`);
+          router.push({ pathname: '/wallet', params: { need: String(out.detail.short) } });
+          return;
+        }
         setNote(`${prefix}${errorText(out.error, t, n, out)}`);
         return;
       }
@@ -279,11 +322,15 @@ function CheckoutForm() {
         cart.dishItems
           .filter((it) => !refusedKitchens.has(String(it.chefId ?? 'unknown')))
           .forEach((it) => cart.removeDish(it.id));
+        /* And within a refused kitchen, the one dish the server named as
+           gone — the rest of that kitchen's lines stay for the retry. */
+        for (const r of out.refused) dropGoneDish(r.detail);
         setPlacedCount(shopPlaced.length + (out.result?.length ?? 0));
+        const first = out.refused[0];
         setNote(
           `${prefix}${t(
             'One kitchen could not take its part of your order, so it is still in your cart: {reason}',
-            { reason: errorText(out.refused[0].error, t, n, out) },
+            { reason: errorText(first.error, t, n, { ...out, detail: first.detail }) },
           )}`,
         );
         return;
@@ -304,6 +351,19 @@ function CheckoutForm() {
     ];
     router.replace(receipts.length === 1 ? receipts[0] : '/orders');
   };
+
+  /* Neither half of the cart has been read yet. The empty state below would
+     be a guess at this point, and the wrong one for anyone who just tapped
+     "Proceed to checkout" on a full basket. */
+  if (!cart.ready) {
+    return (
+      <Screen>
+        <Container style={{ alignItems: 'center', paddingTop: 60 }}>
+          <ActivityIndicator color={colors.primary} />
+        </Container>
+      </Screen>
+    );
+  }
 
   /* Signed out: sent to sign in before a form is shown, not after it is filled
      in. The dishes stay on the device across sign-in. */
@@ -329,9 +389,11 @@ function CheckoutForm() {
           <IconTile name="cart" large />
           <Heading size={20}>{t('Your cart is empty')}</Heading>
           <Body muted size={15} style={{ textAlign: 'center' }}>
-            {t('Add something before checking out.')}
+            {maybePlaced
+              ? t('We lost the connection, but your shop order may have gone through — check your orders before trying again.')
+              : t('Add something before checking out.')}
           </Body>
-          {placedCount ? (
+          {placedCount || maybePlaced ? (
             <Button label={t('View my orders')} onPress={() => router.replace('/orders')} />
           ) : null}
           <Button
@@ -359,7 +421,7 @@ function CheckoutForm() {
           />
 
           <FormNote text={note} />
-          {placedCount ? (
+          {placedCount || maybePlaced ? (
             <Pressable
               accessibilityRole="link"
               onPress={() => router.push('/orders')}

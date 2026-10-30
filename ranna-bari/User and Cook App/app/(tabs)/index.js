@@ -13,7 +13,6 @@ import ChefCard from '../../src/components/ChefCard';
 import MoodPill from '../../src/components/MoodPill';
 import SectionHeader from '../../src/components/SectionHeader';
 import NextUp from '../../src/components/NextUp';
-import TestimonialSlider, { Stars } from '../../src/components/TestimonialSlider';
 import Brand from '../../src/components/Brand';
 import { BentoBox, IconTile } from '../../src/components/Surfaces';
 import { useCart } from '../../src/store/CartContext';
@@ -30,7 +29,7 @@ import {
 import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
-import { useChefs, useReviewSummary } from '../../src/data';
+import { useChefs } from '../../src/data';
 import { useAuth } from '../../src/store/AuthContext';
 import { distanceKm } from '../../src/lib/geo';
 import { deliversTo } from '../../src/lib/kitchen';
@@ -97,11 +96,23 @@ const TRUST = [
   },
 ];
 
-const AVATARS = [
-  'https://i.pravatar.cc/100?img=1',
-  'https://i.pravatar.cc/100?img=5',
-  'https://i.pravatar.cc/100?img=9',
-];
+/**
+ * The featured dish tile's backdrop. Decorative — a stock photograph behind
+ * a gradient and a caption — and hot-linked, because the bundle carries no
+ * food photography of its own. If it does not load, the tile keeps its
+ * gradient and reads perfectly well without it; see `heroBroken` below.
+ */
+const FEATURED_IMAGE = 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800&q=80';
+
+/** "Ayesha Rahman" → "AR" — the initials a kitchen is drawn with when it has
+    no photograph of its own. */
+const initialsOf = (name) =>
+  String(name ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('') || '?';
 
 export default function HomeScreen() {
   const chefs = useChefs();
@@ -186,23 +197,17 @@ export default function HomeScreen() {
   const [area, setArea] = useState('');
   const { t, n } = useLang();
 
-  const summary = useReviewSummary();
-  const chefName = useMemo(() => {
-    const map = new Map(chefs.map((c) => [String(c.id), c.name]));
-    return (id) => map.get(String(id)) ?? 'a home kitchen';
-  }, [chefs]);
+  /* The "What foodies say" carousel used to live here, built out of each
+     kitchen's own description posing as a customer's review, under a stock
+     portrait from pravatar.cc. No endpoint on `/api/app/v1` serves recent
+     reviews to a customer (`/kitchens/mine/reviews` is the cook's own), so
+     the section is gone rather than faked; it comes back when the server
+     can answer for it. */
 
-  const reviews = useMemo(() => {
-    return chefs.slice(0, 10).map((chef, idx) => ({
-      id: String(chef.id),
-      chefId: chef.id,
-      rating: chef.rating || 5,
-      text: chef.description || `${chef.name} prepares fresh, home-cooked culinary specialties with authentic ingredients.`,
-      author: chef.ownerName || chef.name || 'Verified Foodie',
-      location: chef.area || 'Dhaka',
-      avatar: chef.avatar || `https://i.pravatar.cc/100?img=${(idx % 20) + 1}`,
-    }));
-  }, [chefs]);
+  /* The three faces on the "verified artisans" stat: real kitchens from the
+     directory, by their own photograph or their initials. */
+  const faces = useMemo(() => chefs.slice(0, 3), [chefs]);
+  const [heroBroken, setHeroBroken] = useState(false);
 
   /**
    * The three kitchens under "the highest-rated artists near you".
@@ -446,14 +451,15 @@ export default function HomeScreen() {
             accessibilityLabel={t('Featured')}
             style={{ minHeight: 260, justifyContent: 'flex-end' }}
           >
-            <Image
-              source={{
-                uri: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800&q=80',
-              }}
-              contentFit="cover"
-              transition={250}
-              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-            />
+            {heroBroken ? null : (
+              <Image
+                source={{ uri: FEATURED_IMAGE }}
+                contentFit="cover"
+                transition={250}
+                onError={() => setHeroBroken(true)}
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+              />
+            )}
             <LinearGradient
               pointerEvents="none"
               colors={[
@@ -552,22 +558,45 @@ export default function HomeScreen() {
             </Label>
 
             <View style={{ flexDirection: 'row', marginTop: 8 }}>
-              {AVATARS.map((uri, i) => (
-                <Image
-                  key={uri}
-                  source={{ uri }}
-                  contentFit="cover"
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    borderWidth: 2,
-                    borderColor: colors.raised,
-                    marginLeft: i === 0 ? 0 : -12,
-                    backgroundColor: colors.sunken,
-                  }}
-                />
-              ))}
+              {faces.map((c, i) =>
+                c.avatar ? (
+                  <Image
+                    key={String(c.id)}
+                    source={{ uri: c.avatar }}
+                    contentFit="cover"
+                    accessibilityLabel={c.name}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      borderWidth: 2,
+                      borderColor: colors.raised,
+                      marginLeft: i === 0 ? 0 : -12,
+                      backgroundColor: colors.sunken,
+                    }}
+                  />
+                ) : (
+                  <View
+                    key={String(c.id)}
+                    accessibilityLabel={c.name}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      marginLeft: i === 0 ? 0 : -12,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: colors.sage,
+                      borderWidth: 2,
+                      borderColor: colors.raised,
+                    }}
+                  >
+                    <Text style={{ fontFamily: font.uiBold, fontSize: 11, color: '#FFFFFF' }}>
+                      {initialsOf(c.name)}
+                    </Text>
+                  </View>
+                ),
+              )}
               <View
                 style={{
                   width: 36,
@@ -1023,62 +1052,9 @@ export default function HomeScreen() {
         </View>
       </Container>
 
-      {/* ============ TESTIMONIALS ============ */}
-      <View style={{ paddingVertical: 56, backgroundColor: colors.sunken }}>
-        <Container>
-          <SectionHeader
-            lead={t('WHAT')}
-            accent={t('FOODIES')}
-            trail={t('SAY')}
-            subtitle={t('Real orders, real kitchens, real neighbours.')}
-            style={{ marginBottom: 28 }}
-            right={
-              <View
-                style={[
-                  {
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 12,
-                    paddingVertical: 12,
-                    paddingHorizontal: 16,
-                    borderRadius: radius.pill,
-                    backgroundColor: colors.surfaceSolid,
-                    borderWidth: 1,
-                    borderColor: colors.line,
-                  },
-                  shadow.sm,
-                ]}
-              >
-                <Text
-                  style={{
-                    fontFamily: font.displayExtra,
-                    fontSize: 26,
-                    lineHeight: 28,
-                    letterSpacing: -0.5,
-                    color: colors.text,
-                  }}
-                >
-                  {summary.average.toFixed(1)}
-                </Text>
-                <View style={{ gap: 3 }}>
-                  <Stars rating={summary.average} size={14} />
-                  <Text
-                    style={{
-                      fontFamily: font.ui,
-                      fontSize: type.xs,
-                      color: colors.textMuted,
-                    }}
-                  >
-                    {n(summary.count)} {t('verified reviews')}
-                  </Text>
-                </View>
-              </View>
-            }
-          />
-        </Container>
-
-        <TestimonialSlider reviews={reviews} chefName={chefName} />
-      </View>
+      {/* The testimonials carousel stood here. See the note by `faces` above:
+          it drew kitchen descriptions as if they were customers' words, and
+          there is no review feed on the API yet to replace them with. */}
 
       {/* ============ THE RANNABARI STANDARD ============
           The trust pitch, and the same reasoning: it is an argument for

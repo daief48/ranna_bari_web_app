@@ -10,6 +10,7 @@ import { font, radius, type } from '../../src/theme/tokens';
 import { useSession } from '../../src/store/SessionContext';
 import { useAuth } from '../../src/store/AuthContext';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { digitsOnly, foldDigits } from '../../src/lib/format';
 
 /**
  * Prove the phone is yours.
@@ -42,7 +43,9 @@ export default function VerifyNumber() {
     setNote(null);
     setBusy(true);
     try {
-      const out = await requestCode(phone);
+      /* Bengali numerals folded before the number leaves the device — the
+         server's normaliser only knows ASCII. */
+      const out = await requestCode(foldDigits(phone));
       setStage('code');
       /* With no SMS provider wired in, the server hands the code back so the
          flow can be walked end to end. It refuses to do that once one is
@@ -64,7 +67,7 @@ export default function VerifyNumber() {
     setNote(null);
     setBusy(true);
     try {
-      await verifyCode(phone, code);
+      await verifyCode(foldDigits(phone), code);
       router.replace('/chat');
     } catch (error) {
       setNote(error?.message ?? t('That code did not work.'));
@@ -126,7 +129,7 @@ export default function VerifyNumber() {
               label={busy ? t('Sending…') : t('Send me a code')}
               icon="phone"
               block
-              disabled={busy || phone.replace(/\D/g, '').length < 10}
+              disabled={busy || digitsOnly(phone).length < 10}
               onPress={ask}
             />
           </>
@@ -138,7 +141,7 @@ export default function VerifyNumber() {
             <TextInput
               ref={codeRef}
               value={code}
-              onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
+              onChangeText={(value) => setCode(digitsOnly(value).slice(0, 6))}
               placeholder="000000"
               placeholderTextColor={colors.ink3}
               keyboardType="number-pad"

@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import Icon from './Icon';
 import Button from './Button';
 import { useTheme } from '../theme/ThemeProvider';
 import { ORDER_STEPS, stepIndex } from '../store/OrdersContext';
+import { useKitchen } from '../store/KitchenContext';
 import { useLang } from '../i18n/LanguageContext';
+import { foldDigits } from '../lib/format';
 import { font, radius, tracking, type } from '../theme/tokens';
 
 /**
@@ -1141,4 +1144,253 @@ export function KitchenSuspended({ kitchen, onContact, onBack }) {
       </View>
     </View>
   );
+}
+
+/**
+ * The panel, when the kitchen could not be read at all.
+ *
+ * `null` from the provider means two things — the server said there is no
+ * kitchen on this account, or the request never came back — and the tab
+ * layout used to treat both as "fine, open the tabs", which rendered a
+ * dashboard over nothing: every count zero, every write refused. This is the
+ * honest state for that moment: it says what is known, offers the one thing
+ * that helps (ask again), and keeps the way out.
+ */
+export function KitchenUnknown({ loading, onRetry, onBack }) {
+  const { colors, shadow } = useTheme();
+  const { t } = useLang();
+
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <View
+        style={[
+          {
+            width: '100%',
+            maxWidth: 420,
+            padding: 26,
+            borderRadius: radius.lg,
+            backgroundColor: colors.surfaceSolid,
+            borderWidth: 1,
+            borderColor: colors.line,
+            alignItems: 'center',
+            gap: 14,
+          },
+          shadow.md,
+        ]}
+      >
+        {loading ? (
+          <ActivityIndicator color={colors.sage} />
+        ) : (
+          <View
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: 22,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: colors.sage50,
+              borderWidth: 1,
+              borderColor: colors.sage100,
+            }}
+          >
+            <Icon name="chefHat" size={28} color={colors.sage} strokeWidth={1.8} />
+          </View>
+        )}
+
+        <Text
+          style={{
+            fontFamily: font.displayExtra,
+            fontSize: 22,
+            lineHeight: 27,
+            letterSpacing: -0.3,
+            textAlign: 'center',
+            color: colors.text,
+          }}
+        >
+          {loading ? t('Loading your kitchen…') : t('Your kitchen is not here yet')}
+        </Text>
+
+        {!loading ? (
+          <Text
+            style={{
+              fontFamily: font.ui,
+              fontSize: 14.5,
+              lineHeight: 22,
+              textAlign: 'center',
+              color: colors.textMuted,
+            }}
+          >
+            {t(
+              'Either it is still being set up, or the connection dropped before it arrived. Try again in a moment.',
+            )}
+          </Text>
+        ) : null}
+
+        {!loading && onRetry ? (
+          <Button label={t('Try again')} icon="arrowRight" block onPress={onRetry} style={{ marginTop: 4 }} />
+        ) : null}
+
+        <Pressable accessibilityRole="button" onPress={onBack} hitSlop={8}>
+          <Text style={{ fontFamily: font.uiSemi, fontSize: 13.5, color: colors.textMuted }}>
+            {t('Back to RannaBari')}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * The same gate the tab layout keeps, for the cook screens that live outside
+ * the tab group.
+ *
+ * `app/cook/(panel)/_layout` holds the dashboard shut until an operator
+ * approves the kitchen — but the order page, the dish editor, the shop
+ * screens, the meal system and the request board are pushed *beside* the
+ * group, not inside it, so a link into any of them (a notification, a kept
+ * URL, the back stack) opened a working screen on a kitchen that may not
+ * trade. The backend refuses the writes regardless; this is the half that
+ * says why, exactly as the layout does.
+ *
+ * A wrapper rather than a hook, because every one of those screens returns
+ * early in several places and a hook's verdict would have to be threaded past
+ * each of them. Wrapping the default export leaves the screen untouched.
+ *
+ * `kitchen-details` is deliberately *not* wrapped: it is the one door the
+ * pending screen keeps open, because fixing the listing is how a rejection is
+ * answered. A kitchen that has not loaded, or an account with none, passes
+ * through — each screen already says what it needs to about that.
+ */
+export function withKitchenGate(Screen) {
+  function Gated(props) {
+    const { kitchen } = useKitchen();
+    const router = useRouter();
+
+    if (kitchen?.suspended) {
+      return (
+        <KitchenSuspended
+          kitchen={kitchen}
+          onContact={() => router.push('/chat')}
+          onBack={() => router.replace('/')}
+        />
+      );
+    }
+
+    if (kitchen && kitchen.kycStatus !== 'approved') {
+      return (
+        <KitchenPending
+          kitchen={kitchen}
+          onCompleteDocuments={() => router.push('/cook-documents')}
+          onOpenDetails={() => router.push('/cook/kitchen-details')}
+          onBack={() => router.replace('/')}
+        />
+      );
+    }
+
+    return <Screen {...props} />;
+  }
+  Gated.displayName = `withKitchenGate(${Screen.displayName || Screen.name || 'Screen'})`;
+  return Gated;
+}
+
+/**
+ * A `?shop=` that names nothing this kitchen owns.
+ *
+ * Every shop screen takes the shop from the route and used to fall back to
+ * the first shop when the param matched nothing — so a link kept from a shop
+ * since closed, or one that belonged to another account on this device,
+ * silently opened the cook's *other* shop and let them edit it believing it
+ * was the one they tapped. The fallback is right when the param is absent; a
+ * param that is present and wrong is news, and this says it.
+ */
+export function ShopNotFound({ onBack }) {
+  const { colors } = useTheme();
+  const { t } = useLang();
+
+  return (
+    <View style={{ alignItems: 'center', gap: 14, paddingTop: 40, paddingHorizontal: 20 }}>
+      <View
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: 22,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.saffron50,
+          borderWidth: 1,
+          borderColor: colors.saffron100,
+        }}
+      >
+        <Icon name="box" size={28} color={colors.saffron} strokeWidth={1.8} />
+      </View>
+      <Text
+        style={{
+          fontFamily: font.displayExtra,
+          fontSize: 21,
+          lineHeight: 26,
+          letterSpacing: -0.3,
+          textAlign: 'center',
+          color: colors.text,
+        }}
+      >
+        {t('That shop no longer exists')}
+      </Text>
+      <Text
+        style={{
+          fontFamily: font.ui,
+          fontSize: 14.5,
+          lineHeight: 22,
+          textAlign: 'center',
+          color: colors.textMuted,
+        }}
+      >
+        {t('The link pointed at a shop this kitchen does not have any more.')}
+      </Text>
+      <Button label={t('Your shops')} icon="box" onPress={onBack} style={{ marginTop: 4 }} />
+    </View>
+  );
+}
+
+/**
+ * Pick the shop a route names, and notice when it names a wrong one.
+ *
+ * Returns `{ store, missing }`: `store` is the named shop, or the first one
+ * when the route named none; `missing` is true only when the route named a
+ * shop and the loaded list does not contain it. While the list is still empty
+ * nothing is "missing" — there is nothing to compare against yet, and the
+ * screen's own loading state covers that moment.
+ */
+export function resolveShop(shops, shopParam) {
+  const list = Array.isArray(shops) ? shops : [];
+  const wanted = shopParam == null || shopParam === '' ? null : String(shopParam);
+  if (wanted === null) return { store: list[0] ?? null, missing: false };
+  const found = list.find((s) => String(s.id) === wanted) ?? null;
+  return { store: found, missing: !found && list.length > 0 };
+}
+
+/**
+ * A price typed by a cook, as whole taka — or null.
+ *
+ * `Number('1e6')` is a million and `Number('৫০')` is NaN, and the editors
+ * used `Number()` for both: a slip of the keyboard could list a dish at
+ * ৳1,000,000 and a cook typing Bengali digits was told their price was not a
+ * number. Bengali digits are folded first, then only a plain run of digits
+ * is accepted, within the range a home kitchen's price can honestly be.
+ */
+export const MAX_TAKA = 100000;
+
+export function parseTaka(text) {
+  const folded = foldDigits(text).trim();
+  if (!/^\d+$/.test(folded)) return null;
+  const value = Number(folded);
+  if (!Number.isSafeInteger(value) || value < 1 || value > MAX_TAKA) return null;
+  return value;
 }

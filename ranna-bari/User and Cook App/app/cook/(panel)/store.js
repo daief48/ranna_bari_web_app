@@ -32,7 +32,9 @@ import {
   ActionRow,
   FieldError,
   RadiusSlider,
+  ShopNotFound,
   WizardSteps,
+  resolveShop,
 } from '../../../src/components/CookBits';
 import { CountTile, EmptyState } from '../../../src/components/MealBits';
 import { BlockLabel } from '../../../src/components/StoreBits';
@@ -65,10 +67,22 @@ export default function CookStoreHub() {
      the listings rows; inside the hub the switcher chips keep it. */
   const { shop: shopParam } = useLocalSearchParams();
   const shops = kitchen ? shop.myStores(kitchen.id) : [];
-  const store =
-    shopParam === 'new'
-      ? null
-      : shops.find((s) => String(s.id) === String(shopParam)) ?? shops[0] ?? null;
+  /* `new` is the switcher asking for the setup flow; anything else names a
+     shop, and a name this kitchen does not have is said rather than swapped
+     for the first shop — see `resolveShop`. */
+  const resolved = shopParam === 'new' ? { store: null, missing: false } : resolveShop(shops, shopParam);
+  const store = resolved.store;
+
+  if (resolved.missing) {
+    return (
+      <CookScreen>
+        <Container>
+          <Back />
+          <ShopNotFound onBack={() => router.replace('/cook/store')} />
+        </Container>
+      </CookScreen>
+    );
+  }
 
   /* No shop yet — none at all, or the switcher asked for a new one: a
      three-step setup, not a single blind button. The old flow opened the

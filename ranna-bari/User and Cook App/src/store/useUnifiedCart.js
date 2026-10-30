@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useCart } from './CartContext';
 import { useCommerce } from './CommerceContext';
@@ -53,14 +53,45 @@ export function useUnifiedCart() {
 
   /* The cart line carries a shop's id and name, not its fee rules. The rules
      decide which of a shop's two prices the customer is on, so a shop the
-     device has never opened is fetched — once; `ensureStore` is idempotent. */
+     device has never opened is fetched; `ensureStore` is idempotent.
+
+     Fetched more than once, now. `ensureStore` answers null on a dropped
+     connection and marks nothing loaded, but this effect only ran again when
+     the set of shops changed — so one bad moment on the first open left the
+     fee label blank for as long as the basket held that shop. A failure
+     schedules another go with a widening gap, three times at most per shop;
+     a shop that does load resets its count, and a change of basket starts
+     everyone over. */
   const storeIds = shopGroups.map((g) => g.storeId).join('|');
+  const attempts = useRef(new Map());
+  const attemptsFor = useRef(storeIds);
+  const [retryTick, setRetryTick] = useState(0);
   useEffect(() => {
-    for (const g of shopGroups) {
-      if (g.storeId !== 'unknown' && !shop.storeById(g.storeId)) shop.ensureStore(g.storeId);
+    let alive = true;
+    const timers = [];
+    if (attemptsFor.current !== storeIds) {
+      attemptsFor.current = storeIds;
+      attempts.current = new Map();
     }
+    for (const g of shopGroups) {
+      if (g.storeId === 'unknown' || shop.storeById(g.storeId)) {
+        attempts.current.delete(g.storeId);
+        continue;
+      }
+      const tried = attempts.current.get(g.storeId) ?? 0;
+      if (tried >= 3) continue;
+      attempts.current.set(g.storeId, tried + 1);
+      Promise.resolve(shop.ensureStore(g.storeId)).then((loaded) => {
+        if (!alive || loaded) return;
+        timers.push(setTimeout(() => alive && setRetryTick((n) => n + 1), 2000 * (tried + 1)));
+      });
+    }
+    return () => {
+      alive = false;
+      timers.forEach(clearTimeout);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeIds]);
+  }, [storeIds, retryTick]);
 
   const stores = shopGroups.map((g) => shop.storeById(g.storeId)).filter(Boolean);
 
@@ -80,6 +111,16 @@ export function useUnifiedCart() {
   const hasDish = dish.items.length > 0;
   const hasShop = shopLines.length > 0;
 
+  /* Whether "empty" would be the truth or merely the state of a cart nobody
+     has read yet. The dish half is on disk and the shop half is on the
+     server, and both arrive a moment after the screen does — a cart screen
+     that read the two lists alone drew "Your cart is empty" over a basket
+     with six things in it, for exactly as long as the reads took. `ordersReady`
+     is the signal that the account's private slices (the cart among them)
+     have been asked for once, and it is already true for a guest, who has no
+     shop half to wait on. */
+  const ready = dish.hydrated && shop.ordersReady;
+
   const shopCount = shopLines.reduce((sum, l) => sum + l.qty, 0);
 
   const setShopQty = useCallback(
@@ -98,8 +139,12 @@ export function useUnifiedCart() {
 
     hasDish,
     hasShop,
-    /** Anything at all, either kind. */
-    isEmpty: !hasDish && !hasShop,
+    /** False until both halves have been read once — show a spinner, not an
+        empty state, while it is. */
+    ready,
+    /** Nothing at all, either kind — and known to be nothing, rather than
+        not yet loaded. */
+    isEmpty: ready && !hasDish && !hasShop,
 
     /** Units across both halves — what a badge counts. */
     count: dish.count + shopCount,
@@ -115,6 +160,8 @@ export function useUnifiedCart() {
     removeDish: dish.remove,
     addDish: dish.add,
     clearDishes: dish.clear,
+    /** Refresh the lines' prices from a `Map(dishId -> dish)` of the live menu. */
+    syncDishPrices: dish.syncPrices,
 
     /* ---- shop products (server) ---- */
     shopLines,

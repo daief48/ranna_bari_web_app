@@ -8,8 +8,8 @@
  * and one button. Showing all three at once would be a form; showing them in
  * turn is a conversation.
  */
-import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../../src/components/Screen';
@@ -34,6 +34,7 @@ import { useCommerce } from '../../src/store/CommerceContext';
 import { REQUEST_STATUS, isLiveOffer, standing, turnOf } from '../../src/lib/requestLogic';
 import { distanceKm } from '../../src/lib/geo';
 import { addressFromAccount } from '../../src/lib/ledger';
+import { foldDigits } from '../../src/lib/format';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { useAlert } from '../../src/components/Alert';
 
@@ -50,20 +51,47 @@ export default function RequestScreen() {
      and which offers come back is the server's decision -- a customer reads
      every price, a cook reads only their own. */
   const { ensureRequest } = shop;
+  /* Whether the server has been asked for this one yet. The list arrives a
+     moment after the screen does, and a request opened from a notification
+     is routinely not in it — so "Request not found" was the first thing a
+     customer saw of a request that exists, for exactly as long as the read
+     took. Nothing is said until the ask has settled, either way. */
+  const [asked, setAsked] = useState(false);
   useEffect(() => {
-    ensureRequest(String(id));
+    setAsked(false);
+    let alive = true;
+    Promise.resolve(ensureRequest(String(id))).finally(() => {
+      if (alive) setAsked(true);
+    });
+    return () => {
+      alive = false;
+    };
   }, [id, ensureRequest]);
 
   const [error, setError] = useState(null);
   const [flash, setFlash] = useState(null);
   const [counter, setCounter] = useState('');
   const [asking, setAsking] = useState(null); // 'pay' | 'cancel'
+  /* Paying holds money, and the confirm dialog closes before the request
+     answers — a second tap in that gap was a second hold. A ref, not state,
+     so it shuts in the same frame as the first tap. */
+  const paying = useRef(false);
 
   const request = shop.requestById(String(id));
   const offers = useMemo(
     () => (request ? shop.offersForRequest(request.id) : []),
     [shop, request],
   );
+
+  if (!request && !asked) {
+    return (
+      <Screen>
+        <Container style={{ alignItems: 'center', paddingTop: 60 }}>
+          <ActivityIndicator color={colors.primary} />
+        </Container>
+      </Screen>
+    );
+  }
 
   if (!request) {
     return (
@@ -130,13 +158,19 @@ export default function RequestScreen() {
 
   const pay = async () => {
     setAsking(null);
-    const out = await shop.payForRequest(request.id, {
-      name: account?.name ?? '',
-      phone: account?.phone ?? '',
-      address: addressFromAccount(account),
-    });
-    if (!out.ok) return alert.error(errorText(out.error, t, n, out));
-    router.replace(`/request-order/${out.result.id}`);
+    if (paying.current) return;
+    paying.current = true;
+    try {
+      const out = await shop.payForRequest(request.id, {
+        name: account?.name ?? '',
+        phone: account?.phone ?? '',
+        address: addressFromAccount(account),
+      });
+      if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+      router.replace(`/request-order/${out.result.id}`);
+    } finally {
+      paying.current = false;
+    }
   };
 
   /* Leaving one negotiation without abandoning the request. The other
@@ -322,7 +356,7 @@ export default function RequestScreen() {
                     </Text>
                     <TextInput
                       value={counter}
-                      onChangeText={(v) => setCounter(v.replace(/[^0-9]/g, ''))}
+                      onChangeText={(v) => setCounter(foldDigits(v).replace(/[^0-9]/g, ''))}
                       placeholder={t('Offer less')}
                       placeholderTextColor={colors.textLight}
                       keyboardType="number-pad"

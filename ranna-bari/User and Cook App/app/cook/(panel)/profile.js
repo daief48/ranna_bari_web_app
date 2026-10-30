@@ -36,6 +36,7 @@ import { formatOrderDate, useOrders } from '../../../src/store/OrdersContext';
 import { fetchMealOrders, fetchMyPlan, fetchMyService } from '../../../src/features/meal-plan/api';
 import { countMeals, spreadMonth, todayKey } from '../../../src/features/meal-plan/format';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import { digitsOnly } from '../../../src/lib/format';
 
 export default function CookProfile() {
   const { colors, shadow, isDark, toggle } = useTheme();
@@ -936,7 +937,7 @@ export default function CookProfile() {
                   label={payMethod === 'bank' ? t('Account number') : t('bKash number')}
                   value={payAccount}
                   onChangeText={(v) => {
-                    setPayAccount(v.replace(/[^0-9]/g, ''));
+                    setPayAccount(digitsOnly(v));
                     setPayError('');
                   }}
                   keyboardType="number-pad"

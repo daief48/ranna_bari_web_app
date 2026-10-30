@@ -100,14 +100,17 @@ export function useSpecialties() {
 const tagsFromDishes = (dishes) =>
   Array.from(new Set(dishes.flatMap((d) => d.tags ?? []))).slice(0, 6);
 
-const FALLBACK_AVATAR =
-  'https://images.unsplash.com/photo-1595475207225-428b62bda831?w=200&h=200&fit=crop';
-const FALLBACK_COVER =
-  'https://images.unsplash.com/photo-1466637574441-749b8f19452f?w=1200&h=400&fit=crop';
-
 /**
- * Build the kitchen record a cook's account implies. Every field the signup
- * flow collected is reused; the rest gets a sensible opening value.
+ * Build the kitchen record a cook's account implies.
+ *
+ * Only what the sign-up flow actually collected. This used to fill the gaps
+ * with plausible values — a Dhanmondi pin, an English sentence of
+ * description, two Unsplash photographs — and post them as the kitchen's own
+ * facts: every new kitchen sat at 23.7461, 90.3742 on the customer's map and
+ * advertised a stock photograph of somebody else's food until the cook
+ * noticed. A field the cook did not give is left out of the body; the
+ * server stores nothing for it and the details wizard asks for it. The
+ * server's own fallbacks (`registerKitchen`) make the omission safe.
  */
 export function kitchenFromAccount(account) {
   /* A cook may tick several. The first is the primary, which is the single
@@ -117,26 +120,29 @@ export function kitchenFromAccount(account) {
   /* Nothing on the menu until the cook puts something there. */
   const dishes = [];
 
+  /* `undefined` fields are dropped by JSON, so "not given" never reaches
+     the wire as an empty string the server would have to tell apart. */
+  const given = (value) => (value == null || value === '' ? undefined : value);
+  const cover = given(account?.coverImage) ?? given(account?.photos?.[0]);
+  const area = given(account?.area);
+  const lat = typeof account?.lat === 'number' ? account.lat : undefined;
+  const lng = typeof account?.lng === 'number' ? account.lng : undefined;
+
   return {
     id: LOCAL_KITCHEN_ID,
     name: account?.kitchen?.trim() || account?.name?.trim() || 'My Kitchen',
     ownerName: account?.name?.trim() || '',
-    avatar: account?.avatar || FALLBACK_AVATAR,
-    /* The photograph the cook chose at sign-up, when they chose one. This
-       used to be the stock cover unconditionally, so a kitchen picture
-       picked during registration was thrown away before it reached the
-       server. */
+    avatar: given(account?.avatar),
     /* The first photograph they chose, exactly as the registration screen
-       said it would be — "the first one is your cover". The stock picture is
-       the fallback for a kitchen that has none, not the default. */
-    coverImage: account?.coverImage || account?.photos?.[0] || FALLBACK_COVER,
+       said it would be — "the first one is your cover". No stock picture
+       stands in for a kitchen that has none; the wizard asks for one. */
+    coverImage: cover,
     /* The rest of the gallery. Registration is where these are chosen and
        this is the only path they travel, so dropping them here loses them. */
     photos: account?.photos ?? [],
     specialty,
     specialties: chosen.length ? chosen : [specialty],
-    description:
-      'A home kitchen on RannaBari. Cooked to order, packed the moment it is ready.',
+    description: given(account?.description),
     /* A kitchen with no reviews should not claim a score. The card reads
        "New" until the first one lands. */
     rating: 0,
@@ -145,10 +151,12 @@ export function kitchenFromAccount(account) {
     ecoBadge: 'Eco-Packaging',
     isVerified: false,
     /* The signup map hands back a full postal address; a kitchen's area is
-       a neighbourhood, and that is what every filter and card expects. */
-    area: normaliseArea(account?.area || 'Dhanmondi'),
-    lat: account?.lat ?? 23.7461,
-    lng: account?.lng ?? 90.3742,
+       a neighbourhood, and that is what every filter and card expects. Only
+       when one was given — `normaliseArea('')` answers "Dhaka", which would
+       be an invented fact. */
+    area: area ? normaliseArea(area) : undefined,
+    lat,
+    lng,
     deliveryRadiusKm: account?.deliveryRadiusKm ?? DEFAULT_RADIUS_KM,
     /* A kitchen opens closed: the cook decides when they are ready to cook,
        and an order arriving before they have looked at the menu is worse
@@ -217,8 +225,14 @@ export function KitchenProvider({ children }) {
   }, []);
 
   /* Signing out, or in as somebody else, leaves nothing behind: the kitchen
-     in memory belonged to the account that just left. */
+     in memory belonged to the account that just left. The sequence counter
+     is bumped too, so a read that account started and has not finished is
+     discarded when it lands rather than painted over the new account. */
+  const accountRef = useRef(identity?.accountId ?? null);
+  const readSeq = useRef(0);
   useEffect(() => {
+    accountRef.current = identity?.accountId ?? null;
+    readSeq.current += 1;
     setKitchen(null);
     setLoaded(false);
   }, [identity?.accountId]);
@@ -240,7 +254,22 @@ export function KitchenProvider({ children }) {
   const reload = useCallback(async () => {
     const bearer = auth();
     if (!bearer || !hasServer) return null;
+
+    /*
+     * Numbered, and only the latest may land.
+     *
+     * Three things call this — mount, the app coming to the foreground, and
+     * every write — and nothing stopped an older answer arriving after a
+     * newer one: a save's re-read could be overtaken by the foreground
+     * re-read it raced, and the panel showed the kitchen as it was before the
+     * save. Worse across accounts: a read started for one cook and answered
+     * after sign-out painted their kitchen onto the next sign-in. The
+     * snapshot taken here is compared on return; anything stale is dropped.
+     */
+    const seq = ++readSeq.current;
+    const forAccount = accountRef.current;
     const out = await call('/kitchens/mine', { token: bearer });
+    if (seq !== readSeq.current || forAccount !== accountRef.current) return null;
 
     if (!out.ok) {
       /*
@@ -278,7 +307,7 @@ export function KitchenProvider({ children }) {
     };
     setKitchen(next);
     return next;
-  }, [token]);
+  }, [auth]);
 
   /* The account's own kitchen changes when it is registered, and when a cook
      signs in on a second device. Both are `identity.kitchenId` moving. */
@@ -391,11 +420,13 @@ export function KitchenProvider({ children }) {
 
       /* The starter menu is what stops a new kitchen from being one that
          cannot take an order. Posted as real dishes rather than bundled onto
-         the kitchen, because that is what they are now. */
+         the kitchen, because that is what they are now. (The list is empty
+         today — see `kitchenFromAccount` — but the path stays correct: the
+         live token, not the state copy that is a render behind at sign-up.) */
       for (const dish of dishes) {
         await call('/kitchens/mine/dishes', {
           method: 'POST',
-          token,
+          token: auth(),
           body: {
             name: dish.name,
             description: dish.description,
@@ -407,7 +438,7 @@ export function KitchenProvider({ children }) {
       }
       return reload();
     },
-    [reload, save, token],
+    [reload, save, auth],
   );
 
   const ensureKitchen = useCallback(
@@ -432,12 +463,15 @@ export function KitchenProvider({ children }) {
 
   const dishWrite = useCallback(
     async (path, body) => {
-      if (!token) return { ok: false, error: 'unauthenticated' };
-      const out = await call(path, { method: 'POST', token, body });
+      /* The live token, like every other request here — the state copy is a
+         render behind whenever a write follows a sign-in closely. */
+      const bearer = auth();
+      if (!bearer) return { ok: false, error: 'unauthenticated' };
+      const out = await call(path, { method: 'POST', token: bearer, body });
       if (out.ok) await reload();
       return out;
     },
-    [token, reload],
+    [auth, reload],
   );
 
   const addDish = useCallback((dish) => dishWrite('/kitchens/mine/dishes', dish), [dishWrite]);

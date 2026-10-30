@@ -14,33 +14,28 @@ import { Body, Heading, Price } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
+import { cookPayout, formatOrderDate, useOrders } from '../../../src/store/OrdersContext';
 import {
-  COOK_PAYOUT_RATE,
-  cookPayout,
-  formatOrderDate,
-  useOrders,
-} from '../../../src/store/OrdersContext';
+  cookBase,
+  inFlight,
+  moneyHeld,
+  moneyReleased,
+  payoutRateFor,
+  settledAt,
+} from '../../../src/lib/orderRails';
+import { dayKeyOf, recentDayKeys } from '../../../src/features/meal-plan/format';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useCookPayouts } from '../../../src/data/cook';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
-const DAY = 86_400_000;
-
-/** Midnight at the start of the day `back` days ago. */
-function dayStart(back = 0) {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime() - back * DAY;
-}
-
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-const taka = (v, num) => `৳${num(v.toLocaleString('en-US'))}`;
+const taka = (v, num) => `৳${num((Number(v) || 0).toLocaleString('en-US'))}`;
 
 export default function CookEarnings() {
   const { colors, shadow } = useTheme();
   const { kitchen } = useKitchen();
-  const { ordersForKitchen } = useOrders();
+  const { ordersForKitchen, payoutRates } = useOrders();
   const meals = useCommerce();
   const { t, n: num, lang } = useLang();
   /* Runs an operator actually marked paid. Empty until there has been one,
@@ -48,55 +43,95 @@ export default function CookEarnings() {
   const { payouts } = useCookPayouts();
 
   /* The cook's half of the meal ledger: money that has actually landed, and
-     money still held against orders nobody has confirmed receiving. */
+     the cook's share still held against orders nobody has confirmed
+     receiving — the share, not the plate price, because the platform's cut
+     comes off before anything is released. */
   const mealOrders = kitchen ? meals.ordersForKitchen(kitchen.id) : [];
   const pending = mealOrders
-    .filter((o) => o.payment === 'held')
-    .reduce((sum, o) => sum + o.amount, 0);
+    .filter(moneyHeld)
+    .reduce((sum, o) => sum + cookPayout(o, payoutRates), 0);
   const mealLedger = meals.ledger.filter((tx) => tx.to === 'cook').slice().reverse();
 
-  /* Only a delivered order is money. Anything still moving is a promise, and
-     a payout screen that counts promises is lying to the cook. */
-  const paid = useMemo(
-    () => ordersForKitchen(kitchen?.id).filter((o) => o.status === 'delivered'),
-    [ordersForKitchen, kitchen],
+  /*
+   * Three piles, by where the money is.
+   *
+   * This used to keep `status === 'delivered'` and call it paid — which
+   * dropped every `completed` order (the customer's confirmation is what
+   * releases wallet money, so the finished escrow orders fell *out* of the
+   * total the moment they were actually paid) and counted a delivered wallet
+   * parcel as earned while its money was still held. The rails module says
+   * which is which: released is earned, delivered-but-unconfirmed is held,
+   * and the rest is still being cooked.
+   *
+   * All three are over the orders the app holds — the newest fifty — not the
+   * kitchen's lifetime, and the headings below say so. The wire carries no
+   * lifetime figure yet; the payout runs further down are the lifetime truth.
+   */
+  const mine = useMemo(() => ordersForKitchen(kitchen?.id), [ordersForKitchen, kitchen?.id]);
+  const earned = useMemo(
+    () =>
+      mine
+        .filter(moneyReleased)
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(settledAt(b) ?? b.createdAt ?? 0) - new Date(settledAt(a) ?? a.createdAt ?? 0),
+        ),
+    [mine],
+  );
+  const held = useMemo(() => mine.filter(moneyHeld), [mine]);
+  const moving = useMemo(
+    () => mine.filter((o) => inFlight(o) && o.status !== 'rejected' && o.status !== 'cancelled'),
+    [mine],
   );
 
   const totals = useMemo(() => {
-    const gross = paid.reduce((s, o) => s + o.subtotal, 0);
-    const net = paid.reduce((s, o) => s + cookPayout(o), 0);
-    const week = paid.filter(
-      (o) => new Date(o.deliveredAt ?? o.createdAt).getTime() >= dayStart(6),
-    );
+    const sum = (rows, f) => rows.reduce((s, o) => s + (Number(f(o)) || 0), 0);
+    const gross = sum(earned, cookBase);
+    const net = sum(earned, (o) => cookPayout(o, payoutRates));
+    const thisWeek = new Set(recentDayKeys(7));
+    const week = earned.filter((o) => thisWeek.has(dayKeyOf(settledAt(o) ?? o.createdAt)));
 
     return {
       gross,
       net,
-      fee: gross - net,
-      orders: paid.length,
-      weekNet: week.reduce((s, o) => s + cookPayout(o), 0),
+      fee: Math.max(0, gross - net),
+      orders: earned.length,
+      heldNet: sum(held, (o) => cookPayout(o, payoutRates)),
+      heldOrders: held.length,
+      pendingNet: sum(moving, (o) => cookPayout(o, payoutRates)),
+      pendingOrders: moving.length,
+      weekNet: sum(week, (o) => cookPayout(o, payoutRates)),
       weekOrders: week.length,
-      average: paid.length ? Math.round(net / paid.length) : 0,
+      average: earned.length ? Math.round(net / earned.length) : 0,
+      window: mine.length,
     };
-  }, [paid]);
+  }, [earned, held, moving, mine.length, payoutRates]);
 
-  /* Seven buckets, oldest first, so the bars read left-to-right like a week. */
+  /* Seven buckets, oldest first, so the bars read left-to-right like a week.
+     By the Dhaka day the money was released — the same basis the dashboard's
+     week uses, so the two screens agree about every bar. */
   const week = useMemo(() => {
-    const buckets = Array.from({ length: 7 }, (_, i) => {
-      const start = dayStart(6 - i);
-      return { start, label: WEEKDAY[new Date(start).getDay()], amount: 0 };
-    });
+    const keys = recentDayKeys(7);
+    const buckets = keys.map((key) => ({
+      start: key,
+      label: WEEKDAY[new Date(`${key}T00:00:00Z`).getUTCDay()],
+      amount: 0,
+    }));
 
-    for (const o of paid) {
-      const at = new Date(o.deliveredAt ?? o.createdAt).getTime();
-      const idx = buckets.findIndex((b) => at >= b.start && at < b.start + DAY);
-      if (idx >= 0) buckets[idx].amount += cookPayout(o);
+    for (const o of earned) {
+      const idx = keys.indexOf(dayKeyOf(settledAt(o) ?? o.createdAt));
+      if (idx >= 0) buckets[idx].amount += cookPayout(o, payoutRates);
     }
     return buckets;
-  }, [paid]);
+  }, [earned, payoutRates]);
 
   const peak = Math.max(...week.map((b) => b.amount), 1);
-  const recent = paid.slice(0, 6);
+  const recent = earned.slice(0, 6);
+
+  /* The headline rate is the cash one — "every dish you sell" has always
+     meant the menu — read live from the platform rather than a constant. */
+  const dishRate = payoutRateFor('cod', payoutRates);
 
   return (
     <CookScreen>
@@ -104,7 +139,9 @@ export default function CookEarnings() {
         <SectionHeader
           lead={t('YOUR')}
           accent={t('EARNINGS')}
-          subtitle={t('You keep {pct}% of every dish you sell.', { pct: num(Math.round(COOK_PAYOUT_RATE * 100)) })}
+          subtitle={t('You keep {pct}% of every dish you sell.', {
+            pct: num(Math.round(dishRate * 100)),
+          })}
         />
 
         {/* ---- Meal wallet ----
@@ -144,9 +181,17 @@ export default function CookEarnings() {
           )}
         </Reveal>
 
-        {/* ---- Payable ---- */}
+        {/* ---- Earned ----
+            Over the orders the app holds, and named as such: these are the
+            last fifty or so, not the lifetime, and a heading that implied
+            otherwise would have a cook comparing it against a bank statement. */}
         <Reveal delay={2}>
-          <RowHeading icon="delivery" title={t('Cash on delivery')} style={{ marginTop: 4 }} />
+          <RowHeading
+            icon="delivery"
+            title={t('Recent orders')}
+            action={totals.window ? t('Last {n} orders', { n: num(totals.window) }) : null}
+            style={{ marginTop: 4 }}
+          />
         </Reveal>
         <Reveal delay={2}>
           <LinearGradient
@@ -162,7 +207,7 @@ export default function CookEarnings() {
                 color: 'rgba(255, 255, 255, 0.86)',
               }}
             >
-              {t('Payable to you')}
+              {t('Earned, recent orders')}
             </Text>
             <Text
               numberOfLines={1}
@@ -190,6 +235,38 @@ export default function CookEarnings() {
               {t(totals.orders === 1 ? 'From {n} delivered order' : 'From {n} delivered orders', { n: num(totals.orders) })}
             </Text>
 
+            {/* What is not in that number, and why. Held is earned and
+                waiting on a customer; pending is still being cooked. A cook
+                who sees only the released figure assumes the rest is lost. */}
+            {totals.heldOrders || totals.pendingOrders ? (
+              <Text
+                style={{
+                  marginTop: 6,
+                  fontFamily: font.ui,
+                  fontSize: type.xs,
+                  lineHeight: 18,
+                  color: 'rgba(255, 255, 255, 0.86)',
+                }}
+              >
+                {[
+                  totals.heldOrders
+                    ? t('৳{n} held until customers confirm ({count} orders)', {
+                        n: num(Math.round(totals.heldNet).toLocaleString('en-US')),
+                        count: num(totals.heldOrders),
+                      })
+                    : null,
+                  totals.pendingOrders
+                    ? t('৳{n} still in the pass ({count} orders)', {
+                        n: num(Math.round(totals.pendingNet).toLocaleString('en-US')),
+                        count: num(totals.pendingOrders),
+                      })
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            ) : null}
+
             {/* The arithmetic in full. A payout number without the deduction
                 beside it is the thing cooks distrust most. */}
             <View
@@ -204,10 +281,10 @@ export default function CookEarnings() {
               }}
             >
               <SplitRow label={t('Food sales')} value={taka(totals.gross, num)} />
-              <SplitRow
-                label={t('Platform share ({pct}%)', { pct: num(Math.round((1 - COOK_PAYOUT_RATE) * 100)) })}
-                value={`− ${taka(totals.fee, num)}`}
-              />
+              {/* The share as a figure, not a percentage: the orders here are
+                  of several kinds and the platform takes a different cut of
+                  each, so one percentage would be wrong for some of them. */}
+              <SplitRow label={t('Platform share')} value={`− ${taka(totals.fee, num)}`} />
               <View style={{ height: 1, backgroundColor: 'rgba(255, 255, 255, 0.22)' }} />
               <SplitRow label={t('Your payout')} value={taka(totals.net, num)} strong />
             </View>
@@ -436,10 +513,10 @@ export default function CookEarnings() {
                           color: colors.textMuted,
                         }}
                       >
-                        {formatOrderDate(o.deliveredAt ?? o.createdAt, lang)}
+                        {formatOrderDate(settledAt(o) ?? o.createdAt, lang)}
                       </Text>
                     </View>
-                    <Price size={17}>৳{num(cookPayout(o))}</Price>
+                    <Price size={17}>৳{num(cookPayout(o, payoutRates))}</Price>
                   </View>
                 </Reveal>
               ))}

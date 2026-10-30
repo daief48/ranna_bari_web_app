@@ -28,6 +28,7 @@ import { useAuth } from '../../src/store/AuthContext';
 import { useChefs } from '../../src/data';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { addressFromAccount, customerKeyOf } from '../../src/lib/ledger';
+import { foldDigits } from '../../src/lib/format';
 import { addDays, dayKey } from '../../src/store/CommerceContext';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { useAlert } from '../../src/components/Alert';
@@ -425,14 +426,14 @@ export default function NewRequest() {
               <FloatLabelInput
                 label={t('How many')}
                 value={quantity}
-                onChangeText={(v) => setQuantity(v.replace(/[^0-9]/g, ''))}
+                onChangeText={(v) => setQuantity(foldDigits(v).replace(/[^0-9]/g, ''))}
                 keyboardType="number-pad"
                 style={r.xs ? undefined : { flex: 1 }}
               />
               <FloatLabelInput
                 label={t('Budget (optional)')}
                 value={budget}
-                onChangeText={(v) => setBudget(v.replace(/[^0-9]/g, ''))}
+                onChangeText={(v) => setBudget(foldDigits(v).replace(/[^0-9]/g, ''))}
                 keyboardType="number-pad"
                 placeholder={t('Leave blank')}
                 style={r.xs ? undefined : { flex: 1 }}

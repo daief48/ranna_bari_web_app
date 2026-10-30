@@ -29,7 +29,17 @@ import CategoryIcon from '../../../../src/components/CategoryIcon';
 import Reveal from '../../../../src/components/Reveal';
 import Button from '../../../../src/components/Button';
 import FloatLabelInput from '../../../../src/components/FloatLabelInput';
-import { FieldError, PublishSwitch, RowHeading } from '../../../../src/components/CookBits';
+import {
+  FieldError,
+  MAX_TAKA,
+  PublishSwitch,
+  RowHeading,
+  ShopNotFound,
+  parseTaka,
+  resolveShop,
+  withKitchenGate,
+} from '../../../../src/components/CookBits';
+import { digitsOnly, foldDigits } from '../../../../src/lib/format';
 import { BentoBox, IconTile } from '../../../../src/components/Surfaces';
 import { StockPill } from '../../../../src/components/StoreBits';
 import { Body, Heading, Price } from '../../../../src/components/Typography';
@@ -46,7 +56,10 @@ import { useAlert } from '../../../../src/components/Alert';
 const PLACEHOLDER =
   'https://images.unsplash.com/photo-1486427944299-d1955d23e34d?w=800&h=600&fit=crop';
 
-export default function ProductEditor() {
+/* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
+export default withKitchenGate(ProductEditor);
+
+function ProductEditor() {
   const { id } = useLocalSearchParams();
   const { kitchen } = useKitchen();
   const shop = useCommerce();
@@ -55,12 +68,23 @@ export default function ProductEditor() {
 
   const isNew = String(id) === 'new';
   /* Which shop this editor is working on — named by the route, defaulting
-     to the kitchen's first for a link that arrived without one. */
+     to the kitchen's first for a link that arrived without one. A link that
+     names a shop this kitchen no longer has is told so, not steered into
+     editing another shop's shelf. */
   const { shop: shopParam } = useLocalSearchParams();
   const shops = kitchen ? shop.myStores(kitchen.id) : [];
-  const store =
-    shops.find((s) => String(s.id) === String(shopParam)) ?? shops[0] ?? null;
+  const { store, missing } = resolveShop(shops, shopParam);
   const existing = isNew ? null : shop.productById(String(id));
+
+  if (missing) {
+    return (
+      <CookScreen>
+        <Container>
+          <ShopNotFound onBack={() => router.replace('/cook/store')} />
+        </Container>
+      </CookScreen>
+    );
+  }
 
   /* Guard before the form so its fields are never seeded from a document
      that has not finished loading. */
@@ -153,9 +177,13 @@ function Form({ store, product, isNew }) {
     Haptics.selectionAsync().catch(() => {});
   };
 
-  const priceValue = Number(price);
-  const priceValid = Number.isFinite(priceValue) && priceValue > 0;
-  const stockValue = Number(stock);
+  /* Whole taka, 1 to 1,00,000, Bengali digits welcome — see `parseTaka`.
+     `Number()` took "1e6" as a million and refused "৫০" outright. */
+  const priceValue = parseTaka(price);
+  const priceValid = priceValue !== null;
+  const priceTooHigh =
+    /^\d+$/.test(foldDigits(price).trim()) && Number(foldDigits(price).trim()) > MAX_TAKA;
+  const stockValue = Number(foldDigits(stock));
   const stockValid = stock.trim() !== '' && Number.isFinite(stockValue) && stockValue >= 0;
 
   /* The shelf card, as a customer walking the shop draws it: photo, name,
@@ -164,7 +192,7 @@ function Form({ store, product, isNew }) {
     () => ({
       image: images[0] ?? null,
       name: name.trim(),
-      price: priceValid ? Math.round(priceValue) : null,
+      price: priceValid ? priceValue : null,
       inStock: stockValid && stockValue > 0,
     }),
     [images, name, priceValid, priceValue, stockValid, stockValue],
@@ -173,7 +201,11 @@ function Form({ store, product, isNew }) {
   const validate = () => {
     const next = {};
     if (!name.trim()) next.name = t('Give the product a name.');
-    if (!priceValid) next.price = t('Set a price above zero, in taka.');
+    if (!priceValid) {
+      next.price = priceTooHigh
+        ? t('The price can be at most ৳{max}.', { max: n(MAX_TAKA) })
+        : t('Set a whole price above zero, in taka.');
+    }
     if (!stockValid) next.stock = t('How many are on the shelf? Zero is a number.');
     if (!categoryId) next.categoryId = t('Pick a shelf — products live under categories.');
     setErrors(next);
@@ -193,7 +225,7 @@ function Form({ store, product, isNew }) {
       patch: {
         name: name.trim(),
         description: description.trim(),
-        price: Math.round(priceValue),
+        price: priceValue,
         stock: Math.round(stockValue),
         minQty: minQty.trim() ? minQty : 1,
         maxQty: maxQty.trim() ? maxQty : null,
@@ -497,7 +529,7 @@ function Form({ store, product, isNew }) {
                   label={t('Price')}
                   value={price}
                   onChangeText={(v) => {
-                    setPrice(v.replace(/[^0-9]/g, ''));
+                    setPrice(digitsOnly(v));
                     setErrors((e) => ({ ...e, price: undefined }));
                   }}
                   keyboardType="number-pad"
@@ -509,7 +541,7 @@ function Form({ store, product, isNew }) {
                   label={t('Stock')}
                   value={stock}
                   onChangeText={(v) => {
-                    setStock(v.replace(/[^0-9]/g, ''));
+                    setStock(digitsOnly(v));
                     setErrors((e) => ({ ...e, stock: undefined }));
                   }}
                   keyboardType="number-pad"
@@ -695,14 +727,14 @@ function Form({ store, product, isNew }) {
               <FloatLabelInput
                 label={t('Minimum order')}
                 value={minQty}
-                onChangeText={(v) => setMinQty(v.replace(/[^0-9]/g, ''))}
+                onChangeText={(v) => setMinQty(digitsOnly(v))}
                 keyboardType="number-pad"
                 style={{ flex: 1 }}
               />
               <FloatLabelInput
                 label={t('Maximum (optional)')}
                 value={maxQty}
-                onChangeText={(v) => setMaxQty(v.replace(/[^0-9]/g, ''))}
+                onChangeText={(v) => setMaxQty(digitsOnly(v))}
                 keyboardType="number-pad"
                 placeholder={t('No limit')}
                 style={{ flex: 1 }}

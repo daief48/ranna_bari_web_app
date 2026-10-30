@@ -6,6 +6,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { useLang } from '../i18n/LanguageContext';
 import { font, radius, type } from '../theme/tokens';
 import { DIVISION_NAMES, divisionFromText } from '../lib/bd-areas';
+import { digitsOnly } from '../lib/format';
 import { reverseGeocode } from '../lib/mapHtml';
 
 /**
@@ -78,7 +79,9 @@ export default function DeliveryFees({
   const place = home ? t(home) : t('your division');
   const open = choosing || !home;
 
-  const clean = (fn) => (v) => fn(v.replace(/[^0-9]/g, ''));
+  /* Bengali numerals folded first: a cook typing ৳৪০ on a Bengali keyboard
+     was handed an empty field. */
+  const clean = (fn) => (v) => fn(digitsOnly(v));
 
   return (
     <View style={{ marginBottom: 6 }}>

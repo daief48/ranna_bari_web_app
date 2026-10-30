@@ -15,19 +15,20 @@ import { RowHeading, StatusPill, statusMeta } from '../../../src/components/Cook
 import { Body, Heading, Price } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../../src/theme/tokens';
+import { cookPayout, formatOrderDate, timeAgo, useOrders } from '../../../src/store/OrdersContext';
 import {
-  COOK_PAYOUT_RATE,
   NEXT_STEP,
   ORDER_STEPS,
-  cookPayout,
-  formatOrderDate,
+  awaitingConfirmation,
+  cookBase,
+  payoutKindOf,
+  payoutRateFor,
   stageOf,
   stepIndex,
-  timeAgo,
-  useOrders,
-} from '../../../src/store/OrdersContext';
+} from '../../../src/lib/orderRails';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { useAction } from '../../../src/components/Alert';
+import { withKitchenGate } from '../../../src/components/CookBits';
 
 /** The four reasons a kitchen actually turns an order down. */
 const REJECT_REASONS = [
@@ -37,11 +38,14 @@ const REJECT_REASONS = [
   'Closing for the day',
 ];
 
-export default function CookOrderScreen() {
+/* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
+export default withKitchenGate(CookOrderScreen);
+
+function CookOrderScreen() {
   const { id } = useLocalSearchParams();
   const { colors, shadow } = useTheme();
   const router = useRouter();
-  const { getOrder, advanceOrder, rejectOrder, hydrated } = useOrders();
+  const { getOrder, advanceOrder, rejectOrder, hydrated, payoutRates } = useOrders();
   const [rejecting, setRejecting] = useState(false);
   const { t, n, lang } = useLang();
   /* Every write below reports what happened. */
@@ -68,6 +72,12 @@ export default function CookOrderScreen() {
 
   const meta = statusMeta(order.status, colors);
   const next = NEXT_STEP[order.status];
+  /* The arithmetic, at the rate for this order's kind. A meal plate or a won
+     request carries `amount` rather than `subtotal`, and reading the latter
+     bare printed ৳NaN on every line of this block. */
+  const base = cookBase(order);
+  const cut = cookPayout(order, payoutRates);
+  const platformPct = Math.round((1 - payoutRateFor(payoutKindOf(order), payoutRates)) * 100);
   /* The timeline below is the cash rail's five steps; a wallet order's
      status and history are folded onto them so it draws the same way. */
   const current = stepIndex(stageOf(order.status));
@@ -440,7 +450,7 @@ export default function CookOrderScreen() {
                       {it.name}
                     </Text>
                   </View>
-                  <Price size={15}>৳{n(it.price * it.qty)}</Price>
+                  <Price size={15}>৳{n((Number(it.price) || 0) * (Number(it.qty) || 1))}</Price>
                 </View>
               ))}
 
@@ -454,13 +464,32 @@ export default function CookOrderScreen() {
                   backgroundColor: colors.sunken,
                 }}
               >
-                <Line label={t('Food total')} value={`৳${n(order.subtotal)}`} />
+                <Line label={t('Food total')} value={`৳${n(base)}`} />
                 <Line
-                  label={t('Platform share ({pct}%)', { pct: n(Math.round((1 - COOK_PAYOUT_RATE) * 100)) })}
-                  value={`− ৳${n(order.subtotal - cookPayout(order))}`}
+                  label={t('Platform share ({pct}%)', { pct: n(platformPct) })}
+                  value={`− ৳${n(Math.max(0, base - cut))}`}
                 />
                 <View style={{ height: 1, backgroundColor: colors.line }} />
-                <Line label={t('You receive')} value={`৳${n(cookPayout(order))}`} strong />
+                <Line label={t('You receive')} value={`৳${n(cut)}`} strong />
+
+                {/* Delivered on the wallet rail: the cook's part is done and
+                    the money is held until the customer confirms. */}
+                {awaitingConfirmation(order) ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginTop: 4 }}>
+                    <Icon name="clock" size={15} color={colors.saffron} />
+                    <Text
+                      style={{
+                        flex: 1,
+                        fontFamily: font.ui,
+                        fontSize: type.xs,
+                        lineHeight: 18,
+                        color: colors.textMuted,
+                      }}
+                    >
+                      {t('Waiting for the customer to confirm they got it.')}
+                    </Text>
+                  </View>
+                ) : null}
 
                 {order.kind === 'cod' ? (
                   <View

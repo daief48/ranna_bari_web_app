@@ -26,8 +26,12 @@ import { useLang } from '../../../src/i18n/LanguageContext';
 import { useAlert } from '../../../src/components/Alert';
 import CategoryIcon from '../../../src/components/CategoryIcon';
 import CategoryIconPicker, { EMOJI } from '../../../src/components/CategoryIconPicker';
+import { ShopNotFound, resolveShop, withKitchenGate } from '../../../src/components/CookBits';
 
-export default function StoreCategories() {
+/* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
+export default withKitchenGate(StoreCategories);
+
+function StoreCategories() {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
   const alert = useAlert();
@@ -43,12 +47,12 @@ export default function StoreCategories() {
   const [note, setNote] = useState(null);
 
   /* The shop this screen is working on, named by the route's `?shop=`
-     param and defaulting to the kitchen's first — the hub always names one,
-     so the default only covers a link that arrived without it. */
+     param and defaulting to the kitchen's first when the route named none.
+     A param that names a shop this kitchen does not have is not quietly
+     swapped for the first one — see `resolveShop`. */
   const { shop: shopParam } = useLocalSearchParams();
   const shops = kitchen ? shop.myStores(kitchen.id) : [];
-  const store =
-    shops.find((s) => String(s.id) === String(shopParam)) ?? shops[0] ?? null;
+  const { store, missing } = resolveShop(shops, shopParam);
   const categories = store ? shop.categoriesOf(store.id) : [];
 
   const add = async () => {
@@ -77,6 +81,16 @@ export default function StoreCategories() {
     if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     setNote(null);
   };
+
+  if (missing) {
+    return (
+      <CookScreen>
+        <Container>
+          <ShopNotFound onBack={() => router.replace('/cook/store')} />
+        </Container>
+      </CookScreen>
+    );
+  }
 
   return (
     <CookScreen>

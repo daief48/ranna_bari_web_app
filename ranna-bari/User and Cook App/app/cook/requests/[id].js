@@ -35,10 +35,15 @@ import { OFFER_STATUS, REQUEST_STATUS, standing, turnOf } from '../../../src/lib
 import { COOK_ADVANCES } from '../../../src/lib/ledger';
 import { MealStatusPill, PaymentPill } from '../../../src/components/MealBits';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import { digitsOnly } from '../../../src/lib/format';
 import { formatAddress } from '../../../src/lib/address';
 import { useAlert } from '../../../src/components/Alert';
+import { withKitchenGate } from '../../../src/components/CookBits';
 
-export default function CookRequestScreen() {
+/* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
+export default withKitchenGate(CookRequestScreen);
+
+function CookRequestScreen() {
   const { id } = useLocalSearchParams();
   const { colors, shadow } = useTheme();
   const { t, n, lang } = useLang();
@@ -260,7 +265,7 @@ export default function CookRequestScreen() {
                 <FloatLabelInput
                   label={t('What would you charge?')}
                   value={price}
-                  onChangeText={(v) => setPrice(v.replace(/[^0-9]/g, ''))}
+                  onChangeText={(v) => setPrice(digitsOnly(v))}
                   keyboardType="number-pad"
                   placeholder={offer?.price != null ? String(offer.price) : '1200'}
                 />
@@ -368,7 +373,7 @@ export default function CookRequestScreen() {
                     </Text>
                     <TextInput
                       value={counter}
-                      onChangeText={(v) => setCounter(v.replace(/[^0-9]/g, ''))}
+                      onChangeText={(v) => setCounter(digitsOnly(v))}
                       placeholder={t('Meet in the middle')}
                       placeholderTextColor={colors.textLight}
                       keyboardType="number-pad"

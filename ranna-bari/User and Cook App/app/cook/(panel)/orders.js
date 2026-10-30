@@ -42,13 +42,21 @@ import {
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../../src/theme/tokens';
 import { useKitchen } from '../../../src/store/KitchenContext';
-import { cookPayout, isClosed, stageOf, useOrders } from '../../../src/store/OrdersContext';
+import { cookPayout, useOrders } from '../../../src/store/OrdersContext';
+import {
+  MEAL_NEXT,
+  awaitingConfirmation,
+  isClosed,
+  isKitchenOrder,
+  stageOf,
+} from '../../../src/lib/orderRails';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useSession } from '../../../src/store/SessionContext';
 import { ORDER_FILTERS, filterOrders } from '../../../src/lib/storeLogic';
 import { fetchMealOrders } from '../../../src/features/meal-plan/api';
 import {
   dateLabel,
+  setPlanLanguage,
   todayKey,
 } from '../../../src/features/meal-plan/format';
 import { useAlert } from '../../../src/components/Alert';
@@ -63,12 +71,26 @@ import { useLang } from '../../../src/i18n/LanguageContext';
  * The board is cut by what the cook has to do next, not by the raw status:
  * "New" is a decision, "Cooking" is work, "Delivering" is a wait, and
  * "History" is everything already settled.
+ *
+ * Each lane reads the *order*, not just its status, because the same word
+ * ends one rail and not another: a cash order is finished at `delivered`,
+ * while a wallet order marked delivered is still waiting on the customer to
+ * confirm — and its money is still held. That one stays in Delivering, with
+ * the card saying whose turn it is, until the confirmation lands.
  */
 const LANES = [
-  { key: 'new', label: 'New', match: (s) => stageOf(s) === 'placed' },
-  { key: 'cooking', label: 'Cooking', match: (s) => stageOf(s) === 'accepted' || stageOf(s) === 'cooking' },
-  { key: 'delivering', label: 'Delivering', match: (s) => stageOf(s) === 'on_the_way' },
-  { key: 'history', label: 'History', match: isClosed },
+  { key: 'new', label: 'New', match: (o) => stageOf(o.status) === 'placed' },
+  {
+    key: 'cooking',
+    label: 'Cooking',
+    match: (o) => stageOf(o.status) === 'accepted' || stageOf(o.status) === 'cooking',
+  },
+  {
+    key: 'delivering',
+    label: 'Delivering',
+    match: (o) => stageOf(o.status) === 'on_the_way' || awaitingConfirmation(o),
+  },
+  { key: 'history', label: 'History', match: (o) => isClosed(o) },
 ];
 
 /* A card's age, read once. The lanes sort by it, and `new Date(createdAt)` inside
@@ -92,8 +114,8 @@ const stampOf = (order) => {
    the settled ones (completed, cancelled) that history covers. */
 const SHOP_CHIPS = ['all', 'pending', 'confirmed', 'preparing', 'ready', 'delivering', 'delivered'];
 
-/* A meal's own short rail: booked → cooking → delivered. */
-const MEAL_FLOW = { confirmed: 'preparing', preparing: 'delivered' };
+/* A meal's own short rail — booked → cooking → delivered — is `MEAL_NEXT`
+   in `lib/orderRails`, shared with the cards and the contexts. */
 const MEAL_SLOTS = ['breakfast', 'lunch', 'dinner'];
 
 const KINDS = [
@@ -112,7 +134,7 @@ export default function CookOrders() {
   const { colors } = useTheme();
   const router = useRouter();
   const { kitchen } = useKitchen();
-  const { ordersForKitchen, advanceOrder } = useOrders();
+  const { ordersForKitchen, advanceOrder, payoutRates } = useOrders();
   const shop = useCommerce();
   const { token, identity } = useSession();
   /* The board's kitchen, by id. The loaded record when it is here; until then
@@ -133,7 +155,10 @@ export default function CookOrders() {
      sliding window and grows on demand rather than all at once. */
   const [query, setQuery] = useState('');
   const [historyLimit, setHistoryLimit] = useState(30);
-  const { t, n } = useLang();
+  const { t, n, lang } = useLang();
+  /* The meal dates on this board read in the reader's language — set here,
+     in render, the way the dashboard sets the chart numerals. */
+  setPlanLanguage(lang);
   /* Ids the board opened with — the "new while open" detector below
      compares against this. Declared beside the state it accompanies; the
      effect that reads it lives after `mine` is computed. */
@@ -145,8 +170,17 @@ export default function CookOrders() {
      on every call, so reading it bare made `mine` a new value on every render
      and quietly voided every `useMemo` below that lists it — the whole board
      was being re-sorted and re-counted on each tap, each poll, each keystroke
-     in the history search. */
-  const mine = useMemo(() => ordersForKitchen(kitchenId), [ordersForKitchen, kitchenId]);
+     in the history search.
+
+     Kitchen orders only — dishes and won requests. Every order a kitchen is on
+     travels on the same `kitchenId`, so without this a shop parcel or a meal
+     plate (both `confirmed` when they arrive) landed in the Menu's New lane
+     wearing an Accept button, next to its own card on the Shop or Meals tab.
+     Each kind has one tab, and this is the Menu's. */
+  const mine = useMemo(
+    () => ordersForKitchen(kitchenId).filter(isKitchenOrder),
+    [ordersForKitchen, kitchenId],
+  );
 
   /* The lanes, in one pass.
      Counts, the lane's worth, the rows and the history list used to be four
@@ -159,10 +193,10 @@ export default function CookOrders() {
     const rows = { new: [], cooking: [], delivering: [], history: [] };
     const money = { new: 0, cooking: 0, delivering: 0, history: 0 };
     for (const o of mine) {
-      const lane = LANES.find((l) => l.match(o.status));
+      const lane = LANES.find((l) => l.match(o));
       if (!lane) continue;
       rows[lane.key].push(o);
-      money[lane.key] += cookPayout(o);
+      money[lane.key] += cookPayout(o, payoutRates);
     }
     for (const key of ['new', 'cooking', 'delivering']) {
       rows[key].sort((a, b) => stampOf(a) - stampOf(b));
@@ -178,7 +212,7 @@ export default function CookOrders() {
         history: rows.history.length,
       },
     };
-  }, [mine]);
+  }, [mine, payoutRates]);
   const counts = lanes.counts;
 
   /* Every order by id, for "where did that card go" — see `useLingering`. */
@@ -266,11 +300,24 @@ export default function CookOrders() {
     [shopOrders, shop, alert, t, n],
   );
 
-  /* ---- meals ---- */
+  /* ---- meals ----
+     Each read is numbered, and only the latest one may land. A cook flicking
+     through the day strip fires a request per day, and the server answers
+     them in whatever order it likes — day N's plates arriving after day N+1's
+     used to overwrite the day on screen with the wrong one, and a refused
+     read was shown as "nothing booked", which a cook believes. A failure now
+     says it failed, and offers to ask again. */
+  const mealSeq = useRef(0);
   const loadMeals = useCallback(async () => {
     if (!token) return;
+    const seq = ++mealSeq.current;
     const out = await fetchMealOrders(token, mealDate);
-    setMeals(out.ok ? out.result : { orders: [], week: [], next: null });
+    if (seq !== mealSeq.current) return;
+    setMeals(
+      out.ok
+        ? out.result
+        : { orders: [], week: [], next: null, error: out.error ?? 'network', failed: out },
+    );
   }, [token, mealDate]);
 
   /* Meals are dated, so this refetches on focus and on every day change —
@@ -310,7 +357,7 @@ export default function CookOrders() {
     async (orderId, { settle = true } = {}) => {
       const id = String(orderId);
       const row = (mealsRef.current?.orders ?? []).find((o) => String(o.id) === id);
-      const to = row && MEAL_FLOW[row.status];
+      const to = row && MEAL_NEXT[row.status];
       if (!row || !to) return;
 
       const show = (status) =>
@@ -457,7 +504,7 @@ export default function CookOrders() {
   /* Take the cook to where an order went — the lane its status belongs to, or
      the shop filter for it. */
   const showMenu = useCallback((order) => {
-    const lane = LANES.find((l) => l.match(order.status));
+    const lane = LANES.find((l) => l.match(order));
     if (lane) setLane(lane.key);
   }, []);
   const showShop = useCallback((order) => {
@@ -765,7 +812,18 @@ export default function CookOrders() {
 
         {/* ---- meals ---- */}
         {shownKind === 'meals' ? (
-          meals === null ? null : mealOrders.length ? (
+          meals === null ? null : meals.error ? (
+            /* The read failed. Not "nothing booked" — a cook who reads that
+               puts the stove away, and the plates are still coming. */
+            <View style={{ gap: 12 }}>
+              <EmptyState
+                icon="alertCircle"
+                title={t('Could not load the day’s plates')}
+                body={errorText(meals.error, t, n, meals.failed)}
+              />
+              <Button label={t('Try again')} icon="arrowRight" block onPress={loadMeals} />
+            </View>
+          ) : mealOrders.length ? (
             <View style={{ gap: 14 }}>
               {/* The day at a glance: how many plates, how far along, and what
                   the day is worth — the three things a cook asks before

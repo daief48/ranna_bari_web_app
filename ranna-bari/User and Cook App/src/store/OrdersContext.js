@@ -6,74 +6,27 @@ import React, {
   useRef,
 } from 'react';
 import { call } from '../lib/server';
+import {
+  DEFAULT_PAYOUT_RATES,
+  ORDER_STEPS,
+  NEXT_STEP,
+  cookPayoutAt,
+  isClosed,
+  stageOf,
+  stepIndex,
+} from '../lib/orderRails';
 import { useCommerce } from './CommerceContext';
+import { useConfig } from './ConfigContext';
 import { useSession } from './SessionContext';
 
-/**
- * The lifecycle a COD order moves through.
- *
- * Everything past `placed` used to be unreachable: it is driven by the
- * kitchen, and this build has no backend to play that part. The cook panel
- * is now that part -- a cook signed in on this device advances their own
- * queue, and the customer's timeline moves with it.
+/*
+ * The rails themselves — which status follows which, which ones are endings,
+ * which stage a status belongs to — live in `src/lib/orderRails`, stated once
+ * for every cook surface. They are re-exported here under the names this
+ * module always had, because the customer's timeline and the status pills
+ * import them from here and have no reason to know where they moved.
  */
-export const ORDER_STEPS = [
-  { key: 'placed', label: 'Order placed', icon: 'receipt' },
-  { key: 'accepted', label: 'Kitchen accepted', icon: 'chefHat' },
-  { key: 'cooking', label: 'Cooking now', icon: 'pot' },
-  { key: 'on_the_way', label: 'On the way', icon: 'delivery' },
-  { key: 'delivered', label: 'Delivered', icon: 'shieldCheck' },
-];
-
-export const stepIndex = (status) =>
-  ORDER_STEPS.findIndex((s) => s.key === status);
-
-/**
- * Neither `cancelled` nor `rejected` is a step, so both sit outside the rail.
- *
- * `completed` is here because the escrow rail has one more state than the COD
- * one: `delivered` is the courier's word and `completed` is the customer's,
- * and money moves on the second. Without it a finished escrow order counted
- * as still open on the cook's board forever.
- */
-export const isClosed = (status) =>
-  status === 'delivered' ||
-  status === 'completed' ||
-  status === 'cancelled' ||
-  status === 'rejected';
-
-/** What the cook's button says at each stage, and where it goes. The first
-    four are the cash rail; the next four are the wallet (escrow) rail, whose
-    words differ. The server picks the real next step — this only says
-    whether there is one, and which verb to show. */
-export const NEXT_STEP = {
-  placed: 'accepted',
-  accepted: 'cooking',
-  cooking: 'on_the_way',
-  on_the_way: 'delivered',
-  confirmed: 'preparing',
-  preparing: 'ready',
-  ready: 'delivering',
-  delivering: 'delivered',
-};
-
-/**
- * Which of the cook's four stages a status belongs to, on either rail.
- *
- * A cash order says placed → accepted → cooking → on_the_way; a wallet order
- * says confirmed → preparing → ready → delivering. The cook's board, tab
- * badge and dashboard were all written against the first vocabulary, so a
- * wallet order matched no lane and simply was not there. Everything that
- * asks "is this new / in the kitchen / out" asks through here instead, so
- * the two rails can never be counted differently again.
- */
-const STAGE_OF = {
-  confirmed: 'placed',
-  preparing: 'cooking',
-  ready: 'cooking',
-  delivering: 'on_the_way',
-};
-export const stageOf = (status) => STAGE_OF[status] ?? status;
+export { ORDER_STEPS, NEXT_STEP, isClosed, stageOf, stepIndex };
 
 export const PAYMENT_METHODS = [
   {
@@ -110,12 +63,32 @@ export const PAYMENT_METHODS = [
   },
 ];
 
-/** The cut a cook keeps, as promised on the become-a-cook page. */
-export const COOK_PAYOUT_RATE = 0.85;
+/**
+ * The cut a cook keeps, per kind of order.
+ *
+ * This was one constant, 0.85, baked in when the become-a-cook page promised
+ * it. The platform has set the rate per system in its settings for some time
+ * (`/config` answers `payoutRates`), so the constant drifted from the ledger
+ * the moment an operator changed a commission: the card said one figure and
+ * the payout run paid another. The provider below reads the live rates and
+ * pins them here, so `cookPayout(order)` — which every cook surface calls
+ * bare, often inside a memo — answers with the server's number for that
+ * order's kind, and the shipped defaults only until `/config` has spoken.
+ *
+ * Module state rather than a hook so the call sites stay plain functions; the
+ * provider also puts `payoutRates` on its value, which is what a memoised
+ * caller lists in its deps so a rate arriving after the orders still repaints.
+ */
+let currentRates = DEFAULT_PAYOUT_RATES;
 
-/** A cook is paid on the food, never on the delivery or platform lines. */
-export const cookPayout = (order) =>
-  Math.round((order.subtotal ?? 0) * COOK_PAYOUT_RATE);
+/** The cook's cut of one order, in whole taka, at the live rate for its kind. */
+export const cookPayout = (order, rates = currentRates) => cookPayoutAt(order, rates);
+
+/**
+ * Kept for the one reader that wants a headline percentage ("you keep 85%").
+ * It is the cash rate, which is what that sentence has always meant.
+ */
+export const COOK_PAYOUT_RATE = DEFAULT_PAYOUT_RATES.cod;
 
 /**
  * Human-readable order code. Ambiguous glyphs (I, O, 0, 1) are left out so a
@@ -140,6 +113,16 @@ export function OrdersProvider({ children }) {
      cook just changed. So it projects rather than stores. */
   const shop = useCommerce();
   const { token } = useSession();
+
+  /* The live payout rates, pinned for the bare `cookPayout()` above the
+     moment they change. Set during render on purpose — the same reason the
+     language provider sets the type script in render: the first paint after
+     `/config` answers already has to be at the right rate, and an effect
+     would show one frame of the shipped number. The fallback object is the
+     shipped defaults, so `rates` is never undefined for a memo to depend on. */
+  const config = useConfig();
+  const payoutRates = config?.payoutRates ?? DEFAULT_PAYOUT_RATES;
+  currentRates = payoutRates;
 
   /**
    * Every order this account is on, newest first.
@@ -202,10 +185,21 @@ export function OrdersProvider({ children }) {
         const deliveryFee = i === 0 ? draft.deliveryFee : 0;
         const platformFee = i === 0 ? draft.platformFee : 0;
 
+        /* The lines *and* where they are going. The key used to be the lines
+           alone, so a customer whose first attempt dropped, who then fixed
+           the address (or the phone, or the note) and tapped again, sent the
+           old code — and the server, which replays on `code`, handed back
+           the order with the wrong address on it. The delivery details are
+           part of what makes an order the same order. */
         const basketKey = [
           draft.paymentMethod,
           chefId,
           ...items.map((it) => `${it.id}:${it.qty}`).sort(),
+          JSON.stringify({
+            address: draft.address ?? null,
+            contact: draft.contact ?? null,
+            note: draft.note ?? '',
+          }),
         ].join('|');
         if (!attempts.current.has(basketKey)) attempts.current.set(basketKey, makeCode());
 
@@ -259,7 +253,10 @@ export function OrdersProvider({ children }) {
          not, because the orders that were taken are real and the customer has
          to be shown them. */
       if (failed && results.every((row) => !row.ok)) {
-        return { ok: false, error: failed.error };
+        /* `detail` travels with the code: the checkout reads `detail.short`
+           off `wallet-low-balance` and `detail.id`/`detail.field` off
+           `request-invalid`, and they were being dropped here. */
+        return { ok: false, error: failed.error, detail: failed.detail ?? null };
       }
 
       await shop.refresh();
@@ -270,7 +267,11 @@ export function OrdersProvider({ children }) {
       const codeToKitchen = new Map(drafts.map((d) => [d.code, d.chefId]));
       const refused = results
         .filter((r) => !r.ok)
-        .map((r) => ({ chefId: codeToKitchen.get(r.code), error: r.error }));
+        .map((r) => ({
+          chefId: codeToKitchen.get(r.code),
+          error: r.error,
+          detail: r.detail ?? null,
+        }));
 
       return {
         ok: true,
@@ -344,8 +345,13 @@ export function OrdersProvider({ children }) {
   const value = useMemo(
     () => ({
       orders,
-      /** Anything the customer is still waiting on. */
-      activeOrders: orders.filter((o) => !isClosed(o.status)),
+      /** Anything the customer is still waiting on. By the order, not the
+          status: a wallet order marked delivered is still theirs to confirm. */
+      activeOrders: orders.filter((o) => !isClosed(o)),
+      /** The server's payout rates per kind — list these in a memo's deps
+          wherever `cookPayout` is summed, so a rate that lands after the
+          orders do still repaints the figure. */
+      payoutRates,
       placeOrder,
       getOrder,
       cancelOrder,
@@ -360,6 +366,7 @@ export function OrdersProvider({ children }) {
     }),
     [
       orders,
+      payoutRates,
       placeOrder,
       getOrder,
       cancelOrder,

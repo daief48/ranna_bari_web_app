@@ -93,8 +93,13 @@ export function errorText(error, t, n, extra = {}) {
     case 'admin-forbidden':
       return t('That is not something this account can do.');
     case 'wallet-low-balance':
+      /* The shortfall rides in `detail.short` on every route that refuses
+         for this reason — `call()` hands it through as `out.detail`, and
+         screens pass `out` whole as `extra`. Reading only `extra.short`
+         meant the sentence said "top up ৳0" on every real refusal. The flat
+         field is still honoured for the callers that pass it that way. */
       return t('Insufficient balance. Top up ৳{n} to confirm this meal.', {
-        n: n(extra.short ?? 0),
+        n: n(extra.short ?? extra.detail?.short ?? 0),
       });
     case 'order-missing':
       return t('That order no longer exists.');
@@ -133,6 +138,13 @@ export function errorText(error, t, n, extra = {}) {
               : t('Check the {field} and try again.', { field: t(field) });
           })
           .join('\n');
+      }
+      /* A dish order refused on `items` means a line in the basket no longer
+         exists on that kitchen's menu, or was taken off it — `detail.id`
+         names which. The checkout removes that line; this only has to say
+         why the basket changed under the customer. */
+      if (extra.detail?.field === 'items') {
+        return t('One of these dishes is no longer available.');
       }
       if (extra.detail?.field) {
         return t('Check the {field} and try again.', { field: extra.detail.field });
@@ -237,6 +249,27 @@ export function errorText(error, t, n, extra = {}) {
       return t('You have already sent that.');
     case 'bad-json':
       return t('Something went wrong. Try again.');
+    /* The generic 404 — a kitchen, order or page id that resolves to nothing.
+       The specific codes above (`order-missing`, `kitchen-missing`) are
+       preferred where the route knows what it was asked for. */
+    case 'not-found':
+      return t('We could not find that. It may have been removed.');
+    case 'phone-and-code-required':
+      return t('Enter your mobile number and the code we sent.');
+
+    /* ---- the platform saying no ----
+       Not the customer's fault and not the network's: an operator has
+       switched a feature off, a top-up has no gateway behind it yet, or the
+       order is frozen while a dispute is looked at. Each needs to read as a
+       closed door with a reason, not as "try again". */
+    case 'topup-unavailable':
+      return t('Top-ups are not open yet. Your balance grows from refunds for now — contact support if you need help.');
+    case 'feature-off':
+      return t('This part of RannaBari is switched off at the moment. Please try again later.');
+    case 'dispute-open':
+      return t('This order is under review, so it cannot be changed until the dispute is settled.');
+    case 'order-cancel-window':
+      return t('The time to cancel this order has passed. The kitchen has already started on it.');
 
     default:
       return t('Something went wrong. Try again.');

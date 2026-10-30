@@ -26,6 +26,7 @@ import { useKitchen } from '../../../src/store/KitchenContext';
 import { useCommerce } from '../../../src/store/CommerceContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { useAction } from '../../../src/components/Alert';
+import { ShopNotFound, resolveShop, withKitchenGate } from '../../../src/components/CookBits';
 
 /** The four questions a cook asks of their own catalogue. */
 const FILTERS = [
@@ -35,7 +36,10 @@ const FILTERS = [
   { key: 'off', label: 'Hidden' },
 ];
 
-export default function StoreProducts() {
+/* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
+export default withKitchenGate(StoreProducts);
+
+function StoreProducts() {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
   const r = useResponsive();
@@ -59,12 +63,12 @@ export default function StoreProducts() {
   }, [flash]);
 
   /* The shop this screen is working on, named by the route's `?shop=`
-     param and defaulting to the kitchen's first — the hub always names one,
-     so the default only covers a link that arrived without it. */
+     param and defaulting to the kitchen's first when the route named none.
+     A param that names a shop this kitchen does not have is not quietly
+     swapped for the first one — see `resolveShop`. */
   const { shop: shopParam } = useLocalSearchParams();
   const shops = kitchen ? shop.myStores(kitchen.id) : [];
-  const store =
-    shops.find((s) => String(s.id) === String(shopParam)) ?? shops[0] ?? null;
+  const { store, missing } = resolveShop(shops, shopParam);
   const all = useMemo(
     () => (store ? shop.productsOf(store.id) : []),
     [shop, store],
@@ -79,6 +83,16 @@ export default function StoreProducts() {
 
   const categoryName = (id) =>
     store ? shop.categoriesOf(store.id).find((c) => c.id === id)?.name : null;
+
+  if (missing) {
+    return (
+      <CookScreen>
+        <Container>
+          <ShopNotFound onBack={() => router.replace('/cook/store')} />
+        </Container>
+      </CookScreen>
+    );
+  }
 
   return (
     <CookScreen>

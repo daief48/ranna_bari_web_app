@@ -6,6 +6,7 @@ import { Body, Label } from '../../components/Typography';
 import { useTheme } from '../../theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../theme/tokens';
 
+import { useLang } from '../../i18n/LanguageContext';
 import { SLOTS, SLOT_LABEL, dayParts, monthLabel, shiftMonth } from './format';
 
 /**
@@ -186,6 +187,8 @@ export function ChipRow({ children }) {
 
 export function MonthPicker({ month, onChange, disabled }) {
   const { colors } = useTheme();
+  /* The month's name in the reader's language — see `monthLabel`. */
+  const { lang } = useLang();
 
   const Arrow = ({ dir, name }) => (
     <Pressable
@@ -218,7 +221,7 @@ export function MonthPicker({ month, onChange, disabled }) {
           color: colors.text,
         }}
       >
-        {monthLabel(month)}
+        {monthLabel(month, lang)}
       </Text>
       <Arrow dir={1} name="arrowRight" />
     </View>
@@ -239,7 +242,8 @@ export function MonthPicker({ month, onChange, disabled }) {
  */
 export function PlanDayRow({ day, placeholders, onChange, disabled }) {
   const { colors } = useTheme();
-  const parts = dayParts(day.date);
+  const { lang } = useLang();
+  const parts = dayParts(day.date, lang);
 
   return (
     <View
@@ -307,7 +311,8 @@ export function PlanDayRow({ day, placeholders, onChange, disabled }) {
 /** One day, read-only, as a customer or a cook reviewing a month sees it. */
 export function PlanDayCard({ day, right }) {
   const { colors } = useTheme();
-  const parts = dayParts(day.date);
+  const { lang } = useLang();
+  const parts = dayParts(day.date, lang);
 
   return (
     <View

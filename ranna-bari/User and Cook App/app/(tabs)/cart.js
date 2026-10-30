@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 
@@ -55,6 +55,19 @@ export default function CartScreen() {
   const { t, n } = useLang();
   const pairing = usePairing(cart.dishItems);
 
+  /* The dish lines are copies taken the day they were added; the menus in
+     memory are today's. Bring the prices level whenever the menus change so
+     the total on the button is the total the server will charge. */
+  const menus = useMenus();
+  const { syncDishPrices } = cart;
+  useEffect(() => {
+    const byId = new Map();
+    for (const menu of menus) {
+      for (const dish of menu.items ?? []) byId.set(String(dish.id), dish);
+    }
+    if (byId.size) syncDishPrices(byId);
+  }, [menus, syncDishPrices]);
+
   const [instructions, setInstructions] = useState('');
   /* The shop line whose round trip is in flight. */
   const [busyLine, setBusyLine] = useState(null);
@@ -101,10 +114,18 @@ export default function CartScreen() {
    * next screen.
    */
   const checkout = () => {
-    if (!cart.isSignedIn) return router.push('/auth?next=/checkout');
+    const note = instructions.trim();
+    /* The signed-out branch used to drop the note on the floor: sign in,
+       land on checkout, and the instructions typed a minute ago were gone.
+       `next` is a whole in-app path, query included, so it is encoded once
+       as a value and the auth screen hands it to the router untouched. */
+    if (!cart.isSignedIn) {
+      const next = note ? `/checkout?note=${encodeURIComponent(note)}` : '/checkout';
+      return router.push({ pathname: '/auth', params: { next } });
+    }
     return router.push({
       pathname: '/checkout',
-      params: instructions.trim() ? { note: instructions.trim() } : {},
+      params: note ? { note } : {},
     });
   };
 
@@ -135,7 +156,14 @@ export default function CartScreen() {
           </GradientText>
         </View>
 
-        {cart.isEmpty ? (
+        {!cart.ready ? (
+          /* Both halves are still being read. An empty state here would be a
+             guess, and for the half-second it took it was the wrong one. */
+          <View style={{ alignItems: 'center', gap: 18, paddingVertical: 60 }}>
+            <ActivityIndicator color={colors.primary} />
+            <Body muted size={14}>{t('Loading your cart…')}</Body>
+          </View>
+        ) : cart.isEmpty ? (
           <View style={{ alignItems: 'center', gap: 18, paddingVertical: 40 }}>
             <View
               style={{
@@ -293,7 +321,7 @@ export default function CartScreen() {
                             fontVariant: ['tabular-nums'],
                           }}
                         >
-                          ৳{item.price}
+                          ৳{n(item.price)}
                         </Text>
                       </View>
 

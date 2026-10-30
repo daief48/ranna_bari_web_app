@@ -324,7 +324,14 @@ export function flowFor(handover, { preorder } = {}) {
   return preorder ? [PREORDER_STEP, ...base] : base;
 }
 
-/** The steps a cook drives. The last one belongs to the customer. */
+/** The steps a cook drives. The last one belongs to the customer.
+
+    A copy, not the source: the server's `backend-node/src/lib/domain.ts`
+    (`COOK_ADVANCES`, `nextStatus`) decides every transition, and this table
+    exists so the tracker can draw the rail and the cook's card can move
+    before the reply lands. Change it there first. The cook's screens read
+    the same ladders from `lib/orderRails.js`; this copy should be read from
+    there too rather than kept as a separate spelling. */
 export const COOK_ADVANCES = {
   delivery: {
     confirmed: 'preparing',

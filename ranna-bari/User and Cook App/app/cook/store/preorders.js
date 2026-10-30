@@ -31,8 +31,12 @@ import { formatOrderDate, timeAgo } from '../../../src/store/OrdersContext';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { formatAddress } from '../../../src/lib/address';
 import { useAlert } from '../../../src/components/Alert';
+import { withKitchenGate } from '../../../src/components/CookBits';
 
-export default function StorePreorders() {
+/* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
+export default withKitchenGate(StorePreorders);
+
+function StorePreorders() {
   const { colors, shadow } = useTheme();
   const { t, n, lang } = useLang();
   const alert = useAlert();

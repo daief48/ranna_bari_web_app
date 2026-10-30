@@ -27,8 +27,12 @@ import { useCommerce } from '../../../src/store/CommerceContext';
 import { timeAgo } from '../../../src/store/OrdersContext';
 import { REQUEST_STATUS } from '../../../src/lib/requestLogic';
 import { useLang } from '../../../src/i18n/LanguageContext';
+import { withKitchenGate } from '../../../src/components/CookBits';
 
-export default function CookRequests() {
+/* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
+export default withKitchenGate(CookRequests);
+
+function CookRequests() {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
   const router = useRouter();

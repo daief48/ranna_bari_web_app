@@ -13,6 +13,7 @@ import { font, radius } from '../../src/theme/tokens';
 import { useSession } from '../../src/store/SessionContext';
 import { useKitchen } from '../../src/store/KitchenContext';
 import { useLang } from '../../src/i18n/LanguageContext';
+import { withKitchenGate } from '../../src/components/CookBits';
 
 import { Chip, Divider, GroupLabel, Loading, Panel, Row } from '../../src/features/meal-plan/components';
 import { Explainer } from '../../src/features/meal-plan/editor';
@@ -33,7 +34,10 @@ import { fetchMyService, saveMyService } from '../../src/features/meal-plan/api'
  * other kitchens. A cook pricing themselves was previously typing numbers into
  * a form with no idea what those numbers looked like on the other side.
  */
-export default function CookMealService() {
+/* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
+export default withKitchenGate(CookMealService);
+
+function CookMealService() {
   const router = useRouter();
   const { token } = useSession();
   const { kitchen } = useKitchen();

@@ -22,6 +22,8 @@ import {
   stepIndex,
   useOrders,
 } from '../../src/store/OrdersContext';
+import { useCommerce } from '../../src/store/CommerceContext';
+import { flowFor, stepIndexIn } from '../../src/lib/ledger';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { useAction } from '../../src/components/Alert';
 
@@ -29,8 +31,10 @@ export default function OrderScreen() {
   const { id } = useLocalSearchParams();
   const { colors, shadow } = useTheme();
   const router = useRouter();
-  const { getOrder, cancelOrder, confirmReceived, rateOrder, ensureOrder, hydrated } =
-    useOrders();
+  const { getOrder, cancelOrder, confirmReceived, rateOrder, hydrated } = useOrders();
+  /* Asked of the commerce store directly rather than through `useOrders`,
+     because this screen needs the verdict and not just the row — see below. */
+  const { ensureOrder } = useCommerce();
   const [confirmCancel, setConfirmCancel] = useState(false);
   /* Opened by a successful confirmation, never by a tap: the moment someone
      has just said the food arrived is the one moment they still have an
@@ -46,28 +50,52 @@ export default function OrderScreen() {
      miss here is usually "not fetched", not "does not exist". Asking for it by
      id is what turns a link from a notification — or an order older than the
      last fifty — into a page rather than an apology. */
-  const [asked, setAsked] = useState(false);
+  /* What the server said when asked: `null` while nobody has, `'missing'`
+     when it answered that there is no such order, `'network'` when it did
+     not answer at all. The two used to be one — `ensureOrder` returned null
+     for both — and "Order not found" to somebody whose train had just gone
+     into a tunnel is the wrong sentence with the wrong button. */
+  const [miss, setMiss] = useState(null);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    if (!id || order) return;
-    setAsked(false);
+    if (!id || order) return undefined;
+    setMiss(null);
     let alive = true;
-    ensureOrder(String(id)).finally(() => {
-      if (alive) setAsked(true);
-    });
+    ensureOrder(String(id), { verdict: true })
+      .then((out) => {
+        if (!alive || !out || out.ok) return;
+        const gone =
+          out.status === 404 || out.error === 'order-missing' || out.error === 'not-found';
+        setMiss(gone ? 'missing' : 'network');
+      })
+      .catch(() => alive && setMiss('network'));
     return () => {
       alive = false;
     };
-  }, [id, order, ensureOrder]);
+  }, [id, order, ensureOrder, attempt]);
 
   if (!order) {
+    const settled = hydrated && miss != null;
     return (
       <Screen>
         <Container style={{ alignItems: 'center', gap: 16, paddingTop: 40 }}>
           <Icon name="alertCircle" size={32} color={colors.primary} />
           <Heading size={20}>
-            {hydrated && asked ? t('Order not found') : t('Loading your order…')}
+            {!settled
+              ? t('Loading your order…')
+              : miss === 'network'
+                ? t('Could not load this order')
+                : t('Order not found')}
           </Heading>
-          {hydrated && asked ? (
+          {settled && miss === 'network' ? (
+            <>
+              <Body muted size={15} style={{ textAlign: 'center' }}>
+                {t('We could not reach the server. Check your connection.')}
+              </Body>
+              <Button label={t('Try again')} onPress={() => setAttempt((a) => a + 1)} />
+              <Button variant="glass" label={t('Your orders')} onPress={() => router.replace('/orders')} />
+            </>
+          ) : settled ? (
             <>
               <Body muted size={15} style={{ textAlign: 'center' }}>
                 {t('We could not find an order with the code {code}.', { code: String(id) })}
@@ -109,14 +137,37 @@ export default function OrderScreen() {
       h.at,
     ]),
   );
-  /* `completed` is not a step on this rail — it is the rail finished — so it
-     lights the last one rather than falling off the end at -1. */
-  const current = completed ? ORDER_STEPS.length - 1 : stepIndex(order.status);
   /* The rail this order runs on. It used to read `paymentMethod`, which is a
      field of the checkout draft and not of an order — the server answers
      `kind`, so this was undefined on every order and the cash callout below
      had silently stopped rendering. */
   const isCod = order.kind === 'cod';
+  /**
+   * The steps to draw, in this order's own vocabulary.
+   *
+   * A cash order says placed → accepted → cooking → on_the_way → delivered;
+   * a wallet order says confirmed → preparing → ready → delivering →
+   * delivered → completed, because the money is held and the customer's
+   * confirmation is a step of its own. This screen only knew the first
+   * vocabulary, so every wallet order in the kitchen sat at `-1` — no step
+   * lit, no stamps, "Order placed." at the top of an order out for delivery.
+   * `flowFor` is the same rail the shop and meal tracker draw, and it already
+   * knows about collection and pre-orders.
+   */
+  const steps = isCod ? ORDER_STEPS : flowFor(order.handover, { preorder: order.preorder });
+  /* On the cash rail `completed` is not a step — it is the rail finished — so
+     it lights the last one rather than falling off the end at -1. */
+  const current = isCod
+    ? completed
+      ? ORDER_STEPS.length - 1
+      : stepIndex(order.status)
+    : stepIndexIn(steps, order.status);
+  /* Which orders can still be pulled back. Cash: only before the kitchen has
+     accepted it. Wallet: the server allows it until the food is on its way,
+     and refunds the hold — the same rule the shop tracker follows. */
+  const canCancel = isCod
+    ? order.status === 'placed'
+    : ['confirmed', 'preparing', 'ready'].includes(order.status);
 
   return (
     <Screen glow="both">
@@ -162,16 +213,27 @@ export default function OrderScreen() {
                     ? t('Delivered.')
                     : t('Order placed.')}
           </Heading>
+          {/* Where the money is, said in the words of this order's rail. A
+              wallet order was paid up front and is held, refunded or released;
+              telling its owner "nothing was charged" was simply untrue. */}
           <Body muted size={14} style={{ textAlign: 'center' }}>
             {rejected
-              ? t('{kitchen} turned this one down. Nothing was charged — cash orders are only paid on delivery.', { kitchen: order.chefName || t('The kitchen') })
+              ? isCod
+                ? t('{kitchen} turned this one down. Nothing was charged — cash orders are only paid on delivery.', { kitchen: order.chefName || t('The kitchen') })
+                : t('{kitchen} turned this one down. ৳{n} was refunded to your wallet.', { kitchen: order.chefName || t('The kitchen'), n: n(order.total) })
               : cancelled
-                ? t('Nothing was charged — cash orders are only paid on delivery.')
+                ? isCod
+                  ? t('Nothing was charged — cash orders are only paid on delivery.')
+                  : t('৳{n} was refunded to your wallet.', { n: n(order.total) })
                 : completed
-                  ? t('You confirmed this one arrived. Thank you.')
+                  ? isCod
+                    ? t('You confirmed this one arrived. Thank you.')
+                    : t('You confirmed this one arrived. Thank you — the cook will now be paid.')
                   : delivered
                     ? t('{kitchen} says it is at your door. Confirm below once you have it.', { kitchen: order.chefName || t('The kitchen') })
-                    : t('{kitchen} has your order. You pay when it arrives.', { kitchen: order.chefName || t('The kitchen') })}
+                    : isCod
+                      ? t('{kitchen} has your order. You pay when it arrives.', { kitchen: order.chefName || t('The kitchen') })
+                      : t('{kitchen} has your order. ৳{n} was paid from your wallet and is held until you confirm it arrived.', { kitchen: order.chefName || t('The kitchen'), n: n(order.total) })}
           </Body>
 
           <View
@@ -206,8 +268,10 @@ export default function OrderScreen() {
           </View>
         </Animated.View>
 
-        {/* ---- Cash callout: the single most important line on the page ---- */}
-        {isCod && !stopped ? (
+        {/* ---- Money callout: the single most important line on the page ----
+            Cash: have it ready for the rider. Wallet: it is already paid and
+            held, so the line says where it sits rather than what to prepare. */}
+        {!stopped ? (
           <Reveal delay={1}>
             <View
               style={[
@@ -218,16 +282,16 @@ export default function OrderScreen() {
                   padding: 18,
                   marginBottom: 16,
                   borderRadius: radius.lg,
-                  backgroundColor: colors.saffron50,
+                  backgroundColor: isCod ? colors.saffron50 : colors.sage50,
                   borderWidth: 1,
-                  borderColor: colors.saffron100,
+                  borderColor: isCod ? colors.saffron100 : colors.sage100,
                 },
                 shadow.sm,
               ]}
             >
               <IconTile
-                name="banknote"
-                variant="saffron"
+                name={isCod ? 'banknote' : 'lock'}
+                variant={isCod ? 'saffron' : 'sage'}
                 style={{ width: 48, height: 48, borderRadius: 15 }}
               />
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -241,7 +305,7 @@ export default function OrderScreen() {
                     marginBottom: 4,
                   }}
                 >
-                  {t('Cash on delivery')}
+                  {isCod ? t('Cash on delivery') : t('Paid from your wallet')}
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
                   <GradientText
@@ -262,7 +326,13 @@ export default function OrderScreen() {
                   >
                     {/* Once the food has landed the money has changed hands.
                         Still telling someone to have it "ready" is stale. */}
-                    {delivered ? t('paid to the rider') : t('ready for the rider')}
+                    {isCod
+                      ? delivered
+                        ? t('paid to the rider')
+                        : t('ready for the rider')
+                      : completed
+                        ? t('released to the cook')
+                        : t('held until you confirm')}
                   </Text>
                 </View>
               </View>
@@ -313,7 +383,7 @@ export default function OrderScreen() {
               </Body>
             ) : (
               <View>
-                {ORDER_STEPS.map((step, i) => {
+                {steps.map((step, i) => {
                   const done = i < current;
                   const active = i === current;
                   const tone = done
@@ -352,7 +422,7 @@ export default function OrderScreen() {
                           />
                         </View>
 
-                        {i < ORDER_STEPS.length - 1 ? (
+                        {i < steps.length - 1 ? (
                           <View
                             style={{
                               width: 2,
@@ -475,7 +545,7 @@ export default function OrderScreen() {
                         color: colors.textMuted,
                       }}
                     >
-                      ৳{i.price} × {i.qty}
+                      ৳{n(i.price)} × {n(i.qty)}
                     </Text>
                   </View>
                   <Text
@@ -486,7 +556,7 @@ export default function OrderScreen() {
                       fontVariant: ['tabular-nums'],
                     }}
                   >
-                    ৳{i.price * i.qty}
+                    ৳{n(i.price * i.qty)}
                   </Text>
                 </View>
               ))}
@@ -507,7 +577,7 @@ export default function OrderScreen() {
                 borderTopColor: colors.line,
               }}
             >
-              <Price size={22}>{isCod ? 'Due in cash' : 'Total'}</Price>
+              <Price size={22}>{isCod ? t('Due in cash') : t('Total')}</Price>
               <Price size={22}>৳{n(order.total)}</Price>
             </View>
           </View>
@@ -573,7 +643,7 @@ export default function OrderScreen() {
             onPress={() => router.replace('/browse')}
           />
 
-          {order.status === 'placed' ? (
+          {canCancel ? (
             confirmCancel ? (
               <View
                 style={{

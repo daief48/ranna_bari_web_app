@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,6 +9,7 @@ import Button from '../../src/components/Button';
 import Reveal from '../../src/components/Reveal';
 import { Body } from '../../src/components/Typography';
 import { useAlert } from '../../src/components/Alert';
+import { withKitchenGate } from '../../src/components/CookBits';
 import { useTheme } from '../../src/theme/ThemeProvider';
 import { font } from '../../src/theme/tokens';
 import { useSession } from '../../src/store/SessionContext';
@@ -29,10 +30,12 @@ import {
   saveMyPlan,
 } from '../../src/features/meal-plan/api';
 import {
+  SLOTS,
   countMeals,
   currentMonth,
   daysByDate,
   monthLabel,
+  setPlanLanguage,
   spreadMonth,
   todayKey,
 } from '../../src/features/meal-plan/format';
@@ -61,12 +64,18 @@ import {
  * published plan that named only one Tuesday would have cancelled the other
  * thirty days without saying so.
  */
-export default function CookMealPlan() {
+/* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
+export default withKitchenGate(CookMealPlan);
+
+function CookMealPlan() {
   const router = useRouter();
   const { token } = useSession();
   const { colors } = useTheme();
-  const { t, n } = useLang();
+  const { t, n, lang } = useLang();
   const alert = useAlert();
+  /* Month and day labels in the reader's language — set in render, the way
+     the dashboard sets the chart numerals. */
+  setPlanLanguage(lang);
 
   /* The hub names the month it was looking at, so the editor opens on the
      same one instead of always landing on today. */
@@ -86,17 +95,35 @@ export default function CookMealPlan() {
   const [dishes, setDishes] = useState({ system: [], mine: [] });
   const [editing, setEditing] = useState(null);
 
+  /* The month as it was loaded (or last saved), so "changed" can be counted
+     against something real rather than against "has any slot got text". */
+  const baselineRef = useRef([]);
+
+  /*
+   * Numbered, and only the latest read may land.
+   *
+   * Flicking the month picker fires a read per month, and the server answers
+   * in whatever order it likes — September's calendar arriving after
+   * October's used to overwrite the month on screen with the wrong one, with
+   * the heading still saying October. A read that is no longer the latest is
+   * dropped on return.
+   */
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
     if (!token) return;
+    const seq = ++loadSeq.current;
     setLoading(true);
     const [plan, library] = await Promise.all([fetchMyPlan(token, month), fetchMyDishes(token)]);
+    if (seq !== loadSeq.current) return;
 
     if (plan.ok) {
       const { cookPlan, systemPlan, categoryKey: key } = plan.result;
+      const spread = spreadMonth(month, cookPlan?.days ?? []);
       setCategoryKey(key);
       setStatus(cookPlan?.status ?? null);
       setSystemDays(systemPlan?.days ?? []);
-      setDays(spreadMonth(month, cookPlan?.days ?? []));
+      baselineRef.current = spread;
+      setDays(spread);
       setDirty(false);
     }
     if (library.ok) setDishes({ system: library.result.system ?? [], mine: library.result.mine ?? [] });
@@ -108,6 +135,48 @@ export default function CookMealPlan() {
   }, [load]);
 
   const systemBy = useMemo(() => daysByDate(systemDays), [systemDays]);
+
+  /*
+   * Leaving a month with unsaved edits is asked about, not done.
+   *
+   * The picker's arrows used to switch at once, and the reload that follows
+   * replaces `days` wholesale — twenty-seven tapped dishes gone for a flick
+   * of the thumb. A cook who means it confirms; one who did not keeps their
+   * work.
+   */
+  const changeMonth = (next) => {
+    if (next === month) return;
+    if (!dirty) {
+      setMonth(next);
+      return;
+    }
+    alert.confirm({
+      title: t('Leave {month} without saving?', { month: monthLabel(month) }),
+      body: t('The changes you made to this month have not been saved and will be lost.'),
+      confirmLabel: t('Leave without saving'),
+      danger: true,
+      onConfirm: () => setMonth(next),
+    });
+  };
+
+  /* The same courtesy for the chip that overwrites every sitting at once. */
+  const startFromPlatform = () => {
+    const apply = () => {
+      setDays(spreadMonth(month, systemDays));
+      setDirty(true);
+    };
+    if (!dirty) {
+      apply();
+      return;
+    }
+    alert.confirm({
+      title: t('Replace your unsaved changes?'),
+      body: t('Every sitting goes back to the platform’s dish for this month. Your unsaved edits are lost.'),
+      confirmLabel: t('Replace them'),
+      danger: true,
+      onConfirm: apply,
+    });
+  };
 
   /* What the sheet offers for a sitting: this cook's own dishes first, then
      the platform's, then anything already written elsewhere in this month —
@@ -194,6 +263,8 @@ export default function CookMealPlan() {
     }
     setDirty(false);
     setStatus(publish ? 'published' : 'draft');
+    /* What was just sent is the new baseline for "changed". */
+    baselineRef.current = days;
     alert.success(
       publish
         ? t('Customers booking this month will see your menu.')
@@ -224,7 +295,6 @@ export default function CookMealPlan() {
     });
   };
 
-  const typed = countMeals(days);
   const offering = countMeals(
     days.map((day) => {
       const base = systemBy.get(day.date) ?? {};
@@ -234,6 +304,43 @@ export default function CookMealPlan() {
         dinner: day.dinner.trim() || base.dinner || '',
       };
     }),
+  );
+
+  /*
+   * Two honest counts, where one dishonest one stood.
+   *
+   * "{n} days changed" counted every slot with text in it — so a month that
+   * had been saved before read "93 days changed" after one tap, and the
+   * number was slots, not days. It is now the days that differ from what
+   * was loaded or last saved. "Changed by you" counted the same thing after
+   * a save, when every blank had just been filled from the platform's month
+   * and none of it was the cook's doing; it now counts the sittings where
+   * the cook's dish differs from the platform's.
+   */
+  const changedDays = useMemo(() => {
+    const was = daysByDate(baselineRef.current);
+    return days.filter((day) => {
+      const before = was.get(day.date);
+      return SLOTS.some(
+        (slot) => String(day[slot] ?? '').trim() !== String(before?.[slot] ?? '').trim(),
+      );
+    }).length;
+    // The baseline moves only when `days` is replaced by a load or a save.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days]);
+  const ownSittings = useMemo(
+    () =>
+      days.reduce((sum, day) => {
+        const base = systemBy.get(day.date) ?? {};
+        return (
+          sum +
+          SLOTS.filter((slot) => {
+            const value = String(day[slot] ?? '').trim();
+            return value && value !== String(base[slot] ?? '').trim();
+          }).length
+        );
+      }, 0),
+    [days, systemBy],
   );
   const hasOwn = status != null;
   const today = todayKey();
@@ -275,7 +382,7 @@ export default function CookMealPlan() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ fontFamily: font.uiBold, fontSize: 13, color: colors.text }}>
             {dirty
-              ? t('{n} days changed', { n: n(typed) })
+              ? t('{n} days changed', { n: n(changedDays) })
               : status === 'published'
                 ? t('Published')
                 : hasOwn
@@ -312,7 +419,7 @@ export default function CookMealPlan() {
         />
 
         <View style={{ marginTop: 20 }}>
-          <MonthPicker month={month} onChange={setMonth} disabled={busy} />
+          <MonthPicker month={month} onChange={changeMonth} disabled={busy} />
         </View>
 
         {loading ? (
@@ -419,7 +526,7 @@ export default function CookMealPlan() {
                   }}
                 >
                   {t('{n} of {total} meals on offer', { n: n(offering), total: n(days.length * 3) })}
-                  {typed > 0 ? t(' · {n} changed by you', { n: n(typed) }) : ''}
+                  {ownSittings > 0 ? t(' · {n} changed by you', { n: n(ownSittings) }) : ''}
                 </Text>
                 {dirty ? (
                   <Text
@@ -447,10 +554,7 @@ export default function CookMealPlan() {
                 <Chip label={t('Repeat the first week')} onPress={repeatWeek} disabled={busy} />
                 <Chip
                   label={t('Start from the platform’s month')}
-                  onPress={() => {
-                    setDays(spreadMonth(month, systemDays));
-                    setDirty(true);
-                  }}
+                  onPress={startFromPlatform}
                   disabled={busy || systemDays.length === 0}
                 />
               </View>

@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { bn } from './bn';
 import { setTypeScript } from '../theme/tokens';
+import { setPlanLanguage } from '../features/meal-plan/format';
 
 const KEY = 'rannabari_lang';
 
@@ -61,6 +62,8 @@ export function LanguageProvider({ children }) {
 
   // Runs before any child renders, so the first paint already has the faces.
   setTypeScript(lang === 'bn' ? 'bengali' : 'latin');
+  // Same reason: date labels (month names, weekdays) are read during render.
+  setPlanLanguage(lang);
 
   useEffect(() => {
     let alive = true;

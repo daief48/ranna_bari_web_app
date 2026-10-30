@@ -13,6 +13,7 @@ import { useAuth } from '../src/store/AuthContext';
 import { useSession } from '../src/store/SessionContext';
 import { useAlert } from '../src/components/Alert';
 import { useLang } from '../src/i18n/LanguageContext';
+import { digitsOnly } from '../src/lib/format';
 import { errorText } from '../src/lib/errors';
 import {
   cookForgotPassword,
@@ -58,7 +59,7 @@ export default function CookVerifyScreen() {
      previous attempt is the usual way "wrong or expired" happens: every new
      send spends the last one. */
   const paramCode =
-    typeof params.code === 'string' ? params.code.replace(/\D/g, '').slice(0, 6) : '';
+    typeof params.code === 'string' ? digitsOnly(params.code).slice(0, 6) : '';
 
   /* Reset starts at the address — nobody is emailed a code they did not ask
      for — while register arrives with one already on its way. */
@@ -280,7 +281,9 @@ export default function CookVerifyScreen() {
               <FloatLabelInput
                 label={t('Six-digit code')}
                 value={code}
-                onChangeText={setCode}
+                /* Folded as typed: a Bengali keyboard sends ০-৯, and the
+                   server reads ASCII. See `lib/format`. */
+                onChangeText={(v) => setCode(digitsOnly(v).slice(0, 6))}
                 placeholder="000000"
                 keyboardType="number-pad"
                 maxLength={6}
