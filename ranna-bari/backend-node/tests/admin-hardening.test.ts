@@ -212,10 +212,11 @@ describe('PATCH /flags', () => {
       method: 'PATCH',
       url: '/api/admin/v1/flags',
       headers: asActor(ops),
-      payload: { key: 'system.cod' },
+      // system.cod is retired (off by default), so a flip would turn it ON; use a live flag.
+      payload: { key: 'system.stores' },
     });
     expect(res.statusCode).toBe(200);
-    expect(json(res)).toEqual({ key: 'system.cod', enabled: false });
+    expect(json(res)).toEqual({ key: 'system.stores', enabled: false });
 
     const read = json(
       await app.inject({
@@ -224,12 +225,12 @@ describe('PATCH /flags', () => {
         headers: asActor(ops),
       }),
     );
-    const flag = read.flags.find((f: { key: string }) => f.key === 'system.cod');
+    const flag = read.flags.find((f: { key: string }) => f.key === 'system.stores');
     expect(flag.enabled).toBe(false);
     // The description came across from the defaults, not an empty string.
-    expect(flag.description).toBe('Cash-on-delivery ordering');
+    expect(flag.description).toBe('Cook stores');
 
-    const audit = await AuditLog.findOne({ action: 'config.flag', targetId: 'system.cod' }).lean();
+    const audit = await AuditLog.findOne({ action: 'config.flag', targetId: 'system.stores' }).lean();
     expect(audit?.actorEmail).toBe(ops.email);
   });
 

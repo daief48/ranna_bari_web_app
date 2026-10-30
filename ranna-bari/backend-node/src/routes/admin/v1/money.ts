@@ -12,12 +12,20 @@ import { ERR, can, errText, type Role } from '../../../lib/domain.js';
 import { daysSince, makeCode, taka } from '../../../lib/format.js';
 import {
   cookBalances,
+  lockCook,
   post,
   refundEscrow,
   releaseEscrow,
   splitEscrow,
 } from '../../../logic/ledger.js';
-import { getSettings } from '../../../logic/settings.js';
+import {
+  getSettings,
+  getTopupConfig,
+  saveTopupConfig,
+  topupConfigured,
+} from '../../../logic/settings.js';
+import { approveTopup, rejectTopup, statusOf } from '../../../logic/topup-requests.js';
+import { payWithdrawal, rejectWithdrawal } from '../../../logic/withdrawals.js';
 import { notify } from '../../../logic/wallet.js';
 import {
   AuditLog,
@@ -27,6 +35,8 @@ import {
   Order,
   PayoutItem,
   PayoutRun,
+  TopUp,
+  Withdrawal,
 } from '../../../models/index.js';
 
 /**
@@ -169,9 +179,13 @@ export async function moneyRoutes(app: FastifyInstance) {
       .object({ take: z.coerce.number().max(50).default(12) })
       .parse(request.query ?? {});
 
-    const [settings, owed, runs] = await Promise.all([
+    /* `owed` is what a batch run could pay: the ledger balance less any open
+       withdrawal. A cook's reserved money is theirs but spoken for, so it is
+       reported beside the row and kept out of the figures a run is cut from. */
+    const [settings, gross, owed, runs] = await Promise.all([
       getSettings(),
       cookBalances(),
+      cookBalances(undefined, { excludeReserved: true }),
       PayoutRun.find().sort({ createdAt: -1 }).limit(query.take).lean(),
     ]);
 
@@ -193,6 +207,7 @@ export async function moneyRoutes(app: FastifyInstance) {
     ]);
 
     const kitchenOf = new Map(kitchens.map((k) => [String(k._id), k]));
+    const grossOf = new Map(gross.map((row) => [row.kitchenId, row.amount]));
     const itemsOf = new Map<string, typeof items>();
     for (const item of items) {
       const list = itemsOf.get(item.payoutRunId) ?? [];
@@ -210,6 +225,7 @@ export async function moneyRoutes(app: FastifyInstance) {
         kitchenName: kitchenOf.get(row.kitchenId)?.name ?? row.kitchenId,
         area: kitchenOf.get(row.kitchenId)?.area ?? '',
         amount: row.amount,
+        reserved: (grossOf.get(row.kitchenId) ?? row.amount) - row.amount,
         // Below the minimum a cook is not skipped, they are carried.
         carried: row.amount < settings.payoutMinimum,
       })),
@@ -259,7 +275,11 @@ export async function moneyRoutes(app: FastifyInstance) {
     }
 
     const settings = await getSettings();
-    const owed = (await cookBalances()).filter((row) => row.amount >= settings.payoutMinimum);
+    /* Net of open withdrawals: a run cut from the gross balance would pay a
+       cook the very money they asked to withdraw. */
+    const owed = (await cookBalances(undefined, { excludeReserved: true })).filter(
+      (row) => row.amount >= settings.payoutMinimum,
+    );
     if (!owed.length) return fail(reply as never, ERR.NOTHING_TO_PAY);
 
     const kitchens = await Kitchen.find({
@@ -354,13 +374,17 @@ export async function moneyRoutes(app: FastifyInstance) {
       if (!run) return { ok: false as const, error: ERR.RUN_CLOSED, status: 404 };
       if (run.status !== 'draft') return { ok: false as const, error: ERR.RUN_CLOSED, status: 400 };
 
-      const [items, balances] = await Promise.all([
-        PayoutItem.find({ payoutRunId: id }).session(session).lean(),
-        /* One fold for every cook rather than one per item, read on the same
-           session so it sees exactly the ledger this transaction will append
-           to. */
-        cookBalances(session),
-      ]);
+      const items = await PayoutItem.find({ payoutRunId: id }).session(session).lean();
+
+      /* The same per-cook lock a withdrawal's "Mark paid" takes, so the two
+         cannot each read cover from one snapshot and both post. */
+      for (const item of items) await lockCook(session, item.kitchenId);
+
+      /* One fold for every cook rather than one per item, read on the same
+         session so it sees exactly the ledger this transaction will append
+         to. Net of open withdrawals: money a cook has asked for is paid by
+         that request, not by this run. */
+      const balances = await cookBalances(session, { excludeReserved: true });
       const owedTo = new Map(balances.map((row) => [row.kitchenId, row.amount]));
 
       let paid = 0;
@@ -495,6 +519,207 @@ export async function moneyRoutes(app: FastifyInstance) {
 
     if (!out.ok) return fail(reply as never, out.error, out.status);
     return { code: out.code, moved: 0 };
+  });
+
+  /* ---------------- cook withdrawals ---------------- */
+
+  /**
+   * Requests cooks have filed, newest first, with the kitchen's name.
+   *
+   * `status` defaults to the open ones: the queue an operator works is the
+   * requests nobody has acted on. The counts come back with every page so the
+   * tab can say how many are waiting without a second call.
+   */
+  app.get('/withdrawals', async (request, reply) => {
+    const actor = await require(request, reply as never, 'ledger.read');
+    if (!actor) return;
+
+    const query = z
+      .object({
+        status: z.enum(['requested', 'paid', 'rejected', 'cancelled', 'all']).default('requested'),
+        take: z.coerce.number().int().min(1).max(200).default(50),
+      })
+      .parse(request.query ?? {});
+
+    const where = query.status === 'all' ? {} : { status: query.status };
+    const [rows, counts] = await Promise.all([
+      Withdrawal.find(where).sort({ requestedAt: -1 }).limit(query.take).lean(),
+      Withdrawal.aggregate<{ _id: string; count: number; amount: number }>([
+        { $group: { _id: '$status', count: { $sum: 1 }, amount: { $sum: '$amount' } } },
+      ]),
+    ]);
+
+    const ids = [...new Set(rows.map((row) => row.kitchenId))];
+    const kitchens = await Kitchen.find({ _id: { $in: ids.filter(isId) } })
+      .select('name area')
+      .lean();
+    const kitchenOf = new Map(kitchens.map((k) => [String(k._id), k]));
+
+    return {
+      withdrawals: rows.map((row) => ({
+        id: String(row._id),
+        code: row.code,
+        kitchenId: row.kitchenId,
+        kitchenName: kitchenOf.get(row.kitchenId)?.name ?? row.kitchenId,
+        area: kitchenOf.get(row.kitchenId)?.area ?? '',
+        amount: row.amount,
+        method: row.method,
+        account: row.account,
+        status: row.status,
+        requestedAt: row.requestedAt,
+        decidedAt: row.decidedAt,
+        decidedBy: row.decidedBy,
+        note: row.note,
+      })),
+      counts: Object.fromEntries(counts.map((c) => [c._id, { count: c.count, amount: c.amount }])),
+    };
+  });
+
+  /** "Mark paid": the one place a withdrawal posts to the ledger. */
+  app.post('/withdrawals/:id/pay', async (request, reply) => {
+    const actor = await require(request, reply as never, 'payout.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const out = await payWithdrawal(id, actor);
+    if (!out.ok) {
+      return reply
+        .status(out.error === ERR.NO_WITHDRAWAL ? 404 : 400)
+        .send({ error: out.error, message: errText(out.error), detail: out.detail });
+    }
+    return out.result;
+  });
+
+  app.post('/withdrawals/:id/reject', async (request, reply) => {
+    const actor = await require(request, reply as never, 'payout.write');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z.object({ note: z.string().trim().min(1).max(300) }).safeParse(request.body ?? {});
+    if (!body.success) return fail(reply as never, ERR.NAME_REQUIRED);
+
+    const out = await rejectWithdrawal(id, body.data.note, actor);
+    if (!out.ok) {
+      return reply
+        .status(out.error === ERR.NO_WITHDRAWAL ? 404 : 400)
+        .send({ error: out.error, message: errText(out.error), detail: out.detail });
+    }
+    return out.result;
+  });
+
+  /* ---------------- manual top-ups ---------------- */
+
+  /**
+   * Where customers are told to send money. Finance reads it; changing it is a
+   * `payout.write` act, because pointing the app at a different number is
+   * pointing customers' money at it.
+   */
+  app.get('/topup-config', async (request, reply) => {
+    const actor = await require(request, reply as never, 'ledger.read');
+    if (!actor) return;
+    const config = await getTopupConfig();
+    return { ...config, configured: topupConfigured(config) };
+  });
+
+  app.post('/topup-config', async (request, reply) => {
+    const actor = await require(request, reply as never, 'payout.write');
+    if (!actor) return;
+
+    const number = z
+      .string()
+      .trim()
+      .regex(/^(\+?880|0)?1[3-9]\d{8}$/)
+      .or(z.literal(''));
+    const body = z
+      .object({ bkash: number.optional(), nagad: number.optional(), note: z.string().trim().max(300).optional() })
+      .safeParse(request.body ?? {});
+    if (!body.success) return fail(reply as never, ERR.BAD_REQUEST);
+
+    const before = await getTopupConfig();
+    await saveTopupConfig(body.data, actor.email);
+    const after = await getTopupConfig();
+    await audit(actor, {
+      action: 'topup.config',
+      targetType: 'Setting',
+      targetId: 'topup',
+      summary: 'Top-up receiving numbers changed',
+      before,
+      after,
+    });
+    return { ...after, configured: topupConfigured(after) };
+  });
+
+  /** Customers' manual top-up requests: the pending queue plus recent decisions. */
+  app.get('/topup-requests', async (request, reply) => {
+    const actor = await require(request, reply as never, 'ledger.read');
+    if (!actor) return;
+
+    const query = z
+      .object({
+        status: z.enum(['pending', 'approved', 'rejected', 'all']).default('pending'),
+        take: z.coerce.number().int().min(1).max(200).default(50),
+      })
+      .parse(request.query ?? {});
+
+    /* Only rows that came through the manual flow carry a txnId. */
+    const where: Record<string, unknown> = { txnId: { $type: 'string' } };
+    if (query.status !== 'all') where.status = query.status;
+
+    const [rows, counts] = await Promise.all([
+      TopUp.find(where).sort({ at: -1 }).limit(query.take).lean(),
+      TopUp.aggregate<{ _id: string; count: number; amount: number }>([
+        { $match: { txnId: { $type: 'string' } } },
+        { $group: { _id: '$status', count: { $sum: 1 }, amount: { $sum: '$amount' } } },
+      ]),
+    ]);
+
+    return {
+      requests: rows.map((row) => ({
+        id: String(row._id),
+        customerKey: row.customerKey,
+        amount: row.amount,
+        method: row.method,
+        txnId: row.txnId,
+        senderNumber: row.senderNumber,
+        status: statusOf(row),
+        note: row.note,
+        at: row.at,
+        decidedAt: row.decidedAt,
+        decidedBy: row.decidedBy,
+      })),
+      counts: Object.fromEntries(counts.map((c) => [c._id, { count: c.count, amount: c.amount }])),
+    };
+  });
+
+  app.post('/topup-requests/:id/approve', async (request, reply) => {
+    const actor = await require(request, reply as never, 'topup.reconcile');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const out = await approveTopup(id, actor);
+    if (!out.ok) {
+      return reply
+        .status(out.error === ERR.NO_TOPUP ? 404 : 400)
+        .send({ error: out.error, message: errText(out.error), detail: out.detail });
+    }
+    return out.result;
+  });
+
+  app.post('/topup-requests/:id/reject', async (request, reply) => {
+    const actor = await require(request, reply as never, 'topup.reconcile');
+    if (!actor) return;
+
+    const { id } = request.params as { id: string };
+    const body = z.object({ note: z.string().trim().min(1).max(300) }).safeParse(request.body ?? {});
+    if (!body.success) return fail(reply as never, ERR.NAME_REQUIRED);
+
+    const out = await rejectTopup(id, body.data.note, actor);
+    if (!out.ok) {
+      return reply
+        .status(out.error === ERR.NO_TOPUP ? 404 : 400)
+        .send({ error: out.error, message: errText(out.error), detail: out.detail });
+    }
+    return out.result;
   });
 
   /* ---------------- escrow ---------------- */

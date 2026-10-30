@@ -114,9 +114,14 @@ function Pill({ meta, style }) {
   );
 }
 
-export function RequestStatusPill({ status, style }) {
+export function RequestStatusPill({ status, style, afterPayment = false }) {
   const { colors } = useTheme();
-  return <Pill meta={requestStatusMeta(status, colors)} style={style} />;
+  const meta = requestStatusMeta(status, colors);
+  /* A request cancelled AFTER it was paid was not "withdrawn" by anybody in the
+     sense that word carries — the order was refunded. Say what happened. */
+  const shown =
+    afterPayment && status === REQUEST_STATUS.CANCELLED ? { ...meta, label: 'Cancelled' } : meta;
+  return <Pill meta={shown} style={style} />;
 }
 
 export function OfferStatusPill({ status, style }) {

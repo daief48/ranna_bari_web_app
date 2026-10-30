@@ -59,12 +59,12 @@ export default function CheckoutScreen() {
  *
  *   - Shop products are priced and held by the server from the customer's
  *     SAVED address, and are paid from the wallet only.
- *   - Kitchen dishes are priced on the device and may be paid in cash.
+ *   - Kitchen dishes are priced on the device. They used to be payable in
+ *     cash; the wallet is now the only way to pay anything.
  *
  * So the rules here are the ones that keep those two honest:
  *
- *   - Any shop product in the cart makes the whole cart wallet-paid. Cash is
- *     only offered when it is true for everything.
+ *   - The whole cart is wallet-paid, shop products and dishes alike.
  *   - With a shop product in the cart the address is the saved one, read-only
  *     (change it on the addresses screen). The server prices shop delivery
  *     from that address and never from this form, so a form that let the
@@ -98,7 +98,6 @@ function CheckoutForm() {
   const [instructions, setInstructions] = useState(
     typeof params.note === 'string' ? params.note : '',
   );
-  const [chosen, setChosen] = useState('cod');
   const [note, setNote] = useState('');
   const [cookNote, setCookNote] = useState('');
   const [placing, setPlacing] = useState(false);
@@ -115,8 +114,10 @@ function CheckoutForm() {
 
   const { hasDish, hasShop } = cart;
 
-  /* Cash is only offered when it is true for everything in the cart. */
-  const method = hasShop ? 'wallet' : chosen;
+  /* The wallet is the only payment method. Kept as a named constant so the
+     branches below read the same as before and the wallet-too-low door (top
+     up with the shortfall filled in) is untouched. */
+  const method = 'wallet';
   const affordable = balance >= cart.total;
   const shortfall = Math.max(0, cart.total - balance);
 
@@ -181,10 +182,6 @@ function CheckoutForm() {
     setPlacedCount(0);
     setMaybePlaced(false);
     setPlacing(true);
-    /* Remember wallet if a shop product forced it: a retry after a half-placed
-       cart must not quietly turn the rest into cash. */
-    if (hasShop) setChosen('wallet');
-
     const finish = () => {
       placingRef.current = false;
       setPlacing(false);
@@ -665,13 +662,9 @@ function CheckoutForm() {
 
               <View style={{ gap: 12 }}>
                 {PAYMENT_METHODS.map((m) => {
-                  /* Cash is only true for a cart of dishes; a shop product makes
-                     the whole cart wallet-paid. */
-                  const cashBarred = m.key === 'cod' && hasShop;
                   /* Offered only when it can actually pay: an option that is
                      always refused costs a tap to learn nothing. */
-                  const usable =
-                    m.key === 'wallet' ? affordable : cashBarred ? false : m.available;
+                  const usable = affordable;
                   const on = method === m.key;
                   /* A wallet that cannot cover the order is still a door, not a
                      dead row: tapping it goes to the top-up page, with the
@@ -683,7 +676,7 @@ function CheckoutForm() {
                       accessibilityRole={topUpFirst ? 'link' : 'radio'}
                       accessibilityState={{ selected: on, disabled: !usable && !topUpFirst }}
                       disabled={!usable && !topUpFirst}
-                      onPress={() => (topUpFirst ? toTopUp() : setChosen(m.key))}
+                      onPress={() => (topUpFirst ? toTopUp() : null)}
                       style={[
                         {
                           flexDirection: 'row',
@@ -694,7 +687,7 @@ function CheckoutForm() {
                           borderWidth: 1.5,
                           borderColor: on ? colors.primary : colors.line,
                           backgroundColor: on ? colors.surfaceSolid : colors.sunken,
-                          opacity: m.available && !cashBarred ? 1 : 0.55,
+                          opacity: 1,
                         },
                         on ? shadow.md : null,
                       ]}
@@ -758,20 +751,6 @@ function CheckoutForm() {
                         >
                           {t(m.desc)}
                         </Text>
-                        {/* A disabled row that says nothing reads as broken. */}
-                        {cashBarred ? (
-                          <Text
-                            style={{
-                              marginTop: 8,
-                              fontFamily: font.uiSemi,
-                              fontSize: 12.5,
-                              lineHeight: 18,
-                              color: colors.saffron,
-                            }}
-                          >
-                            {t('Not available with shop items — they are paid from your wallet.')}
-                          </Text>
-                        ) : null}
                         {/* The only reason the wallet can be locked is the
                             balance, so say that, with the gap and the way to
                             close it. */}
@@ -815,34 +794,6 @@ function CheckoutForm() {
                 })}
               </View>
 
-              {method === 'cod' ? (
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'flex-start',
-                    gap: 10,
-                    marginTop: 16,
-                    padding: 14,
-                    borderRadius: radius.md,
-                    backgroundColor: colors.saffron50,
-                    borderWidth: 1,
-                    borderColor: colors.saffron100,
-                  }}
-                >
-                  <Icon name="alertCircle" size={17} color={colors.saffron} />
-                  <Text
-                    style={{
-                      flex: 1,
-                      fontFamily: font.ui,
-                      fontSize: 13,
-                      lineHeight: 20,
-                      color: colors.textMuted,
-                    }}
-                  >
-                    {t('Keep ৳{total} in cash ready. Riders carry limited change, so exact notes help.', { total: n(cart.total) })}
-                  </Text>
-                </View>
-              ) : null}
             </View>
           </Reveal>
 
@@ -910,7 +861,7 @@ function CheckoutForm() {
                   borderTopColor: colors.line,
                 }}
               >
-                <Price size={23}>{method === 'cod' ? t('Pay on delivery') : t('Total')}</Price>
+                <Price size={23}>{t('Total')}</Price>
                 <GradientText
                   style={{
                     fontFamily: font.uiBold,
@@ -963,9 +914,7 @@ function CheckoutForm() {
                 color: colors.textMuted,
               }}
             >
-              {method === 'cod'
-                ? t('No card needed. You pay the rider in cash at your door.')
-                : t('The cook is paid only after you confirm the food arrived.')}
+              {t('The cook is paid only after you confirm the food arrived.')}
             </Text>
           </View>
         </Container>

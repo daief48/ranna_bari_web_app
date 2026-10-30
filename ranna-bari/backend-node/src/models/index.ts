@@ -1126,11 +1126,91 @@ const topUpSchema = new Schema(
     note: { type: String, default: '' },
     ledgerEntryId: { type: String, default: null },
     at: { type: Date, default: () => new Date() },
+
+    /**
+     * Manual top-up requests (added with wallet-only payments).
+     *
+     * A customer pays the platform's bKash/Nagad number outside the app, then
+     * files this row: amount + the provider's transaction id + the number they
+     * sent from. It is `pending` and moves NO money. Only an operator's
+     * approval posts the ledger `topup` (idempotent on `topup:<id>`), flips
+     * this to `approved` and stamps `ledgerEntryId`.
+     *
+     * 'pending' | 'approved' | 'rejected'. Rows written before this existed
+     * (and the dev-only instant top-up) carry NO status and were credited the
+     * moment they were written — every reader must treat a missing status as
+     * 'approved', and `.lean()` skips schema defaults, so there is
+     * deliberately no default here.
+     */
+    status: { type: String },
+    txnId: { type: String, default: null },
+    senderNumber: { type: String, default: null },
+    decidedAt: { type: Date, default: null },
+    decidedBy: { type: String, default: null },
   },
   { versionKey: false },
 );
 
+/* The same payment cannot be claimed twice. A provider transaction id is the
+   whole proof of payment, so one id can back one live request; a rejected
+   request frees it again (the customer may have mistyped). Partial so the
+   legacy rows, which have no txnId, never collide on null. */
+topUpSchema.index(
+  { method: 1, txnId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { txnId: { $type: 'string' }, status: { $in: ['pending', 'approved'] } },
+  },
+);
+topUpSchema.index({ status: 1, at: -1 });
+
 export const TopUp = model('TopUp', topUpSchema);
+
+/* ------------------------------------------------------------------ *
+ * cook withdrawals
+ * ------------------------------------------------------------------ */
+
+/**
+ * A cook's request to be paid out now, instead of waiting for a batch run.
+ *
+ * Money does NOT move when this is filed: it stays in the `cook` bucket,
+ * *reserved*. `available = cook balance − open requests`, and the admin batch
+ * payout subtracts the same reservation so one taka cannot be paid twice. Only
+ * an operator's "Mark paid" posts the `payout` entry (`cook → external`, key
+ * `withdrawal:<id>`).
+ *
+ * `method` and `account` are copied from the kitchen at request time so a
+ * later edit of the profile cannot redirect an approved payout.
+ *
+ * 'requested' | 'paid' | 'rejected' | 'cancelled'
+ */
+const withdrawalSchema = new Schema(
+  {
+    code: { type: String, required: true, unique: true },
+    kitchenId: { type: String, required: true },
+    amount: { type: Number, required: true },
+    method: { type: String, default: '' },
+    account: { type: String, default: '' },
+    status: { type: String, default: 'requested' },
+    requestedAt: { type: Date, default: () => new Date() },
+    decidedAt: { type: Date, default: null },
+    decidedBy: { type: String, default: null },
+    note: { type: String, default: '' },
+    ledgerEntryId: { type: String, default: null },
+  },
+  opts,
+);
+
+withdrawalSchema.index({ kitchenId: 1, status: 1 });
+withdrawalSchema.index({ status: 1, requestedAt: -1 });
+/* One open request per kitchen, enforced by the database rather than by a read
+   that two concurrent taps would both pass. */
+withdrawalSchema.index(
+  { kitchenId: 1 },
+  { unique: true, partialFilterExpression: { status: 'requested' } },
+);
+
+export const Withdrawal = model('Withdrawal', withdrawalSchema);
 
 /* ------------------------------------------------------------------ *
  * disputes, reviews, notifications

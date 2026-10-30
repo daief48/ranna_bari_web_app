@@ -1697,7 +1697,10 @@ export async function operationRoutes(app: FastifyInstance) {
       })
       .parse(request.query ?? {});
 
-    const where: Record<string, unknown> = {};
+    /* Reconciliation is about credits that happened. A manual top-up request
+       still `pending` (or `rejected`) credited nothing and has its own queue
+       (`/topup-requests`); `$nin` also matches legacy rows with no status. */
+    const where: Record<string, unknown> = { status: { $nin: ['pending', 'rejected'] } };
     if (query.state) where.reconciled = query.state;
     if (query.customerKey) where.customerKey = query.customerKey;
 
@@ -1708,6 +1711,7 @@ export async function operationRoutes(app: FastifyInstance) {
          shrinking pile, and a page of rows says nothing about whether the pile
          is shrinking. */
       TopUp.aggregate<{ _id: string; count: number; amount: number }>([
+        { $match: { status: { $nin: ['pending', 'rejected'] } } },
         { $group: { _id: '$reconciled', count: { $sum: 1 }, amount: { $sum: '$amount' } } },
       ]),
     ]);

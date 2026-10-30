@@ -273,13 +273,17 @@ export async function recordOrder(
      money is held in the same transaction. Taking `kind` from the body let a
      client file a `store` order as `held` with no hold behind it, and the
      release then paid the cook out of money nobody had deposited. */
-  const kind = draft.kind ?? 'cod';
+  const kind = draft.kind ?? 'wallet';
   if (kind !== 'cod' && kind !== 'wallet') return fail(ERR.BAD_REQUEST, { field: 'kind' });
 
-  /* An operator's switch. The flag was read by `/config` and shown to the
-     app; here it is enforced, so pausing cash orders pauses them. */
-  if (kind === 'cod' && !(await featureOn('system.cod'))) {
-    return fail(ERR.FEATURE_OFF, { feature: 'system.cod' });
+  /* The wallet is the only way to pay. Cash on delivery is retired for NEW
+     orders — this refuses it outright rather than hiding behind the
+     `system.cod` flag, because a flag an operator can flip back on is a
+     door to money that never touches escrow. Orders already placed as `cod`
+     are untouched: every read and finish path (orders.ts, domain.ts rails,
+     the app's order screens) still branches on `kind === 'cod'`. */
+  if (kind === 'cod') {
+    return fail(ERR.CASH_RETIRED, { feature: 'system.cod' });
   }
 
   const kitchen = await resolveKitchen(draft.chefId, caller);
@@ -437,7 +441,9 @@ export async function recordOrder(
     status: openingStatus,
     /* Cash on delivery never touches escrow — the rider takes the money.
        Anything else is held until the customer says the food arrived. */
-    payment: kind === 'cod' ? 'cod' : 'held',
+    /* Every new order is a wallet order (cash is refused above), so it is
+       always held. Legacy `payment: 'cod'` rows are only ever read. */
+    payment: 'held',
 
     history: [{ status: openingStatus, at: createdAt.toISOString() }],
     createdAt,

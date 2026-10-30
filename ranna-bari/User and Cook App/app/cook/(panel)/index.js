@@ -283,13 +283,14 @@ export default function CookDashboard() {
       ).length
     : 0;
 
-  /* The queue on this screen is a prompt, not a list: the three oldest orders
-     nobody has accepted yet. The full board lives one tab over. */
+  /* The queue on this screen is a prompt, not a list: the three newest orders
+     nobody has accepted yet — newest first, the same order the full board
+     (one tab over) shows its New lane in. */
   const waiting = useMemo(
     () =>
       kitchenMine
         .filter((o) => stageOf(o.status) === 'placed')
-        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         .slice(0, 3),
     [kitchenMine],
   );

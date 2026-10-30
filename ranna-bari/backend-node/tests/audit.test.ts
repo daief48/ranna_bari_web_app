@@ -261,7 +261,7 @@ describe('basket fees', () => {
   it('charges delivery and platform on the first order of a basket and ignores the body', async () => {
     const other = await Kitchen.create({ name: 'Second', kycStatus: 'approved', isOpen: true });
     const dish2 = await Dish.create({ kitchenId: String(other._id), name: 'Khichuri', price: 100 });
-    const buyer = await customer('+8801722222221');
+    const buyer = await customer('+8801722222221', 5000);
 
     const body = json(
       await app.inject({
@@ -270,8 +270,8 @@ describe('basket fees', () => {
         headers: auth(buyer.token),
         payload: {
           orders: [
-            { code: code(), kind: 'cod', chefId: kitchenId, items: [{ id: dishId, qty: 1 }], deliveryFee: 0, platformFee: 0 },
-            { code: code(), kind: 'cod', chefId: String(other._id), items: [{ id: String(dish2._id), qty: 1 }], deliveryFee: 500, platformFee: 500 },
+            { code: code(), kind: 'wallet', chefId: kitchenId, items: [{ id: dishId, qty: 1 }], deliveryFee: 0, platformFee: 0 },
+            { code: code(), kind: 'wallet', chefId: String(other._id), items: [{ id: String(dish2._id), qty: 1 }], deliveryFee: 500, platformFee: 500 },
           ],
         },
       }),

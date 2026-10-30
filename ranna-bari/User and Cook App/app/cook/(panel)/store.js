@@ -27,6 +27,7 @@ import Reveal from '../../../src/components/Reveal';
 import Button from '../../../src/components/Button';
 import SectionHeader from '../../../src/components/SectionHeader';
 import ServiceAreaPicker from '../../../src/components/ServiceAreaPicker';
+import LocationPicker from '../../../src/components/LocationPicker';
 import FloatLabelInput from '../../../src/components/FloatLabelInput';
 import {
   ActionRow,
@@ -559,6 +560,14 @@ function StoreSetup({ kitchen }) {
   const [logo, setLogo] = useState('');
   const [cover, setCover] = useState('');
   const [area, setArea] = useState('');
+  /* Where the shop actually is. `draft` is wherever the map is resting right
+     now (it reports once on load, so it is never proof the cook chose
+     anything); `pin` is a spot the cook confirmed with the button. Only a
+     confirmed pin lets the flow continue and is posted — a shop must not be
+     born with a location nobody picked, and must not silently inherit the
+     kitchen's. The kitchen's pin only decides where the map *opens*. */
+  const [draft, setDraft] = useState(null);
+  const [pin, setPin] = useState(null);
   const [radiusKm, setRadiusKm] = useState(3);
   /* Coverage, chosen in step 3. A new shop that never picks any keeps the
      radius behaviour, exactly like every shop that predates the picker. */
@@ -570,7 +579,24 @@ function StoreSetup({ kitchen }) {
   const [feeInside, setFeeInside] = useState('');
   const [feeOutside, setFeeOutside] = useState('');
 
-  const STEPS = [t('The storefront'), t('Photos'), t('Delivery')];
+  const STEPS = [t('The storefront'), t('Photos'), t('Location'), t('Delivery')];
+
+  /* Confirming the spot also names the area: the reverse-geocoded address is
+     matched against the neighbourhoods we know, and only a real match
+     replaces what the cook already chose — an address that matches nothing
+     must not wipe a chip they picked, and a wrong guess is one tap to fix. */
+  const pinHere = () => {
+    if (!draft) return;
+    setPin({ lat: draft.lat, lng: draft.lng });
+    if (draft.address) {
+      const guess = normaliseArea(draft.address);
+      if (KNOWN_AREAS.includes(guess)) setArea(guess);
+    }
+    setErrors({});
+    Haptics.selectionAsync().catch(() => {});
+  };
+  const pinIsDraft =
+    !!pin && !!draft && pin.lat === draft.lat && pin.lng === draft.lng;
 
   /* ---- photograph picking ----
      Same rule as everywhere else in the panel: a stored picture is kept as
@@ -614,12 +640,31 @@ function StoreSetup({ kitchen }) {
       setErrors({ photos: t('Add a logo and a cover — this shop needs its own face.') });
       return;
     }
+    /* No pin, no shop: the map and distance filters need a real spot. */
+    if (step === 2 && !pin) {
+      setErrors({ pin: t('Move the map to your shop, then tap “Pin the shop here”.') });
+      return;
+    }
+    /* The map names the area when it can; when the address matched nothing
+       the cook names it with a chip — a shop with a pin and no area would
+       show a blank place on its card. */
+    if (step === 2 && !area) {
+      setErrors({ pin: t('Pick the area your shop is in.') });
+      return;
+    }
     setErrors({});
     Haptics.selectionAsync().catch(() => {});
     setStep((s) => s + 1);
   };
 
   const open = async () => {
+    /* Belt and braces: the step guard stops the normal path, this stops a
+       stale state from ever posting a shop without a spot. */
+    if (!pin) {
+      setStep(2);
+      setErrors({ pin: t('Move the map to your shop, then tap “Pin the shop here”.') });
+      return;
+    }
     /* An empty box is a price of nothing — a cook who skips it is not
        charging for delivery, rather than being refused for leaving it blank. */
     const insideValue = Number(feeInside || '0');
@@ -647,6 +692,8 @@ function StoreSetup({ kitchen }) {
       logo,
       cover,
       area: area ? normaliseArea(area) : '',
+      lat: pin.lat,
+      lng: pin.lng,
       deliveryRadiusKm: radiusKm,
       serviceAreas: coverage.serviceAreas,
       allBangladesh: coverage.allBangladesh,
@@ -935,10 +982,49 @@ function StoreSetup({ kitchen }) {
         </Reveal>
       ) : null}
 
-      {/* ---- step 3 · delivery, on the shop's own terms ---- */}
+      {/* ---- step 3 · where the shop is ----
+          The shop is its own business, so it gets its own spot. The map opens
+          on the kitchen's pin only as a convenient starting point; nothing is
+          saved until the cook taps "Pin the shop here". */}
       {step === 2 ? (
         <Reveal delay={2}>
           <View style={{ marginTop: 20 }}>
+            <Body muted size={13} style={{ marginBottom: 10 }}>
+              {t('Move the map to your shop.')}
+            </Body>
+            <LocationPicker
+              height={260}
+              center={
+                typeof kitchen?.lat === 'number' && typeof kitchen?.lng === 'number'
+                  ? { lat: kitchen.lat, lng: kitchen.lng, zoom: 15 }
+                  : undefined
+              }
+              onChange={(place) => {
+                setDraft(place);
+                setErrors({});
+              }}
+            />
+
+            <Button
+              label={pinIsDraft ? t('Shop pinned here') : pin ? t('Move the pin here') : t('Pin the shop here')}
+              icon={pinIsDraft ? 'check' : 'pin'}
+              block
+              variant={pinIsDraft ? 'glass' : undefined}
+              disabled={!draft || pinIsDraft}
+              onPress={pinHere}
+              style={{ marginTop: 14 }}
+            />
+            <FieldError text={errors.pin} />
+
+            {pin ? (
+              <Body muted size={13} style={{ marginTop: 6 }}>
+                {area
+                  ? t('Your shop is in {area}. Not right? Pick the right area below.', { area })
+                  : t('Pick the area your shop is in.')}
+              </Body>
+            ) : null}
+
+            <View style={{ marginTop: 18 }}>
             <Text
               style={{
                 fontFamily: font.uiSemi,
@@ -984,6 +1070,32 @@ function StoreSetup({ kitchen }) {
               })}
             </View>
 
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+              <Button
+                variant="glass"
+                label={t('Back')}
+                icon="arrowLeft"
+                iconPosition="left"
+                style={{ flex: 1 }}
+                onPress={() => setStep(1)}
+              />
+              <Button
+                label={t('Continue')}
+                icon="arrowRight"
+                style={{ flex: 2 }}
+                onPress={next}
+              />
+            </View>
+          </View>
+        </Reveal>
+      ) : null}
+
+      {/* ---- step 4 · delivery, on the shop's own terms ---- */}
+      {step === 3 ? (
+        <Reveal delay={2}>
+          <View style={{ marginTop: 20 }}>
             <RadiusSlider value={radiusKm} onChange={setRadiusKm} />
             <Body muted size={13} style={{ marginTop: 4, marginBottom: 18 }}>
               {t('How far this shop will deliver.')}
@@ -998,7 +1110,7 @@ function StoreSetup({ kitchen }) {
             </View>
 
             {/* Two prices: inside the shop's own division, and everywhere
-                else. The division comes from the kitchen's map pin. */}
+                else. The division comes from the shop's own map pin. */}
             <DeliveryFees
               home={home}
               onHome={(d) => {
@@ -1015,8 +1127,8 @@ function StoreSetup({ kitchen }) {
                 setFeeOutside(v);
                 setErrors({});
               }}
-              lat={kitchen?.lat}
-              lng={kitchen?.lng}
+              lat={pin?.lat}
+              lng={pin?.lng}
             />
             <FieldError text={errors.fee} />
 
@@ -1029,7 +1141,7 @@ function StoreSetup({ kitchen }) {
                 icon="arrowLeft"
                 iconPosition="left"
                 style={{ flex: 1 }}
-                onPress={() => setStep(1)}
+                onPress={() => setStep(2)}
               />
               <Button
                 label={saving ? t('Opening…') : t('Open your shop')}

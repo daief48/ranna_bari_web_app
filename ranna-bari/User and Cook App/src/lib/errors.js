@@ -293,6 +293,38 @@ export function errorText(error, t, n, extra = {}) {
     case 'order-cancel-window':
       return t('The time to cancel this order has passed. The kitchen has already started on it.');
 
+    /* ---- cook withdrawals ----
+       Each one names its own repair: raise the amount, lower it, add a
+       destination, or wait for the request that is already open. */
+    case 'withdrawal-too-low':
+      return t('The smallest withdrawal is ৳{n}.', {
+        n: n(extra.minimum ?? extra.detail?.minimum ?? 0),
+      });
+    case 'withdrawal-over-balance':
+      return t('You only have ৳{n} available to withdraw.', {
+        n: n(extra.available ?? extra.detail?.available ?? 0),
+      });
+    case 'no-payout-destination':
+      return t('Add your bKash number or bank account before withdrawing.');
+    case 'withdrawal-open':
+      return t('You already have a withdrawal waiting. Wait for it or cancel it first.');
+    case 'withdrawal-missing':
+      return t('That withdrawal no longer exists.');
+    case 'withdrawal-closed':
+      return t('That withdrawal has already been decided.');
+
+    /* ---- wallet-only payments ---- */
+    case 'cash-not-accepted':
+      return t('Cash on delivery is no longer available. Pay from your wallet.');
+    case 'topup-not-configured':
+      return t('Wallet top-up is not set up yet. Please try again later.');
+    case 'topup-txn-used':
+      return t('That transaction id has already been submitted.');
+    case 'topup-missing':
+      return t('That top-up request no longer exists.');
+    case 'topup-closed':
+      return t('That top-up request has already been decided.');
+
     default:
       return t('Something went wrong. Try again.');
   }

@@ -10,6 +10,7 @@ import { orderRoutes } from './routes/app/v1/orders.js';
 import { storeRoutes } from './routes/app/v1/stores.js';
 import { requestRoutes } from './routes/app/v1/requests.js';
 import { walletRoutes } from './routes/app/v1/wallet.js';
+import { reviewRoutes } from './routes/app/v1/reviews.js';
 import { adminRoutes } from './routes/admin/v1/index.js';
 import { operationRoutes } from './routes/admin/v1/operations.js';
 import { moneyRoutes } from './routes/admin/v1/money.js';
@@ -213,6 +214,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     storeRoutes,
     requestRoutes,
     walletRoutes,
+    reviewRoutes,
     mealManagementRoutes,
   ]) {
     await app.register(routes, { prefix: '/api/app/v1' });

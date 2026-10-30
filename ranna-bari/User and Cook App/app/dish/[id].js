@@ -14,6 +14,7 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
 import { useDish, useMenu } from '../../src/data';
 import { useCart } from '../../src/store/CartContext';
+import KitchenReviews from '../../src/components/KitchenReviews';
 import DistanceChip from '../../src/components/DistanceChip';
 import { isOpenNow } from '../../src/lib/kitchen';
 import { useLang } from '../../src/i18n/LanguageContext';
@@ -35,6 +36,12 @@ export default function DishScreen() {
 
   const found = useDish(id);
   const menu = useMenu(found?.chef?.id);
+  /* Hooks stay above the not-found return: this page first renders before
+     the dish has loaded, and a hook that only runs afterwards changes the
+     hook count between renders ("Rendered more hooks than during the
+     previous render"). */
+  const [page, setPage] = useState(0);
+  const pagerRef = useRef(null);
 
   if (!found) {
     return (
@@ -60,9 +67,6 @@ export default function DishScreen() {
   /* The set behind the cover — one photo still swipes as one, so a dish
      written before the set existed renders exactly as it always did. */
   const gallery = dish.photos?.length ? dish.photos : [dish.image].filter(Boolean);
-  const [page, setPage] = useState(0);
-  const pagerRef = useRef(null);
-
   /* The rest of the same menu, so the page is a way into the kitchen rather
      than a dead end. Three is enough to suggest there is more. */
   const alsoHere = menu.filter((d) => String(d.id) !== String(dish.id)).slice(0, 3);
@@ -441,6 +445,10 @@ export default function DishScreen() {
             </View>
           </Reveal>
         ) : null}
+
+        {/* What the cook's other customers say — the fact that decides
+            whether the dish is worth ordering, put where the order button is. */}
+        <KitchenReviews kitchenId={chef.id} cookName={chef.name} />
       </Container>
     </Screen>
   );

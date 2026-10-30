@@ -15,7 +15,7 @@ import { can } from '@/lib/domain';
  */
 export const NAV: {
   group: string;
-  items: { href: string; label: string; cap: string; badge?: 'kyc' | 'disputes' | 'escrow' | 'chat' }[];
+  items: { href: string; label: string; cap: string; badge?: 'kyc' | 'disputes' | 'escrow' | 'chat' | 'withdrawals' | 'topups' }[];
 }[] = [
   {
     group: 'Overview',
@@ -57,7 +57,8 @@ export const NAV: {
     items: [
       { href: '/ledger', label: 'Ledger & escrow', cap: 'ledger.read', badge: 'escrow' },
       { href: '/payouts', label: 'Payouts', cap: 'ledger.read' },
-      { href: '/topups', label: 'Top-up reconciliation', cap: 'ledger.read' },
+      { href: '/withdrawals', label: 'Withdrawals', cap: 'ledger.read', badge: 'withdrawals' },
+      { href: '/topups', label: 'Top-ups', cap: 'ledger.read', badge: 'topups' },
       { href: '/refunds', label: 'Refunds', cap: 'ledger.read' },
       { href: '/disputes', label: 'Disputes', cap: 'order.read', badge: 'disputes' },
       { href: '/promotions', label: 'Promotions', cap: 'config.read' },
@@ -219,7 +220,15 @@ export function Sidebar({
   counts,
 }: {
   role: string;
-  counts: { kyc: number; disputes: number; escrow: number; chat: number };
+  counts: {
+    kyc: number;
+    disputes: number;
+    escrow: number;
+    chat: number;
+    /* Cook withdrawals and customer top-up requests nobody has acted on. */
+    withdrawals: number;
+    topups: number;
+  };
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);

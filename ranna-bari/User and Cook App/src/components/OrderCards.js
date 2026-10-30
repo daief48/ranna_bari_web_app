@@ -60,6 +60,9 @@ const STEP_AT = {
 
 const STEP_TOTAL = { menu: 4, shop: 4, meals: 3 };
 
+/** Minutes a New order may sit before its card says it is waiting. */
+const WAITING_FLAG_MIN = 20;
+
 /** What the shop's button says at each stage. */
 export const SHOP_NEXT = {
   confirmed: 'Start packing',
@@ -461,6 +464,7 @@ function OrderCard({ order, onOpen }) {
   const meta = statusMeta(order.status, colors);
   const next = NEXT_STEP[order.status];
   const isNew = stageOf(order.status) === 'placed';
+  const waitedMin = Math.round((Date.now() - (Date.parse(order.createdAt) || Date.now())) / 60_000);
   /* A paid food request rides the wallet rail but is not a dish: it is already
      paid for, so there is nothing to "accept" - the first step is cooking -
      and it cannot be "rejected", only declined with a reason and a refund
@@ -537,6 +541,31 @@ function OrderCard({ order, onOpen }) {
           >
             {timeAgo(order.createdAt, t, n)}
           </Text>
+
+          {/* The board lists newest first, so an order nobody has answered
+              for a while no longer floats to the top to say so. It says it
+              itself: a quiet saffron pill once a New order has waited
+              WAITING_FLAG_MIN, and nothing before that. */}
+          {isNew && waitedMin >= WAITING_FLAG_MIN ? (
+            <View
+              style={{
+                paddingVertical: 2,
+                paddingHorizontal: 7,
+                borderRadius: radius.pill,
+                backgroundColor: colors.saffron50,
+                borderWidth: 1,
+                borderColor: colors.saffron100,
+              }}
+            >
+              <Text
+                numberOfLines={1}
+                maxFontSizeMultiplier={1.2}
+                style={{ fontFamily: font.uiBold, fontSize: 10, color: colors.saffron }}
+              >
+                {t('Waiting {n} min', { n: n(waitedMin) })}
+              </Text>
+            </View>
+          ) : null}
 
           <View style={{ flex: 1 }} />
 

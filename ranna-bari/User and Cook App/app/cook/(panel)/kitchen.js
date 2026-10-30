@@ -30,6 +30,7 @@ import { useKitchen } from '../../../src/store/KitchenContext';
 import { useAuth } from '../../../src/store/AuthContext';
 import { useSession } from '../../../src/store/SessionContext';
 import { useOrders } from '../../../src/store/OrdersContext';
+import { isDishOrder, stageOf } from '../../../src/lib/orderRails';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { useAlert, useAction } from '../../../src/components/Alert';
 
@@ -78,10 +79,13 @@ function KitchenForm({ kitchen }) {
   const photos = kitchen.photos ?? [];
   const MAX_PHOTOS = 5;
   const dishes = kitchen.dishes ?? [];
-  const MENU_PREVIEW = 4;
 
-  const delivered = ordersForKitchen(kitchen.id).filter(
-    (o) => o.status === 'delivered',
+  const kitchenOrders = ordersForKitchen(kitchen.id);
+  const delivered = kitchenOrders.filter((o) => o.status === 'delivered').length;
+  /* Dish orders nobody has answered — the same "New" the order board counts
+     on its Menu tab, so the badge and the board cannot disagree. */
+  const waiting = kitchenOrders.filter(
+    (o) => isDishOrder(o) && stageOf(o.status) === 'placed',
   ).length;
 
   const savePhotos = async (next, successNote = '') => {
@@ -464,6 +468,82 @@ function KitchenForm({ kitchen }) {
             </View>
           </Reveal>
 
+          {/* ---- The hub ----
+              The Shop has a hub whose rows are everything a cook does to it;
+              the kitchen had a wizard behind one row and nothing else. These
+              are the same kind of rows, in the order a day goes: put a dish
+              up, keep the menu true, work the orders, fix the page, read what
+              customers said, and look at it the way they do.
+
+              There is deliberately no "delete kitchen" here. A kitchen
+              carries orders, reviews and an append-only ledger, and the
+              backend has no endpoint that removes one; closing the shutter
+              above is the safe way to stop trading. */}
+          <Reveal delay={2}>
+            <View style={{ gap: 12, marginTop: 24 }}>
+              <ActionRow
+                icon="plus"
+                tone="primary"
+                title={t('Add a dish')}
+                sub={t('Put something new on your menu')}
+                onPress={() => router.push('/cook/dish/new')}
+              />
+              <ActionRow
+                icon="utensils"
+                title={t('Menu and availability')}
+                sub={
+                  dishes.length
+                    ? t('{live} of {total} available to order', {
+                        live: n(liveDishes.length),
+                        total: n(dishes.length),
+                      })
+                    : t('Nothing listed yet')
+                }
+                onPress={() => router.push('/cook/menu')}
+              />
+              <ActionRow
+                icon="receipt"
+                tone="saffron"
+                title={t('Kitchen orders')}
+                sub={
+                  waiting
+                    ? waiting === 1
+                      ? t('{n} order waiting to be accepted.', { n: n(waiting) })
+                      : t('{n} orders waiting to be accepted.', { n: n(waiting) })
+                    : t('Accept, cook and hand over')
+                }
+                badge={waiting}
+                onPress={() => router.push('/cook/orders?tab=menu')}
+              />
+              <ActionRow
+                icon="sliders"
+                title={t('Kitchen details')}
+                sub={t('Name, specialty, description, area and delivery radius')}
+                onPress={() => router.push('/cook/kitchen-details')}
+              />
+              <ActionRow
+                icon="star"
+                tone="saffron"
+                title={t('Reviews')}
+                sub={
+                  kitchen.reviewCount
+                    ? t('{rating} average from {n} reviews', {
+                        rating: n(Number(kitchen.rating).toFixed(1)),
+                        n: n(kitchen.reviewCount),
+                      })
+                    : t('No reviews yet')
+                }
+                onPress={() => router.push('/cook/reviews')}
+              />
+              <ActionRow
+                icon="eye"
+                title={t('View your kitchen')}
+                sub={t('See exactly what a customer sees')}
+                onPress={() => router.push(`/chef/${kitchen.id}`)}
+              />
+            </View>
+          </Reveal>
+
           {/* ---- Kitchen photos ----
               The gallery a customer scrolls, and the one an operator approves
               the kitchen on. Each change posts at once — this is the photos
@@ -582,193 +662,8 @@ function KitchenForm({ kitchen }) {
             </View>
           </Reveal>
 
-          {/* ---- Food menu ----
-              Adding a dish used to live only under Listings, a screen away
-              from the page a cook opens to see their kitchen. A kitchen with
-              nothing listed cannot take an order, so the way to add the first
-              dish is here, beside the photos, and the last few dishes are
-              shown so the section reads as the menu rather than a lone button.
-              The full list, with the sold-out switches, is the Menu screen. */}
-          <Reveal delay={2}>
-            <View style={{ marginTop: 28 }}>
-              <SectionHeader
-                lead={t('FOOD')}
-                accent={t('MENU')}
-                subtitle={
-                  dishes.length
-                    ? t('{live} of {total} available to order right now.', {
-                        live: n(liveDishes.length),
-                        total: n(dishes.length),
-                      })
-                    : t('Nothing listed yet. Add your first dish.')
-                }
-              />
-
-              <View style={{ marginTop: 14 }}>
-                <Button
-                  label={t('Add a dish')}
-                  icon="plus"
-                  iconPosition="left"
-                  block
-                  onPress={() => {
-                    Haptics.selectionAsync().catch(() => {});
-                    router.push('/cook/dish/new');
-                  }}
-                />
-              </View>
-
-              {dishes.length ? (
-                <View style={{ gap: 10, marginTop: 14 }}>
-                  {dishes.slice(0, MENU_PREVIEW).map((dish) => (
-                    <Pressable
-                      key={dish.id}
-                      accessibilityRole="link"
-                      accessibilityLabel={`${t('Edit dish')}: ${dish.name}, ৳${n(dish.price)}`}
-                      onPress={() => router.push(`/cook/dish/${dish.id}`)}
-                      style={({ pressed }) => ({
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 12,
-                        padding: 10,
-                        borderRadius: radius.lg,
-                        backgroundColor: pressed ? colors.sunken : colors.surfaceSolid,
-                        borderWidth: 1,
-                        borderColor: colors.line,
-                        opacity: dish.available ? 1 : 0.62,
-                      })}
-                    >
-                      <Image
-                        source={{ uri: dish.image }}
-                        contentFit="cover"
-                        transition={150}
-                        style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.sunken }}
-                      />
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text
-                          numberOfLines={1}
-                          style={{ fontFamily: font.displayBold, fontSize: 15, color: colors.text }}
-                        >
-                          {dish.name}
-                        </Text>
-                        <Text
-                          numberOfLines={1}
-                          style={{
-                            marginTop: 1,
-                            fontFamily: font.uiSemi,
-                            fontSize: type.xs,
-                            color: dish.available ? colors.sage : colors.textMuted,
-                          }}
-                        >
-                          ৳{n(dish.price)} · {dish.available ? t('Available today') : t('Sold out')}
-                        </Text>
-                      </View>
-                      <Icon name="chevronRight" size={16} color={colors.textLight} strokeWidth={2} />
-                    </Pressable>
-                  ))}
-
-                  {dishes.length > MENU_PREVIEW ? (
-                    <Pressable
-                      accessibilityRole="link"
-                      onPress={() => router.push('/cook/menu')}
-                      style={({ pressed }) => ({ alignSelf: 'center', padding: 8, opacity: pressed ? 0.6 : 1 })}
-                    >
-                      <Text style={{ fontFamily: font.uiSemi, fontSize: type.sm, color: colors.sage }}>
-                        {t('See all {n} dishes', { n: n(dishes.length) })}
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              ) : null}
-            </View>
-          </Reveal>
-
-          {/* ---- Details ----
-              A link to its own page rather than a panel that folded open
-              here. Everything behind it is set once and then rarely touched,
-              but folded it hid what the values *were*, and open it pushed the
-              rows a cook actually uses daily — preview the listing, switch to
-              ordering — most of a screen further down. Four fields read and
-              saved together are a page. */}
-          <Reveal delay={2}>
-            <View style={{ marginTop: 28 }}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('Kitchen details')}
-                onPress={() => {
-                  Haptics.selectionAsync().catch(() => {});
-                  router.push('/cook/kitchen-details');
-                }}
-                style={({ pressed }) => [
-                  {
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 16,
-                    padding: 16,
-                    borderRadius: radius.lg,
-                    backgroundColor: colors.surfaceSolid,
-                    borderWidth: 1,
-                    borderColor: pressed ? colors.sage100 : colors.line,
-                  },
-                  shadow.sm,
-                ]}
-              >
-                <View
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 15,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: colors.sage50,
-                    borderWidth: 1,
-                    borderColor: colors.line2,
-                  }}
-                >
-                  <Icon name="sliders" size={22} color={colors.sage} />
-                </View>
-
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      fontFamily: font.displayBold,
-                      fontSize: 17,
-                      letterSpacing: -0.17,
-                      color: colors.text,
-                    }}
-                  >
-                    {t('Kitchen details')}
-                  </Text>
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      fontFamily: font.ui,
-                      fontSize: type.sm,
-                      color: colors.textMuted,
-                    }}
-                  >
-                    {t('Name, specialty, description and delivery radius')}
-                  </Text>
-                </View>
-
-                <Icon
-                  name="chevronRight"
-                  size={17}
-                  color={colors.textLight}
-                  strokeWidth={2}
-                />
-              </Pressable>
-            </View>
-          </Reveal>
-
           {/* ---- Elsewhere ---- */}
           <View style={{ gap: 12, marginTop: 32 }}>
-            <ActionRow
-              icon="eye"
-              title={t('Preview your listing')}
-              sub={t('See exactly what a customer sees')}
-              onPress={() => router.push(`/chef/${kitchen.id}`)}
-            />
             <ActionRow
               icon="cart"
               tone="saffron"

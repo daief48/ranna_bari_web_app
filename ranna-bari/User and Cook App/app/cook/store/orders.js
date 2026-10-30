@@ -67,7 +67,17 @@ function StoreOrders() {
   const { shop: shopParam } = useLocalSearchParams();
   const shops = kitchen ? shop.myStores(kitchen.id) : [];
   const { store, missing } = resolveShop(shops, shopParam);
-  const all = useMemo(() => (store ? shop.storeOrders(store.id) : []), [shop, store]);
+  /* Newest first, whatever order the context happened to hold them in: the
+     board and this list must agree on which parcel is on top. */
+  const all = useMemo(
+    () =>
+      store
+        ? [...shop.storeOrders(store.id)].sort(
+            (a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0),
+          )
+        : [],
+    [shop, store],
+  );
   const orders = useMemo(() => filterOrders(all, filter), [all, filter]);
 
   const advance = async (orderId) => {

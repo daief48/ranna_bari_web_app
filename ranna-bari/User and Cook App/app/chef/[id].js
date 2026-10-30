@@ -18,6 +18,7 @@ import CartBar from '../../src/components/CartBar';
 import Icon from '../../src/components/Icon';
 import Reveal from '../../src/components/Reveal';
 import Button from '../../src/components/Button';
+import KitchenReviews from '../../src/components/KitchenReviews';
 import SectionHeader from '../../src/components/SectionHeader';
 import { useNavbarOffset } from '../../src/components/Navbar';
 import { Badge, EcoBadge, Tag } from '../../src/components/Surfaces';
@@ -546,6 +547,8 @@ export default function ChefScreen() {
             </View>
           ) : null}
         </View>
+
+        <KitchenReviews kitchenId={chef.id} cookName={chef.name} />
       </Container>
     </Screen>
   );

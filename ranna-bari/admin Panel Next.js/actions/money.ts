@@ -326,3 +326,125 @@ export async function postAdjustment(
     }
   });
 }
+
+/* ------------------------------------------------------------------ *
+ * cook withdrawals
+ * ------------------------------------------------------------------ */
+
+/**
+ * Mark one cook's withdrawal paid.
+ *
+ * The operator has sent the money (bKash or bank, by hand); this records it.
+ * The backend posts the single `payout` entry (`cook` → `external`, key
+ * `withdrawal:<id>`) inside a transaction that re-checks the cook's balance,
+ * so a double click — or two operators — pays once and the second is told so.
+ */
+export async function payWithdrawal(withdrawalId: string): Promise<ActionResult> {
+  return guard(async () => {
+    await requireCapability('payout.write');
+
+    try {
+      const out = await post<{ code: string; amount: number; duplicate: boolean }>(
+        `/withdrawals/${withdrawalId}/pay`,
+      );
+
+      revalidatePath('/withdrawals');
+      revalidatePath('/payouts');
+      revalidatePath('/ledger');
+      return out.duplicate
+        ? good(`${out.code} was already paid. Nothing was posted twice.`)
+        : good(`${out.code} paid — ${taka(out.amount)} left the platform.`);
+    } catch (error) {
+      return refused(error, 'That withdrawal no longer exists.');
+    }
+  });
+}
+
+/** Decline a withdrawal. The reason is shown to the cook, so it is required. */
+export async function rejectWithdrawal(withdrawalId: string, note: string): Promise<ActionResult> {
+  return guard(async () => {
+    await requireCapability('payout.write');
+    if (!note.trim()) return bad('Say why, so the cook knows what to fix.');
+
+    try {
+      await post(`/withdrawals/${withdrawalId}/reject`, { note: note.trim() });
+
+      revalidatePath('/withdrawals');
+      return good('Declined. The cook has been told why.');
+    } catch (error) {
+      return refused(error, 'That withdrawal no longer exists.');
+    }
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * manual top-up requests
+ * ------------------------------------------------------------------ */
+
+/**
+ * Confirm a customer's payment arrived and credit their wallet.
+ *
+ * Only the operator who has looked at the provider's statement for this
+ * transaction id should press it. The ledger entry is idempotent, so a second
+ * click credits nothing more.
+ */
+export async function approveTopUpRequest(topUpId: string): Promise<ActionResult> {
+  return guard(async () => {
+    await requireCapability('topup.reconcile');
+
+    try {
+      const out = await post<{ amount: number; duplicate: boolean }>(
+        `/topup-requests/${topUpId}/approve`,
+      );
+
+      revalidatePath('/topups');
+      revalidatePath('/ledger');
+      return out.duplicate
+        ? good('Already approved. The wallet was credited once.')
+        : good(`Approved — ${taka(out.amount)} added to the wallet.`);
+    } catch (error) {
+      return refused(error, 'That top-up request no longer exists.');
+    }
+  });
+}
+
+export async function rejectTopUpRequest(topUpId: string, note: string): Promise<ActionResult> {
+  return guard(async () => {
+    await requireCapability('topup.reconcile');
+    if (!note.trim()) return bad('Say why, so the customer knows what to fix.');
+
+    try {
+      await post(`/topup-requests/${topUpId}/reject`, { note: note.trim() });
+
+      revalidatePath('/topups');
+      return good('Declined. The customer has been told why.');
+    } catch (error) {
+      return refused(error, 'That top-up request no longer exists.');
+    }
+  });
+}
+
+/**
+ * Set where customers are told to send top-up money.
+ *
+ * `payout.write`, not `config.write`: pointing the app at a different number
+ * is pointing customers' money at it. A blank field clears that rail.
+ */
+export async function saveTopUpConfig(
+  bkash: string,
+  nagad: string,
+  note: string,
+): Promise<ActionResult> {
+  return guard(async () => {
+    await requireCapability('payout.write');
+
+    try {
+      await post('/topup-config', { bkash, nagad, note });
+
+      revalidatePath('/topups');
+      return good('Saved. The app shows the new number straight away.');
+    } catch (error) {
+      return refused(error);
+    }
+  });
+}

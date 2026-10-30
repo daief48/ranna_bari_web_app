@@ -42,7 +42,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
    * backend is down, or an operator gets a stack trace instead of the page
    * that would have told them it is down.
    */
-  const [board, chatStats, notes] = await Promise.all([
+  const [board, chatStats, notes, wd, tu] = await Promise.all([
     get<{ attention: { kyc: number; disputes: number; escrowAged: number } }>(
       '/overview',
     ).catch(() => null),
@@ -63,7 +63,21 @@ export default async function DashLayout({ children }: { children: React.ReactNo
           '/notifications?take=8',
         ).catch(() => null)
       : Promise.resolve(null),
+    /* Money waiting on a person: a cook asking to be paid, a customer asking
+       to be credited. Only counts, and only for operators who can see money. */
+    can(user.role, 'ledger.read')
+      ? get<{ counts: Record<string, { count: number } | undefined> }>(
+          '/withdrawals?take=1',
+        ).catch(() => null)
+      : Promise.resolve(null),
+    can(user.role, 'ledger.read')
+      ? get<{ counts: Record<string, { count: number } | undefined> }>(
+          '/topup-requests?take=1',
+        ).catch(() => null)
+      : Promise.resolve(null),
   ]);
+  const withdrawals = wd?.counts.requested?.count ?? 0;
+  const topups = tu?.counts.pending?.count ?? 0;
 
   const kyc = board?.attention.kyc ?? 0;
   const disputes = board?.attention.disputes ?? 0;
@@ -85,7 +99,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
 
   return (
     <div className="flex min-h-screen bg-canvas">
-      <Sidebar role={user.role} counts={{ kyc, disputes, escrow, chat }} />
+      <Sidebar role={user.role} counts={{ kyc, disputes, escrow, chat, withdrawals, topups }} />
       <CommandPalette role={user.role} />
 
       <div className="flex min-w-0 flex-1 flex-col">

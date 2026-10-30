@@ -162,7 +162,7 @@ export default function ListingsScreen() {
                     })
                   : t('No photos yet — customers scroll past an empty page')
               }
-              onPress={() => router.push('/cook/kitchen-details')}
+              onPress={() => router.push('/cook/kitchen')}
             />
           </Reveal>
         </View>

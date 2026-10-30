@@ -182,7 +182,7 @@ function Row({ request, summary, category, selected, stage, payWindowHours, onPr
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <RequestStatusPill status={request.status} />
+        <RequestStatusPill status={request.status} afterPayment={!!request.orderId} />
         <Text
           style={{
             flex: 1,

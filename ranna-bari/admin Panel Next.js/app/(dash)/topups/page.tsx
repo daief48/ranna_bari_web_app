@@ -20,6 +20,7 @@ import { RowLink } from '@/components/ui/row-link';
 import { FilterSelect, Pager } from '@/components/ui/client';
 import { BackendDown, down } from '@/components/backend-down';
 import { ReconcileRow } from './row';
+import { TopUpConfigForm, TopUpRequestActions } from './requests';
 import { requirePage } from '@/lib/guard';
 
 export const metadata = { title: 'Top-up reconciliation · RannaBari Admin' };
@@ -44,6 +45,22 @@ type TopUpsView = {
   states: Record<string, { count: number; amount: number } | undefined>;
 };
 
+type RequestsView = {
+  requests: {
+    id: string;
+    customerKey: string;
+    amount: number;
+    method: string;
+    txnId: string;
+    senderNumber: string;
+    status: string;
+    at: string;
+  }[];
+  counts: Record<string, { count: number; amount: number } | undefined>;
+};
+
+type ConfigView = { bkash: string; nagad: string; note: string; configured: boolean };
+
 export default async function TopUpsPage({
   searchParams,
 }: {
@@ -63,6 +80,13 @@ export default async function TopUpsPage({
   }
 
   const data = await get<TopUpsView>(`/topups?${query}`).catch(down);
+  /* The manual-request queue and the receiving numbers. A failure here must
+     not take the reconciliation desk down with it. */
+  const [queue, config] = await Promise.all([
+    get<RequestsView>('/topup-requests?status=pending').catch(() => null),
+    get<ConfigView>('/topup-config').catch(() => null),
+  ]);
+  const canPay = can(user?.role ?? '', 'payout.write');
 
   if (!data) {
     return (
@@ -89,13 +113,79 @@ export default async function TopUpsPage({
       />
 
       <GapNote>
-        <strong>Why this screen exists.</strong> In the app,{' '}
-        <code>topUp(amount, &apos;bKash&apos;)</code> credits the wallet and posts a
-        ledger entry with <em>no payment behind it at all</em> — there is no gateway,
-        no reference and nothing to check against. Every taka a customer spends
-        entered the system this way. Until a real provider is wired in, this is where
-        a human confirms the money actually arrived.
+        <strong>How money gets into a wallet.</strong> There is no payment gateway. A customer
+        pays the platform&apos;s bKash or Nagad number, files the transaction id above, and a
+        person here approves it against the provider&apos;s statement — only then is the wallet
+        credited. The credits below are the result, and this is where a human later matches each
+        one to a statement line.
       </GapNote>
+
+      {/* ---- customers asking to be credited ----
+          The production way money enters a wallet: the customer pays the
+          platform's number, files the transaction id, and a person here checks
+          it and approves. Nothing is credited until then. */}
+      <Card
+        className="mb-3"
+        pad={false}
+        title={`Top-up requests${queue?.counts.pending ? ` (${queue.counts.pending.count} waiting)` : ''}`}
+        subtitle="Check the provider statement for the transaction id, then approve. The wallet is credited only on approval."
+      >
+        <Table head={['Customer', 'Amount', 'Method', 'Transaction id', 'Sent from', 'When', canReconcile ? 'Act' : '']}>
+          {(queue?.requests ?? []).map((row) => (
+            <tr key={row.id}>
+              <td className="max-w-[180px] truncate font-medium">{row.customerKey}</td>
+              <td>
+                <Money amount={row.amount} bold />
+              </td>
+              <td className="text-ink2">{row.method === 'nagad' ? 'Nagad' : 'bKash'}</td>
+              <td className="tnum font-medium">{row.txnId}</td>
+              <td className="tnum text-ink2">{row.senderNumber}</td>
+              <td className="whitespace-nowrap text-ink2" title={fmtDateTime(row.at)}>
+                {timeAgo(row.at)}
+              </td>
+              <td>
+                {canReconcile ? (
+                  <TopUpRequestActions
+                    id={row.id}
+                    amount={row.amount}
+                    method={row.method === 'nagad' ? 'Nagad' : 'bKash'}
+                    txnId={row.txnId}
+                    sender={row.senderNumber}
+                  />
+                ) : null}
+              </td>
+            </tr>
+          ))}
+          {!queue ? (
+            <EmptyRow span={7}>Could not load the requests.</EmptyRow>
+          ) : queue.requests.length === 0 ? (
+            <EmptyRow span={7}>No customer is waiting to be credited.</EmptyRow>
+          ) : null}
+        </Table>
+      </Card>
+
+      <Card
+        className="mb-3"
+        pad={false}
+        title="Where customers send the money"
+        subtitle={
+          config?.configured
+            ? 'Shown in the app on the Add money screen.'
+          : 'Not configured: the app tells customers top-up is not set up yet.'
+        }
+      >
+        {config ? (
+          canPay ? (
+            <TopUpConfigForm bkash={config.bkash} nagad={config.nagad} note={config.note} />
+          ) : (
+            <p className="tnum p-4 text-[13px] text-ink2">
+              bKash {config.bkash || 'not set'} · Nagad {config.nagad || 'not set'}
+            </p>
+          )
+        ) : (
+          <p className="p-4 text-[13px] text-ink3">Could not load the setting.</p>
+        )}
+      </Card>
 
       <Grid cols={4}>
         <Stat label="Credited all time" value={taka(creditedEver)} />

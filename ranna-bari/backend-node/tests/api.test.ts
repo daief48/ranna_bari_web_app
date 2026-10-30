@@ -6,6 +6,7 @@ import { buildApp } from '../src/app.js';
 import { hashPassword } from '../src/auth/admin-auth.js';
 import { AdminUser, Dish, Kitchen, Order, Setting, TaxonomyCategory, Zone } from '../src/models/index.js';
 import { DEFAULT_SETTINGS } from '../src/logic/settings.js';
+import { topUp } from '../src/logic/wallet.js';
 
 /**
  * The HTTP surface, end to end.
@@ -165,6 +166,8 @@ describe('orders', () => {
   it('records an order and resolves a bundle chefId to a real kitchen', async () => {
     const customer = await signInApp('01766600011');
     const code = 'RB-TEST01';
+    // Wallet is the only way to pay a new order, so the wallet must hold the price.
+    await topUp(String(customer.account.customerKey), 5000);
 
     const body = json(
       await app.inject({
@@ -175,7 +178,7 @@ describe('orders', () => {
           orders: [
             {
               code,
-              kind: 'cod',
+              kind: 'wallet',
               // The app names kitchens by their bundle id, not by _id.
               chefId: '4',
               title: 'Shorshe Ilish',
@@ -197,6 +200,7 @@ describe('orders', () => {
   it('does not create a second order for a replayed code', async () => {
     const customer = await signInApp('01777700011');
     const code = 'RB-TEST02';
+    await topUp(String(customer.account.customerKey), 5000);
     const payload = { orders: [{ code, chefId: '4', items: [{ id: dishId, name: 'Shorshe Ilish', price: 520, qty: 1 }] }] };
 
     await app.inject({ method: 'POST', url: '/api/app/v1/orders', headers: auth(customer.token), payload });

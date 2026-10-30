@@ -319,8 +319,9 @@ export function StatTile({ icon, value, label, variant = 'sage', style }) {
  * Still rendered, not hidden. A cook should be able to see what approval will
  * give them.
  */
-export function ActionRow({ icon, title, sub, tone = 'sage', onPress, locked = false, style }) {
+export function ActionRow({ icon, title, sub, tone = 'sage', onPress, locked = false, badge = 0, style }) {
   const { colors, shadow } = useTheme();
+  const { n } = useLang();
 
   const tint = {
     sage: { bg: colors.sage50, fg: colors.sage, edge: colors.sage100 },
@@ -398,6 +399,23 @@ export function ActionRow({ icon, title, sub, tone = 'sage', onPress, locked = f
           </Text>
         ) : null}
       </View>
+
+      {/* `badge`: a count of things waiting behind the row (new orders). Zero or
+          absent draws nothing, so a row without work looks exactly as before. */}
+      {badge > 0 ? (
+        <View
+          style={{
+            minWidth: 22,
+            paddingHorizontal: 7,
+            paddingVertical: 2,
+            borderRadius: radius.pill,
+            alignItems: 'center',
+            backgroundColor: colors.primary,
+          }}
+        >
+          <Text style={{ fontFamily: font.uiBold, fontSize: 12, color: '#FFFFFF' }}>{n(badge)}</Text>
+        </View>
+      ) : null}
 
       <Icon name="chevronRight" size={17} color={colors.textLight} strokeWidth={2} />
     </Pressable>

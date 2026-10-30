@@ -28,14 +28,16 @@ import { useSession } from './SessionContext';
  */
 export { ORDER_STEPS, NEXT_STEP, isClosed, stageOf, stepIndex };
 
+/*
+ * The wallet is the only way to pay a new order.
+ *
+ * Cash on delivery (and the "bKash / Card, soon" placeholder) are gone from
+ * checkout: the server now refuses a new `cod` order outright
+ * (`cash-not-accepted`). Orders already placed as cash keep their rail and
+ * their screens; only the choice of a NEW one is retired. The list stays a
+ * list so the checkout's row component needs no special case.
+ */
 export const PAYMENT_METHODS = [
-  {
-    key: 'cod',
-    icon: 'banknote',
-    title: 'Cash on Delivery',
-    desc: 'Pay the rider in cash when your food arrives.',
-    available: true,
-  },
   /*
    * The wallet, for the one purchase path that could not use it.
    *
@@ -53,13 +55,6 @@ export const PAYMENT_METHODS = [
     title: 'Wallet',
     desc: 'Held until you confirm the food arrived, then paid to the cook.',
     available: true,
-  },
-  {
-    key: 'bkash',
-    icon: 'lock',
-    title: 'bKash / Card',
-    desc: 'Online payment is not switched on for this kitchen yet.',
-    available: false,
   },
 ];
 
@@ -209,10 +204,10 @@ export function OrdersProvider({ children }) {
              exists rather than making a second one. */
           code: attempts.current.get(basketKey),
           basketKey,
-          /* The rail this order runs on, which is decided by where the
-             money is: cash ends at delivered, the wallet is held in escrow
-             and needs the customer to confirm receipt before it is released. */
-          kind: draft.paymentMethod === 'wallet' ? 'wallet' : 'cod',
+          /* The rail this order runs on. Always the wallet now: the money is
+             held in escrow and needs the customer to confirm receipt before
+             it is released. (Cash is retired for new orders.) */
+          kind: 'wallet',
           chefId,
           chefName: items[0]?.chefName ?? '',
           title: items[0]?.name,

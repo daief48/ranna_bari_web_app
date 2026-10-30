@@ -11,6 +11,13 @@ import {
   type Audience,
 } from '../../../logic/wallet.js';
 import { ERR, errText } from '../../../lib/domain.js';
+import {
+  TOPUP_METHODS,
+  myTopupRequests,
+  requestTopup,
+  topupInfo,
+} from '../../../logic/topup-requests.js';
+import { withdrawalRoutes } from './withdrawals.js';
 import { devFlowsAllowed } from '../../../config/env.js';
 import { featureOn } from '../../../logic/settings.js';
 import { SearchTerm } from '../../../models/index.js';
@@ -124,6 +131,71 @@ export async function walletRoutes(app: FastifyInstance) {
     if (!out.ok) return fail(reply, out.error);
     return out.result;
   });
+
+  /* ---------------- manual top-up (the production path) ---------------- */
+
+  /**
+   * Where to send the money, and whether top-up is set up at all.
+   *
+   * Read from the operator's settings, never from the app bundle: the
+   * receiving number is the platform's money and has to be changeable (and
+   * revocable) without a release. `configured: false` is a real state the
+   * screen renders, not an error.
+   */
+  app.get('/wallet/topup-info', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+    return topupInfo();
+  });
+
+  /** The caller's own top-up requests. The key comes from the token. */
+  app.get('/wallet/topup-requests', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+    return { requests: await myTopupRequests(caller.customerKey) };
+  });
+
+  /**
+   * "I paid the platform's number — please credit my wallet."
+   *
+   * Files a `pending` request and moves no money; an operator approves it in
+   * the admin Top-ups screen and only then does the ledger post. Unlike
+   * `/wallet/topup` this is open in production, because nothing in the body can
+   * create a credit: it can only ask a human to look.
+   */
+  app.post('/wallet/topup-requests', async (request, reply) => {
+    const caller = await callerOf(request);
+    if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    const body = z
+      .object({
+        amount: z.number().finite().positive(),
+        method: z.enum(TOPUP_METHODS),
+        txnId: z
+          .string()
+          .trim()
+          .min(6)
+          .max(24)
+          .regex(/^[A-Za-z0-9]+$/),
+        senderNumber: z
+          .string()
+          .trim()
+          .regex(/^(\+?880|0)?1[3-9]\d{8}$/),
+      })
+      .safeParse(request.body ?? {});
+    if (!body.success) return fail(reply, ERR.BAD_REQUEST);
+
+    const out = await requestTopup(caller.customerKey, body.data);
+    if (!out.ok) {
+      return reply
+        .status(out.error === ERR.TOPUP_TXN_USED ? 409 : 400)
+        .send({ error: out.error, message: errText(out.error), detail: out.detail });
+    }
+    return out.result;
+  });
+
+  /* The cook's withdrawals live beside the money routes they spend from. */
+  await app.register(withdrawalRoutes);
 
   /* ---------------- what people looked for ---------------- */
 

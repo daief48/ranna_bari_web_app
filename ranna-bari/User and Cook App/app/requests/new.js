@@ -8,14 +8,14 @@
  * you do not.
  */
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Image } from 'expo-image';
+import { Pressable, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import Screen, { Container } from '../../src/components/Screen';
 import Icon from '../../src/components/Icon';
 import Button from '../../src/components/Button';
 import Reveal from '../../src/components/Reveal';
+import KitchenPicker from '../../src/components/KitchenPicker';
 import FloatLabelInput, { FormNote } from '../../src/components/FloatLabelInput';
 import { Body, Heading } from '../../src/components/Typography';
 import { errorText } from '../../src/components/MealBits';
@@ -47,7 +47,13 @@ export default function NewRequest() {
   /* Arriving from a kitchen page means that cook is already the target. */
   const incoming = typeof params.cook === 'string' ? params.cook : null;
 
-  const [target, setTarget] = useState(incoming ?? 'all');
+  /* Two facts, not one: whether this is addressed to a single cook, and which.
+     They used to be one `target` string, which forced "One cook" to pick
+     somebody the instant it was tapped. Now the mode can be "one" with nobody
+     chosen yet, and Send waits for the customer's actual choice. */
+  const [mode, setMode] = useState(incoming ? 'one' : 'all');
+  const [cookId, setCookId] = useState(incoming ? String(incoming) : null);
+  const target = mode === 'all' ? 'all' : cookId;
   /* Prefilled when this was reached from a search that found nothing: the
      customer already typed what they wanted once, and asking again is how a
      good prompt turns into an abandoned form. */
@@ -94,6 +100,15 @@ export default function NewRequest() {
     [chefs, eligible],
   );
 
+  /* The chosen kitchen, looked up among every kitchen and not only the
+     reachable ones, so a `?cook=` deep link from a kitchen page still shows
+     its card even when that kitchen is not in the delivering set. */
+  const chosen = useMemo(
+    () => (cookId ? chefs.find((c) => String(c.id) === String(cookId)) ?? null : null),
+    [chefs, cookId],
+  );
+  const needsCook = mode === 'one' && !chosen;
+
   const days = useMemo(
     () =>
       [1, 2, 3, 4, 5].map((offset) => {
@@ -134,6 +149,11 @@ export default function NewRequest() {
      * request to a rule about it would be indefensible. So the typed line is
      * folded in here rather than being demanded first.
      */
+    if (needsCook) {
+      alert.error(t('Pick the kitchen you want to ask.'));
+      return;
+    }
+
     const pending = title.trim();
     const list = pending ? [...items, { name: pending, qty: 1 }] : items;
 
@@ -222,79 +242,27 @@ export default function NewRequest() {
               sub={t('{n} kitchens right now. You compare their prices.', {
                 n: n(reachable.length),
               })}
-              active={target === 'all'}
-              onPress={() => setTarget('all')}
+              active={mode === 'all'}
+              onPress={() => setMode('all')}
             />
             <Choice
               icon="chefHat"
               title={t('One cook')}
-              sub={
-                target !== 'all'
-                  ? reachable.find((c) => String(c.id) === String(target))?.name ??
-                    t('Pick a kitchen below')
-                  : t('Pick a kitchen below')
-              }
-              active={target !== 'all'}
-              onPress={() => setTarget(reachable[0] ? String(reachable[0].id) : 'all')}
+              sub={chosen?.name ?? t('Search for a kitchen below')}
+              active={mode === 'one'}
+              onPress={() => setMode('one')}
             />
           </View>
 
-          {target !== 'all' ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 10, paddingBottom: 6 }}
-              style={{ marginBottom: 22 }}
-            >
-              {reachable.map((c) => {
-                const on = String(target) === String(c.id);
-                return (
-                  <Pressable
-                    key={c.id}
-                    accessibilityRole="button"
-                    aria-pressed={on}
-                    accessibilityState={{ selected: on }}
-                    onPress={() => setTarget(String(c.id))}
-                    style={({ pressed }) => [
-                      {
-                        alignItems: 'center',
-                        gap: 6,
-                        width: 84,
-                        paddingVertical: 10,
-                        borderRadius: radius.sm,
-                        backgroundColor: on ? colors.primary50 : colors.surfaceSolid,
-                        borderWidth: 1,
-                        borderColor: on ? colors.primary : colors.line,
-                        transform: [{ scale: pressed ? 0.97 : 1 }],
-                      },
-                      shadow.xs,
-                    ]}
-                  >
-                    <Image
-                      source={{ uri: c.avatar }}
-                      contentFit="cover"
-                      transition={200}
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 14,
-                        backgroundColor: colors.sunken,
-                      }}
-                    />
-                    <Text
-                      numberOfLines={1}
-                      style={{
-                        fontFamily: font.uiSemi,
-                        fontSize: 11,
-                        color: on ? colors.primary : colors.text,
-                      }}
-                    >
-                      {c.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+          {mode === 'one' ? (
+            <View style={{ marginBottom: 22 }}>
+              <KitchenPicker
+                kitchens={reachable}
+                selected={chosen}
+                onSelect={setCookId}
+                hasAddress={!!(origin || addr?.area || addr?.district || addr?.division)}
+              />
+            </View>
           ) : null}
         </Reveal>
 
@@ -544,8 +512,22 @@ export default function NewRequest() {
             icon="arrowRight"
             block
             onPress={submit}
+            disabled={needsCook}
             style={{ marginTop: 24 }}
           />
+          {needsCook ? (
+            <Text
+              style={{
+                fontFamily: font.uiSemi,
+                fontSize: type.xs,
+                textAlign: 'center',
+                color: colors.primary,
+                marginTop: 10,
+              }}
+            >
+              {t('Pick the kitchen you want to ask.')}
+            </Text>
+          ) : null}
           <Text
             style={{
               fontFamily: font.ui,

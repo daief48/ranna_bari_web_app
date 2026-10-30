@@ -7,6 +7,7 @@ import { resetEnv } from '../src/config/env.js';
 import { registerCook } from '../src/logic/cook-signup.js';
 import { balanceFor } from '../src/logic/ledger.js';
 import { DEFAULT_SETTINGS } from '../src/logic/settings.js';
+import { topUp } from '../src/logic/wallet.js';
 import { Account, Dish, Kitchen, Order, OtpChallenge, Setting } from '../src/models/index.js';
 
 /**
@@ -260,8 +261,10 @@ describe('the wallet top-up', () => {
 });
 
 describe('POST /orders', () => {
-  const place = async (token: string, over: Record<string, unknown> = {}) =>
-    json(
+  const place = async (token: string, over: Record<string, unknown> = {}) => {
+    // New orders can only be paid from the wallet, so every placement is funded.
+    await topUp(BUYER.toLowerCase(), 2000);
+    return json(
       await app.inject({
         method: 'POST',
         url: '/api/app/v1/orders',
@@ -270,7 +273,7 @@ describe('POST /orders', () => {
           orders: [
             {
               code: `RB-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-              kind: 'cod',
+              kind: 'wallet',
               chefId: kitchenId,
               items: [{ id: dishId, name: 'Tehari', price: 200, qty: 2 }],
               ...over,
@@ -279,6 +282,7 @@ describe('POST /orders', () => {
         },
       }),
     ).results[0];
+  };
 
   it('prices the order from the menu, whatever the device says', async () => {
     const token = await signIn(BUYER);
@@ -317,7 +321,8 @@ describe('POST /orders', () => {
     const out = await place(token, { status: 'delivered', history: [{ status: 'delivered', at: 'x' }] });
     expect(out.ok).toBe(true);
     const order = await Order.findOne({ code: out.code }).lean();
-    expect(order?.status).toBe('placed');
+    // The wallet rail opens at 'confirmed'; the device's 'delivered' is ignored.
+    expect(order?.status).toBe('confirmed');
     expect(order?.history).toHaveLength(1);
   });
 

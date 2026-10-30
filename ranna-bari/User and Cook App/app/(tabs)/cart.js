@@ -576,11 +576,12 @@ export default function CartScreen() {
                       color: colors.textMuted,
                     }}
                   >
-                    {/* Payment is chosen at checkout; this only says which
-                        choices that will be, so nobody is surprised there. */}
+                    {/* Everything is paid from the wallet now (cash on delivery
+                        is retired for new orders); this only says so, so nobody
+                        is surprised at checkout. */}
                     {cart.hasShop
                       ? t('Shop items are paid from your wallet, and held until they reach you.')
-                      : t('Choose cash on delivery or your wallet at checkout.')}
+                      : t('You pay from your wallet at checkout, and the cook is paid once your food arrives.')}
                   </Text>
                 </View>
               </View>

@@ -103,9 +103,12 @@ const LANES = [
  * exactly this, so a paid request moves New -> Cooking -> Delivering ->
  * History by the same rules (`LANES`) a dish does, and the two can never
  * disagree about what "delivering" means. The lanes are disjoint by status,
- * so one walk files every order; the sorts happen once - oldest first for the
- * work lanes (the longest wait is the one going cold), newest first for
- * history.
+ * so one walk files every order; the sort happens once - newest first in
+ * every lane, the work lanes included. The owner asked for the latest order on
+ * top. The old oldest-first rule existed so the longest wait never went cold,
+ * so that signal now lives on the card instead (`WAITING_FLAG_MIN` in
+ * OrderCards): an order that has sat a long while says so, wherever it is in
+ * the list.
  */
 function bucketLanes(list, rates) {
   const rows = { new: [], cooking: [], delivering: [], history: [] };
@@ -116,10 +119,9 @@ function bucketLanes(list, rates) {
     rows[lane.key].push(o);
     money[lane.key] += cookPayout(o, rates);
   }
-  for (const key of ['new', 'cooking', 'delivering']) {
-    rows[key].sort((a, b) => stampOf(a) - stampOf(b));
+  for (const key of ['new', 'cooking', 'delivering', 'history']) {
+    rows[key].sort((a, b) => stampOf(b) - stampOf(a));
   }
-  rows.history.sort((a, b) => stampOf(b) - stampOf(a));
   return {
     rows,
     money,
@@ -245,9 +247,8 @@ export default function CookOrders() {
      Counts, the lane's worth, the rows and the history list used to be four
      separate filters over the same orders, each re-run per render. The lanes
      are disjoint by status, so one walk files every order in its lane, adds up
-     what the lane is worth, and the sorts happen once — oldest first for the
-     work lanes (the longest wait is the one going cold), newest first for
-     history. */
+     what the lane is worth, and the sort happens once — newest first
+     everywhere. */
   const lanes = useMemo(() => bucketLanes(mine, payoutRates), [mine, payoutRates]);
   const counts = lanes.counts;
 
@@ -320,7 +321,12 @@ export default function CookOrders() {
      it walked in through. */
   const shopOrders = useMemo(
     () =>
-      (kitchenId ? shop.myStores(kitchenId) : []).flatMap((s) => shop.storeOrders(s.id)),
+      (kitchenId ? shop.myStores(kitchenId) : [])
+        .flatMap((s) => shop.storeOrders(s.id))
+        /* Newest first, like the menu lanes. Flattening several shops
+           concatenates their lists shop by shop, so without this sort a newer
+           parcel from the second shop sat below an older one from the first. */
+        .sort((a, b) => stampOf(b) - stampOf(a)),
     [shop, kitchenId],
   );
   /* One walk over the shop's orders: how many are waiting on the cook, and how
@@ -522,8 +528,7 @@ export default function CookOrders() {
     );
   }, [lanes, query]);
 
-  /* Work lanes arrive oldest first, which is the longest wait first -- the
-     one going cold. */
+  /* Every lane arrives newest first; a long wait is flagged on the card. */
   const menuRows = useMemo(
     () =>
       shownLane === 'history'

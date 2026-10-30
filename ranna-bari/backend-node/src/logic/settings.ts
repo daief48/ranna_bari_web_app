@@ -154,8 +154,61 @@ export async function saveSetting(
   invalidateSettings();
 }
 
+/* ------------------------------------------------------------------ *
+ * manual top-up destination
+ * ------------------------------------------------------------------ */
+
+/**
+ * Where a customer sends money to fund their wallet.
+ *
+ * Text, not a number, so it lives beside `PlatformSettings` rather than in it
+ * (that bag is parsed with `Number()`), in the same `settings` collection under
+ * `topup.*` ids. Empty by default and deliberately never hard-coded: with no
+ * number set the app shows "top-up is not configured" and `POST
+ * /wallet/topup-requests` refuses, so nobody can be told to pay a number
+ * the operator never chose. Edited by finance (`payout.write`) in the admin
+ * Top-ups screen.
+ */
+export type TopupConfig = { bkash: string; nagad: string; note: string };
+
+const TOPUP_KEYS = { bkash: 'topup.bkash', nagad: 'topup.nagad', note: 'topup.note' } as const;
+
+/** Bounds of one manual top-up, whole taka. */
+export const TOPUP_MIN = 50;
+export const TOPUP_MAX = 50_000;
+
+export async function getTopupConfig(): Promise<TopupConfig> {
+  const rows = await Setting.find({ _id: { $in: Object.values(TOPUP_KEYS) } }).lean();
+  const pick = (key: string) => {
+    const value = rows.find((row) => String(row._id) === key)?.value;
+    return typeof value === 'string' ? value.trim() : '';
+  };
+  return {
+    bkash: pick(TOPUP_KEYS.bkash),
+    nagad: pick(TOPUP_KEYS.nagad),
+    note: pick(TOPUP_KEYS.note),
+  };
+}
+
+export const topupConfigured = (config: TopupConfig) => !!(config.bkash || config.nagad);
+
+export async function saveTopupConfig(patch: Partial<TopupConfig>, by: string) {
+  for (const field of ['bkash', 'nagad', 'note'] as const) {
+    const value = patch[field];
+    if (typeof value !== 'string') continue;
+    await Setting.updateOne(
+      { _id: TOPUP_KEYS[field] },
+      { value: value.trim(), updatedBy: by },
+      { upsert: true },
+    );
+  }
+}
+
 export const DEFAULT_FLAGS = [
-  { key: 'system.cod', description: 'Cash-on-delivery ordering', enabled: true },
+  /* Retired for new orders: the wallet is the only way to pay. The flag stays
+     (off) so legacy cash orders keep their meaning, and `recordOrder` refuses
+     a new `cod` order whatever this says. */
+  { key: 'system.cod', description: 'Cash-on-delivery ordering (retired)', enabled: false },
   { key: 'system.meals', description: 'Pre-booked meals', enabled: true },
   { key: 'system.stores', description: 'Cook stores', enabled: true },
   { key: 'system.requests', description: 'Food requests and bidding', enabled: true },

@@ -20,6 +20,7 @@ import { QtyStepper, Skeleton, StockPill, Placeholder } from '../../src/componen
 import { useTheme } from '../../src/theme/ThemeProvider';
 import useResponsive from '../../src/theme/useResponsive';
 import { font, radius, tracking, type } from '../../src/theme/tokens';
+import KitchenReviews from '../../src/components/KitchenReviews';
 import { useAuth } from '../../src/store/AuthContext';
 import { useCommerce } from '../../src/store/CommerceContext';
 import { customerKeyOf } from '../../src/lib/ledger';
@@ -487,6 +488,10 @@ export default function ProductScreen() {
             </Text>
           </View>
         )}
+
+        {/* The cook's reviews (a shop belongs to a kitchen); reviews are
+            about the cook, not per product. */}
+        <KitchenReviews kitchenId={store.kitchenId} cookName={store.name} />
       </Container>
     </Screen>
   );

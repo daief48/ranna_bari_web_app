@@ -124,6 +124,26 @@ export const ERR = {
   DUPLICATE: 'duplicate-request',
   NOTHING_TO_PAY: 'payout-nothing-due',
   RUN_CLOSED: 'payout-run-closed',
+
+  /*
+   * Cook withdrawals and manual top-ups. Each has its own repair, so each has
+   * its own code: below the minimum is a number to raise, over the balance is a
+   * number to lower, no destination sends the cook to the profile editor, and
+   * an open request is something to wait on or cancel.
+   */
+  WITHDRAWAL_TOO_LOW: 'withdrawal-too-low',
+  WITHDRAWAL_OVER_BALANCE: 'withdrawal-over-balance',
+  NO_PAYOUT_DESTINATION: 'no-payout-destination',
+  WITHDRAWAL_OPEN: 'withdrawal-open',
+  NO_WITHDRAWAL: 'withdrawal-missing',
+  WITHDRAWAL_CLOSED: 'withdrawal-closed',
+  /* Cash on delivery is retired for NEW orders; legacy COD orders still run. */
+  CASH_RETIRED: 'cash-not-accepted',
+  /* The operator has not set the platform's receiving number yet. */
+  TOPUP_NOT_CONFIGURED: 'topup-not-configured',
+  NO_TOPUP: 'topup-missing',
+  TOPUP_CLOSED: 'topup-closed',
+  TOPUP_TXN_USED: 'topup-txn-used',
 } as const;
 
 export type ErrCode = (typeof ERR)[keyof typeof ERR];
@@ -202,6 +222,17 @@ export const ERR_TEXT: Record<string, string> = {
   [ERR.DUPLICATE]: 'That has already been done.',
   [ERR.NOTHING_TO_PAY]: 'No cook is owed anything right now.',
   [ERR.RUN_CLOSED]: 'This payout run is closed.',
+  [ERR.WITHDRAWAL_TOO_LOW]: 'That is below the minimum withdrawal.',
+  [ERR.WITHDRAWAL_OVER_BALANCE]: 'That is more than you have available to withdraw.',
+  [ERR.NO_PAYOUT_DESTINATION]: 'Add your bKash number or bank account before withdrawing.',
+  [ERR.WITHDRAWAL_OPEN]: 'You already have a withdrawal waiting. Wait for it or cancel it first.',
+  [ERR.NO_WITHDRAWAL]: 'That withdrawal no longer exists.',
+  [ERR.WITHDRAWAL_CLOSED]: 'That withdrawal has already been decided.',
+  [ERR.CASH_RETIRED]: 'Cash on delivery is no longer available. Pay from your wallet.',
+  [ERR.TOPUP_NOT_CONFIGURED]: 'Wallet top-up is not set up yet. Please try again later.',
+  [ERR.NO_TOPUP]: 'That top-up request no longer exists.',
+  [ERR.TOPUP_CLOSED]: 'That top-up request has already been decided.',
+  [ERR.TOPUP_TXN_USED]: 'That transaction id has already been submitted.',
 };
 
 export const errText = (code: string) => ERR_TEXT[code] ?? code;

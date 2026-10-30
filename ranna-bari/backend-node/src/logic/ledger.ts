@@ -1,6 +1,6 @@
 import type { ClientSession } from 'mongoose';
 
-import { Dispute, LedgerEntry, Order, Redemption, WalletLock } from '../models/index.js';
+import { Dispute, LedgerEntry, Order, Redemption, WalletLock, Withdrawal } from '../models/index.js';
 import { isDuplicateKey } from '../config/db.js';
 import {
   ACCOUNTS,
@@ -220,9 +220,46 @@ export async function balanceFor(
   return rows[0]?.total ?? 0;
 }
 
+/**
+ * Money a cook has asked for and an operator has not yet paid or refused.
+ *
+ * It never leaves the `cook` bucket until "Mark paid", so the ledger alone
+ * still says it is theirs. This is the other half: the reservation that stops
+ * a batch payout run (or a second withdrawal) from claiming the same taka.
+ */
+export async function reservedFor(
+  kitchenId: string,
+  session?: ClientSession,
+): Promise<number> {
+  const rows = await Withdrawal.aggregate<{ _id: null; total: number }>([
+    { $match: { kitchenId, status: 'requested' } },
+    { $group: { _id: null, total: { $sum: '$amount' } } },
+  ]).session(session ?? null);
+  return rows[0]?.total ?? 0;
+}
+
+/**
+ * Serialise the writers of one cook's money.
+ *
+ * The balance is folded and the payout that follows is an insert, so two
+ * transactions (a withdrawal "Mark paid" and a batch run, say) can both read
+ * enough cover and both post: no document of theirs collides. Bumping this row
+ * first makes them conflict, `withTransaction` replays the loser, and its
+ * re-read then sees the winner's payout. Same trick as `reserveWallet`; keyed
+ * `cook:<id>` so it cannot meet a customer's wallet key.
+ */
+export async function lockCook(session: ClientSession, kitchenId: string): Promise<void> {
+  await WalletLock.updateOne(
+    { customerKey: `cook:${kitchenId}` },
+    { $inc: { v: 1 } },
+    { upsert: true, session },
+  );
+}
+
 /** Every cook with money owed, highest first. Drives the payout runs. */
 export async function cookBalances(
   session?: ClientSession,
+  opts: { excludeReserved?: boolean } = {},
 ): Promise<{ kitchenId: string; amount: number }[]> {
   const rows = await LedgerEntry.aggregate<{ _id: string; amount: number }>([
     {
@@ -244,7 +281,21 @@ export async function cookBalances(
     { $sort: { amount: -1 } },
   ]).session(session ?? null);
 
-  return rows.map((row) => ({ kitchenId: row._id, amount: row.amount }));
+  if (!opts.excludeReserved) {
+    return rows.map((row) => ({ kitchenId: row._id, amount: row.amount }));
+  }
+
+  /* The batch runs' view: what is owed AND not already spoken for by an open
+     withdrawal. A cook left with nothing unreserved drops out of the list. */
+  const reserved = await Withdrawal.aggregate<{ _id: string; total: number }>([
+    { $match: { status: 'requested' } },
+    { $group: { _id: '$kitchenId', total: { $sum: '$amount' } } },
+  ]).session(session ?? null);
+  const held = new Map(reserved.map((row) => [row._id, row.total]));
+
+  return rows
+    .map((row) => ({ kitchenId: row._id, amount: row.amount - (held.get(row._id) ?? 0) }))
+    .filter((row) => row.amount > 0);
 }
 
 /* ------------------------------------------------------------------ *

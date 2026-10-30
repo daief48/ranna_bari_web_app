@@ -10,6 +10,7 @@ import SectionHeader from '../../../src/components/SectionHeader';
 import { BentoBox, IconTile } from '../../../src/components/Surfaces';
 import { RowHeading, StatTile } from '../../../src/components/CookBits';
 import { LedgerRow, WalletCard } from '../../../src/components/MealBits';
+import WithdrawCard from '../../../src/components/WithdrawCard';
 import { Body, Heading, Price } from '../../../src/components/Typography';
 import { useTheme } from '../../../src/theme/ThemeProvider';
 import { font, radius, tracking, type } from '../../../src/theme/tokens';
@@ -143,6 +144,14 @@ export default function CookEarnings() {
             pct: num(Math.round(dishRate * 100)),
           })}
         />
+
+        {/* ---- Withdraw ----
+            First, because it is the one thing on this screen a cook can act
+            on. Reserves rather than moves: the figure it shows is the server's
+            `available`, balance less what is already requested. */}
+        <Reveal delay={1}>
+          <WithdrawCard />
+        </Reveal>
 
         {/* ---- Meal wallet ----
             Kept apart from the block below on purpose. That one is cash a
