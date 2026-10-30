@@ -12,6 +12,7 @@ import LanguageSwitch from './LanguageSwitch';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAuth } from '../store/AuthContext';
 import { useCommerce } from '../store/CommerceContext';
+import { useUnifiedCart } from '../store/useUnifiedCart';
 import { font, radius } from '../theme/tokens';
 
 /** Height of the bar itself, from `.navbar .container { height: 58px }`. */
@@ -66,7 +67,7 @@ function Rail({ children }) {
         overflow: 'visible',
       }}
     >
-      {children.map((child, i) => (
+      {children.filter(Boolean).map((child, i) => (
         <React.Fragment key={child.key ?? i}>
           {i > 0 ? (
             <View
@@ -193,9 +194,15 @@ export default function Navbar() {
   const router = useRouter();
   const { isCook, isCookMode } = useAuth();
   const { unreadFor } = useCommerce();
+  /* One cart for dishes and shop products, as the bottom bar's badge counts it. */
+  const { count: cartCount } = useUnifiedCart();
 
   const audience = isCookMode ? 'cook' : 'customer';
   const unreadCount = unreadFor(audience) ?? 0;
+  /* The cart is a customer's. A cook working the panel has no basket in the
+     bar, and the rail below gives the width back. */
+  const showCart = !isCookMode;
+  const railWidth = COST.rail + (showCart ? SEGMENT_W + 1 : 0);
 
   /* Null until the first layout pass. Until then assume there is room — a bar
      that starts cramped and expands is worse to watch than one that settles
@@ -203,7 +210,7 @@ export default function Navbar() {
   const [inner, setInner] = useState(null);
 
   const need = (brand, mode) =>
-    brand + COST.gap + mode + COST.gap + COST.rail + (isCook ? 0 : -(mode + COST.gap));
+    brand + COST.gap + mode + COST.gap + railWidth + (isCook ? 0 : -(mode + COST.gap));
 
   const roomy = inner == null || need(COST.brand, COST.modeLabelled) <= inner;
   const tight = !roomy && need(COST.brand, COST.modeCompact) <= inner;
@@ -274,6 +281,17 @@ export default function Navbar() {
             <Rail>
               {[
                 <LanguageSwitch key="lang" segment first />,
+
+                showCart ? (
+                  <Segment
+                    key="cart"
+                    accessibilityLabel="Cart"
+                    onPress={() => router.push('/cart')}
+                  >
+                    <Icon name="cart" size={17} color={colors.text} strokeWidth={1.85} />
+                    <Badge count={cartCount} />
+                  </Segment>
+                ) : null,
 
                 <Segment
                   key="bell"
