@@ -8,12 +8,13 @@ import {
   REQUEST_STATUS,
   fail,
   isLiveOffer,
+  mayTrade,
   ok,
   type Result,
 } from '../lib/domain.js';
 import { addDays, dayKey, makeCode, taka } from '../lib/format.js';
-import { balanceFor, post } from './ledger.js';
-import { getSettings } from './settings.js';
+import { post, reserveWallet } from './ledger.js';
+import { getSettings, peekSettings } from './settings.js';
 
 /**
  * Food requests, cook bidding and price negotiation.
@@ -178,6 +179,7 @@ type RequestRow = {
   status: string;
   selectedOfferId: string | null;
   orderId: string | null;
+  agreedAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
 };
@@ -221,6 +223,10 @@ type KitchenRow = {
  * account at the moment the order is cut.
  */
 function shapeRequest(row: RequestRow) {
+  /* The pay-by clock, only while there is something to pay. Computed from the
+     cached setting so the app can count down without a second source of truth. */
+  const agreed = row.status === REQUEST_STATUS.AGREED && row.agreedAt ? new Date(row.agreedAt) : null;
+  const windowMs = Math.max(1, Math.round(peekSettings().requestPayWindowHours)) * 3_600_000;
   return {
     id: String(row._id),
     code: row.code,
@@ -243,6 +249,8 @@ function shapeRequest(row: RequestRow) {
     status: row.status,
     selectedOfferId: row.selectedOfferId ?? null,
     orderId: row.orderId ?? null,
+    agreedAt: agreed ? agreed.toISOString() : null,
+    payByAt: agreed ? new Date(agreed.getTime() + windowMs).toISOString() : null,
     createdAt: row.createdAt ?? null,
     /* The app stamped `closedAt` when a request ended. The row is timestamped,
        so that moment is already `updatedAt` — a second field would be a second
@@ -1112,6 +1120,133 @@ export async function expireRequestsLazily(): Promise<void> {
   await expireRequests().catch(() => undefined);
 }
 
+/**
+ * Reopen agreements the customer never paid for.
+ *
+ * A price both sides signed off on holds the cook's day for as long as it
+ * stays `agreed`, and nothing makes the customer pay. After
+ * `requestPayWindowHours` the agreement lapses and the request goes back to
+ * `open`, so the customer can pick again.
+ *
+ * What "back" means for the offers, applied the same way every time:
+ *  - the agreed offer returns to `priced` (still live, so the same cook can
+ *    be chosen again and re-negotiated), `agreedPrice` cleared, and one
+ *    `{by:'cook', amount, expired:true}` entry appended — history is never
+ *    rewritten, and the entry makes the customer the party to move, which is
+ *    exactly "the cook's standing price, take it or counter";
+ *  - the offers that lost when this one was selected (`not-selected`) are put
+ *    back to `priced`/`interested`, otherwise "pick another cook" would have
+ *    nobody left to pick. Their cooks are not notified: they were told they
+ *    lost, and this only restores the choice.
+ *
+ * No money moves — an unpaid agreement never held any. Idempotent: each offer
+ * is claimed with a conditional update on `status: 'agreed'`, and the
+ * notification keys carry the history length.
+ */
+export async function expireUnpaidAgreements(): Promise<Result<{ reopened: number }>> {
+  const settings = await getSettings();
+  const hours = Math.max(1, Math.round(settings.requestPayWindowHours));
+  const cutoff = new Date(Date.now() - hours * 3_600_000);
+
+  const stale = await Offer.find(
+    {
+      status: OFFER_STATUS.AGREED,
+      $or: [
+        { agreedAt: { $lt: cutoff } },
+        // Agreed before the column existed: the row's last touch is the best clock there is.
+        { agreedAt: null, updatedAt: { $lt: cutoff } },
+      ],
+    },
+    { _id: 1 },
+  ).lean();
+
+  let reopened = 0;
+  for (const row of stale) {
+    const done = await transition(async (session) => {
+      const offer = await Offer.findOne({ _id: row._id, status: OFFER_STATUS.AGREED }).session(session);
+      if (!offer) return false;
+      const request = await Request.findOne({
+        _id: offer.requestId,
+        status: REQUEST_STATUS.AGREED,
+        selectedOfferId: String(offer._id),
+      }).session(session);
+      if (!request) return false;
+
+      const history = (offer.history ?? []) as PriceMove[];
+      const last = history[history.length - 1];
+      const entry = {
+        by: 'cook',
+        amount: offer.agreedPrice ?? last?.amount ?? offer.price ?? 0,
+        at: new Date().toISOString(),
+        expired: true,
+      };
+
+      const back = await Offer.updateOne(
+        { _id: offer._id, status: OFFER_STATUS.AGREED },
+        {
+          $set: { status: OFFER_STATUS.PRICED, agreedPrice: null, agreedAt: null },
+          $push: { history: entry },
+        },
+        { session },
+      );
+      if (back.modifiedCount !== 1) return false;
+
+      await Request.updateOne(
+        { _id: request._id, status: REQUEST_STATUS.AGREED },
+        { status: REQUEST_STATUS.OPEN, selectedOfferId: null, agreedAt: null },
+        { session },
+      );
+
+      await Offer.updateMany(
+        { requestId: String(request._id), status: OFFER_STATUS.NOT_SELECTED, price: { $ne: null } },
+        { status: OFFER_STATUS.PRICED },
+        { session },
+      );
+      await Offer.updateMany(
+        { requestId: String(request._id), status: OFFER_STATUS.NOT_SELECTED, price: null },
+        { status: OFFER_STATUS.INTERESTED },
+        { session },
+      );
+
+      const n = history.length + 1;
+      await notify(session, {
+        audience: 'customer',
+        kind: 'agreement-expired',
+        key: `customer:agreement-expired:${offer._id}:${n}`,
+        title: 'Payment window passed',
+        body: `The price for ${request.title} was not paid in time, so the request is open again. Pick a cook to continue.`,
+        customerKey: request.customerKey,
+        requestId: String(request._id),
+        offerId: String(offer._id),
+      });
+      await notify(session, {
+        audience: 'cook',
+        kind: 'agreement-expired',
+        key: `cook:agreement-expired:${offer._id}:${n}`,
+        title: 'Agreement lapsed',
+        body: `The customer did not pay for ${request.title} in time. Nothing was charged.`,
+        kitchenId: offer.kitchenId,
+        requestId: String(request._id),
+        offerId: String(offer._id),
+      });
+      return true;
+    });
+    if (done.ok && done.result) reopened += 1;
+  }
+
+  return ok({ reopened });
+}
+
+let lastPayWindowSweep = 0;
+
+/** `expireUnpaidAgreements`, on the same ~60s throttle and never-fail rule as `expireRequestsLazily`. */
+export async function expireUnpaidAgreementsLazily(): Promise<void> {
+  const now = Date.now();
+  if (now - lastPayWindowSweep < 60_000) return;
+  lastPayWindowSweep = now;
+  await expireUnpaidAgreements().catch(() => undefined);
+}
+
 /** A cook pulls out. Their own offer only — the id alone is not enough. */
 export async function withdrawOffer(
   kitchenId: string,
@@ -1372,7 +1507,12 @@ export async function acceptPrice(
         [`history.${history.length}`]: { $exists: false },
       },
       {
-        $set: { status: OFFER_STATUS.AGREED, agreedPrice: last.amount },
+        $set: {
+          status: OFFER_STATUS.AGREED,
+          agreedPrice: last.amount,
+          // The clock the unpaid-agreement sweep reads.
+          agreedAt: new Date(),
+        },
         $push: { history: entry },
       },
       { new: true, session },
@@ -1383,7 +1523,7 @@ export async function acceptPrice(
 
     await Request.updateOne(
       { _id: offer.requestId },
-      { status: REQUEST_STATUS.AGREED },
+      { status: REQUEST_STATUS.AGREED, agreedAt: new Date() },
       { session },
     );
 
@@ -1470,13 +1610,24 @@ export async function payForRequest(
     }
 
     const amount = offer.agreedPrice;
-    const balance = await balanceFor('customer', customerKey, session);
-    if (balance < amount) {
-      refuse(ERR.LOW_BALANCE, { short: amount - balance, balance });
-    }
 
+    /* The kitchen may have been suspended, or lost its approval, between the
+       agreement and now. Same predicate and same code as the dish checkout
+       (`placeOrder`): a kitchen that may not trade has nothing to be paid
+       for. Read before the wallet is touched so a refusal costs nothing. */
     const kitchens = await kitchensFor([offer.kitchenId], session);
     const kitchen = kitchens.get(offer.kitchenId);
+    if (!mayTrade(kitchen as { kycStatus?: string; suspended?: boolean } | undefined)) {
+      refuse(ERR.NO_KITCHEN);
+    }
+
+    /* The wallet is the only way to pay for a request — there is no cash or
+       card branch in this function and there must never be one. `reserveWallet`
+       bumps the customer's WalletLock inside this transaction, so two pays
+       racing on one balance conflict and the loser re-reads a balance that
+       already includes the winner's hold, instead of both passing. */
+    const funds = await reserveWallet(session, customerKey, amount);
+    if (!funds.ok) refuse(funds.error, funds.detail);
     const quantity = request.quantity ?? 1;
 
     let order;
@@ -1493,6 +1644,7 @@ export async function payForRequest(
             title: request.title,
             image: kitchen?.avatar ?? '',
 
+            quantity,
             customerKey,
             customerName: args.customer?.name ?? '',
             phone: args.customer?.phone ?? '',
@@ -1520,8 +1672,11 @@ export async function payForRequest(
             price: amount,
             amount,
 
+            /* Born paid. A request order is only ever created here, with its
+               hold posted in this same transaction — never 'cod', never
+               unpaid. */
             status: 'confirmed',
-            payment: 'held',
+            payment: 'held' as const,
             history: [{ status: 'confirmed', at: new Date().toISOString() }],
           },
         ],

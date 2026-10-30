@@ -27,6 +27,7 @@ import Button from './Button';
 import RateSheet from './RateSheet';
 import FoodReceivedCard from './FoodReceivedCard';
 import Confirm from './ConfirmDialog';
+import ChatLauncher from './ChatLauncher';
 import { Price } from './Typography';
 import { EmptyState, MealStatusPill, PaymentPill, errorText } from './MealBits';
 import { OrderLines, Totals } from './StoreBits';
@@ -39,7 +40,26 @@ import { formatAddress } from '../lib/address';
 import { useLang } from '../i18n/LanguageContext';
 import { useAlert } from './Alert';
 
-export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
+/**
+ * Optional extras, all off by default so meal and shop orders look as before:
+ *   tag             a small label under the title ("Food request")
+ *   chat            show the "message the cook" entry
+ *   facts           extra paperwork rows, `[{ label, value }]`
+ *   canRate         offer "Rate the cook" again after completion
+ *   cancelStatuses  which statuses may still be cancelled (the server's
+ *                   CUSTOMER_MAY_CANCEL; the default is the older, wider list)
+ */
+export default function OrderTracker({
+  orderId,
+  subtitle,
+  backTo,
+  backLabel,
+  tag,
+  chat,
+  facts,
+  cancelStatuses,
+  canRate,
+}) {
   const { colors, shadow } = useTheme();
   const { t, n, lang } = useLang();
   const alert = useAlert();
@@ -89,7 +109,9 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
   /* Once it is on a bike, cancelling is a dispute rather than a decision --
      and a pending pre-order can always be withdrawn, since nobody has
      started cooking it. */
-  const canCancel = ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status);
+  const canCancel = (cancelStatuses ?? ['pending', 'confirmed', 'preparing', 'ready']).includes(
+    order.status,
+  );
 
   const receive = async () => {
     const out = await shop.confirmReceived(order.id);
@@ -183,6 +205,24 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
               {subtitle ? ` · ${subtitle}` : ''}
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {tag ? (
+                <Text
+                  style={{
+                    fontFamily: font.uiBold,
+                    fontSize: type.xs - 1,
+                    letterSpacing: 0.8,
+                    textTransform: 'uppercase',
+                    color: colors.primary,
+                    backgroundColor: colors.primary50,
+                    borderRadius: 8,
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                    overflow: 'hidden',
+                  }}
+                >
+                  {tag}
+                </Text>
+              ) : null}
               <MealStatusPill status={order.status} />
               <PaymentPill payment={order.payment} />
             </View>
@@ -377,14 +417,37 @@ export default function OrderTracker({ orderId, subtitle, backTo, backLabel }) {
           {/* Their own words, back to them — the tracker is the receipt for
               meal plates and shop orders alike. */}
           {order.note ? <Row label={t('Note for the cook')} value={order.note} /> : null}
+          {(facts ?? []).map((f) => (
+            <Row key={f.label} label={f.label} value={f.value} />
+          ))}
           <Row label={t('Booked')} value={formatOrderDate(order.createdAt, lang)} />
         </View>
+
+        {/* ---- talk to the cook ---- */}
+        {chat ? (
+          <View style={{ marginTop: 16 }}>
+            <ChatLauncher spec={{ kind: 'order', orderId: order.id }} />
+          </View>
+        ) : null}
 
         <View style={{ marginTop: 22, gap: 10 }}>
           {order.status === 'completed' ? (
             <Price size={20} style={{ textAlign: 'center' }}>
               ৳{n(order.amount)} {t('paid')}
             </Price>
+          ) : null}
+
+          {/* The prompt after receiving is one tap from "Not now"; this is the
+              way back to it. `reviewed` comes from the server, which enforces
+              one review per order. */}
+          {canRate && order.status === 'completed' && !order.reviewed ? (
+            <Button
+              label={t('Rate {kitchen}', { kitchen: order.cookName || t('the kitchen') })}
+              icon="star"
+              variant="glass"
+              block
+              onPress={() => setRating(true)}
+            />
           ) : null}
 
           {canCancel ? (

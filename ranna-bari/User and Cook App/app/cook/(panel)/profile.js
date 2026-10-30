@@ -993,8 +993,8 @@ export default function CookProfile() {
               style={{ marginTop: 12 }}
               title={t('Food requests')}
               sub={
-                requestCounts.open
-                  ? t('{n} waiting for your price', { n: n(requestCounts.open) })
+                requestCounts.needsYou
+                  ? t('{n} need your answer', { n: n(requestCounts.needsYou) })
                   : t('Customers asking for things nobody has listed')
               }
               onPress={() => router.push('/cook/orders?tab=requests')}

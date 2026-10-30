@@ -460,6 +460,15 @@ function CookRequestScreen() {
                 <PaymentPill payment={order.payment} />
               </View>
 
+              {/* The full order screen: customer, address, progress, and the
+                  "Can't make it" refund path. */}
+              <Button
+                small
+                variant="glass"
+                label={t('Open the order')}
+                onPress={() => router.push(`/cook/order/${order.id}`)}
+              />
+
               {nextStep ? (
                 <Button
                   small

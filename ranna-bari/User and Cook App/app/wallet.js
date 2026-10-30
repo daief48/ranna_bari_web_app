@@ -19,6 +19,7 @@ import { useCommerce } from '../src/store/CommerceContext';
 import { useConfig } from '../src/store/ConfigContext';
 import { formatOrderDate } from '../src/store/OrdersContext';
 import { foldDigits } from '../src/lib/format';
+import { safeNext } from '../src/lib/safePath';
 import { useLang } from '../src/i18n/LanguageContext';
 import { useAlert } from '../src/components/Alert';
 
@@ -52,7 +53,12 @@ export default function WalletScreen() {
 
   /* Checkout sends the shortfall (`?need=`) when the wallet could not cover an
      order, so the amount box opens already holding what is missing. */
-  const { need } = useLocalSearchParams();
+  const { need, next: nextParam } = useLocalSearchParams();
+  /* Where to go once the money is in. A food request sends the customer here
+     to cover a shortfall with `next=/requests/<id>`; without a way back they
+     would top up and be left on the wallet, hunting for the request. The
+     value comes from a URL, so it is validated as an in-app path first. */
+  const next = safeNext(nextParam);
   const [amount, setAmount] = useState(() => {
     const short = Math.ceil(Number(Array.isArray(need) ? need[0] : need));
     return Number.isFinite(short) && short > 0 ? String(short) : '';
@@ -121,6 +127,8 @@ export default function WalletScreen() {
       }
       setAmount('');
       alert.success(t('৳{n} added to your wallet.', { n: n(out.result) }));
+      /* The top-up was the errand; take them back to what sent them. */
+      if (next) router.replace(next);
     } finally {
       toppingUp.current = false;
     }
@@ -160,6 +168,17 @@ export default function WalletScreen() {
           subtitle={t('Meals are paid for from here, and held until the food arrives.')}
           style={{ marginBottom: 22 }}
         />
+
+        {next ? (
+          <Button
+            variant="glass"
+            label={t('Continue where you left off')}
+            icon="arrowRight"
+            block
+            onPress={() => router.replace(next)}
+            style={{ marginBottom: 16 }}
+          />
+        ) : null}
 
         <WalletCard
           label={t('Available balance')}

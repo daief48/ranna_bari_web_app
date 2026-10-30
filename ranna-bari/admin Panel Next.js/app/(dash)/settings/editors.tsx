@@ -31,7 +31,7 @@ export function SettingField({
 }: {
   name: keyof PlatformSettings;
   value: number;
-  meta: { label: string; help: string; kind: 'money' | 'rate' | 'days' };
+  meta: { label: string; help: string; kind: 'money' | 'rate' | 'days' | 'hours' };
   disabled: boolean;
 }) {
   const [next, setNext] = useState(String(value));
@@ -40,7 +40,7 @@ export function SettingField({
   /* A rate is stored as a fraction and read as a percentage. Typing "15" and
      meaning 0.15 is the mistake this input exists to make impossible. */
   const display =
-    meta.kind === 'rate' ? `${Math.round(value * 100)}%` : meta.kind === 'money' ? taka(value) : `${value} days`;
+    meta.kind === 'rate' ? `${Math.round(value * 100)}%` : meta.kind === 'money' ? taka(value) : meta.kind === 'hours' ? `${value} hours` : `${value} days`;
 
   return (
     <div>

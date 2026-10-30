@@ -542,6 +542,7 @@ export function shapeOrder(
     mealId: row.mealId ?? null,
     storeId: row.storeId ?? null,
     requestId: row.requestId ?? null,
+    quantity: (row as { quantity?: number }).quantity ?? 1,
     offerId: row.offerId ?? null,
     /* The meal booking this order is one meal of, so an order screen can offer
        the way back to the month it was bought in. */

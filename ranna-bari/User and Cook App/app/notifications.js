@@ -47,6 +47,14 @@ const ICONS = {
   'preorder-sent': 'clock',
   'preorder-accepted': 'check',
   'preorder-rejected': 'x',
+  /* Food-request events. Offers, counters and agreements land on the request
+     (`/requests/<id>`); once paid the order carries the story. */
+  'offer-received': 'banknote',
+  'offer-new': 'banknote',
+  'counter-offer': 'banknote',
+  'offer-selected': 'check',
+  'price-agreed': 'check',
+  'request-paid': 'lock',
 };
 
 export default function NotificationsScreen() {
@@ -132,6 +140,14 @@ export default function NotificationsScreen() {
          that. Asking the server settles the kind rather than guessing it. */
       const order =
         meals.orders.find((o) => String(o.id) === id) ?? (await meals.ensureOrder(id));
+      /* An order notification that also names a request (paid, placed,
+         cancelled-and-refunded) belongs to the request flow. If the order
+         could not be fetched its kind is unknown, but the request id settles
+         it: the customer's tracker for a request order, never the dish one. */
+      if (nt.requestId && !order && !isCookMode) {
+        router.push(`/request-order/${id}`);
+        return;
+      }
       router.push(orderRoute(order, id, nt.mealId));
       return;
     }

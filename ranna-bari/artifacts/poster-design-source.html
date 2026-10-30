@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RannaBari — promotional poster</title>
+<!-- Canvas is 1920x1080 CSS px; render at deviceScaleFactor 2 for the 3840x2160 PNG.
+     All screenshots are real captures from the running app (see app-screenshots/).
+     Figures in screenshots are demo seed data. -->
+<style>
+@font-face { font-family: 'Fraunces'; font-weight: 700; src: url(fonts/Fraunces_700Bold.ttf); }
+@font-face { font-family: 'Fraunces'; font-weight: 900; src: url(fonts/Fraunces_900Black.ttf); }
+@font-face { font-family: 'Inter'; font-weight: 400; src: url(fonts/Inter_400Regular.ttf); }
+@font-face { font-family: 'Inter'; font-weight: 600; src: url(fonts/Inter_600SemiBold.ttf); }
+@font-face { font-family: 'Inter'; font-weight: 700; src: url(fonts/Inter_700Bold.ttf); }
+
+:root {
+  --ink: #1e1a17; --ink2: #5b534c; --cream: #f6f0e6; --paper: #fffdf9;
+  --vermilion: #c0391b; --amber: #b5791a; --sage: #4f6b3d; --line: #e6dccd;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--cream); }
+body { font-family: 'Inter', sans-serif; color: var(--ink); position: relative; }
+
+.bg { position: absolute; inset: 0; background:
+  radial-gradient(900px 600px at 8% 0%, rgba(192,57,27,.16), transparent 70%),
+  radial-gradient(900px 700px at 100% 8%, rgba(181,121,26,.18), transparent 70%),
+  radial-gradient(1000px 500px at 55% 100%, rgba(79,107,61,.14), transparent 70%),
+  linear-gradient(180deg, #faf5ec, #f3ebdd); }
+.abs { position: absolute; }
+
+.brand { left: 64px; top: 40px; display: flex; align-items: center; gap: 14px; }
+.brand img { width: 52px; height: 52px; border-radius: 14px; box-shadow: 0 6px 18px rgba(80,40,20,.2); }
+.brand b { font: 900 34px 'Fraunces', serif; letter-spacing: -.5px; }
+.brand b i { font-style: normal; color: var(--amber); }
+
+.eyebrow { left: 64px; top: 128px; display: inline-flex; align-items: center; gap: 10px; padding: 9px 18px;
+  border: 1px solid var(--line); border-radius: 99px; background: rgba(255,253,249,.8);
+  font: 700 13px 'Inter'; letter-spacing: 2.4px; text-transform: uppercase; }
+.eyebrow::before { content: ''; width: 11px; height: 11px; border-radius: 50%; background: var(--sage); }
+h1 { left: 64px; top: 186px; width: 590px; font: 900 51px/1.04 'Fraunces', serif; letter-spacing: -1px; white-space: nowrap; text-transform: uppercase; }
+h1 em { font-style: normal; color: var(--vermilion); }
+.lede { left: 64px; top: 322px; width: 540px; font: 400 20px/1.55 'Inter'; color: var(--ink2); }
+.pills { left: 64px; top: 478px; display: flex; gap: 10px; }
+.pill { padding: 11px 18px; border-radius: 99px; font: 700 15px 'Inter'; }
+.pill.red { background: linear-gradient(135deg, #d4482a, #a92f14); color: #fff; box-shadow: 0 8px 20px rgba(169,47,20,.3); }
+.pill.line { border: 1.5px solid var(--ink); }
+
+.label { font: 700 12px 'Inter'; letter-spacing: 2.6px; text-transform: uppercase; color: var(--ink2); display: flex; align-items: center; gap: 12px; }
+.label::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.label.red { color: var(--vermilion); } .label.sage { color: var(--sage); }
+
+/* phones */
+.group { top: 56px; }
+.phones { position: relative; height: 470px; margin-top: 14px; }
+.phone { position: absolute; width: 196px; padding: 7px; border-radius: 34px; background: #1b1715;
+  box-shadow: 0 30px 50px -10px rgba(60,30,15,.45), 0 0 0 1.5px #4a4039 inset; }
+.phone img { display: block; width: 100%; aspect-ratio: 390/844; object-fit: cover; border-radius: 27px; }
+.phone::after { content: ''; position: absolute; top: 14px; left: 50%; width: 56px; height: 6px; border-radius: 4px; background: #1b1715; transform: translateX(-50%); opacity: .0; }
+.cap { position: absolute; width: 204px; text-align: center; font: 600 13px 'Inter'; color: var(--ink2); }
+
+/* browser frames */
+.browser { position: absolute; border-radius: 12px; background: #fff; overflow: hidden;
+  box-shadow: 0 28px 50px -12px rgba(60,30,15,.4), 0 0 0 1px rgba(60,30,15,.12); }
+.browser .bar { height: 26px; background: #ece4d6; display: flex; align-items: center; gap: 6px; padding: 0 11px; }
+.browser .bar span { width: 9px; height: 9px; border-radius: 50%; background: #cdbfa8; }
+.browser img { display: block; width: 100%; aspect-ratio: 2880/1800; object-fit: cover; object-position: top left; }
+
+/* features */
+.feat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px 22px; margin-top: 20px; }
+.feat { display: flex; gap: 12px; align-items: flex-start; }
+.ico { flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--paper); border: 1px solid var(--line);
+  display: grid; place-items: center; box-shadow: 0 3px 8px rgba(80,40,20,.08); }
+.ico svg { width: 21px; height: 21px; stroke: var(--vermilion); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.feat b { display: block; font: 700 15px/1.2 'Inter'; }
+.feat span { display: block; font: 400 12.5px/1.35 'Inter'; color: var(--ink2); margin-top: 3px; }
+
+/* capabilities */
+.cap-card { display: flex; gap: 14px; padding: 10px 14px; border-radius: 16px; background: rgba(255,253,249,.92);
+  border: 1px solid var(--line); box-shadow: 0 10px 24px -10px rgba(80,40,20,.25); margin-top: 9px; }
+.cap-card .ico { background: #f3ead9; }
+.cap-card.sage .ico svg { stroke: var(--sage); } .cap-card.amber .ico svg { stroke: var(--amber); }
+.cap-card b { font: 700 16px 'Inter'; } .cap-card span { display: block; font: 400 12.5px/1.35 'Inter'; color: var(--ink2); margin-top: 3px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+.chip { padding: 7px 13px; border-radius: 99px; background: var(--paper); border: 1px solid var(--line); font: 600 12.5px 'Inter'; }
+
+/* closing band */
+.closing { left: 64px; right: 64px; bottom: 30px; height: 84px; z-index: 5; border-radius: 26px; padding: 0 40px;
+  background: linear-gradient(120deg, #2b3a22, #4f6b3d 55%, #6a7f3f); color: #fff; display: flex; align-items: center; justify-content: space-between;
+  box-shadow: 0 24px 40px -14px rgba(40,55,30,.55); }
+.closing h2 { font: 900 38px 'Fraunces', serif; letter-spacing: -.8px; }
+.closing p { font: 400 15px 'Inter'; opacity: .88; margin-top: 4px; }
+.cta { display: flex; gap: 12px; align-items: center; }
+.cta .pill.white { background: #fff; color: #2b3a22; } .cta .pill.ghost { border: 1.5px solid rgba(255,255,255,.7); color: #fff; }
+.note { position: absolute; left: 64px; bottom: 10px; font: 400 10.5px 'Inter'; color: #8a7f74; }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+
+<div class="abs brand"><img src="logo-mark.png" alt=""><b>Ranna<i>Bari</i></b></div>
+
+<div class="abs eyebrow">100% authentic home kitchens</div>
+<h1 class="abs">Crafted at <em>home.</em><br>Delivered to you.</h1>
+<p class="abs lede">RannaBari connects home cooks in Bangladesh with people who want a proper meal. Order a plate for today, pre-book a month of meals, or buy from a cook's pantry — every cook is identity-checked.</p>
+<div class="abs pills"><span class="pill red">Find Local Kitchens</span><span class="pill line">Open Your Kitchen</span></div>
+
+<!-- application preview: customer phones -->
+<div class="abs group" style="left:654px; width:588px;">
+  <div class="label red">Application preview · for customers</div>
+  <div class="phones">
+    <div class="phone" style="left:0; top:46px;"><img src="app-screenshots/c03-map.png" alt="Map of kitchens"></div>
+    <div class="phone" style="left:196px; top:6px; z-index:2;"><img src="app-screenshots/c01-home.png" alt="Home"></div>
+    <div class="phone" style="left:392px; top:46px;"><img src="app-screenshots/c08-kitchen-page.png" alt="Kitchen page"></div>
+  </div>
+</div>
+
+<!-- cook phones -->
+<div class="abs group" style="left:1268px; width:588px;">
+  <div class="label sage">Application preview · for cooks</div>
+  <div class="phones">
+    <div class="phone" style="left:0; top:46px;"><img src="app-screenshots/k05-earnings.png" alt="Earnings"></div>
+    <div class="phone" style="left:196px; top:6px; z-index:2;"><img src="app-screenshots/k01-dashboard.png" alt="Cook dashboard"></div>
+    <div class="phone" style="left:392px; top:46px;"><img src="app-screenshots/k06-meal-hub.png" alt="Monthly meals hub"></div>
+  </div>
+</div>
+
+<!-- key features -->
+<div class="abs" style="left:64px; top:596px; width:560px;">
+  <div class="label red">Key features</div>
+  <div class="feat-grid">
+    <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></div><div><b>Kitchens on the map</b><span>Find open home kitchens near you</span></div></div>
+    <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></div><div><b>Monthly meals</b><span>Pick your days, pay once</span></div></div>
+    <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 9l1.5-4h13L20 9M4 9v10h16V9M4 9h16M9 19v-5h6v5"/></svg></div><div><b>Pantry shops</b><span>Achar, pitha, jorda and more</span></div></div>
+    <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16 14.5h2"/></svg></div><div><b>Wallet payments</b><span>Pay from your RannaBari wallet</span></div></div>
+    <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h6a3 3 0 0 0 0-6h-4a3 3 0 0 1 0-6h5"/></svg></div><div><b>Order tracking</b><span>Confirmed to delivered, step by step</span></div></div>
+    <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><path d="M5 6h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-8l-5 4v-4H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/></svg></div><div><b>Chat with the cook</b><span>Ask about a dish or a custom order</span></div></div>
+    <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/><circle cx="12" cy="12" r="9"/></svg></div><div><b>Food requests</b><span>Ask for what nobody has listed</span></div></div>
+    <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div><div><b>Cook dashboard</b><span>Kitchen and shop, each with its own stats</span></div></div>
+  </div>
+</div>
+
+<!-- operator console -->
+<div class="abs" style="left:664px; top:596px; width:620px;">
+  <div class="label">Operator console · the desk behind the kitchens</div>
+</div>
+<div class="browser" style="left:664px; top:636px; width:400px;"><div class="bar"><span></span><span></span><span></span></div><img src="app-screenshots/d01-admin-overview.png" alt="Admin dashboard"></div>
+<div class="browser" style="left:930px; top:704px; width:340px; z-index:2;"><div class="bar"><span></span><span></span><span></span></div><img src="app-screenshots/d05-admin-ledger.png" alt="Admin ledger"></div>
+
+<!-- capabilities + UX -->
+<div class="abs" style="left:1330px; top:596px; width:526px;">
+  <div class="label amber" style="color:var(--amber)">Powerful capabilities</div>
+  <div class="cap-card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><div><b>Your money waits for your food</b><span>Held until you confirm delivery, then released to the cook.</span></div></div>
+  <div class="cap-card sage"><div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 7.8-8 9-4.6-1.2-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg></div><div><b>Identity-checked cooks</b><span>National ID and kitchen photos reviewed before a kitchen can trade.</span></div></div>
+  <div class="cap-card amber"><div class="ico"><svg viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4z"/><path d="M9 9h6M9 13h6"/></svg></div><div><b>An append-only ledger</b><span>Every taka is recorded; a correction is a new entry, never an edit.</span></div></div>
+  <div class="label" style="margin-top:12px">User experience</div>
+  <div class="chips"><span class="chip">English + বাংলা</span><span class="chip">Light &amp; dark mode</span><span class="chip">One app, two modes</span><span class="chip">Role-based admin</span></div>
+</div>
+
+<div class="abs closing">
+  <div><h2>Eat better. Cook for your neighbours.</h2><p>RannaBari is starting in Dhaka — get the app to order from kitchens near you.</p></div>
+  <div class="cta"><span class="pill white">Find Local Kitchens</span><span class="pill ghost">Open Your Kitchen</span></div>
+</div>
+<div class="note">Screens are real captures of the app and operator console running on demo seed data; names, photos and figures are placeholders.</div>
+</body>
+</html>

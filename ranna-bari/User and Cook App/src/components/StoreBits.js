@@ -698,7 +698,10 @@ export function OrderLines({ lines, style }) {
               fontVariant: ['tabular-nums'],
             }}
           >
-            ৳{n(line.lineTotal ?? line.unitPrice * line.qty)}
+            {/* A shop line carries `lineTotal`/`unitPrice`; a food-request line
+                is one job at one agreed `price` (qty 1), so it falls back to that
+                instead of rendering ৳NaN. */}
+            ৳{n(line.lineTotal ?? (line.unitPrice ?? line.price) * line.qty)}
           </Text>
         </View>
       ))}

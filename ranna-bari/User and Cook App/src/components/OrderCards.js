@@ -23,7 +23,9 @@ import { useTheme } from '../theme/ThemeProvider';
 import { useLang } from '../i18n/LanguageContext';
 import { font, radius, type } from '../theme/tokens';
 import { cookPayout, timeAgo, useOrders } from '../store/OrdersContext';
-import { NEXT_STEP, awaitingConfirmation, stageOf } from '../lib/orderRails';
+import { NEXT_STEP, awaitingConfirmation, isRequestOrder, stageOf } from '../lib/orderRails';
+import { FoodRequestTag, RequestOrderFacts, WalletHeldLine } from './RequestOrderBits';
+import { useRequestOf } from '../features/requests/useRequestOf';
 import { useAlert } from './Alert';
 import { errorText } from '../lib/errors';
 import { formatAddress } from '../lib/address';
@@ -459,6 +461,13 @@ function OrderCard({ order, onOpen }) {
   const meta = statusMeta(order.status, colors);
   const next = NEXT_STEP[order.status];
   const isNew = stageOf(order.status) === 'placed';
+  /* A paid food request rides the wallet rail but is not a dish: it is already
+     paid for, so there is nothing to "accept" - the first step is cooking -
+     and it cannot be "rejected", only declined with a reason and a refund
+     (the order screen asks for the reason). */
+  const isReq = isRequestOrder(order);
+  const request = useRequestOf(order);
+  const actionLabel = isReq && order.status === 'confirmed' ? 'Start cooking' : meta.action;
   const count = order.items.reduce((s, it) => s + it.qty, 0);
 
   /* The code is what a cook reads to a rider or pastes into a message, so it
@@ -567,6 +576,8 @@ function OrderCard({ order, onOpen }) {
           ) : null}
         </View>
 
+        {isReq ? <FoodRequestTag style={{ marginTop: 10 }} /> : null}
+
         {/* ---- who, where, and the cook's share ---- */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 }}>
           <Image
@@ -647,6 +658,13 @@ function OrderCard({ order, onOpen }) {
           {order.items.map((it) => `${n(it.qty)}×  ${it.name}`).join(',  ')}
         </Text>
 
+        {isReq ? (
+          <View style={{ marginTop: 10, gap: 8 }}>
+            <RequestOrderFacts order={order} request={request} compact />
+            <WalletHeldLine order={order} />
+          </View>
+        ) : null}
+
         {/* Where this order stands on its way to done — the pill names the
             stage, the dots say how much of the road is behind it. */}
         {STEP_AT.menu[stageOf(order.status)] !== undefined ? (
@@ -677,7 +695,7 @@ function OrderCard({ order, onOpen }) {
           {isNew ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={t('Reject')}
+              accessibilityLabel={isReq ? t('Can’t make it') : t('Reject')}
               onPress={() => onOpen(order.id)}
               style={({ pressed }) => ({
                 flex: 1,
@@ -696,7 +714,7 @@ function OrderCard({ order, onOpen }) {
               <Text
                 style={{ fontFamily: font.uiBold, fontSize: type.sm, color: colors.primary }}
               >
-                {t('Reject')}
+                {isReq ? t('Can’t make it') : t('Reject')}
               </Text>
             </Pressable>
           ) : null}
@@ -710,7 +728,7 @@ function OrderCard({ order, onOpen }) {
             */}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t(meta.action)}
+            accessibilityLabel={t(actionLabel)}
             onPress={advance}
             style={({ pressed }) => ({
               flex: isNew ? 1.35 : 1,
@@ -725,7 +743,7 @@ function OrderCard({ order, onOpen }) {
           >
             <Icon name="check" size={15} color="#FFFFFF" strokeWidth={2.6} />
             <Text style={{ fontFamily: font.uiBold, fontSize: type.sm, color: '#FFFFFF' }}>
-              {t(meta.action)}
+              {t(actionLabel)}
             </Text>
           </Pressable>
         </View>

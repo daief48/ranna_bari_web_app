@@ -35,6 +35,9 @@ import { REQUEST_STATUS, isLiveOffer, standing, turnOf } from '../../src/lib/req
 import { distanceKm } from '../../src/lib/geo';
 import { addressFromAccount } from '../../src/lib/ledger';
 import { foldDigits } from '../../src/lib/format';
+import { useConfig } from '../../src/store/ConfigContext';
+import { walletRoute } from '../../src/lib/safePath';
+import { liveOrderFor, payTimeLeft, requestOrderStage } from '../../src/lib/requestOrderStatus';
 import { useLang } from '../../src/i18n/LanguageContext';
 import { useAlert } from '../../src/components/Alert';
 
@@ -46,6 +49,7 @@ export default function RequestScreen() {
   const router = useRouter();
   const { account } = useAuth();
   const shop = useCommerce();
+  const config = useConfig();
 
   /* The board carries the request; the offers on it are a second request,
      and which offers come back is the server's decision -- a customer reads
@@ -136,6 +140,17 @@ export default function RequestScreen() {
   const balance = shop.wallet.customer;
   const agreed = selected?.agreedPrice ?? null;
   const affordable = agreed != null && balance >= agreed;
+  const payLeft =
+    request.status === REQUEST_STATUS.AGREED
+      ? payTimeLeft(
+          request,
+          selected,
+          config?.requests?.payWindowHours ?? config?.requestPayWindowHours,
+        )
+      : null;
+  /* After payment the order is the truth, not the request's static status. */
+  const liveOrder = liveOrderFor(request, shop.orders);
+  const stage = requestOrderStage(request, liveOrder);
   const myTurn = selected ? turnOf(selected) === 'customer' : false;
 
   const choose = async (offer) => {
@@ -156,17 +171,41 @@ export default function RequestScreen() {
     alert.success(t('Agreed at ৳{n}. Pay to confirm.', { n: n(standing(selected).amount) }));
   };
 
+  /* Where to come back to after a detour to fix the wallet or the address. */
+  const back = `/requests/${request.id}`;
+  const deliverTo = addressFromAccount(account);
+
+  /* The one and only way to pay: from the RannaBari wallet, held in escrow.
+     There is no cash, card or pay-later path on this screen, and no order
+     exists until this succeeds. */
   const pay = async () => {
     setAsking(null);
     if (paying.current) return;
+    /* An order needs somewhere to go. The server would take an empty address
+       and the cook would be left guessing, so ask before any money moves. */
+    if (!deliverTo) {
+      router.push(`/addresses?next=${encodeURIComponent(back)}`);
+      return;
+    }
     paying.current = true;
     try {
       const out = await shop.payForRequest(request.id, {
         name: account?.name ?? '',
         phone: account?.phone ?? '',
-        address: addressFromAccount(account),
+        address: deliverTo,
       });
-      if (!out.ok) return alert.error(errorText(out.error, t, n, out));
+      if (!out.ok) {
+        /* The balance moved since this screen drew it (another order, a hold
+           elsewhere). The server says by how much; send them to cover exactly
+           that and bring them back here. */
+        if (out.error === 'wallet-low-balance') {
+          const short = Number(out.detail?.short ?? agreed - balance);
+          alert.error(errorText(out.error, t, n, { ...out, what: 'order' }));
+          router.push(walletRoute(short, back));
+          return;
+        }
+        return alert.error(errorText(out.error, t, n, out));
+      }
       router.replace(`/request-order/${out.result.id}`);
     } finally {
       paying.current = false;
@@ -308,7 +347,7 @@ export default function RequestScreen() {
         ) : null}
 
         {/* ================= negotiating ================= */}
-        {selected && request.status !== REQUEST_STATUS.ORDERED ? (
+        {selected && request.status !== REQUEST_STATUS.ORDERED && !request.orderId ? (
           <View style={{ marginTop: 26, gap: 16 }}>
             <Label text={t('Your cook')} />
             <OfferCard offer={selected} km={kmTo(selected)} selected />
@@ -434,7 +473,9 @@ export default function RequestScreen() {
                   </View>
                   <Pressable
                     accessibilityRole="link"
-                    onPress={() => router.push('/wallet')}
+                    onPress={() =>
+                      router.push(walletRoute(affordable ? 0 : agreed - balance, back))
+                    }
                     hitSlop={8}
                   >
                     <Text
@@ -449,16 +490,99 @@ export default function RequestScreen() {
                   </Pressable>
                 </View>
 
+                {/* Time left, when the server says when it was agreed: an
+                    unpaid agreement is reopened after a window, and a
+                    customer deserves to know the clock exists. */}
+                {payLeft ? (
+                  <Text
+                    style={{
+                      fontFamily: font.uiSemi,
+                      fontSize: type.xs + 1,
+                      color: payLeft.over ? colors.saffron : colors.textMuted,
+                    }}
+                  >
+                    {payLeft.over
+                      ? t('The time to pay has run out. This request may reopen to other offers.')
+                      : t('Pay within {h}h {m}m to keep this price.', {
+                          h: n(payLeft.hours),
+                          m: n(payLeft.minutes),
+                        })}
+                  </Text>
+                ) : (
+                  <Text
+                    style={{
+                      fontFamily: font.uiSemi,
+                      fontSize: type.xs + 1,
+                      color: colors.textMuted,
+                    }}
+                  >
+                    {t('Pay to confirm')}
+                  </Text>
+                )}
+
+                {/* Where it is going — an order needs an address before any
+                    money is held. */}
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: 14,
+                    borderRadius: radius.sm,
+                    backgroundColor: colors.surfaceSolid,
+                    borderWidth: 1,
+                    borderColor: deliverTo ? colors.line : colors.saffron100,
+                  }}
+                >
+                  <Icon name="pin" size={17} color={deliverTo ? colors.sage : colors.saffron} />
+                  <Text
+                    numberOfLines={2}
+                    style={{
+                      flex: 1,
+                      fontFamily: font.ui,
+                      fontSize: type.sm,
+                      color: deliverTo ? colors.text : colors.saffron,
+                    }}
+                  >
+                    {deliverTo
+                      ? [deliverTo.line, deliverTo.area].filter(Boolean).join(', ')
+                      : t('Add a delivery address to pay')}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="link"
+                    hitSlop={8}
+                    onPress={() => router.push(`/addresses?next=${encodeURIComponent(back)}`)}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: font.uiBold,
+                        fontSize: type.xs + 1,
+                        color: colors.primary,
+                      }}
+                    >
+                      {deliverTo ? t('Change') : t('Add')}
+                    </Text>
+                  </Pressable>
+                </View>
+
                 <Button
                   label={
-                    affordable
-                      ? t('Pay ৳{n}', { n: n(agreed) })
-                      : t('Top up to continue')
+                    !deliverTo
+                      ? t('Add address to continue')
+                      : affordable
+                        ? t('Pay ৳{n} from wallet', { n: n(agreed) })
+                        : t('Top up to continue')
                   }
                   icon="lock"
                   iconPosition="left"
                   block
-                  onPress={affordable ? () => setAsking('pay') : () => router.push('/wallet')}
+                  onPress={
+                    !deliverTo
+                      ? () => router.push(`/addresses?next=${encodeURIComponent(back)}`)
+                      : affordable
+                        ? () => setAsking('pay')
+                        : () => router.push(walletRoute(agreed - balance, back))
+                  }
                 />
                 <Text
                   style={{
@@ -469,7 +593,7 @@ export default function RequestScreen() {
                     color: colors.textLight,
                   }}
                 >
-                  {t('The cook is paid only after you confirm the food arrived.')}
+                  {t('Paid from your RannaBari wallet only. The cook is paid after you confirm the food arrived.')}
                 </Text>
               </View>
             ) : null}
@@ -477,13 +601,19 @@ export default function RequestScreen() {
         ) : null}
 
         {/* ================= ordered ================= */}
-        {request.status === REQUEST_STATUS.ORDERED ? (
+        {request.orderId && stage ? (
           <View style={{ marginTop: 26, gap: 14 }}>
             <Banner
-              tone="sage"
-              icon="shieldCheck"
-              title={t('Ordered at ৳{n}', { n: n(agreed ?? 0) })}
-              body={t('Track it, and confirm when the food arrives.')}
+              tone={stage.tone === 'sage' ? 'sage' : 'primary'}
+              icon={stage.stage === 'cancelled' ? 'x' : 'shieldCheck'}
+              title={t(stage.label)}
+              body={
+                stage.stage === 'cancelled'
+                  ? t('Your money is back in your wallet.')
+                  : t('Ordered at ৳{n}. Track it, and confirm when the food arrives.', {
+                      n: n(liveOrder?.amount ?? agreed ?? 0),
+                    })
+              }
             />
             <Button
               label={t('Track your order')}

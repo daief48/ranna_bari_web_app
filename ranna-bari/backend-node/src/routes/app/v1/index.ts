@@ -336,6 +336,8 @@ export async function appRoutes(app: FastifyInstance) {
         request: 1 - settings.commissionRequest,
       },
       escrow: { autoReleaseDays: settings.escrowAutoReleaseDays },
+      /* How long an agreed price waits for payment — the app's "pay within" clock. */
+      requests: { payWindowHours: settings.requestPayWindowHours },
       /* The caps the server enforces, so the app stops carrying its own
          copies — a cook hitting a limit should be told the server's number. */
       limits: { maxShops: STORES_PER_KITCHEN },

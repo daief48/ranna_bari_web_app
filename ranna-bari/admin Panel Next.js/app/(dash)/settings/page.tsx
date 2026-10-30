@@ -91,6 +91,7 @@ export default async function SettingsPage() {
     'escrowAutoReleaseDays',
     'stockAlarmDays',
     'requestExpiryDays',
+    'requestPayWindowHours',
   ];
 
   return (

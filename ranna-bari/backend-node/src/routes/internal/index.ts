@@ -5,6 +5,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { supportsTransactions } from '../../config/db.js';
 import { loadEnv } from '../../config/env.js';
 import { sweepEscrow } from '../../logic/orders.js';
+import { expireRequests, expireUnpaidAgreements } from '../../logic/requests.js';
 
 /**
  * Liveness, and the two things about this deployment that are easy to get
@@ -66,5 +67,24 @@ export async function internalRoutes(app: FastifyInstance) {
       return reply.status(401).send({ error: 'unauthenticated', message: 'Service token required.' });
     }
     return sweepEscrow();
+  });
+
+  /**
+   * The request sweeps, for a cron: requests past their date expire, and
+   * agreed prices nobody paid within `requestPayWindowHours` reopen. Both are
+   * also run lazily when the board is read; this is the guaranteed clock.
+   * Same service-token guard as the escrow sweep. Moves no money.
+   */
+  app.post('/api/internal/requests/sweep', async (request, reply) => {
+    const token = request.headers['x-service-token'];
+    if (!tokenMatches(typeof token === 'string' ? token : undefined, loadEnv().BACKEND_SERVICE_TOKEN)) {
+      return reply.status(401).send({ error: 'unauthenticated', message: 'Service token required.' });
+    }
+    const expired = await expireRequests();
+    const reopened = await expireUnpaidAgreements();
+    return {
+      expired: expired.ok ? expired.result.expired : 0,
+      reopened: reopened.ok ? reopened.result.reopened : 0,
+    };
   });
 }

@@ -21,13 +21,16 @@ import {
   ORDER_STEPS,
   awaitingConfirmation,
   cookBase,
+  isRequestOrder,
   payoutKindOf,
   payoutRateFor,
   stageOf,
   stepIndex,
 } from '../../../src/lib/orderRails';
 import { useLang } from '../../../src/i18n/LanguageContext';
-import { useAction } from '../../../src/components/Alert';
+import { useAction, useAlert } from '../../../src/components/Alert';
+import { FoodRequestTag, RequestOrderFacts, WalletHeldLine } from '../../../src/components/RequestOrderBits';
+import { useRequestOf } from '../../../src/features/requests/useRequestOf';
 import { withKitchenGate } from '../../../src/components/CookBits';
 
 /** The four reasons a kitchen actually turns an order down. */
@@ -36,6 +39,19 @@ const REJECT_REASONS = [
   'Too many orders in the pass right now',
   'The address is outside my delivery radius',
   'Closing for the day',
+];
+
+/**
+ * Why a cook can't make a paid food request. The customer has already paid
+ * and is refunded in full, so these are about the food and the date, not
+ * about a dish being off the menu. A reason is required: it is what the
+ * customer is told.
+ */
+const REQUEST_CANT_REASONS = [
+  'I do not have the ingredients for this',
+  'I cannot make it by the date wanted',
+  'Too many orders in the pass right now',
+  'The address is outside my delivery radius',
 ];
 
 /* Held behind the same approval gate as the tab group — see `withKitchenGate`. */
@@ -50,8 +66,13 @@ function CookOrderScreen() {
   const { t, n, lang } = useLang();
   /* Every write below reports what happened. */
   const run = useAction();
+  const alert = useAlert();
 
   const order = getOrder(String(id));
+  /* A paid food request: the request behind it (description, portions, wanted
+     date) and the way back to its thread. Hooks stay above the early return. */
+  const isReq = isRequestOrder(order);
+  const request = useRequestOf(order);
 
   if (!order) {
     return (
@@ -82,6 +103,37 @@ function CookOrderScreen() {
      status and history are folded onto them so it draws the same way. */
   const current = stepIndex(stageOf(order.status));
   const closed = order.status === 'cancelled' || order.status === 'rejected';
+  /* Who ended a closed order. A request order is cancelled by either side
+     (there is no "rejected" on a paid order), so the last history entry says
+     whose word it was. */
+  const lastStep = (order.history ?? [])[(order.history ?? []).length - 1];
+  const cancelledByCook = order.status === 'rejected' || lastStep?.by === 'cook';
+  const requestId = order.requestId ?? request?.id ?? null;
+  /* A paid request can be turned down until it is on its way (the server
+     refuses later); a dish only while it is still new. */
+  const canTurnDown = isReq
+    ? ['confirmed', 'preparing', 'ready'].includes(order.status)
+    : stageOf(order.status) === 'placed';
+  const reasons = isReq ? REQUEST_CANT_REASONS : REJECT_REASONS;
+  const actionLabel = isReq && order.status === 'confirmed' ? 'Start cooking' : meta.action;
+
+  /* Declining a paid request refunds real money and cancels the request, so
+     the reason pick is followed by a plain-words confirmation. */
+  const turnDown = (reason) => {
+    setRejecting(false);
+    if (!isReq) {
+      run(() => rejectOrder(order.id, reason), t('Order rejected.'));
+      return;
+    }
+    alert.confirm({
+      title: t('Can’t make this request?'),
+      body: t('The customer is refunded to their wallet and the request is cancelled.'),
+      confirmLabel: t('Yes, cancel and refund'),
+      danger: true,
+      onConfirm: () =>
+        run(() => rejectOrder(order.id, reason), t('Cancelled. The customer was refunded.')),
+    });
+  };
   const stamps = Object.fromEntries(
     (order.history ?? []).map((h) => [stageOf(h.status), h.at]),
   );
@@ -131,6 +183,7 @@ function CookOrderScreen() {
             }}
           >
             <StatusPill status={order.status} />
+            {isReq ? <FoodRequestTag /> : null}
             <Text
               style={{ fontFamily: font.ui, fontSize: type.xs, color: colors.textMuted }}
             >
@@ -372,6 +425,43 @@ function CookOrderScreen() {
           </View>
         </Reveal>
 
+        {/* ---- The food request behind this order ----
+            What was asked for, at what price, and that the money is already
+            held - plus the way back to the thread where it was agreed. */}
+        {isReq ? (
+          <Reveal delay={3}>
+            <View style={{ marginTop: 28 }}>
+              <RowHeading icon="chat" title={t('Food request')} />
+              <View
+                style={[
+                  {
+                    gap: 12,
+                    padding: 16,
+                    borderRadius: radius.lg,
+                    backgroundColor: colors.surfaceSolid,
+                    borderWidth: 1,
+                    borderColor: colors.line,
+                  },
+                  shadow.sm,
+                ]}
+              >
+                <RequestOrderFacts order={order} request={request} />
+                <WalletHeldLine order={order} />
+                {requestId ? (
+                  <Button
+                    small
+                    variant="glass"
+                    icon="chat"
+                    iconPosition="left"
+                    label={t('Open the request thread')}
+                    onPress={() => router.push(`/cook/requests/${requestId}`)}
+                  />
+                ) : null}
+              </View>
+            </View>
+          </Reveal>
+        ) : null}
+
         {/* ---- The ticket ---- */}
         <Reveal delay={3}>
           <View style={{ marginTop: 28 }}>
@@ -546,8 +636,10 @@ function CookOrderScreen() {
                       color: colors.text,
                     }}
                   >
-                    {order.status === 'rejected'
-                      ? t('You turned this order down')
+                    {cancelledByCook
+                      ? isReq
+                        ? t('You cancelled this request — the customer was refunded')
+                        : t('You turned this order down')
                       : t('The customer cancelled this order')}
                   </Text>
                   {order.rejectReason ? (
@@ -649,7 +741,7 @@ function CookOrderScreen() {
         {next ? (
           <View style={{ marginTop: 12, gap: 12 }}>
             <Button
-              label={t(meta.action)}
+              label={t(actionLabel)}
               icon="arrowRight"
               block
               onPress={() => {
@@ -658,7 +750,7 @@ function CookOrderScreen() {
               }}
             />
 
-            {stageOf(order.status) === 'placed' ? (
+            {canTurnDown ? (
               rejecting ? (
                 <View
                   style={{
@@ -677,20 +769,19 @@ function CookOrderScreen() {
                       color: colors.text,
                     }}
                   >
-                    {t('Why are you turning this down?')}
+                    {isReq ? t('Why can’t you make it?') : t('Why are you turning this down?')}
                   </Text>
                   <Body muted size={13}>
-                    {t('The customer sees your reason, so pick the true one.')}
+                    {isReq
+                      ? t('The customer sees your reason and is refunded, so pick the true one.')
+                      : t('The customer sees your reason, so pick the true one.')}
                   </Body>
 
-                  {REJECT_REASONS.map((reason) => (
+                  {reasons.map((reason) => (
                     <Pressable
                       key={reason}
                       accessibilityRole="button"
-                      onPress={() => {
-                        run(() => rejectOrder(order.id, reason), t('Order rejected.'));
-                        setRejecting(false);
-                      }}
+                      onPress={() => turnDown(reason)}
                       style={({ pressed }) => ({
                         flexDirection: 'row',
                         alignItems: 'center',
@@ -729,7 +820,7 @@ function CookOrderScreen() {
               ) : (
                 <Button
                   variant="glass"
-                  label={t('Reject this order')}
+                  label={isReq ? t('Can’t make it') : t('Reject this order')}
                   icon="x"
                   iconPosition="left"
                   block

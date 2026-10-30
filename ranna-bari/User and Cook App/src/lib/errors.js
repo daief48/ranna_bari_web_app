@@ -98,6 +98,11 @@ export function errorText(error, t, n, extra = {}) {
          screens pass `out` whole as `extra`. Reading only `extra.short`
          meant the sentence said "top up ৳0" on every real refusal. The flat
          field is still honoured for the callers that pass it that way. */
+      if (extra.what === 'order') {
+        return t('Your wallet is ৳{n} short. Top up to pay for this order.', {
+          n: n(extra.short ?? extra.detail?.short ?? 0),
+        });
+      }
       return t('Insufficient balance. Top up ৳{n} to confirm this meal.', {
         n: n(extra.short ?? extra.detail?.short ?? 0),
       });
@@ -197,7 +202,24 @@ export function errorText(error, t, n, extra = {}) {
     case 'offer-not-your-turn':
       return t('It is the other side’s turn.');
     case 'offer-not-agreed':
+    case 'not-agreed':
+    case 'request-not-agreed':
       return t('Agree a price first.');
+    /* The paying step's own refusals: the world moved between "agreed" and
+       "paid". Each says what happened and what to do, because the money is
+       the one thing the customer must never be left guessing about. */
+    case 'request-not-payable':
+    case 'request-expired':
+      return t('This request is no longer waiting for payment. Open it again to see where it stands.');
+    case 'request-already-paid':
+    case 'already-paid':
+      return t('This request has already been paid for. Check your orders.');
+    case 'kitchen-not-trading':
+    case 'kitchen-closed':
+    case 'kitchen-not-approved':
+      return t('This kitchen cannot take orders right now. You have not been charged.');
+    case 'address-required':
+      return t('Add a delivery address before paying.');
 
     /* ---- the cook's door ----
        Each of these routes the cook somewhere specific — back to the form,

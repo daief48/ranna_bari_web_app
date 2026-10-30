@@ -47,7 +47,7 @@ import {
   MEAL_NEXT,
   awaitingConfirmation,
   isClosed,
-  isKitchenOrder,
+  isDishOrder,
   stageOf,
 } from '../../../src/lib/orderRails';
 import { useCommerce } from '../../../src/store/CommerceContext';
@@ -96,6 +96,42 @@ const LANES = [
   { key: 'history', label: 'History', match: (o) => isClosed(o) },
 ];
 
+/**
+ * Sort one list of orders into the four lanes, and add up what each is worth.
+ *
+ * The Menu board and the Requests tab's Orders view cut their orders with
+ * exactly this, so a paid request moves New -> Cooking -> Delivering ->
+ * History by the same rules (`LANES`) a dish does, and the two can never
+ * disagree about what "delivering" means. The lanes are disjoint by status,
+ * so one walk files every order; the sorts happen once - oldest first for the
+ * work lanes (the longest wait is the one going cold), newest first for
+ * history.
+ */
+function bucketLanes(list, rates) {
+  const rows = { new: [], cooking: [], delivering: [], history: [] };
+  const money = { new: 0, cooking: 0, delivering: 0, history: 0 };
+  for (const o of list) {
+    const lane = LANES.find((l) => l.match(o));
+    if (!lane) continue;
+    rows[lane.key].push(o);
+    money[lane.key] += cookPayout(o, rates);
+  }
+  for (const key of ['new', 'cooking', 'delivering']) {
+    rows[key].sort((a, b) => stampOf(a) - stampOf(b));
+  }
+  rows.history.sort((a, b) => stampOf(b) - stampOf(a));
+  return {
+    rows,
+    money,
+    counts: {
+      new: rows.new.length,
+      cooking: rows.cooking.length,
+      delivering: rows.delivering.length,
+      history: rows.history.length,
+    },
+  };
+}
+
 /* A card's age, read once. The lanes sort by it, and `new Date(createdAt)` inside
    a comparator parses the same string over and over — n·log n times per sort,
    on every change to the board. An order is replaced rather than mutated, so a
@@ -125,8 +161,10 @@ const KINDS = [
   { key: 'menu', label: 'Menu', icon: 'receipt' },
   { key: 'shop', label: 'Shop', icon: 'box' },
   { key: 'meals', label: 'Meals', icon: 'pot' },
-  /* Bids still being agreed -- NOT request orders. Once the customer picks the
-     cook and pays, the request becomes an ordinary order in the Menu lanes. */
+  /* The whole life of a food request: Offers (bidding, negotiating, agreed and
+     waiting for the customer's payment) and Orders (the paid request orders,
+     worked in the same lanes as the Menu board). Paid request orders are NOT
+     Menu orders -- they never appear in the Menu lanes or its counts. */
   { key: 'requests', label: 'Requests', icon: 'chat' },
 ];
 
@@ -154,6 +192,9 @@ export default function CookOrders() {
   /* `?tab=requests` (Profile row, Dashboard tile) lands on that kind. */
   const { tab: tabParam } = useLocalSearchParams();
   const tabKind = KINDS.some((k) => k.key === tabParam) ? tabParam : null;
+  /* `?tab=requests&view=orders` lands on the paid request orders. */
+  const { view: viewRaw } = useLocalSearchParams();
+  const viewParam = viewRaw === 'orders' || viewRaw === 'offers' ? viewRaw : null;
   const [kind, setKind] = useState(tabKind);
   const [shopFilter, setShopFilter] = useState('all');
   const [mealDate, setMealDate] = useState(todayKey());
@@ -177,8 +218,9 @@ export default function CookOrders() {
   useEffect(() => {
     if (!tabKind) return;
     setKind(tabKind);
-    router.setParams({ tab: undefined });
-  }, [tabKind, router]);
+    if (viewParam) setReqView(viewParam);
+    router.setParams({ tab: undefined, view: undefined });
+  }, [tabKind, viewParam, router]);
   const [newCount, setNewCount] = useState(0);
 
   /* ---- menu ----
@@ -188,13 +230,14 @@ export default function CookOrders() {
      was being re-sorted and re-counted on each tap, each poll, each keystroke
      in the history search.
 
-     Kitchen orders only — dishes and won requests. Every order a kitchen is on
+     Dish orders only — paid request orders have their own home on the
+     Requests tab. Every order a kitchen is on
      travels on the same `kitchenId`, so without this a shop parcel or a meal
      plate (both `confirmed` when they arrive) landed in the Menu's New lane
      wearing an Accept button, next to its own card on the Shop or Meals tab.
      Each kind has one tab, and this is the Menu's. */
   const mine = useMemo(
-    () => ordersForKitchen(kitchenId).filter(isKitchenOrder),
+    () => ordersForKitchen(kitchenId).filter(isDishOrder),
     [ordersForKitchen, kitchenId],
   );
 
@@ -205,30 +248,7 @@ export default function CookOrders() {
      what the lane is worth, and the sorts happen once — oldest first for the
      work lanes (the longest wait is the one going cold), newest first for
      history. */
-  const lanes = useMemo(() => {
-    const rows = { new: [], cooking: [], delivering: [], history: [] };
-    const money = { new: 0, cooking: 0, delivering: 0, history: 0 };
-    for (const o of mine) {
-      const lane = LANES.find((l) => l.match(o));
-      if (!lane) continue;
-      rows[lane.key].push(o);
-      money[lane.key] += cookPayout(o, payoutRates);
-    }
-    for (const key of ['new', 'cooking', 'delivering']) {
-      rows[key].sort((a, b) => stampOf(a) - stampOf(b));
-    }
-    rows.history.sort((a, b) => stampOf(b) - stampOf(a));
-    return {
-      rows,
-      money,
-      counts: {
-        new: rows.new.length,
-        cooking: rows.cooking.length,
-        delivering: rows.delivering.length,
-        history: rows.history.length,
-      },
-    };
-  }, [mine, payoutRates]);
+  const lanes = useMemo(() => bucketLanes(mine, payoutRates), [mine, payoutRates]);
   const counts = lanes.counts;
 
   /* ---- requests ----
@@ -237,6 +257,41 @@ export default function CookOrders() {
   const reqActions = useCookRequestActions();
   const reqRows = useCookRequestRows(reqActions.overrides);
   const reqNeeds = reqRows.counts.needsYou;
+  /* The sub-tabs inside Requests. "Offers" is everything before the money is
+     held; "Orders" is everything after. A tap pins the choice; until then it
+     opens on whichever half has something waiting on the cook. */
+  const [reqView, setReqView] = useState(viewParam);
+  const [reqLane, setReqLane] = useState(null);
+  const reqOrders = reqRows.orders;
+  const reqLanes = useMemo(() => bucketLanes(reqOrders, payoutRates), [reqOrders, payoutRates]);
+  const reqById = useMemo(() => new Map(reqOrders.map((o) => [String(o.id), o])), [reqOrders]);
+  const shownReqView =
+    reqView ??
+    (reqRows.counts.offersNeedYou === 0 &&
+    (reqRows.counts.paidNew > 0 || reqLanes.counts.cooking + reqLanes.counts.delivering > 0)
+      ? 'orders'
+      : 'offers');
+  const shownReqLane =
+    reqLane ?? (LANES.find((l) => l.key !== 'history' && reqLanes.counts[l.key] > 0)?.key ?? 'new');
+  const [reqHistoryLimit, setReqHistoryLimit] = useState(30);
+  const reqLaneRows = useMemo(
+    () =>
+      shownReqLane === 'history'
+        ? reqLanes.rows.history.slice(0, reqHistoryLimit)
+        : reqLanes.rows[shownReqLane],
+    [reqLanes, shownReqLane, reqHistoryLimit],
+  );
+  /* A paid request that moves lane leaves a note where it was, exactly as a
+     dish does. */
+  const reqOrderList = useLingering(
+    reqLaneRows,
+    (id) => reqById.get(id),
+    `reqorders:${shownReqLane}`,
+  );
+  const showReqOrder = useCallback((order) => {
+    const lane = LANES.find((l) => l.match(order));
+    if (lane) setReqLane(lane.key);
+  }, []);
   const openRequest = useCallback((request) => router.push(`/cook/requests/${request.id}`), [router]);
 
   /* Every order by id, for "where did that card go" — see `useLingering`. */
@@ -514,6 +569,26 @@ export default function CookOrders() {
     [shopStats],
   );
 
+  const reqOfferTotal =
+    reqRows.open.length + reqRows.mine.length + reqRows.agreed.length + reqRows.done.length;
+  const reqViewItems = useMemo(
+    () => [
+      { key: 'offers', label: 'Offers', count: reqRows.counts.offersNeedYou },
+      { key: 'orders', label: 'Orders', count: reqRows.counts.paidNew },
+    ],
+    [reqRows.counts.offersNeedYou, reqRows.counts.paidNew],
+  );
+  const reqLaneItems = useMemo(
+    () =>
+      LANES.map((l) => ({
+        key: l.key,
+        label: l.label,
+        count: reqLanes.counts[l.key],
+        badgeless: l.key === 'history',
+      })),
+    [reqLanes],
+  );
+
   const laneItems = useMemo(
     () =>
       LANES.map((l) => ({
@@ -570,7 +645,7 @@ export default function CookOrders() {
   const subtitle =
     shownKind === 'requests'
       ? reqNeeds
-        ? t('{n} requests need your answer.', { n: n(reqNeeds) })
+        ? t('{n} requests need you — answer a price or start cooking.', { n: n(reqNeeds) })
         : t('Nothing is waiting on you.')
       : shownKind === 'menu'
       ? counts.new
@@ -746,6 +821,12 @@ export default function CookOrders() {
           </View>
         ) : null}
 
+        {shownKind === 'requests' ? (
+          <View style={{ marginTop: 12 }}>
+            <Segmented items={reqViewItems} value={shownReqView} onChange={setReqView} />
+          </View>
+        ) : null}
+
         {shownKind === 'shop' ? (
           <View style={{ marginTop: 12 }}>
             <Segmented
@@ -848,41 +929,98 @@ export default function CookOrders() {
         ) : null}
 
         {/* ---- requests ----
-            Bids still being agreed. Answered here; the haggling itself stays
-            on the request's own screen. */}
+            The whole life of a food request in one place: Offers (bidding,
+            negotiating, agreed and waiting for payment) and Orders (paid
+            request orders, same lanes and the same one-tap advance as the
+            Menu board). The haggling itself stays on the request's screen. */}
         {shownKind === 'requests' ? (
           <View style={{ gap: 4 }}>
-            <Text
-              style={{
-                fontFamily: font.ui,
-                fontSize: type.xs,
-                lineHeight: type.xs * 1.6,
-                color: colors.textMuted,
-              }}
-            >
-              {t('Once the customer picks you and pays, it moves to your Menu orders.')}
-            </Text>
-            {!reqRows.ready ? (
-              <EmptyState icon="clock" title={t('Loading requests…')} body="" />
-            ) : reqRows.failed && !(reqRows.open.length + reqRows.mine.length + reqRows.done.length) ? (
-              <View style={{ gap: 12, marginTop: 12 }}>
-                <EmptyState
-                  icon="alertCircle"
-                  title={t('Could not load requests')}
-                  body={t('Check your connection and try again.')}
-                />
-                <Button label={t('Try again')} icon="arrowRight" block onPress={reqRows.retry} />
-              </View>
-            ) : reqRows.open.length + reqRows.mine.length + reqRows.done.length ? (
-              <CookRequestsBoard rows={reqRows} onOpen={openRequest} actions={reqActions} />
-            ) : (
-              <EmptyState
-                icon="sparkles"
-                title={t('Nothing asked for yet')}
-                body={t(
-                  'When somebody near you wants something they cannot find, it lands here and you can name your price.',
+            {shownReqView === 'offers' ? (
+              <>
+                <Text
+                  style={{
+                    fontFamily: font.ui,
+                    fontSize: type.xs,
+                    lineHeight: type.xs * 1.6,
+                    color: colors.textMuted,
+                  }}
+                >
+                  {t('Once the customer agrees a price and pays from their wallet, it moves to Orders here.')}
+                </Text>
+                {!reqRows.ready ? (
+                  <EmptyState icon="clock" title={t('Loading requests…')} body="" />
+                ) : reqRows.failed && !reqOfferTotal ? (
+                  <View style={{ gap: 12, marginTop: 12 }}>
+                    <EmptyState
+                      icon="alertCircle"
+                      title={t('Could not load requests')}
+                      body={t('Check your connection and try again.')}
+                    />
+                    <Button label={t('Try again')} icon="arrowRight" block onPress={reqRows.retry} />
+                  </View>
+                ) : reqOfferTotal ? (
+                  <CookRequestsBoard rows={reqRows} onOpen={openRequest} actions={reqActions} />
+                ) : (
+                  <EmptyState
+                    icon="sparkles"
+                    title={t('Nothing asked for yet')}
+                    body={t(
+                      'When somebody near you wants something they cannot find, it lands here and you can name your price.',
+                    )}
+                  />
                 )}
-              />
+              </>
+            ) : (
+              <>
+                <Segmented items={reqLaneItems} value={shownReqLane} onChange={setReqLane} />
+                <Text
+                  style={{
+                    marginTop: 4,
+                    marginBottom: 8,
+                    fontFamily: font.uiSemi,
+                    fontSize: type.xs,
+                    color: colors.textMuted,
+                  }}
+                >
+                  {t('This lane is worth ৳{n} to you.', { n: n(reqLanes.money[shownReqLane]) })}
+                </Text>
+                {reqOrderList.length ? (
+                  <View style={{ gap: 12 }}>
+                    {reqOrderList.map((row) =>
+                      row.ghost ? (
+                        <MovedNote
+                          key={`moved:${row.id}`}
+                          order={row.order}
+                          onShow={() => showReqOrder(row.order)}
+                        />
+                      ) : (
+                        <MemoOrderCard key={row.id} order={row.order} onOpen={openOrder} />
+                      ),
+                    )}
+                    {shownReqLane === 'history' && reqLanes.counts.history > reqHistoryLimit ? (
+                      <Button
+                        variant="glass"
+                        block
+                        icon="chevronDown"
+                        label={t('Show 30 more')}
+                        onPress={() => setReqHistoryLimit((l) => l + 30)}
+                      />
+                    ) : null}
+                  </View>
+                ) : !shop.ordersReady && !reqOrders.length ? (
+                  <EmptyState icon="clock" title={t('Loading orders…')} body="" />
+                ) : (
+                  <EmptyState
+                    icon="pot"
+                    title={reqOrders.length ? t('Nothing in this lane') : t('No paid request orders yet')}
+                    body={
+                      reqOrders.length
+                        ? t('Try another lane.')
+                        : t('When a customer pays for a request you agreed, it lands here.')
+                    }
+                  />
+                )}
+              </>
             )}
           </View>
         ) : null}

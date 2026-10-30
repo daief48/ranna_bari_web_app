@@ -26,6 +26,11 @@ const DEFAULTS = {
   fees: { deliveryFee: 40, platformFee: 10 },
   payoutRates: { cod: 0.85, meal: 0.85, store: 0.85, request: 0.80 },
   escrow: { autoReleaseDays: 3 },
+  /* How long an AGREED food request waits for payment before the server
+     reopens it (`requestPayWindowHours`). null = the server has not said, in
+     which case the app shows a plain "Pay to confirm" rather than guessing a
+     countdown. */
+  requests: { payWindowHours: null },
   areas: [],
   zoneFees: {},
   taxonomy: [],

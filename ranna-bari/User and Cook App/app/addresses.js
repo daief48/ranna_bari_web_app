@@ -14,7 +14,7 @@
  */
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import Screen, { Container } from '../src/components/Screen';
@@ -32,6 +32,7 @@ import { useAuth } from '../src/store/AuthContext';
 import { useSession } from '../src/store/SessionContext';
 import { useLang } from '../src/i18n/LanguageContext';
 import { useAlert } from '../src/components/Alert';
+import { safeNext } from '../src/lib/safePath';
 import { DIVISION_NAMES, districtNamesOf } from '../src/lib/bd-areas';
 
 /** The three a person actually has. Anything else they can type. */
@@ -41,6 +42,10 @@ export default function Addresses() {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
   const router = useRouter();
+  /* A screen that needs an address (paying for a food request) sends the
+     customer here with `?next=` and expects them back once one is saved or
+     chosen. Validated: it is a URL parameter. */
+  const next = safeNext(useLocalSearchParams().next);
   const alert = useAlert();
   const { isSignedIn } = useAuth();
   const { addresses, saveAddress, selectAddress, removeAddress } = useSession();
@@ -79,6 +84,7 @@ export default function Addresses() {
           }
           setEditing(null);
           alert.success(t('Address saved.'));
+          if (next) router.replace(next);
         }}
         busy={busy}
       />
@@ -91,6 +97,7 @@ export default function Addresses() {
     const out = await selectAddress(entry.id);
     if (!out.ok) return alert.error(errorText(out.error, t, n, out));
     alert.success(t('Delivering to {label} from now on.', { label: t(entry.label) }));
+    if (next) router.replace(next);
   };
 
   const forget = async (entry) => {

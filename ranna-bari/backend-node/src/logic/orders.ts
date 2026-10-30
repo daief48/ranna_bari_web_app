@@ -1,6 +1,6 @@
 import type { ClientSession } from 'mongoose';
 
-import { Order, Product } from '../models/index.js';
+import { Order, Product, Request } from '../models/index.js';
 import { tx } from '../config/db.js';
 import { ERR, fail, isFinished, nextStatus, ok, type Result } from '../lib/domain.js';
 import { makeCode, taka } from '../lib/format.js';
@@ -393,6 +393,18 @@ export async function cancelOrder(args: {
 
     await restock(session, order);
 
+    /* A paid request is over when its order is. Left on `ordered` the
+       request would read as live work for ever, and `orderId` stays so the
+       thread still links to the cancelled order. The refund above is already
+       in this transaction, so the two cannot disagree. */
+    if (order.kind === 'request' && order.requestId) {
+      await Request.updateOne(
+        { _id: order.requestId, status: 'ordered' },
+        { $set: { status: 'cancelled' } },
+        { session },
+      ).catch(() => null);
+    }
+
     /* A month is not cancelled because one Tuesday was — the booking only
        closes when every meal on it has, which is what this decides. */
     if (order.bookingId) await syncBookingStatus(session, order.bookingId);
@@ -410,6 +422,7 @@ export async function cancelOrder(args: {
       customerKey: tell === 'customer' ? order.customerKey : null,
       kitchenId: tell === 'cook' ? order.kitchenId : null,
       mealId: order.mealId,
+      requestId: order.requestId ?? null,
       orderId,
     });
 
@@ -430,6 +443,7 @@ export async function cancelOrder(args: {
         customerKey: actor === 'customer' ? order.customerKey : null,
         kitchenId: actor === 'cook' ? order.kitchenId : null,
         mealId: order.mealId,
+        requestId: order.requestId ?? null,
         orderId,
       });
     }

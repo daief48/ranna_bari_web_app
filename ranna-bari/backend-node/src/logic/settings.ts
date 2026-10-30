@@ -28,6 +28,8 @@ export type PlatformSettings = {
   stockAlarmDays: number;
   /** Days past the wanted-for date before an unpaid request expires. */
   requestExpiryDays: number;
+  /** Hours an agreed price waits for payment before the request reopens. */
+  requestPayWindowHours: number;
   /** Below this, a payout run carries a cook to the next run. */
   payoutMinimum: number;
 };
@@ -45,12 +47,13 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   escrowAutoReleaseDays: 3,
   stockAlarmDays: 3,
   requestExpiryDays: 1,
+  requestPayWindowHours: 24,
   payoutMinimum: 100,
 };
 
 export const SETTING_META: Record<
   keyof PlatformSettings,
-  { label: string; help: string; kind: 'money' | 'rate' | 'days' }
+  { label: string; help: string; kind: 'money' | 'rate' | 'days' | 'hours' }
 > = {
   deliveryFee: {
     label: 'Delivery fee',
@@ -97,6 +100,11 @@ export const SETTING_META: Record<
     help: 'Days past the wanted-for date before an unpaid request expires.',
     kind: 'days',
   },
+  requestPayWindowHours: {
+    label: 'Request payment window',
+    help: 'Hours an agreed price waits for the customer to pay before the request reopens.',
+    kind: 'hours',
+  },
   payoutMinimum: {
     label: 'Payout minimum',
     help: 'A cook owed less than this is carried to the next run.',
@@ -129,6 +137,9 @@ export async function getSettings(): Promise<PlatformSettings> {
   cache = { at: Date.now(), value };
   return value;
 }
+
+/** The last settings read, or the defaults — for sync shapers that cannot await. */
+export const peekSettings = (): PlatformSettings => cache?.value ?? DEFAULT_SETTINGS;
 
 export function invalidateSettings() {
   cache = null;

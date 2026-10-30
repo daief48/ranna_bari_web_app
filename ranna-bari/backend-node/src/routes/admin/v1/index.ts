@@ -1791,6 +1791,7 @@ export async function adminRoutes(app: FastifyInstance) {
     escrowAutoReleaseDays: { min: 0, max: 30, integer: true },
     stockAlarmDays: { min: 0, max: 365, integer: true },
     requestExpiryDays: { min: 0, max: 30, integer: true },
+    requestPayWindowHours: { min: 1, max: 168, integer: true },
     payoutMinimum: { min: 0, max: Number.MAX_SAFE_INTEGER, integer: true },
   };
 

@@ -899,6 +899,8 @@ const requestSchema = new Schema(
     status: { type: String, default: 'open', index: true },
     selectedOfferId: { type: String, default: null },
     orderId: { type: String, default: null },
+    /** When the current price was agreed; the app counts the pay window from it. */
+    agreedAt: { type: Date, default: null },
   },
   opts,
 );
@@ -914,6 +916,8 @@ const offerSchema = new Schema(
 
     price: { type: Number, default: null },
     agreedPrice: { type: Number, default: null },
+    /** When both sides agreed — the clock the unpaid-agreement sweep reads. */
+    agreedAt: { type: Date, default: null },
     note: { type: String, default: '' },
     prepTime: { type: String, default: '' },
 
@@ -940,6 +944,8 @@ export const Offer = model('Offer', offerSchema);
 
 const orderSchema = new Schema(
   {
+    /** How many of the thing a request order is for (copied from the request). */
+    quantity: { type: Number, default: 1 },
     /** The app's own code, `RB-XXXXXX`. Its natural idempotency key. */
     code: { type: String, required: true, unique: true },
     /**

@@ -13,6 +13,7 @@ import CookScreen from '../../../src/components/CookScreen';
 import { Container } from '../../../src/components/Screen';
 import Icon from '../../../src/components/Icon';
 import SectionHeader from '../../../src/components/SectionHeader';
+import Button from '../../../src/components/Button';
 import { EmptyState } from '../../../src/components/MealBits';
 import CookRequestsBoard from '../../../src/components/CookRequestsBoard';
 import { useTheme } from '../../../src/theme/ThemeProvider';
@@ -32,7 +33,7 @@ function CookRequests() {
   /* The grouping rules live in one place -- the Orders tab and the badges read the same hook. */
   const rows = useCookRequestRows();
 
-  const total = rows.open.length + rows.mine.length + rows.done.length;
+  const total = rows.open.length + rows.mine.length + rows.agreed.length + rows.done.length;
 
   return (
     <CookScreen>
@@ -74,7 +75,35 @@ function CookRequests() {
           }
         />
 
+        {/* Paid request orders are cooked from the Orders tab (same lanes as the
+            Menu board); this board is the bidding half of the lifecycle. */}
+        {rows.orders.length ? (
+          <Button
+            variant="glass"
+            block
+            icon="receipt"
+            label={t('{n} paid request orders — open them', { n: n(rows.orders.length) })}
+            onPress={() => router.push('/cook/orders?tab=requests&view=orders')}
+            style={{ marginBottom: 4 }}
+          />
+        ) : null}
+
         <CookRequestsBoard rows={rows} onOpen={(request) => router.push(`/cook/requests/${request.id}`)} />
+
+        {!rows.ready && !total ? (
+          <EmptyState icon="clock" title={t('Loading requests…')} body="" />
+        ) : null}
+
+        {rows.failed && !total ? (
+          <>
+            <EmptyState
+              icon="alertCircle"
+              title={t('Could not load requests')}
+              body={t('Check your connection and try again.')}
+            />
+            <Button label={t('Try again')} icon="arrowRight" block onPress={rows.retry} />
+          </>
+        ) : null}
 
         {!total && rows.ready && !rows.failed ? (
           <EmptyState

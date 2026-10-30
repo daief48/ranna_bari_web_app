@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RannaBari — Facebook ad</title>
+<!-- One source, two formats. Default = 1080x1350 (4:5 feed). Add ?sq for 1080x1080 (1:1).
+     Render at deviceScaleFactor 2. Phone screens are real captures (app-screenshots/). -->
+<style>
+@font-face { font-family: 'Fraunces'; font-weight: 900; src: url(fonts/Fraunces_900Black.ttf); }
+@font-face { font-family: 'Inter'; font-weight: 600; src: url(fonts/Inter_600SemiBold.ttf); }
+@font-face { font-family: 'Inter'; font-weight: 700; src: url(fonts/Inter_700Bold.ttf); }
+@font-face { font-family: 'Bangla'; font-weight: 600; src: url(fonts/NotoSansBengali_600SemiBold.ttf); }
+@font-face { font-family: 'Bangla'; font-weight: 700; src: url(fonts/NotoSansBengali_700Bold.ttf); }
+
+:root { --cream: #fff6e8; --amber: #ffc95c; --ink: #2a120a; --W: 1080px; --H: 1350px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: var(--W); height: var(--H); overflow: hidden; }
+body { position: relative; font-family: 'Inter', sans-serif; color: var(--cream);
+  background:
+    radial-gradient(700px 520px at 100% 0%, rgba(255,201,92,.38), transparent 70%),
+    radial-gradient(800px 600px at 0% 100%, rgba(120,20,5,.55), transparent 70%),
+    linear-gradient(165deg, #e2502d 0%, #c0391b 45%, #8f2410 100%); }
+.abs { position: absolute; }
+
+/* soft ring pattern, echoing a plate seen from above */
+.ring { border-radius: 50%; border: 2px solid rgba(255,246,232,.14); }
+
+.brand { left: 64px; top: 56px; display: flex; align-items: center; gap: 16px; }
+.brand img { width: 64px; height: 64px; border-radius: 18px; box-shadow: 0 10px 26px rgba(0,0,0,.3); }
+.brand b { font: 900 42px 'Fraunces', serif; letter-spacing: -.5px; }
+.brand b i { font-style: normal; color: var(--amber); }
+
+.tag { right: 64px; top: 64px; padding: 10px 20px; border-radius: 99px; background: rgba(255,246,232,.16);
+  border: 1.5px solid rgba(255,246,232,.4); font: 700 17px 'Bangla', 'Inter'; backdrop-filter: blur(6px); }
+
+h1 { left: 64px; top: 176px; width: 952px; font: 900 92px/0.98 'Fraunces', serif; letter-spacing: -2.5px; }
+h1 span { color: var(--amber); display: block; }
+.bn { left: 64px; top: 396px; font: 700 38px/1.3 'Bangla', sans-serif; color: var(--cream); opacity: .94; }
+
+.phone { position: absolute; width: 410px; padding: 9px; border-radius: 52px; background: #1a0f0b;
+  box-shadow: 0 50px 80px -10px rgba(40,5,0,.65), 0 0 0 2px #5a3a2e inset; }
+.phone img { display: block; width: 100%; aspect-ratio: 390/844; object-fit: cover; border-radius: 43px; }
+.p1 { left: 120px; top: 560px; transform: rotate(-7deg); }
+.p2 { left: 520px; top: 600px; transform: rotate(6deg); }
+
+.badge { position: absolute; display: flex; align-items: center; gap: 12px; padding: 14px 22px 14px 16px; border-radius: 20px;
+  background: var(--cream); color: var(--ink); font: 700 22px 'Inter'; box-shadow: 0 18px 36px -8px rgba(40,5,0,.5); }
+.badge svg { width: 34px; height: 34px; padding: 6px; border-radius: 10px; background: #c0391b; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.b1 { left: 64px; top: 474px; transform: rotate(-2deg); }
+.b2 { right: 64px; top: 474px; transform: rotate(2deg); }
+
+.fade { left: 0; right: 0; bottom: 0; height: 330px; background: linear-gradient(180deg, transparent, rgba(110,22,8,.92) 70%); }
+.cta { left: 64px; right: 64px; bottom: 56px; height: 104px; border-radius: 30px; background: var(--cream); color: #b02f13;
+  display: flex; align-items: center; justify-content: center; gap: 18px; font: 900 40px 'Fraunces', serif; letter-spacing: -.5px;
+  box-shadow: 0 22px 44px -10px rgba(0,0,0,.5); }
+.cta small { font: 700 28px 'Bangla'; color: var(--ink); opacity: .75; letter-spacing: 0; }
+.cta svg { width: 40px; height: 40px; stroke: #b02f13; fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+
+.note { left: 64px; bottom: 18px; font: 600 13px 'Inter'; opacity: .6; }
+
+/* ---------- 1:1 ---------- */
+html.sq { --H: 1080px; }
+.sq h1 { top: 150px; font-size: 80px; }
+.sq .bn { top: 336px; font-size: 32px; }
+.sq .phone { width: 330px; }
+.sq .p1 { left: 150px; top: 520px; }
+.sq .p2 { left: 540px; top: 550px; }
+.sq .b1 { left: 64px; top: 410px; font-size: 20px; }
+.sq .b2 { right: 64px; top: 410px; font-size: 20px; }
+.sq .fade { height: 270px; }
+.sq .cta { height: 92px; bottom: 44px; font-size: 36px; }
+.sq .tag { top: 58px; }
+</style>
+<script>if (location.search.includes('sq')) document.documentElement.classList.add('sq'), addEventListener('DOMContentLoaded', () => document.body.classList.add('sq'));</script>
+</head>
+<body>
+<div class="abs ring" style="width:620px;height:620px;right:-220px;top:300px"></div>
+<div class="abs ring" style="width:420px;height:420px;right:-120px;top:400px"></div>
+<div class="abs ring" style="width:520px;height:520px;left:-260px;top:700px"></div>
+
+<div class="abs brand"><img src="logo-mark.png" alt=""><b>Ranna<i>Bari</i></b></div>
+<div class="abs tag">১০০% খাঁটি ঘরোয়া রান্নাঘর</div>
+
+<h1 class="abs">Real home cooking.<span>Pay when it arrives.</span></h1>
+<div class="abs bn">আপনার কাছের ঘরোয়া রান্নাঘর</div>
+
+<div class="phone p1"><img src="app-screenshots/c08-kitchen-page.png" alt="A home kitchen's page"></div>
+<div class="phone p2"><img src="app-screenshots/c13-order-tracking.png" alt="Order tracking: paid after you confirm"></div>
+
+<div class="badge b1"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 7.8-8 9-4.6-1.2-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>Identity-checked cooks</div>
+<div class="badge b2"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Money held till delivery</div>
+
+<div class="abs fade"></div>
+<div class="abs cta">Find Food <small>খাবার খুঁজুন</small>
+  <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+</body>
+</html>

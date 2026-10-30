@@ -18,7 +18,8 @@ import { foldDigits } from '../lib/format';
 import { PRICE_MAX, parsePrice } from '../features/requests/useCookRequestActions';
 
 /**
- * The cook's request board: Waiting for your price / Your offers / Closed.
+ * The cook's request board: Waiting for your price / Your offers / Agreed
+ * (waiting for the customer's payment) / Closed.
  *
  * One component for the standalone board and the Orders tab, so the grouping
  * (built by `useCookRequestRows`) is drawn the same way in both. With
@@ -29,7 +30,7 @@ import { PRICE_MAX, parsePrice } from '../features/requests/useCookRequestAction
  * Nothing here shows what any other cook bid.
  *
  * @param {object} props
- * @param {{open: object[], mine: object[], done: object[]}} props.rows
+ * @param {{open: object[], mine: object[], agreed: object[], done: object[]}} props.rows
  * @param {(request: object) => void} props.onOpen
  * @param {{sendPrice: Function, decline: Function, withdraw: Function}} [props.actions]
  */
@@ -42,7 +43,7 @@ export default function CookRequestsBoard({ rows, onOpen, actions }) {
      {id, status: <group>} so "left this group, now in that one" is visible. */
   const flat = useMemo(() => {
     const out = new Map();
-    for (const group of ['open', 'mine', 'done']) {
+    for (const group of ['open', 'mine', 'agreed', 'done']) {
       for (const row of rows[group]) {
         out.set(String(row.request.id), { ...row, id: String(row.request.id), status: group });
       }
@@ -54,6 +55,11 @@ export default function CookRequestsBoard({ rows, onOpen, actions }) {
 
   const open = useLingering(useMemo(() => asRows('open'), [rows, flat]), lookup, 'cook-requests:open');
   const mine = useLingering(useMemo(() => asRows('mine'), [rows, flat]), lookup, 'cook-requests:mine');
+  const agreed = useLingering(
+    useMemo(() => asRows('agreed'), [rows, flat]),
+    lookup,
+    'cook-requests:agreed',
+  );
   const done = rows.done;
 
   const draw = (item, extra) => {
@@ -92,6 +98,15 @@ export default function CookRequestsBoard({ rows, onOpen, actions }) {
 
       {mine.length ? <Group label={t('Your offers')}>{mine.map((item) => draw(item))}</Group> : null}
 
+      {/* Price settled, money not yet in escrow. Nothing to cook -- there is no
+          order until the customer pays from their wallet -- so these rows have
+          no cooking action, only the way back to the thread. */}
+      {agreed.length ? (
+        <Group label={t('Agreed — waiting for the customer’s payment')}>
+          {agreed.map((item) => draw(item, { payWait: true }))}
+        </Group>
+      ) : null}
+
       {done.length ? (
         <Group label={t('Closed')}>
           {done.map(({ request, offer }) => (
@@ -107,6 +122,39 @@ export default function CookRequestsBoard({ rows, onOpen, actions }) {
         </Group>
       ) : null}
     </>
+  );
+}
+
+/* The agreed-but-unpaid state, as a pill in the same shape as the others. */
+function WaitingForPaymentPill() {
+  const { colors } = useTheme();
+  const { t } = useLang();
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        alignSelf: 'flex-start',
+        paddingVertical: 4,
+        paddingHorizontal: 10,
+        borderRadius: radius.pill,
+        backgroundColor: colors.saffron50,
+      }}
+    >
+      <Icon name="lock" size={11} color={colors.saffron} />
+      <Text
+        style={{
+          fontFamily: font.uiBold,
+          fontSize: 10,
+          letterSpacing: 0.5,
+          textTransform: 'uppercase',
+          color: colors.saffron,
+        }}
+      >
+        {t('Waiting for payment')}
+      </Text>
+    </View>
   );
 }
 
@@ -138,7 +186,9 @@ function MovedRequest({ row }) {
   const where =
     row.status === 'mine'
       ? t('Your offers')
-      : row.status === 'done'
+      : row.status === 'agreed'
+        ? t('Agreed — waiting for the customer’s payment')
+        : row.status === 'done'
         ? t('Closed')
         : t('Waiting for your price');
   return (
@@ -170,7 +220,7 @@ function MovedRequest({ row }) {
   );
 }
 
-function Row({ request, offer, category, muted, onPress, actions, waiting }) {
+function Row({ request, offer, category, muted, onPress, actions, waiting, payWait }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
   const [composing, setComposing] = useState(false);
@@ -230,7 +280,9 @@ function Row({ request, offer, category, muted, onPress, actions, waiting }) {
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          {offer ? (
+          {payWait ? (
+            <WaitingForPaymentPill />
+          ) : offer ? (
             <OfferStatusPill status={offer.status} />
           ) : (
             <RequestStatusPill status={request.status} />

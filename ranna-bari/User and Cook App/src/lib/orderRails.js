@@ -28,9 +28,10 @@
  *
  * `kind` is absent on orders written before the field existed — those are
  * cash dishes. A won request is cooked in the kitchen and paid to the
- * kitchen, so it files under the dishes even though it never came off the
- * menu; the board puts it in the Menu lanes and the dashboard counts it as
- * kitchen income.
+ * kitchen, so it files under the dishes for *income* — the dashboard's
+ * revenue buckets and the earnings screen count it with the kitchen — even
+ * though it never came off the menu. Its *work*, though, lives on the
+ * Requests tab (see `isRequestOrder`), not in the Menu lanes.
  */
 export const businessOf = (order) => {
   const kind = order?.kind;
@@ -43,8 +44,22 @@ export const businessOf = (order) => {
 export const isDishOrder = (order) =>
   order?.kind === 'cod' || order?.kind === 'wallet' || order?.kind == null;
 
-/** Anything the *kitchen* earns from — dishes and won requests. */
-export const isKitchenOrder = (order) => isDishOrder(order) || order?.kind === 'request';
+/**
+ * A food request that has been agreed AND paid for: the order the backend
+ * creates the moment the customer's wallet holds the money (status
+ * `confirmed`, payment `held`). Before that there is no order at all.
+ */
+export const isRequestOrder = (order) => order?.kind === 'request';
+
+/**
+ * Anything the *kitchen earns from* — dishes and won requests.
+ *
+ * This is the INCOME predicate. It is deliberately NOT what the Menu lanes,
+ * the tab-bar badge or the dashboard's "waiting on you" use: a paid request
+ * order is worked from the Requests tab, so counting it there as well put
+ * the same job in two queues. Those surfaces use `isDishOrder`.
+ */
+export const isKitchenOrder = (order) => isDishOrder(order) || isRequestOrder(order);
 
 /* ------------------------------------------------------------------ *
  * the rails

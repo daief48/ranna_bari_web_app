@@ -12,6 +12,7 @@ import {
   createRequest,
   declineRequest,
   expireRequestsLazily,
+  expireUnpaidAgreementsLazily,
   offerForCook,
   offerSummary,
   offersForRequest,
@@ -313,6 +314,7 @@ export async function requestRoutes(app: FastifyInstance) {
     /* Yesterday's requests expire on the way to the board — there is no
        scheduler here, so the read is the sweep. Throttled inside. */
     await expireRequestsLazily();
+    await expireUnpaidAgreementsLazily();
 
     const opts = { status: query.data.status, take: query.data.take };
     const requests =
@@ -611,28 +613,43 @@ export async function requestRoutes(app: FastifyInstance) {
     if (!caller) return fail(reply, 'unauthenticated', 401);
 
     const { id } = request.params as { id: string };
-    const body = z
-      .object({
-        customer: z
-          .object({
-            name: z.string().optional(),
-            phone: z.string().optional(),
-            address: z.unknown().optional(),
-          })
-          .optional(),
-      })
+    /* Two wire shapes, one meaning. The app sends the delivery details flat
+       — `{ name, phone, address }` — and an earlier contract nested them as
+       `{ customer: { name, phone, address } }`. zod strips unknown keys, so
+       reading only the nested shape silently dropped every flat body and the
+       order was cut with the account's defaults. Nested wins when both are
+       present; flat is the fallback. There is no amount, method or kind in
+       either: the price is the offer's, and the wallet is the only way to pay. */
+    const details = z.object({
+      name: z.string().optional(),
+      phone: z.string().optional(),
+      address: z.unknown().optional(),
+    });
+    const body = details
+      .extend({ customer: details.optional() })
       .safeParse(request.body ?? {});
     if (!body.success) return fail(reply, ERR.NAME_REQUIRED);
+    const nested = body.data.customer;
 
     const out = await payForRequest(caller.customerKey, {
       requestId: id,
       customer: {
-        name: body.data.customer?.name ?? caller.name,
-        phone: body.data.customer?.phone ?? caller.phone,
-        address: body.data.customer?.address ?? null,
+        name: nested?.name ?? body.data.name ?? caller.name,
+        phone: nested?.phone ?? body.data.phone ?? caller.phone,
+        address: nested?.address ?? body.data.address ?? null,
       },
     });
-    if (!out.ok) return refuse(reply, out.error);
+    if (!out.ok) {
+      /* The detail travels: a low balance carries `{ short, balance }` so the
+         app can offer exactly the top-up that is missing. A kitchen that
+         stopped trading after the agreement is a state conflict, not a 404. */
+      const status = out.error === ERR.NO_KITCHEN ? 409 : (STATUS[out.error] ?? 400);
+      return reply.status(status).send({
+        error: out.error,
+        message: errText(out.error),
+        ...(out.detail ? { detail: out.detail } : {}),
+      });
+    }
 
     return reply.status(201).send({ order: out.result });
   });

@@ -42,13 +42,16 @@ export type PlatformSettings = {
   /** A request whose serve date has passed expires after this many days. */
   requestExpiryDays: number;
 
+  /** An agreed request that is still unpaid after this many hours goes back to open. */
+  requestPayWindowHours: number;
+
   /** Below this, a payout run skips the cook rather than paying pennies. */
   payoutMinimum: number;
 };
 
 export type FeatureFlag = { key: string; description: string; enabled: boolean };
 
-export type SettingMeta = { label: string; help: string; kind: 'money' | 'rate' | 'days' };
+export type SettingMeta = { label: string; help: string; kind: 'money' | 'rate' | 'days' | 'hours' };
 
 /** What `GET /settings` answers with. */
 export type SettingsResponse = {
@@ -77,6 +80,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   escrowAutoReleaseDays: 3,
   stockAlarmDays: 3,
   requestExpiryDays: 1,
+  requestPayWindowHours: 24,
   payoutMinimum: 100,
 };
 

@@ -42,6 +42,7 @@ import { cookPayout, timeAgo, useOrders } from '../../../src/store/OrdersContext
 import {
   businessOf,
   inFlight as stillMoving,
+  isDishOrder,
   isKitchenOrder,
   moneyHeld,
   moneyReleased,
@@ -226,7 +227,12 @@ export default function CookDashboard() {
      the "new" stage on the wallet rail, so without this filter a jar of achar
      was "waiting on you" on the kitchen card and in the Waiting list below,
      wearing an Accept button that belongs to the shop tab. */
-  const kitchenMine = useMemo(() => mine.filter(isKitchenOrder), [mine]);
+  const kitchenMine = useMemo(() => mine.filter(isDishOrder), [mine]);
+  /* Income-side view of the kitchen: dishes AND paid request orders. Used for
+     the "orders today" statistic only; every queue/needs-action number above
+     stays on dish orders, because a paid request order is counted once, by the
+     Requests hook (`requestCounts.paidNew`), not here. */
+  const kitchenAll = useMemo(() => mine.filter(isKitchenOrder), [mine]);
 
   const stats = useMemo(() => {
     const earned = mine
@@ -637,7 +643,7 @@ export default function CookDashboard() {
      orders and won requests. Store and meal orders travel on the same
      kitchenId, so the raw count would put the shop's jars on the kitchen's
      card. */
-  const kitchenOrdersToday = kitchenMine.filter(
+  const kitchenOrdersToday = kitchenAll.filter(
     (o) => isToday(o.createdAt) && o.status !== 'rejected' && o.status !== 'cancelled',
   ).length;
 
@@ -1581,6 +1587,16 @@ export default function CookDashboard() {
               title: t('Shop: {n} products are out of stock', { n: n(outOfStock) }),
               sub: t('Customers can see them and cannot buy them'),
               onPress: () => router.push('/cook/store/products'),
+            },
+
+            requestCounts.paidNew > 0 && {
+              key: 'paid-requests',
+              urgent: true,
+              icon: 'pot',
+              tone: 'primary',
+              title: t('{n} paid food requests to start', { n: n(requestCounts.paidNew) }),
+              sub: t('The customer has paid - it is held until they confirm'),
+              onPress: () => router.push('/cook/orders?tab=requests&view=orders'),
             },
 
             openRequests > 0 && {

@@ -21,7 +21,9 @@ import { useTheme } from '../../src/theme/ThemeProvider';
 import { font, radius, type } from '../../src/theme/tokens';
 import { useAuth } from '../../src/store/AuthContext';
 import { useCommerce } from '../../src/store/CommerceContext';
+import { useConfig } from '../../src/store/ConfigContext';
 import { customerKeyOf } from '../../src/lib/ledger';
+import { liveOrderFor, payTimeLeft, requestOrderStage } from '../../src/lib/requestOrderStatus';
 import { useLang } from '../../src/i18n/LanguageContext';
 
 export default function RequestsScreen() {
@@ -30,6 +32,7 @@ export default function RequestsScreen() {
   const router = useRouter();
   const { account, isSignedIn } = useAuth();
   const shop = useCommerce();
+  const config = useConfig();
 
   const key = customerKeyOf(account);
   const requests = useMemo(
@@ -93,6 +96,8 @@ export default function RequestsScreen() {
                       ? shop.offersForRequest(request.id).find((o) => o.id === request.selectedOfferId)
                       : null
                   }
+                  stage={requestOrderStage(request, liveOrderFor(request, shop.orders))}
+                  payWindowHours={config?.requests?.payWindowHours ?? config?.requestPayWindowHours}
                   onPress={() => router.push(`/requests/${request.id}`)}
                 />
               </Reveal>
@@ -112,17 +117,31 @@ export default function RequestsScreen() {
   );
 }
 
-function Row({ request, summary, category, selected, onPress }) {
+function Row({ request, summary, category, selected, stage, payWindowHours, onPress }) {
   const { colors, shadow } = useTheme();
   const { t, n } = useLang();
 
   /* One line that says where this is up to, chosen by what the customer
      would do next rather than by the status name. */
   const line = () => {
-    if (request.status === 'ordered') return t('Paid and on its way');
+    /* Once paid, the order owns the story: its live stage, not a static
+       "ordered". A request cancelled AFTER payment carries an order id too
+       and reads as refunded; one withdrawn before payment has no order. */
+    if (stage) return t(stage.label);
+    if (request.status === 'ordered') return t('Paid — waiting for the cook');
     if (request.status === 'cancelled') return t('You withdrew this');
     if (request.status === 'agreed') {
-      return t('Agreed at ৳{n} — pay to confirm', { n: n(selected?.agreedPrice ?? 0) });
+      const left = payTimeLeft(request, selected, payWindowHours);
+      const price = n(selected?.agreedPrice ?? 0);
+      if (left?.over) return t('Agreed at ৳{n} — payment time is up', { n: price });
+      if (left) {
+        return t('Agreed at ৳{n} — pay within {h}h {m}m', {
+          n: price,
+          h: n(left.hours),
+          m: n(left.minutes),
+        });
+      }
+      return t('Agreed at ৳{n} — pay to confirm', { n: price });
     }
     if (request.status === 'selected') {
       return t('Negotiating with {who}', { who: selected?.cookName ?? '' });

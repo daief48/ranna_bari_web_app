@@ -17,7 +17,8 @@ import {
   KitchenSuspended,
   KitchenUnknown,
 } from '../../../src/components/CookBits';
-import { isKitchenOrder } from '../../../src/lib/orderRails';
+import { isDishOrder } from '../../../src/lib/orderRails';
+import { useCookRequestRows } from '../../../src/features/requests/useCookRequestRows';
 import { todayKey } from '../../../src/features/meal-plan/format';
 import { font, radius } from '../../../src/theme/tokens';
 
@@ -70,9 +71,16 @@ function CookBar({ state, descriptors, navigation }) {
      `confirmed`, which is the same stage, and belongs to its own tab. */
   const waiting = kitchen
     ? ordersForKitchen(kitchen.id).filter(
-        (o) => isKitchenOrder(o) && stageOf(o.status) === 'placed',
+        (o) => isDishOrder(o) && stageOf(o.status) === 'placed',
       ).length
     : 0;
+
+  /* Food requests ride the same Orders tab, counted ONCE and from the same
+     hook the Requests sub-tab, the Profile row and the Dashboard tile read:
+     offers waiting on the cook plus paid request orders not yet started.
+     Paid request orders are excluded from `waiting` above (isDishOrder), so
+     no order is in both numbers. */
+  const requestsNeedYou = useCookRequestRows().counts.needsYou;
 
   /* Its equivalent for pre-booked meals: today's plates, paid for and not
      yet started. This is the number the cook shops against, so it should be
@@ -128,7 +136,7 @@ function CookBar({ state, descriptors, navigation }) {
                with it — a number that vanished when its tab did would be a
                count the cook simply stops seeing. */
             const badge =
-              meta.name === 'orders' ? waiting : meta.name === 'listings' ? toCook : 0;
+              meta.name === 'orders' ? waiting + requestsNeedYou : meta.name === 'listings' ? toCook : 0;
 
             const onPress = () => {
               const event = navigation.emit({
