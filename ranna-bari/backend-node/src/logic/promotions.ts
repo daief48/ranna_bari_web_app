@@ -180,11 +180,18 @@ export async function quotePromotion(args: {
  * The unique index on (promotionId, orderId) is what makes a retried checkout
  * safe: the second attempt collides rather than counting twice against a
  * one-per-customer limit.
+ *
+ * The limits are counted again here, in the session, and not only at quote
+ * time. A quote is a read made on a checkout screen; by the time the order
+ * commits, the last slot on a capped campaign may have gone to somebody
+ * else, or the same customer may have spent their one use from another
+ * device. A refusal here is a refusal of the order, which the caller rolls
+ * back — the customer re-checks out without the code.
  */
 export async function redeem(
   session: ClientSession,
   args: { quote: Quote; customerKey: string; orderId: string },
-): Promise<void> {
+): Promise<Result<null>> {
   /* Read before write, not catch-after-write.
 
      Inside a transaction a duplicate-key error aborts the whole transaction,
@@ -201,7 +208,22 @@ export async function redeem(
   })
     .session(session)
     .lean();
-  if (already) return;
+  if (already) return ok(null);
+
+  const promo = await Promotion.findById(args.quote.promotionId).session(session).lean();
+  if (!promo || !promo.active) return fail(ERR.PROMO_UNKNOWN);
+
+  const [mine, all] = await Promise.all([
+    Redemption.countDocuments({
+      promotionId: args.quote.promotionId,
+      customerKey: args.customerKey,
+    }).session(session),
+    promo.usageLimit
+      ? Redemption.countDocuments({ promotionId: args.quote.promotionId }).session(session)
+      : Promise.resolve(0),
+  ]);
+  if (promo.perCustomer && mine >= promo.perCustomer) return fail(ERR.PROMO_USED);
+  if (promo.usageLimit && all >= promo.usageLimit) return fail(ERR.PROMO_EXHAUSTED);
 
   await Redemption.create(
     [
@@ -215,6 +237,7 @@ export async function redeem(
     ],
     { session },
   );
+  return ok(null);
 }
 
 /* ------------------------------------------------------------------ *

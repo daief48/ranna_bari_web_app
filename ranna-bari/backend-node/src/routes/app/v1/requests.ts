@@ -11,6 +11,7 @@ import {
   counterOffer,
   createRequest,
   declineRequest,
+  expireRequestsLazily,
   offerForCook,
   offerSummary,
   offersForRequest,
@@ -27,6 +28,7 @@ import {
   type OfferView,
 } from '../../../logic/requests.js';
 import { Kitchen, Offer } from '../../../models/index.js';
+import { featureOn } from '../../../logic/settings.js';
 
 /**
  * Food requests, bidding and negotiation, as the Expo app calls them.
@@ -308,6 +310,10 @@ export async function requestRoutes(app: FastifyInstance) {
     const side = query.data.as ?? (caller.kitchenId ? 'cook' : 'customer');
     if (side === 'cook' && !caller.kitchenId) return refuse(reply, ERR.NOT_ELIGIBLE);
 
+    /* Yesterday's requests expire on the way to the board — there is no
+       scheduler here, so the read is the sweep. Throttled inside. */
+    await expireRequestsLazily();
+
     const opts = { status: query.data.status, take: query.data.take };
     const requests =
       side === 'cook' && caller.kitchenId
@@ -390,6 +396,16 @@ export async function requestRoutes(app: FastifyInstance) {
   app.post('/requests', async (request, reply) => {
     const caller = await callerOf(request);
     if (!caller) return fail(reply, 'unauthenticated', 401);
+
+    /* An operator's switch on the request system. The flag was shown to the
+       app by `/config`; this is where it is enforced. */
+    if (!(await featureOn('system.requests'))) {
+      return reply.status(403).send({
+        error: ERR.FEATURE_OFF,
+        message: errText(ERR.FEATURE_OFF),
+        detail: { feature: 'system.requests' },
+      });
+    }
 
     const body = (request.body ?? {}) as { request?: unknown };
     const parsed = draftSchema.safeParse(body.request ?? body);

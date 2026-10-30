@@ -19,8 +19,9 @@ import {
   requestEmailOtp,
   verifyEmailOtp,
 } from '../../../auth/cook-auth.js';
-import { getFlags, getSettings } from '../../../logic/settings.js';
+import { featureOn, getFlags, getSettings } from '../../../logic/settings.js';
 import {
+  MAX_BODY,
   markRead,
   messagesFor,
   openThread,
@@ -34,6 +35,7 @@ import {
 import { iconsOf } from '../../../logic/icons.js';
 import { specialtiesOf } from '../../../logic/specialties.js';
 import { quotePromotion } from '../../../logic/promotions.js';
+import { STORES_PER_KITCHEN } from '../../../logic/stores.js';
 import {
   kitchenMayTrade,
   orderFor,
@@ -63,6 +65,7 @@ import {
   Zone,
 } from '../../../models/index.js';
 import { ERR, errText } from '../../../lib/domain.js';
+import { isDuplicateKey } from '../../../config/db.js';
 
 /**
  * The Expo client's API.
@@ -78,6 +81,20 @@ const fail = (reply: { status: (n: number) => { send: (b: unknown) => unknown } 
 
 const callerOf = (request: FastifyRequest) =>
   identify(bearerFrom(request.headers.authorization));
+
+/**
+ * Where a request came from, for the rate limits and the OTP rows.
+ *
+ * `request.ip` and nothing else. This used to take the *first* entry of
+ * `x-forwarded-for`, which is the one the client writes — so a caller
+ * choosing their own address was choosing their own rate-limit bucket.
+ * Fastify's `trustProxy` (app.ts) resolves the one hop Netlify adds and no
+ * more; whatever the client put in front of it is ignored.
+ */
+const ipOf = (request: FastifyRequest) => request.ip;
+
+const bodyIssues = (error: z.ZodError) =>
+  error.issues.map((i) => ({ path: i.path.join('.'), code: i.code, message: i.message }));
 
 /* ------------------------------------------------------------------ *
  * the account's profile
@@ -319,6 +336,9 @@ export async function appRoutes(app: FastifyInstance) {
         request: 1 - settings.commissionRequest,
       },
       escrow: { autoReleaseDays: settings.escrowAutoReleaseDays },
+      /* The caps the server enforces, so the app stops carrying its own
+         copies — a cook hitting a limit should be told the server's number. */
+      limits: { maxShops: STORES_PER_KITCHEN },
       /* Longest first, which is what `normaliseArea` needs so "Old Dhaka" is
          matched before "Dhaka". */
       areas: zones.map((z) => z.name).sort((a, b) => b.length - a.length),
@@ -347,15 +367,41 @@ export async function appRoutes(app: FastifyInstance) {
    * not need one; it cannot render what it was never sent.
    */
   app.get('/kitchens', async (request, reply) => {
-    const query = z
-      .object({ area: z.string().optional(), menus: z.string().optional() })
-      .parse(request.query ?? {});
+    const parsed = z
+      .object({
+        area: z.string().optional(),
+        menus: z.string().optional(),
+        /* Bounded. The directory was every kitchen in the database in one
+           reply, and every reply carries an avatar and a cover as data URIs —
+           so it grew with the platform until it was the slowest thing the
+           home screen did. Sixty, rating-first, is a screenful and a half;
+           `skip` pages the rest. */
+        take: z.coerce.number().int().min(1).max(60).default(60),
+        skip: z.coerce.number().int().min(0).max(5000).default(0),
+      })
+      .safeParse(request.query ?? {});
+    if (!parsed.success) return fail(reply, ERR.BAD_REQUEST);
+    const query = parsed.data;
+
+    /* Only kitchens that may trade are in the directory — an unapproved or
+       suspended one has nothing a shopper can buy, and listing it is a tap
+       that ends in a refusal. The cook's own kitchen is the one exception:
+       the app's customer-view preview reads this list, and a cook must be
+       able to see their own card while they wait for approval. Looked up
+       only when a token is offered, so an anonymous read costs nothing. */
+    const caller = request.headers.authorization ? await callerOf(request) : null;
+    const own = caller ? await Kitchen.findOne({ accountId: caller.accountId }).select({ _id: 1 }).lean() : null;
 
     const kitchens = await Kitchen.find({
       suspended: false,
       ...(query.area && query.area !== 'all' ? { area: query.area } : {}),
+      ...(own
+        ? { $or: [{ kycStatus: 'approved' }, { _id: own._id }] }
+        : { kycStatus: 'approved' }),
     })
-      .sort({ rating: -1 })
+      .sort({ rating: -1, _id: 1 })
+      .skip(query.skip)
+      .limit(query.take)
       .lean();
 
     const chefs = kitchens.map((k) => ({
@@ -413,6 +459,9 @@ export async function appRoutes(app: FastifyInstance) {
     }
 
     reply.header('cache-control', 'public, max-age=30, stale-while-revalidate=120');
+    /* A cook's reply carries their own unapproved kitchen; a shared cache
+       must not hand that copy to the next anonymous reader. */
+    reply.header('vary', 'authorization');
     return body;
   });
 
@@ -497,11 +546,69 @@ export async function appRoutes(app: FastifyInstance) {
     return { specialties: await specialtiesOf() };
   });
 
+  /*
+   * The kitchen body, shaped before the logic sees it.
+   *
+   * Every field is optional because this route also serves one-field patches
+   * (the shutter, a new cover). What is here is the *ceiling* on each: a
+   * name a card can draw, a description a page can scroll, a gallery of
+   * eight, a radius a rider could plausibly ride, a pin on the planet. A
+   * `null` or a blank in a numeric field means "not given" — the app sends
+   * `lat: null` for a kitchen with no pin, and `z.coerce` would read that as
+   * the equator. Unknown keys are stripped, so `kycStatus`, `rating` and
+   * `suspended` in a body reach nothing; the logic enumerates what it writes
+   * anyway, and this is the second wall.
+   */
+  const blankToUndefined = (value: unknown) =>
+    value === null || value === '' || value === undefined ? undefined : value;
+  const optionalNumber = (min: number, max: number) =>
+    z.preprocess(blankToUndefined, z.coerce.number().finite().min(min).max(max).optional());
+  /* Images are data URIs or the app's stock-photo URLs. Three million chars is
+     ~2 MB of base64 — far above honest use after the app's resize, and well
+     under the body limit, so one picture cannot be the whole request. */
+  const image = z.string().max(3_000_000);
+  const shortText = (max: number) => z.string().trim().max(max);
+
+  const kitchenBody = z.object({
+    name: shortText(120).optional(),
+    ownerName: shortText(120).optional(),
+    avatar: image.optional(),
+    coverImage: image.optional(),
+    photos: z.array(image).max(8).optional(),
+    specialty: shortText(60).optional(),
+    specialties: z.array(shortText(60)).max(10).optional(),
+    description: shortText(2000).optional(),
+    tags: z.array(shortText(24)).max(12).optional(),
+    area: shortText(120).optional(),
+    lat: optionalNumber(-90, 90),
+    lng: optionalNumber(-180, 180),
+    deliveryRadiusKm: optionalNumber(0.5, 50),
+    serviceAreas: z
+      .array(z.object({ division: shortText(60), areas: z.array(shortText(60)).max(64).default([]) }))
+      .max(8)
+      .optional(),
+    allBangladesh: z.boolean().optional(),
+    isOpen: z.boolean().optional(),
+    payoutMethod: z.enum(['', 'bkash', 'bank']).optional(),
+    payoutAccount: shortText(60).optional(),
+  });
+
   app.post('/kitchens/mine', async (request, reply) => {
     const caller = await callerOf(request);
     if (!caller) return fail(reply, 'unauthenticated', 401);
 
-    const out = await registerKitchen(caller, (request.body ?? {}) as never);
+    const body = kitchenBody.safeParse(request.body ?? {});
+    if (!body.success) {
+      const issues = bodyIssues(body.error);
+      request.log.warn({ issues }, 'kitchen save refused');
+      return reply.status(400).send({
+        error: ERR.BAD_REQUEST,
+        message: `Some of that was not valid — check: ${issues.map((i) => i.path).join(', ')}.`,
+        detail: issues,
+      });
+    }
+
+    const out = await registerKitchen(caller, body.data);
     if (!out.ok) return fail(reply, out.error);
     return out.result;
   });
@@ -745,6 +852,58 @@ export async function appRoutes(app: FastifyInstance) {
   });
 
   /**
+   * The newest reviews on the platform, for the home screen.
+   *
+   * Public and unauthenticated like the directory: a review is already on
+   * the kitchen's public card. Hidden ones are left out — a moderator hid
+   * them for a reason — and so are reviews of kitchens that may not trade,
+   * because a testimonial for a kitchen nobody can order from is an
+   * advertisement for a closed door. Lean on purpose: the name, the words
+   * and the score, never a picture and never the customer's key.
+   */
+  app.get('/reviews/recent', async (request, reply) => {
+    const query = z
+      .object({ take: z.coerce.number().int().min(1).max(20).default(6) })
+      .safeParse(request.query ?? {});
+    const take = query.success ? query.data.take : 6;
+
+    /* Over-fetch, then drop the kitchens that may not trade. A review's
+       kitchen is a string id on the row, so the standing check is a second
+       query over the handful of kitchens involved rather than a join. */
+    const rows = await Review.find({ hidden: false })
+      .select({ kitchenId: 1, name: 1, rating: 1, text: 1, createdAt: 1 })
+      .sort({ createdAt: -1 })
+      .limit(take * 4)
+      .lean();
+
+    const kitchenIds = [...new Set(rows.map((r) => r.kitchenId))].filter((id) =>
+      Types.ObjectId.isValid(id),
+    );
+    const kitchens = kitchenIds.length
+      ? await Kitchen.find({ _id: { $in: kitchenIds }, kycStatus: 'approved', suspended: false })
+          .select({ name: 1 })
+          .lean()
+      : [];
+    const nameOf = new Map(kitchens.map((k) => [String(k._id), k.name]));
+
+    reply.header('cache-control', 'public, max-age=60, stale-while-revalidate=300');
+    return {
+      reviews: rows
+        .filter((r) => nameOf.has(r.kitchenId))
+        .slice(0, take)
+        .map((r) => ({
+          id: String(r._id),
+          kitchenId: r.kitchenId,
+          kitchenName: nameOf.get(r.kitchenId) ?? '',
+          customerName: r.name,
+          rating: r.rating,
+          text: r.text ?? '',
+          createdAt: r.createdAt,
+        })),
+    };
+  });
+
+  /**
    * Money that has actually been paid out, as opposed to money owed.
    *
    * The earnings screen builds "recent payouts" by adding up delivered orders
@@ -802,9 +961,16 @@ export async function appRoutes(app: FastifyInstance) {
     const body = z
       .object({
         dishId: z.string().optional(),
-        name: z.string().trim().min(1).optional(),
-        description: z.string().optional(),
-        price: z.coerce.number().finite().positive().optional(),
+        name: z.string().trim().min(1).max(120).optional(),
+        description: z.string().max(2000).optional(),
+        /* Whole taka, like every figure the ledger will later split; a
+           price of 199.5 rounds on the way in rather than riding into an
+           order total as paisa. One to a lakh — a dish costs something, and
+           nothing on a home menu costs more than that. */
+        price: z.preprocess(
+          (v) => (typeof v === 'number' || typeof v === 'string' ? Math.round(Number(v)) : v),
+          z.number().int().min(1).max(100_000),
+        ).optional(),
         image: z.string().optional(),
         /* The set, capped at the same five a shop product carries. `image`
            stays the wire's primary — the server derives it from photos[0]. */
@@ -876,11 +1042,7 @@ export async function appRoutes(app: FastifyInstance) {
     const body = z.object({ phone: z.string() }).safeParse(request.body);
     if (!body.success) return fail(reply, 'phone-required');
 
-    const ip =
-      (request.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
-      request.ip;
-
-    const out = await requestOtp(body.data.phone, ip);
+    const out = await requestOtp(body.data.phone, ipOf(request));
     if (!out.ok) {
       return reply
         .status(out.retryAfterSeconds ? 429 : 400)
@@ -992,20 +1154,23 @@ export async function appRoutes(app: FastifyInstance) {
     });
   };
 
-  const ipOf = (request: FastifyRequest) =>
-    (request.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
-    request.ip;
-
   /* The fields a body can carry in the wrong shape — a coordinate that crossed
      a bridge as a string, a radius from a slider that stores text. Coerced
      rather than refused: the values read as numbers to everybody but the
      schema, and a refusal here cost an afternoon of guessing which field. */
   const numeric = z.coerce.number();
 
-  const bodyIssues = (error: z.ZodError) =>
-    error.issues.map((i) => ({ path: i.path.join('.'), code: i.code, message: i.message }));
-
   app.post('/auth/cook/register', async (request, reply) => {
+    /* An operator's switch on new cooks. Checked before the body, because
+       the answer does not depend on it. */
+    if (!(await featureOn('signup.cook'))) {
+      return reply.status(403).send({
+        error: ERR.FEATURE_OFF,
+        message: errText(ERR.FEATURE_OFF),
+        detail: { feature: 'signup.cook' },
+      });
+    }
+
     const body = z
       .object({
         name: z.string().trim().min(2).max(120),
@@ -1272,16 +1437,16 @@ export async function appRoutes(app: FastifyInstance) {
 
     const body = z
       .object({
-        name: z.string().optional(),
-        email: z.string().optional(),
-        avatar: z.string().optional(),
-        bio: z.string().optional(),
+        name: z.string().max(120).optional(),
+        email: z.string().max(254).optional(),
+        avatar: z.string().max(3_000_000).optional(),
+        bio: z.string().max(1000).optional(),
       })
       .safeParse(request.body ?? {});
     if (!body.success) return fail(reply, 'name-required');
 
     const patch: Record<string, unknown> = {};
-    for (const key of ['name', 'email', 'avatar', 'bio'] as const) {
+    for (const key of ['name', 'avatar', 'bio'] as const) {
       const value = body.data[key];
       if (typeof value === 'string') patch[key] = value.trim();
     }
@@ -1289,8 +1454,38 @@ export async function appRoutes(app: FastifyInstance) {
        the rest may legitimately be cleared. */
     if (patch.name === '') delete patch.name;
 
+    /*
+     * The email is a credential, not a label.
+     *
+     * It is the cook sign-in's lookup key and the address a reset code is
+     * mailed to, and the accounts collection holds it unique. So it is
+     * normalised the way the cook flow normalises it — lower-cased, shaped
+     * like an address — and a blank clears it to null rather than to '',
+     * because '' is a string and two cleared accounts would collide on the
+     * partial index. A duplicate used to surface as the index's 500; it is
+     * `account-exists` now, the same word the cook form uses.
+     */
+    if (typeof body.data.email === 'string') {
+      const raw = body.data.email.trim();
+      if (!raw) {
+        patch.email = null;
+      } else {
+        const email = normaliseEmail(raw);
+        if (!email) return fail(reply, ERR.EMAIL_INVALID);
+        const taken = await Account.exists({ email, customerKey: { $ne: caller.customerKey } });
+        if (taken) return fail(reply, ERR.ACCOUNT_EXISTS, 409);
+        patch.email = email;
+      }
+    }
+
     if (Object.keys(patch).length) {
-      await Account.updateOne({ customerKey: caller.customerKey }, { $set: patch });
+      try {
+        await Account.updateOne({ customerKey: caller.customerKey }, { $set: patch });
+      } catch (error) {
+        // Two profile saves racing onto one address: the index is the referee.
+        if (isDuplicateKey(error)) return fail(reply, ERR.ACCOUNT_EXISTS, 409);
+        throw error;
+      }
     }
 
     const account = await Account.findOne({ customerKey: caller.customerKey }).lean();
@@ -1473,9 +1668,15 @@ export async function appRoutes(app: FastifyInstance) {
     const drafts = (body?.orders ?? (body?.order ? [body.order] : [])) as never[];
     if (!drafts.length) return fail(reply, 'name-required');
 
+    /* The basket's fees ride on its first row. The app sends one array per
+       checkout, first kitchen first, and charges delivery and the platform
+       fee once per basket — so the server charges its own figures on row
+       zero and nothing on the rest, which is the same total by construction.
+       A retry of a refused second kitchen arrives alone and is its own
+       basket: a second trip, a second delivery fee. */
     const results = [];
-    for (const draft of drafts) {
-      const out = await recordOrder(caller, draft);
+    for (const [i, draft] of drafts.entries()) {
+      const out = await recordOrder(caller, draft, { chargeBasketFees: i === 0 });
       results.push(
         out.ok
           ? { ok: true, ...out.result }
@@ -1570,17 +1771,21 @@ export async function appRoutes(app: FastifyInstance) {
     if (!caller) return fail(reply, 'unauthenticated', 401);
 
     const audience = caller.kitchenId ? 'cook' : 'customer';
-    const rows = await Notification.find({
+    const mine = {
       audience,
       $or: [
         { customerKey: caller.customerKey },
         { kitchenId: caller.kitchenId ?? '__none__' },
         { customerKey: null, kitchenId: null },
       ],
-    })
-      .sort({ at: -1 })
-      .limit(100)
-      .lean();
+    };
+    /* The badge counts the inbox, not the page. Counting the hundred rows
+       returned said "100 unread" to anybody with more, and nothing to
+       anybody whose unread rows had scrolled off the first page. */
+    const [rows, unread] = await Promise.all([
+      Notification.find(mine).sort({ at: -1 }).limit(100).lean(),
+      Notification.countDocuments({ ...mine, read: false }),
+    ]);
 
     return {
       notifications: rows.map((n) => ({
@@ -1611,7 +1816,7 @@ export async function appRoutes(app: FastifyInstance) {
 
         at: n.at,
       })),
-      unread: rows.filter((n) => !n.read).length,
+      unread,
     };
   });
 
@@ -1712,13 +1917,26 @@ export async function appRoutes(app: FastifyInstance) {
     const viewer = await viewerFor(request);
     if (!viewer) return fail(reply, 'unauthenticated', 401);
 
+    /* An attachment is a picture, inline, and bounded: four to a message,
+       each a resized data URI of at most ~450 KB. `z.unknown()` here used to
+       let a message carry any shape at any size into a document that is read
+       back on every scroll of the thread. */
+    const attachment = z.object({
+      kind: z.enum(['image']).default('image'),
+      data: z
+        .string()
+        .max(600_000)
+        .regex(/^data:image\/(jpeg|jpg|png|webp|gif);base64,/),
+      name: z.string().max(120).optional(),
+    });
+
     const body = z
       .object({
-        threadId: z.string(),
-        body: z.string().optional(),
-        clientId: z.string(),
-        attachments: z.array(z.unknown()).optional(),
-        connectionId: z.string().optional(),
+        threadId: z.string().max(64),
+        body: z.string().max(MAX_BODY).optional(),
+        clientId: z.string().min(1).max(64),
+        attachments: z.array(attachment).max(4).optional(),
+        connectionId: z.string().max(64).optional(),
       })
       .safeParse(request.body);
     if (!body.success) return fail(reply, 'name-required');

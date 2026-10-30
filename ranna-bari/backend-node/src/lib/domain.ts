@@ -87,6 +87,14 @@ export const ERR = {
   KITCHEN_UNAPPROVED: 'kitchen-unapproved',
 
   /*
+   * A system an operator has switched off. One code for every flag — the
+   * client shows a "not available right now" and the `detail.feature` says
+   * which, so a switched-off wallet top-up and a paused meal system do not
+   * need two screens.
+   */
+  FEATURE_OFF: 'feature-off',
+
+  /*
    * The cook flow. Each refusal is its own code because each routes to its
    * own screen: an unverified email goes back to the code entry, a cooldown
    * runs the resend countdown, and an existing account goes to sign-in.
@@ -110,6 +118,9 @@ export const ERR = {
   FORBIDDEN: 'admin-forbidden',
   NO_DISPUTE: 'dispute-missing',
   DISPUTE_CLOSED: 'dispute-closed',
+  /* The money on a disputed order is the dispute's to decide. A release that
+     ran while a case was open would pay the cook out from under it. */
+  DISPUTE_OPEN: 'dispute-open',
   DUPLICATE: 'duplicate-request',
   NOTHING_TO_PAY: 'payout-nothing-due',
   RUN_CLOSED: 'payout-run-closed',
@@ -168,6 +179,7 @@ export const ERR_TEXT: Record<string, string> = {
   [ERR.PROMO_NO_VALUE]: 'That code takes nothing off this basket.',
   [ERR.KITCHEN_UNAPPROVED]:
     'Your kitchen is waiting to be approved. You can finish setting it up, but you cannot list food or take orders until then.',
+  [ERR.FEATURE_OFF]: 'This is not available right now. Please try again later.',
   [ERR.PHONE_REQUIRED]: 'Enter a Bangladeshi mobile number, like 01712 345678.',
   [ERR.ACCOUNT_EXISTS]:
     'That email or mobile number already has a RannaBari account. Sign in instead.',
@@ -186,6 +198,7 @@ export const ERR_TEXT: Record<string, string> = {
   [ERR.FORBIDDEN]: 'Your role cannot do that.',
   [ERR.NO_DISPUTE]: 'That dispute no longer exists.',
   [ERR.DISPUTE_CLOSED]: 'This dispute is already resolved.',
+  [ERR.DISPUTE_OPEN]: 'A dispute is open on this order. Resolve it before moving the money.',
   [ERR.DUPLICATE]: 'That has already been done.',
   [ERR.NOTHING_TO_PAY]: 'No cook is owed anything right now.',
   [ERR.RUN_CLOSED]: 'This payout run is closed.',
@@ -325,6 +338,23 @@ export function nextStatus(order: {
   const table = COOK_ADVANCES[order.handover === 'pickup' ? 'pickup' : 'delivery'];
   return table[order.status] ?? null;
 }
+
+/**
+ * May this kitchen take on new business?
+ *
+ * The one predicate every buy path asks, on a row it has already read. KYC
+ * approval is an operator's decision and suspension is their veto; a kitchen
+ * that has neither been looked at nor been suspended answers false, because
+ * registration writes `kycStatus: 'pending'`. A missing kitchen is a "no" —
+ * the safe reading of "deleted mid-request".
+ *
+ * Pure on purpose: `logic/sync.ts` wraps it for callers that hold only an id,
+ * but the checkout and booking paths already have the document in hand and
+ * must not spend a second round trip to ask the same question.
+ */
+export const mayTrade = (
+  kitchen: { kycStatus?: string | null; suspended?: boolean | null } | null | undefined,
+): boolean => !!kitchen && kitchen.kycStatus === 'approved' && !kitchen.suspended;
 
 export const isFinished = (status: string) =>
   status === 'completed' || status === 'cancelled' || status === 'rejected';

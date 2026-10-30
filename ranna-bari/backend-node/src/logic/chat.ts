@@ -329,7 +329,17 @@ export async function sendMessage(
   if (!thread) return fail(ERR.FORBIDDEN);
   if (thread.status === 'closed') return fail(ERR.REQUEST_CLOSED);
 
-  const seen = await ChatMessage.findOne({ clientId: args.clientId }).lean();
+  /* Scoped to the thread and the sender. A clientId is a string the device
+     made up, and a lookup on it alone handed back whichever message anywhere
+     happened to carry it — another thread's, another person's — as this
+     caller's "duplicate". The unique index is `{ threadId, clientId }` for
+     the same reason. */
+  const replayOf = {
+    threadId: String(thread._id),
+    clientId: args.clientId,
+    senderType: viewer.side,
+  };
+  const seen = await ChatMessage.findOne(replayOf).lean();
   if (seen) return ok({ message: shapeMessage(seen as MessageRow), duplicate: true });
 
   const senderRef =
@@ -389,8 +399,11 @@ export async function sendMessage(
        back what it wrote rather than reporting a failure for a message that
        is safely stored. */
     if (isDuplicateKey(error)) {
-      const stored = await ChatMessage.findOne({ clientId: args.clientId }).lean();
+      const stored = await ChatMessage.findOne(replayOf).lean();
       if (stored) return ok({ message: shapeMessage(stored as MessageRow), duplicate: true });
+      /* The id collided with somebody else's message on this thread — not a
+         replay of ours, and not something to hand back. */
+      return fail(ERR.DUPLICATE);
     }
     throw error;
   }

@@ -85,7 +85,11 @@ const fail = (
 /* Gone is 404 wherever the refusal came from. Everything else is the server
    declining a state change it understood perfectly well, which is a 400. */
 const MISSING: string[] = [ERR.NO_STORE, ERR.NO_PRODUCT, ERR.NO_ORDER];
-const statusFor = (code: string) => (MISSING.includes(code) ? 404 : 400);
+/* `admin-forbidden` is the one refusal-by-ownership this file hands back —
+   a replayed checkout code that belongs to somebody else — and it is a 403,
+   as everywhere else the code appears. */
+const statusFor = (code: string) =>
+  MISSING.includes(code) ? 404 : code === ERR.FORBIDDEN ? 403 : 400;
 
 const callerOf = (request: FastifyRequest) =>
   identify(bearerFrom(request.headers.authorization));
@@ -437,6 +441,12 @@ const shapeOrder = (order: OrderDoc) => ({
  * enumerates what it writes: a `kitchenId` smuggled into the body reaches
  * neither the schema's output nor the update.
  */
+/** A money field off a form: rounded to whole taka, never below zero, never a lakh and more. */
+const fee = z.preprocess(
+  (v) => (typeof v === 'number' || typeof v === 'string' ? Math.round(Number(v)) : v),
+  z.number().int().min(0).max(100_000),
+);
+
 const storePatchSchema = z.object({
   name: z.string().optional(),
   tagline: z
@@ -459,11 +469,15 @@ const storePatchSchema = z.object({
     )
     .optional(),
   allBangladesh: z.boolean().optional(),
-  deliveryFee: z.coerce.number().optional(),
+  /* Whole, non-negative taka, bounded. A fee rides into every order total
+     the shop places, so a negative one is a discount nobody funded and a
+     fractional one is paisa the ledger cannot hold. Rounded rather than
+     refused for a decimal — the form's keyboard allows one. */
+  deliveryFee: fee.optional(),
   homeDivision: z.string().optional(),
-  deliveryFeeInsideDhaka: z.coerce.number().nullable().optional(),
-  deliveryFeeOutsideDhaka: z.coerce.number().nullable().optional(),
-  freeDeliveryOver: z.coerce.number().nullable().optional(),
+  deliveryFeeInsideDhaka: fee.nullable().optional(),
+  deliveryFeeOutsideDhaka: fee.nullable().optional(),
+  freeDeliveryOver: fee.nullable().optional(),
   isOpen: z.boolean().optional(),
 });
 
@@ -489,9 +503,20 @@ const productPatchSchema = z.object({
   options: z
     .object({
       label: z.string().default(''),
-      choices: z.array(
-        z.object({ label: z.string(), priceDelta: z.coerce.number().default(0) }),
-      ),
+      choices: z
+        .array(
+          z.object({
+            label: z.string().max(60),
+            /* Whole taka either way — a size can be cheaper — but bounded. */
+            priceDelta: z
+              .preprocess(
+                (v) => (typeof v === 'number' || typeof v === 'string' ? Math.round(Number(v)) : v),
+                z.number().int().min(-100_000).max(100_000),
+              )
+              .default(0),
+          }),
+        )
+        .max(20),
     })
     .nullable()
     .optional(),
@@ -517,12 +542,35 @@ export async function storeRoutes(app: FastifyInstance) {
    * other way to ask.
    */
   app.get('/stores', async (request, reply) => {
-    const query = z.object({ kitchenId: z.string().optional() }).parse(request.query ?? {});
+    const parsed = z
+      .object({
+        kitchenId: z.string().optional(),
+        /* Bounded like `/kitchens`: every row carries a logo and a cover. */
+        take: z.coerce.number().int().min(1).max(60).default(60),
+        skip: z.coerce.number().int().min(0).max(5000).default(0),
+      })
+      .safeParse(request.query ?? {});
+    if (!parsed.success) return fail(reply, ERR.BAD_REQUEST);
+    const query = parsed.data;
+
+    /* The directory lists shops whose cook may trade. A shop under a pending
+       or suspended kitchen is a tap that ends in `store-closed` at checkout;
+       the `?kitchenId=` lookup is exempt, because the kitchen page asking
+       about its own shop needs the honest answer whatever its standing. */
+    const tradingKitchenIds = query.kitchenId
+      ? null
+      : (
+          await Kitchen.find({ kycStatus: 'approved', suspended: false }).select({ _id: 1 }).lean()
+        ).map((k) => String(k._id));
 
     const stores = await Store.find(
-      query.kitchenId ? { kitchenId: query.kitchenId } : { isOpen: true },
+      query.kitchenId
+        ? { kitchenId: query.kitchenId }
+        : { isOpen: true, kitchenId: { $in: tradingKitchenIds ?? [] } },
     )
-      .sort({ name: 1 })
+      .sort({ name: 1, _id: 1 })
+      .skip(query.skip)
+      .limit(query.take)
       .lean();
 
     /* The shop directory draws "12 items" under every name. Counting here is
@@ -719,19 +767,32 @@ export async function storeRoutes(app: FastifyInstance) {
    *
    * The cap is real and the response says when it was hit, so a catalogue
    * that outgrows one fetch reports it here rather than quietly searching a
-   * page and calling it the data.
+   * page and calling it the data. A page is a hundred rows (each carries its
+   * pictures inline), two hundred at most; `skip` walks the rest, and
+   * `truncated` says whether there is a rest to walk.
    */
   app.get('/products', async (request, reply) => {
     const query = z
-      .object({ take: z.coerce.number().min(1).max(1000).default(500) })
+      .object({
+        take: z.coerce.number().int().min(1).max(200).default(100),
+        skip: z.coerce.number().int().min(0).max(20_000).default(0),
+      })
       .safeParse(request.query ?? {});
     if (!query.success) return fail(reply, ERR.BAD_AMOUNT);
 
-    const open = await Store.find({ isOpen: true }).select({ _id: 1 }).lean();
+    /* Open shops under cooks who may trade — the same set the directory
+       lists, so search cannot surface a jar the shop page would refuse. */
+    const trading = (
+      await Kitchen.find({ kycStatus: 'approved', suspended: false }).select({ _id: 1 }).lean()
+    ).map((k) => String(k._id));
+    const open = await Store.find({ isOpen: true, kitchenId: { $in: trading } })
+      .select({ _id: 1 })
+      .lean();
     const storeIds = open.map((s) => String(s._id));
 
     const rows = await Product.find({ storeId: { $in: storeIds }, active: true })
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: -1, _id: 1 })
+      .skip(query.data.skip)
       .limit(query.data.take + 1)
       .lean();
 
@@ -1124,6 +1185,10 @@ export async function storeRoutes(app: FastifyInstance) {
         phone: z.string().optional(),
         address: z.unknown().optional(),
         note: z.string().max(300).optional(),
+        /* The app's idempotency key for this checkout — `RB-XXXXXX`, drawn
+           once per basket and kept across retries, exactly as `/orders`
+           takes one. A replay returns what the first attempt made. */
+        code: z.string().trim().max(16).optional(),
       })
       .safeParse(request.body ?? {});
     if (!body.success) return fail(reply, ERR.NAME_REQUIRED);
@@ -1140,11 +1205,18 @@ export async function storeRoutes(app: FastifyInstance) {
         address: body.data.address === undefined ? null : body.data.address,
         note: body.data.note,
       },
+      /* A cook cannot shop at their own counter; the token says whose. */
+      buyerKitchenId: caller.kitchenId,
+      code: body.data.code ?? null,
     });
     if (!out.ok) return fail(reply, out.error, statusFor(out.error), out.detail);
 
     // Order documents, widened by the logic layer's signature. See `saveStore`.
-    return { orders: (out.result as unknown as OrderDoc[]).map(shapeOrder) };
+    return {
+      orders: (out.result.orders as unknown as OrderDoc[]).map(shapeOrder),
+      /* False on a replay: the orders are real, the charge did not repeat. */
+      created: out.result.created,
+    };
   });
 
   /* ---------------- pre-orders ---------------- */

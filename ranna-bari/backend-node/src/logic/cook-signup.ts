@@ -84,31 +84,42 @@ export async function registerCook(
 
   const existing = matches[0] ?? null;
 
-  const passwordHash = await hashPassword(input.password);
-
   if (existing) {
-    /* An unverified registration never finished — an email that bounced, an
-       app killed mid-flow. Refusing it would weld the door shut behind the
-       first attempt. The form's answers win: the person is looking at the
-       fields they just typed. */
+    /*
+     * An unverified registration never finished — an email that bounced, an
+     * app killed mid-flow. Refusing it would weld the door shut behind the
+     * first attempt, so the form's answers for the *kitchen* win: the person
+     * is looking at the fields they just typed.
+     *
+     * The credentials do not. This used to overwrite the password, the phone
+     * and the email with whatever the second form said, on the strength of
+     * nothing — an unverified account is one nobody has proved they hold,
+     * and that cuts both ways. A stranger who knew the email could put their
+     * own phone on it and sign in by phone OTP; one who put their own
+     * password on it was signed in the moment the real owner verified the
+     * code that the stranger's attempt had mailed them. So a resume has to
+     * match the account on *both* the email and the phone it was opened
+     * with — anything else is somebody else's registration and reads
+     * `account-exists`, which routes them to sign-in and the resend button —
+     * and the password stays what the first attempt set. A cook who mistyped
+     * it has the reset flow, which proves the inbox before it changes a thing.
+     */
+    if (existing.email !== email || existing.phone !== phone) {
+      return fail(ERR.ACCOUNT_EXISTS);
+    }
+
     await Account.updateOne(
       { _id: existing._id },
       {
         $set: {
-          role: 'cook',
           name: input.name,
-          phone,
-          email,
-          customerKey: existing.customerKey === phone ? existing.customerKey : email,
           kitchenName: input.kitchenName,
           specialty: input.specialties[0] ?? null,
           specialties: input.specialties,
           nid: input.nid,
-          passwordHash,
         },
       },
     );
-    existing.passwordHash = passwordHash;
 
     const kitchen = await Kitchen.findOne({ accountId: String(existing._id) });
     if (kitchen) {
@@ -126,6 +137,8 @@ export async function registerCook(
 
     return ok({ account: existing, created: false });
   }
+
+  const passwordHash = await hashPassword(input.password);
 
   const account = await Account.create({
     customerKey: email,

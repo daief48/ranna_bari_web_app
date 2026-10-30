@@ -1,6 +1,7 @@
 import { Types, type ClientSession } from 'mongoose';
 
 import {
+  Kitchen,
   MealBooking,
   MealCategory,
   MealDish,
@@ -9,10 +10,11 @@ import {
   Order,
 } from '../models/index.js';
 import { isDuplicateKey, tx } from '../config/db.js';
-import { ERR, SLOTS, fail, ok, type Fail, type Result } from '../lib/domain.js';
-import { taka, todayKey } from '../lib/format.js';
-import { balanceFor, post } from './ledger.js';
+import { ERR, SLOTS, fail, mayTrade, ok, type Fail, type Result } from '../lib/domain.js';
+import { hourKey, taka, todayKey } from '../lib/format.js';
+import { balanceFor, post, reserveWallet } from './ledger.js';
 import { freeCode, historyStep } from './orders.js';
+import { featureOn } from './settings.js';
 import { notify } from './wallet.js';
 
 /**
@@ -844,6 +846,8 @@ export async function bookMeals(args: {
   selections: { date: string; slot: string }[];
   /** The customer's words for the cook, capped at 300 by the route. */
   note?: string;
+  /** The caller's own kitchen, if they cook — their own calendar is not for sale to them. */
+  callerKitchenId?: string | null;
 }): Promise<Result<{
   bookingId: string;
   code: string;
@@ -856,6 +860,13 @@ export async function bookMeals(args: {
 
   const kitchenId = String(args.kitchenId ?? '').trim();
   if (!kitchenId) return fail(ERR.NO_KITCHEN);
+  if (args.callerKitchenId && String(args.callerKitchenId) === kitchenId) {
+    return fail(ERR.BAD_REQUEST, { field: 'kitchenId' });
+  }
+
+  if (!(await featureOn('system.meals'))) {
+    return fail(ERR.FEATURE_OFF, { feature: 'system.meals' });
+  }
 
   const month = String(args.month ?? '');
   const days = new Set(monthDays(month));
@@ -876,12 +887,20 @@ export async function bookMeals(args: {
   }));
 
   const today = todayKey();
+  const hour = hourKey();
   const picked = new Set<string>();
   for (const one of selections) {
     if (!SLOT_KEYS.has(one.slot)) return fail(ERR.BAD_REQUEST, { field: 'slot', slot: one.slot });
     if (!days.has(one.date)) return fail(ERR.BAD_REQUEST, { field: 'date', date: one.date });
     // Dhaka calendar days, compared as strings — the whole reason they are strings.
     if (one.date < today) return fail(ERR.BAD_REQUEST, { field: 'date', date: one.date });
+    /* Today's sittings close when they are served. A lunch booked at three in
+       the afternoon is a plate nobody will cook, held against a cook who
+       cannot deliver it — the serve hour is the cutoff. */
+    const serveHour = SLOTS.find((s) => s.key === one.slot)?.serveHour ?? 0;
+    if (one.date === today && hour >= serveHour) {
+      return fail(ERR.BAD_REQUEST, { field: 'slot', slot: one.slot, date: one.date, cutoff: serveHour });
+    }
 
     const key = `${one.date}:${one.slot}`;
     if (picked.has(key)) return fail(ERR.ALREADY_ORDERED, { date: one.date, slot: one.slot });
@@ -914,6 +933,17 @@ export async function bookMeals(args: {
     return await tx(async (session) => {
       const service = await MealService.findOne({ kitchenId }).session(session).lean();
       if (!service) return fail(ERR.NO_MEAL);
+
+      /* The cook's standing, before their switch. A switched-on service
+         under a kitchen the operator has not approved — or has suspended —
+         is not taking bookings, whatever its own switch says, and the
+         customer reads the same refusal as for a service switched off. */
+      const kitchen = await Kitchen.findById(kitchenId)
+        .select({ kycStatus: 1, suspended: 1 })
+        .session(session)
+        .lean()
+        .catch(() => null);
+      if (!mayTrade(kitchen)) return fail(ERR.SERVICE_INACTIVE);
       if (!service.active) return fail(ERR.SERVICE_INACTIVE);
 
       const category = await MealCategory.findOne({ key: service.categoryKey })
@@ -960,8 +990,12 @@ export async function bookMeals(args: {
       if (!Number.isFinite(rate) || rate <= 0) return fail(ERR.BAD_AMOUNT, { field: 'rate' });
       const total = rate * count;
 
-      const balance = await balanceFor('customer', customerKey, session);
-      if (balance < total) return fail(ERR.LOW_BALANCE, { short: total - balance, balance });
+      /* The wallet, checked by the one helper that makes two bookings on one
+         wallet conflict rather than both pass — see `reserveWallet`. The
+         same write serialises two bookings of the same slot by one customer,
+         which is what lets the clash check above be trusted. */
+      const funds = await reserveWallet(session, customerKey, total);
+      if (!funds.ok) return funds;
 
       /* Past every refusal. From here the whole basket lands or none of it
          does. The booking's id is drawn first so each order can name its
@@ -972,6 +1006,10 @@ export async function bookMeals(args: {
          cook reads it wherever the order shows, not only on the booking. */
       const note = String(args.note ?? '').slice(0, 300);
 
+      /* The unique index on (customer, kitchen, day, slot) is the database's
+         copy of the clash check. Losing on it inside the transaction aborts
+         the transaction, so the collision is turned back into the refusal
+         the read-side check would have given. */
       const created = await Order.create(
         selections.map((one, i) => ({
           code: codes[i],
@@ -996,7 +1034,10 @@ export async function bookMeals(args: {
         })),
         // `ordered: true` is required for a multi-document create in a session.
         { session, ordered: true },
-      );
+      ).catch((error: unknown) => {
+        if (isDuplicateKey(error)) throw new Rollback(fail(ERR.ALREADY_ORDERED));
+        throw error;
+      });
 
       const orderIds = created.map((row) => String(row._id));
 

@@ -1,9 +1,9 @@
 import { Account, Dish, Dispute, Kitchen, Order, Review, type OrderDoc } from '../models/index.js';
-import { getSettings } from './settings.js';
-import { ERR, fail, ok, type Result } from '../lib/domain.js';
+import { featureOn, getSettings } from './settings.js';
+import { ERR, fail, mayTrade, ok, type Fail, type Result } from '../lib/domain.js';
 import { normaliseServiceAreas, type ServiceArea } from '../lib/bd-areas.js';
 import { quotePromotion, redeem } from './promotions.js';
-import { balanceFor, post } from './ledger.js';
+import { post, reserveWallet } from './ledger.js';
 import { tx } from '../config/db.js';
 import { Types } from 'mongoose';
 import type { AppIdentity } from '../auth/app-auth.js';
@@ -74,10 +74,10 @@ export async function resolveKitchen(chefId: string, caller?: AppIdentity | null
  */
 export async function kitchenMayTrade(kitchenId: string): Promise<boolean> {
   const kitchen = await Kitchen.findById(kitchenId)
-    .select({ kycStatus: 1 })
+    .select({ kycStatus: 1, suspended: 1 })
     .lean()
     .catch(() => null);
-  return kitchen?.kycStatus === 'approved';
+  return mayTrade(kitchen);
 }
 
 export async function registerKitchen(
@@ -153,7 +153,16 @@ export async function registerKitchen(
       typeof kitchen.allBangladesh === 'boolean'
         ? kitchen.allBangladesh
         : (existing?.allBangladesh ?? false),
-    isOpen: typeof kitchen.isOpen === 'boolean' ? kitchen.isOpen : (existing?.isOpen ?? false),
+    /* The shutter only opens on a kitchen that may trade. A pending or
+       rejected kitchen posting `isOpen: true` is written shut — not refused,
+       because the same body carries the rest of the profile and the cook
+       should be able to finish setting up; the shutter is simply not theirs
+       to open until the queue says so. A brand-new kitchen is pending. */
+    isOpen: mayTrade(existing)
+      ? typeof kitchen.isOpen === 'boolean'
+        ? kitchen.isOpen
+        : (existing?.isOpen ?? false)
+      : false,
     /* Where the cook's money goes. The cook names it, the panel reads it —
        the operator paying a run has a place to look besides a chat thread. */
     payoutMethod: kitchen.payoutMethod ?? existing?.payoutMethod ?? '',
@@ -211,6 +220,19 @@ export type OrderDraft = {
 };
 
 /**
+ * A refusal raised after the first write, which has to take the writes with it.
+ *
+ * `withTransaction` commits whatever the callback *returns* — a `Fail`
+ * included — so a check that runs after the order row exists cannot refuse by
+ * returning. It throws this instead and the caller unwraps it.
+ */
+class Rollback extends Error {
+  constructor(readonly out: Fail) {
+    super('order-rolled-back');
+  }
+}
+
+/**
  * Record an order the app placed.
  *
  * Idempotent on the app's own order code, which is unique here — so a retry
@@ -223,10 +245,18 @@ export type OrderDraft = {
  * opening status and clock from here. Cash orders are priced the same way as
  * wallet ones, because release pays the cook out of the recorded amount
  * either way.
+ *
+ * `chargeBasketFees` is the route's answer to "is this the first order of
+ * its basket". The delivery and platform fees are charged once per basket,
+ * not once per kitchen, and the app sends a multi-kitchen basket as one
+ * array — so the route marks the first row and the server charges its own
+ * figures on that one and nothing on the rest. The body's fee fields are not
+ * read at all.
  */
 export async function recordOrder(
   caller: AppIdentity,
   draft: OrderDraft,
+  opts: { chargeBasketFees?: boolean } = {},
 ): Promise<Result<{ orderId: string; code: string; created: boolean }>> {
   const code = String(draft.code ?? '').trim();
   if (!code) return fail(ERR.NAME_REQUIRED);
@@ -246,13 +276,19 @@ export async function recordOrder(
   const kind = draft.kind ?? 'cod';
   if (kind !== 'cod' && kind !== 'wallet') return fail(ERR.BAD_REQUEST, { field: 'kind' });
 
+  /* An operator's switch. The flag was read by `/config` and shown to the
+     app; here it is enforced, so pausing cash orders pauses them. */
+  if (kind === 'cod' && !(await featureOn('system.cod'))) {
+    return fail(ERR.FEATURE_OFF, { feature: 'system.cod' });
+  }
+
   const kitchen = await resolveKitchen(draft.chefId, caller);
   if (!kitchen) return fail(ERR.NO_KITCHEN);
 
-  /* The same gate every other trading path asks. An unapproved kitchen has
-     proved nothing yet, and a cook ordering from their own kitchen is only
-     ever moving money in a circle. */
-  if (kitchen.kycStatus !== 'approved') return fail(ERR.NO_KITCHEN);
+  /* The same gate every other trading path asks. An unapproved or suspended
+     kitchen has nothing to sell, and a cook ordering from their own kitchen
+     is only ever moving money in a circle. */
+  if (!mayTrade(kitchen)) return fail(ERR.NO_KITCHEN);
   if (kitchen.accountId === caller.accountId) {
     return fail(ERR.BAD_REQUEST, { field: 'chefId' });
   }
@@ -296,18 +332,21 @@ export async function recordOrder(
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
 
-  /* Fees are the platform's setting. The app still carries the old 40/10
-     constants, so a number above the current setting is clamped to it rather
-     than refused — a stale build keeps working, and a hand-made request cannot
-     inflate the charge. Below it is taken as sent: the app sends 0 for every
-     kitchen after the first in a basket. */
+  /*
+   * Fees are the platform's setting, and only the platform's.
+   *
+   * This used to clamp whatever the device sent to the setting, which stopped
+   * a request inflating the charge and did nothing about one deflating it: a
+   * hand-made body with `platformFee: 0` paid no platform fee, and the app's
+   * own "0 for every kitchen after the first" could not be told from that.
+   * Now the server charges its own two figures on the first order of a
+   * basket and nothing on the rest — which is exactly the total the app
+   * computed, the same way — and the body's fee fields are never read.
+   */
   const settings = await getSettings();
-  const clampFee = (sentFee: unknown, ceiling: number) => {
-    const n = Math.round(Number(sentFee ?? 0));
-    return Number.isFinite(n) ? Math.min(Math.max(n, 0), ceiling) : 0;
-  };
-  const deliveryFee = clampFee(draft.deliveryFee, settings.deliveryFee);
-  const platformFee = clampFee(draft.platformFee, settings.platformFee);
+  const first = opts.chargeBasketFees ?? true;
+  const deliveryFee = first ? Math.max(0, Math.round(settings.deliveryFee)) : 0;
+  const platformFee = first ? Math.max(0, Math.round(settings.platformFee)) : 0;
 
   const total = subtotal + deliveryFee + platformFee;
   if (!Number.isSafeInteger(total) || total <= 0) return fail(ERR.BAD_AMOUNT);
@@ -361,14 +400,7 @@ export async function recordOrder(
   const discount = quote?.ok ? quote.result.discount : 0;
   const paid = total - discount;
 
-  if (payFromWallet) {
-    const balance = await balanceFor('customer', caller.customerKey);
-    if (balance < paid) {
-      return fail(ERR.LOW_BALANCE, { short: paid - balance, balance });
-    }
-  }
-
-  const order = await Order.create({
+  const row = {
     code,
     kind,
     kitchenId: String(kitchen._id),
@@ -392,6 +424,12 @@ export async function recordOrder(
     platformFee,
     price: total,
     amount: total,
+    /* What the customer handed over, and the code that took the rest off.
+       Settled before the row is written, so there is no instant in which the
+       order exists with its money undecided. */
+    discount,
+    promoCode: discount > 0 && quote?.ok ? quote.result.code : null,
+    paid,
 
     /* The two rails start with different words: COD opens at `placed`,
        escrow at `confirmed`, and a wallet order that opened at `placed`
@@ -403,70 +441,81 @@ export async function recordOrder(
 
     history: [{ status: openingStatus, at: createdAt.toISOString() }],
     createdAt,
-  });
+  };
 
-  if (payFromWallet) {
-    const orderId = String(order._id);
-
-    try {
-      await tx(async (session) => {
-        /* `fromRef` is the customer's key and not decoration: `balanceFor` folds
-           a debit only when it can see whose it was, so a hold posted without one
-           leaves the wallet reading as though nothing had been spent. */
-        if (paid > 0) {
-          await post(session, {
-            kind: 'hold',
-            amount: paid,
-            from: 'customer',
-            to: 'held',
-            fromRef: caller.customerKey,
-            orderId,
-            note: `Held for ${order.title}`,
-            idemKey: `hold:${orderId}`,
-          });
-        }
-
-        /* The platform's half. Escrow ends up holding the full gross, so the
-           release splits what the cook was promised and the discount lands
-           where it belongs — on the platform's own account. */
-        if (discount > 0 && quote?.ok) {
-          await post(session, {
-            kind: 'promo',
-            amount: discount,
-            from: 'platform',
-            to: 'held',
-            orderId,
-            note: `${quote.result.code} on ${order.title}`,
-            idemKey: `promo:${orderId}`,
-          });
-
-          await redeem(session, {
-            quote: quote.result,
-            customerKey: caller.customerKey,
-            orderId,
-          });
-
-          await Order.updateOne(
-            { _id: orderId },
-            { discount, promoCode: quote.result.code, paid },
-            { session },
-          );
-        } else {
-          await Order.updateOne({ _id: orderId }, { paid }, { session });
-        }
-      });
-    } catch (err) {
-      /* The order was written before the hold, so a hold that fails leaves a
-         `held` order with nothing behind it — and a retry on the same code
-         would take the replay branch above and never repair it. The ledger has
-         no entry for this order (the transaction rolled back), so removing the
-         row is safe and leaves the customer free to try again. */
-      await Order.deleteOne({ _id: orderId }).catch(() => undefined);
-      throw err;
-    }
+  /* Cash moves no money today, so the row is the whole write. */
+  if (!payFromWallet) {
+    const order = await Order.create(row);
+    return ok({ orderId: String(order._id), code, created: true });
   }
 
-  return ok({ orderId: String(order._id), code, created: true });
+  /*
+   * A wallet order and its hold are one transaction.
+   *
+   * The row used to be written first and the hold posted afterwards, with a
+   * delete in the catch to tidy up — which left a window in which a `held`
+   * order existed with nothing behind it, and a replay on the same code in
+   * that window took the branch above and returned it as real. Inside one
+   * transaction there is no such instant: the balance is checked against the
+   * same snapshot the hold lands in, `reserveWallet` makes two spends on one
+   * wallet conflict rather than both pass, and a refusal after the row exists
+   * rolls the row back with it.
+   */
+  try {
+    return await tx(async (session) => {
+      const funds = await reserveWallet(session, caller.customerKey, paid);
+      if (!funds.ok) return funds;
+
+      const [order] = await Order.create([row], { session });
+      const orderId = String(order._id);
+
+      /* `fromRef` is the customer's key and not decoration: `balanceFor` folds
+         a debit only when it can see whose it was, so a hold posted without one
+         leaves the wallet reading as though nothing had been spent. */
+      if (paid > 0) {
+        await post(session, {
+          kind: 'hold',
+          amount: paid,
+          from: 'customer',
+          to: 'held',
+          fromRef: caller.customerKey,
+          orderId,
+          note: `Held for ${order.title}`,
+          idemKey: `hold:${orderId}`,
+        });
+      }
+
+      /* The platform's half. Escrow ends up holding the full gross, so the
+         release splits what the cook was promised and the discount lands
+         where it belongs — on the platform's own account. The redemption
+         re-counts the code's limits in this snapshot; a code that ran out
+         between the quote and the commit refuses the order rather than
+         silently overspending the campaign. */
+      if (discount > 0 && quote?.ok) {
+        await post(session, {
+          kind: 'promo',
+          amount: discount,
+          from: 'platform',
+          to: 'held',
+          orderId,
+          note: `${quote.result.code} on ${order.title}`,
+          idemKey: `promo:${orderId}`,
+        });
+
+        const used = await redeem(session, {
+          quote: quote.result,
+          customerKey: caller.customerKey,
+          orderId,
+        });
+        if (!used.ok) throw new Rollback(used);
+      }
+
+      return ok({ orderId, code, created: true });
+    });
+  } catch (error) {
+    if (error instanceof Rollback) return error.out;
+    throw error;
+  }
 }
 
 /**

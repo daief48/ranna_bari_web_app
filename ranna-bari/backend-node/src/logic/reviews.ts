@@ -14,6 +14,7 @@
  * has drifted comes back right the next time anybody rates.
  */
 import { ERR, fail, ok, type Result } from '../lib/domain.js';
+import { todayKey } from '../lib/format.js';
 import { Kitchen, Order, Review } from '../models/index.js';
 
 /** Statuses where the food has actually reached the customer. */
@@ -92,7 +93,9 @@ export async function leaveReview(args: {
     area,
     rating,
     text: String(args.text ?? '').trim().slice(0, 1000),
-    date: new Date().toISOString().slice(0, 10),
+    /* The Dhaka calendar day, like every other date on the platform. The
+       UTC slice put a review written after 6 am on yesterday's date. */
+    date: todayKey(),
   }).catch(() => null);
 
   /* The index rejected it, which means the other tap won. That is the

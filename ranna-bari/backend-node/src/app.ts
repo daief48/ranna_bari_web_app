@@ -58,26 +58,56 @@ export async function buildApp(): Promise<FastifyInstance> {
                nobody is guarding. Redact before anything is written. */
             redact: ['req.headers.authorization', 'req.headers.cookie'],
           },
-    // Behind a proxy in production, so the client IP comes from the header
-    // rather than being the load balancer for every request.
-    trustProxy: env.NODE_ENV === 'production',
+    /*
+     * Behind exactly one proxy in production — Netlify's edge — so the
+     * client address is the *second-from-the-right* entry of
+     * `x-forwarded-for`, which is the one that edge wrote. `true` trusted
+     * the whole chain, and the leftmost entry is whatever the client typed:
+     * a caller could name their own address and so their own rate-limit
+     * bucket. A hop count of one trusts the edge and nobody in front of it.
+     * Locally there is no proxy and the socket address is the truth.
+     */
+    trustProxy: env.NODE_ENV === 'production' ? (_address: string, hop: number) => hop < 1 : false,
   });
 
   /**
-   * CORS for the app endpoints.
+   * CORS, decided per request.
    *
    * Native React Native does not enforce CORS, but this app also builds for
    * web, where the Expo dev server is on one port and this API on another.
-   * `*` is correct for `/api/app` specifically: those routes authenticate
-   * with a bearer token and never a cookie, so there is no ambient authority
-   * for another origin to borrow. The admin routes are pinned to the panel's
-   * origin, because those do carry a session.
+   * Reflecting any origin is correct for `/api/app` specifically: those
+   * routes authenticate with a bearer token and never a cookie, so there is
+   * no ambient authority for another origin to borrow.
+   *
+   * The admin routes carry a session, so they are pinned to the panel's
+   * origin — `ADMIN_ORIGIN`, a comma-separated list when the panel has more
+   * than one address. `ADMIN_ORIGIN` existed and was read by nothing; the
+   * admin prefix reflected every origin like the app's. Outside production
+   * the list is not enforced, because a developer's panel is on whichever
+   * port was free.
    */
+  const adminOrigins = new Set(
+    env.ADMIN_ORIGIN.split(',')
+      .map((origin) => origin.trim().replace(/\/+$/, ''))
+      .filter(Boolean),
+  );
+  const corsFor = (path: string, origin: string | undefined) => {
+    const admin = path.startsWith('/api/admin/');
+    const allowed =
+      !admin || env.NODE_ENV !== 'production' || (!!origin && adminOrigins.has(origin));
+    return {
+      origin: allowed,
+      methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['content-type', 'authorization', 'x-service-token', 'x-actor'],
+      credentials: admin,
+      maxAge: 86_400,
+    };
+  };
+
   await app.register(cors, {
-    origin: (origin, done) => done(null, true),
-    methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['content-type', 'authorization', 'x-service-token', 'x-actor'],
-    maxAge: 86_400,
+    delegator: (request, callback) => {
+      callback(null, corsFor(request.url.split('?')[0], request.headers.origin));
+    },
   });
 
   /**

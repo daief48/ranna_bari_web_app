@@ -4,7 +4,12 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ClientSession, PipelineStage } from 'mongoose';
 import { z } from 'zod';
 
-import { isService, readSession, type AdminSession } from '../../../auth/admin-auth.js';
+import {
+  isService,
+  readSession,
+  resolveActor,
+  type AdminSession,
+} from '../../../auth/admin-auth.js';
 import { ERR, can, errText, type Role } from '../../../lib/domain.js';
 import { isDuplicateKey, tx } from '../../../config/db.js';
 import { getSettings } from '../../../logic/settings.js';
@@ -138,12 +143,17 @@ async function actorOf(request: FastifyRequest): Promise<AdminSession | null> {
       try {
         const actor = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
         if (actor?.email && actor?.role) {
-          return {
-            sub: String(actor.sub ?? ''),
-            email: String(actor.email),
-            name: String(actor.name ?? actor.email),
-            role: actor.role as Role,
-          };
+          /* The row, not the cookie: a deactivated operator is refused and a
+             changed role is the row's. See `resolveActor`. */
+          return resolveActor(
+            {
+              sub: String(actor.sub ?? ''),
+              email: String(actor.email),
+              name: String(actor.name ?? actor.email),
+              role: actor.role as Role,
+            },
+            { required: false },
+          );
         }
       } catch {
         /* A malformed actor header is no actor, not an error. */

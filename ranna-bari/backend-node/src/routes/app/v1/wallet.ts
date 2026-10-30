@@ -12,6 +12,7 @@ import {
 } from '../../../logic/wallet.js';
 import { ERR, errText } from '../../../lib/domain.js';
 import { devFlowsAllowed } from '../../../config/env.js';
+import { featureOn } from '../../../logic/settings.js';
 import { SearchTerm } from '../../../models/index.js';
 
 /**
@@ -98,6 +99,15 @@ export async function walletRoutes(app: FastifyInstance) {
        production it stays shut until a real payment confirmation replaces it,
        unless ALLOW_DEV_FLOWS is set on purpose. */
     if (!devFlowsAllowed()) return fail(reply, 'topup-unavailable', 403);
+
+    /* The operator's switch, enforced where the money enters. */
+    if (!(await featureOn('system.topup'))) {
+      return reply.status(403).send({
+        error: ERR.FEATURE_OFF,
+        message: errText(ERR.FEATURE_OFF),
+        detail: { feature: 'system.topup' },
+      });
+    }
 
     const body = z
       .object({

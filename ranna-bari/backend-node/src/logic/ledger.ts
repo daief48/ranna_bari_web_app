@@ -1,6 +1,6 @@
 import type { ClientSession } from 'mongoose';
 
-import { LedgerEntry, Order } from '../models/index.js';
+import { Dispute, LedgerEntry, Order, Redemption, WalletLock } from '../models/index.js';
 import { isDuplicateKey } from '../config/db.js';
 import {
   ACCOUNTS,
@@ -65,6 +65,15 @@ export type PostArgs = {
  * caller decides what that means. It is surfaced as a distinct return rather
  * than a throw so a caller cannot accidentally treat "already paid" as
  * "failed to pay" and try again.
+ *
+ * Asked before it is written, not caught after. A duplicate-key error inside
+ * a transaction aborts the whole transaction — catching it here saved the
+ * call but not the unit of work, and the next write in the same session
+ * failed with NoSuchTransaction as a 500. So a keyed entry is looked up in
+ * the session first and a replay returns `posted: false` with nothing
+ * thrown. The unique index stays underneath as the backstop for two
+ * genuinely concurrent posts: that abort is the right outcome, because
+ * `withTransaction` replays the loser and the lookup then finds the winner.
  */
 export async function post(
   session: ClientSession,
@@ -72,6 +81,10 @@ export async function post(
 ): Promise<{ posted: boolean; id: string | null }> {
   const amount = Math.round(args.amount);
   if (!Number.isFinite(amount) || amount <= 0) throw new Error(ERR.BAD_AMOUNT);
+
+  if (args.idemKey && (await alreadyPosted(session, args.idemKey))) {
+    return { posted: false, id: null };
+  }
 
   try {
     const [entry] = await LedgerEntry.create(
@@ -134,6 +147,45 @@ export async function balances(session?: ClientSession): Promise<Balances> {
     if (row._id.to in out) out[row._id.to as FoldedAccount] += row.total;
   }
   return out;
+}
+
+/**
+ * Check a customer can afford something, in a way two spends cannot both pass.
+ *
+ * The balance is folded, so "enough?" is a read and the hold that follows is
+ * an insert — and two checkouts in flight read the same balance, both pass,
+ * and both hold. Nothing they write collides, because two holds are two rows.
+ *
+ * So the first thing a spend does is write: it bumps the customer's
+ * `WalletLock` row inside its own transaction. Two transactions on one
+ * wallet now conflict on that document, Mongo aborts the second, and
+ * `withTransaction` replays it with a snapshot that includes the first's
+ * hold — at which point this read refuses it. One small upsert on the fast
+ * path, and a wallet can never go below zero through any path that calls
+ * this. Every spend must: a path that reads the balance on its own is the
+ * race again.
+ *
+ * Must run inside the transaction that posts the hold, with that session.
+ */
+export async function reserveWallet(
+  session: ClientSession,
+  customerKey: string,
+  amount: number,
+): Promise<Result<{ balance: number }>> {
+  const needed = Math.round(amount);
+  if (!Number.isFinite(needed) || needed < 0) return fail(ERR.BAD_AMOUNT);
+
+  await WalletLock.updateOne(
+    { customerKey },
+    { $inc: { v: 1 } },
+    { upsert: true, session },
+  );
+
+  const balance = await balanceFor('customer', customerKey, session);
+  if (balance < needed) {
+    return fail(ERR.LOW_BALANCE, { short: needed - balance, balance });
+  }
+  return ok({ balance });
 }
 
 /** One party's balance — what *this* cook is owed, what *this* customer holds. */
@@ -228,20 +280,44 @@ export async function splitCommission(
  * settlement
  * ------------------------------------------------------------------ */
 
-/** Release an order's escrow: `held` → `cook` + `platform`. */
-export async function releaseEscrow(
+/**
+ * Is a case still open on this order?
+ *
+ * A dispute's status is 'open' or 'investigating' until an operator resolves
+ * it; anything but 'resolved' is live. `except` names the dispute whose own
+ * resolution is doing the asking — that one is allowed to move the money,
+ * because moving it *is* the resolution.
+ */
+async function disputeOpenOn(
   session: ClientSession,
   orderId: string,
-  opts: { note?: string } = {},
+  except?: string | null,
+): Promise<boolean> {
+  const live = await Dispute.findOne({ orderId, status: { $ne: 'resolved' } })
+    .select({ _id: 1 })
+    .session(session)
+    .lean();
+  if (!live) return false;
+  return !except || String(live._id) !== String(except);
+}
+
+/**
+ * Pay the cook their share of a held amount, and the platform its cut.
+ *
+ * The half of a release that moves money, shared by the plain release and
+ * the partial refund below so the two cannot split an amount differently.
+ * `amount` is what leaves escrow for the cook's side; the commission comes
+ * out of it, and the cook gets the remainder. Keyed on the order, so the
+ * second caller to reach it is told it lost.
+ */
+async function payOut(
+  session: ClientSession,
+  order: { _id: unknown; kind: string; kitchenId: string; title: string; mealId?: string | null },
+  amount: number,
+  note: string,
 ): Promise<Result<{ cook: number; platform: number }>> {
-  const order = await Order.findById(orderId).session(session);
-  if (!order) return fail(ERR.NO_ORDER);
-  if (order.payment !== 'held') return fail(ERR.ALREADY_SETTLED);
-
-  const idemKey = `release:${orderId}`;
-  if (await alreadyPosted(session, idemKey)) return fail(ERR.ALREADY_SETTLED);
-
-  const { cook, platform } = await splitCommission(order.amount, order.kind);
+  const orderId = String(order._id);
+  const { cook, platform } = await splitCommission(amount, order.kind);
 
   const released = await post(session, {
     kind: 'release',
@@ -251,8 +327,8 @@ export async function releaseEscrow(
     toRef: order.kitchenId,
     orderId,
     mealId: order.mealId,
-    note: opts.note ?? `Released for ${order.title}`,
-    idemKey,
+    note,
+    idemKey: `release:${orderId}`,
   });
   // Lost the race to a concurrent release. Somebody else paid; not us.
   if (!released.posted) return fail(ERR.ALREADY_SETTLED);
@@ -269,26 +345,98 @@ export async function releaseEscrow(
     });
   }
 
+  return ok({ cook, platform });
+}
+
+/**
+ * Release an order's escrow: `held` → `cook` + `platform`.
+ *
+ * Refused while a dispute is open on the order. The escrow sweep, the panel's
+ * release button and an auto-release all come through here, and none of them
+ * may pay a cook out from under a case the customer has raised. The dispute's
+ * own resolution passes `disputeId` to say it is the one deciding.
+ */
+export async function releaseEscrow(
+  session: ClientSession,
+  orderId: string,
+  opts: { note?: string; disputeId?: string | null } = {},
+): Promise<Result<{ cook: number; platform: number }>> {
+  const order = await Order.findById(orderId).session(session);
+  if (!order) return fail(ERR.NO_ORDER);
+  if (order.payment !== 'held') return fail(ERR.ALREADY_SETTLED);
+
+  if (await alreadyPosted(session, `release:${orderId}`)) return fail(ERR.ALREADY_SETTLED);
+  if (await disputeOpenOn(session, orderId, opts.disputeId)) return fail(ERR.DISPUTE_OPEN);
+
+  const paid = await payOut(session, order, order.amount, opts.note ?? `Released for ${order.title}`);
+  if (!paid.ok) return paid;
+
   await Order.updateOne(
     { _id: orderId },
     {
       payment: 'released',
-      cookAmount: cook,
-      platformAmount: platform,
+      cookAmount: paid.result.cook,
+      platformAmount: paid.result.platform,
       completedAt: new Date(),
     },
     { session },
   );
 
-  return ok({ cook, platform });
+  return ok(paid.result);
 }
 
-/** Refund an order's escrow: `held` → `customer`. */
+/**
+ * Unwind one slice of a hold to the two parties that funded it.
+ *
+ * A discounted order was paid by two parties, so it is refunded to two.
+ * Returning the whole slice to the customer would hand them the platform's
+ * discount as cash — refunded more than they ever paid. Split in proportion,
+ * so half an order returns half of each side; the customer takes the
+ * remainder rather than its own rounded share, so the two halves always add
+ * back to exactly what left escrow. `discount` is zero on everything ordered
+ * before promotions existed, which reads correctly as "all the customer's".
+ *
+ * Shared by the refund and the dispute split, so the two cannot disagree
+ * about who the discount belonged to.
+ */
+function unwindShares(
+  order: { amount: number; discount?: number | null },
+  slice: number,
+): { toCustomer: number; toPlatform: number } {
+  const discount = Math.round(order.discount ?? 0);
+  const share = order.amount > 0 ? slice / order.amount : 1;
+  const toPlatform = discount > 0 ? Math.min(slice, Math.round(discount * share)) : 0;
+  return { toCustomer: slice - toPlatform, toPlatform };
+}
+
+/**
+ * A promotion that funded a cancelled order never happened.
+ *
+ * The redemption row is what the per-customer and usage limits count, so an
+ * order refunded in full has to give its slot back — otherwise a customer
+ * whose first order was cancelled by the cook has "used" their one code and
+ * the campaign's cap counts orders that were never served. A partial refund
+ * keeps it: the customer ate, at a discount.
+ */
+async function releaseRedemption(session: ClientSession, orderId: string): Promise<void> {
+  await Redemption.deleteMany({ orderId }, { session });
+}
+
+/**
+ * Refund an order's escrow: `held` → `customer`.
+ *
+ * In full by default. With `amount` below the hold it is a *partial* refund,
+ * and the remainder is not left behind: it goes to the cook as a release,
+ * with the platform's commission taken on it exactly as `releaseEscrow`
+ * would. Money that stayed in `held` against an order marked refunded was
+ * money nobody could ever move again, and the books only reconcile when
+ * every taka that entered escrow has a way out.
+ */
 export async function refundEscrow(
   session: ClientSession,
   orderId: string,
   opts: { amount?: number; note?: string; idemSuffix?: string } = {},
-): Promise<Result<{ refunded: number }>> {
+): Promise<Result<{ refunded: number; released?: number; platform?: number }>> {
   const order = await Order.findById(orderId).session(session);
   if (!order) return fail(ERR.NO_ORDER);
   if (order.payment !== 'held') return fail(ERR.ALREADY_SETTLED);
@@ -296,24 +444,7 @@ export async function refundEscrow(
   const amount = Math.round(opts.amount ?? order.amount);
   if (amount <= 0 || amount > order.amount) return fail(ERR.BAD_AMOUNT);
 
-  /*
-   * A discounted order was funded by two parties, so it is unwound to two.
-   *
-   * Returning the whole hold to the customer would hand them the platform's
-   * discount as cash — they would be refunded more than they ever paid. The
-   * customer gets back what they paid; the platform takes back what it put in.
-   *
-   * Split in proportion so a partial refund behaves: half an order refunds
-   * half of each side. `paid` is null on everything ordered before promotions
-   * existed, which reads correctly as "the customer paid all of it".
-   */
-  const discount = Math.round(order.discount ?? 0);
-  const paidByCustomer = Math.round(order.paid ?? order.amount);
-  const share = order.amount > 0 ? amount / order.amount : 1;
-  const toPlatform = discount > 0 ? Math.round(discount * share) : 0;
-  /* The customer gets the remainder rather than its own rounded share, so the
-     two halves always add back to exactly what left escrow. */
-  const toCustomer = amount - toPlatform;
+  const { toCustomer, toPlatform } = unwindShares(order, amount);
 
   const idemKey = `refund:${orderId}${opts.idemSuffix ? `:${opts.idemSuffix}` : ''}`;
   if (await alreadyPosted(session, idemKey)) return fail(ERR.ALREADY_SETTLED);
@@ -345,9 +476,36 @@ export async function refundEscrow(
     });
   }
 
-  await Order.updateOne({ _id: orderId }, { payment: 'refunded' }, { session });
+  const remainder = order.amount - amount;
 
-  return ok({ refunded: amount });
+  if (remainder <= 0) {
+    await releaseRedemption(session, orderId);
+    await Order.updateOne({ _id: orderId }, { payment: 'refunded' }, { session });
+    return ok({ refunded: amount });
+  }
+
+  /* Partial: the rest is the cook's. Released under the plain release keys,
+     so a later `releaseEscrow` on the same order is told it is settled. */
+  const paid = await payOut(
+    session,
+    order,
+    remainder,
+    `${opts.note ?? `Partial refund on ${order.title}`} — remainder released`,
+  );
+  if (!paid.ok) return paid;
+
+  await Order.updateOne(
+    { _id: orderId },
+    {
+      payment: 'released',
+      cookAmount: paid.result.cook,
+      platformAmount: paid.result.platform,
+      completedAt: new Date(),
+    },
+    { session },
+  );
+
+  return ok({ refunded: amount, released: remainder, platform: paid.result.platform });
 }
 
 /**
@@ -379,18 +537,38 @@ export async function splitEscrow(
     });
   }
 
+  /* The refund half is unwound the way `refundEscrow` unwinds one: the
+     customer gets back only their share of it, and the platform takes back
+     the share of the discount it funded. Refunding the whole slice to the
+     customer would pay them the promotion in cash. */
   if (refund > 0) {
-    const out = await post(session, {
-      kind: 'refund',
-      amount: refund,
-      from: 'held',
-      to: 'customer',
-      toRef: order.customerKey,
-      orderId,
-      note: `${note} — refunded`,
-      idemKey: `split-refund:${orderId}`,
-    });
-    if (!out.posted) return fail(ERR.ALREADY_SETTLED);
+    const { toCustomer, toPlatform } = unwindShares(order, refund);
+
+    if (toCustomer > 0) {
+      const out = await post(session, {
+        kind: 'refund',
+        amount: toCustomer,
+        from: 'held',
+        to: 'customer',
+        toRef: order.customerKey,
+        orderId,
+        note: `${note} — refunded`,
+        idemKey: `split-refund:${orderId}`,
+      });
+      if (!out.posted) return fail(ERR.ALREADY_SETTLED);
+    }
+
+    if (toPlatform > 0) {
+      await post(session, {
+        kind: 'promo-return',
+        amount: toPlatform,
+        from: 'held',
+        to: 'platform',
+        orderId,
+        note: `${order.promoCode ?? 'Discount'} returned on dispute`,
+        idemKey: `split-promo-return:${orderId}`,
+      });
+    }
   }
 
   let platform = 0;
@@ -422,6 +600,9 @@ export async function splitEscrow(
       });
     }
   }
+
+  /* Fully refunded is the one outcome where the promotion was never used. */
+  if (refund === order.amount) await releaseRedemption(session, orderId);
 
   await Order.updateOne(
     { _id: orderId },

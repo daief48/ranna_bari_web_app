@@ -163,3 +163,33 @@ export async function getFlags() {
   }
   return DEFAULT_FLAGS;
 }
+
+export type FeatureKey = (typeof DEFAULT_FLAGS)[number]['key'];
+
+let flagCache: { at: number; off: Set<string> } | null = null;
+
+/**
+ * Is a system switched on?
+ *
+ * The flags were read by `/config` and shown to the app, and nothing on the
+ * server looked at them — an operator who paused the meal system paused the
+ * button, not the booking. Every route that opens one of these systems asks
+ * here first.
+ *
+ * Only the *off* rows are kept, because absence means on: a flag nobody has
+ * written is a system nobody has switched off, and a fresh database with no
+ * flag rows at all must trade. Cached on the same short TTL as the settings,
+ * for the same reason — read on every order, changed a handful of times a
+ * year.
+ */
+export async function featureOn(key: FeatureKey | string): Promise<boolean> {
+  if (!flagCache || Date.now() - flagCache.at >= 5_000) {
+    const rows = await FeatureFlag.find({ enabled: false }).select({ _id: 1 }).lean();
+    flagCache = { at: Date.now(), off: new Set(rows.map((row) => String(row._id))) };
+  }
+  return !flagCache.off.has(key);
+}
+
+export function invalidateFlags() {
+  flagCache = null;
+}

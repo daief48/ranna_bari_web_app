@@ -1093,6 +1093,25 @@ export async function expireRequests(): Promise<Result<{ expired: number }>> {
   });
 }
 
+let lastExpirySweep = 0;
+
+/**
+ * `expireRequests`, when somebody looks at the board.
+ *
+ * There is no scheduler on a serverless deployment, and a sweep nobody calls
+ * is a sweep that never runs — the board kept every request for ever. So the
+ * list routes call this on the way in. Throttled to once a minute per
+ * process, because expiry is measured in days and the query is not free; and
+ * never allowed to fail the read it rides on — a board that will not load
+ * because a sweep hiccupped is worse than a stale row.
+ */
+export async function expireRequestsLazily(): Promise<void> {
+  const now = Date.now();
+  if (now - lastExpirySweep < 60_000) return;
+  lastExpirySweep = now;
+  await expireRequests().catch(() => undefined);
+}
+
 /** A cook pulls out. Their own offer only — the id alone is not enough. */
 export async function withdrawOffer(
   kitchenId: string,

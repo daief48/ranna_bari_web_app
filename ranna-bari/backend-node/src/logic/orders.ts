@@ -4,8 +4,9 @@ import { Order, Product } from '../models/index.js';
 import { tx } from '../config/db.js';
 import { ERR, fail, isFinished, nextStatus, ok, type Result } from '../lib/domain.js';
 import { makeCode, taka } from '../lib/format.js';
-import { post, refundEscrow } from './ledger.js';
+import { post, refundEscrow, releaseEscrow } from './ledger.js';
 import { syncBookingStatus } from './mealplan.js';
+import { getSettings } from './settings.js';
 import { notify } from './wallet.js';
 
 /**
@@ -320,11 +321,33 @@ export async function restock(
 }
 
 /**
+ * The rungs a *customer* may still cancel from.
+ *
+ * Before the cook has started, and no later. On cash that is `placed` and
+ * `accepted` (the cook has said yes but not lit the stove); on escrow it is
+ * `confirmed`, plus `pending` for a pre-order the cook has not even answered.
+ * Once it says `cooking` or `preparing` the food is being made for them, and
+ * walking away from that is the cook's call or an operator's — the app's own
+ * cancel button is drawn on `placed` alone, so this is wider than the UI,
+ * not narrower.
+ */
+const CUSTOMER_MAY_CANCEL = new Set(['placed', 'accepted', 'pending', 'confirmed']);
+
+/** The rungs nobody cancels from: the food is on its way or has arrived. */
+const PAST_CANCELLING = new Set(['on_the_way', 'delivering', 'delivered']);
+
+/**
  * Cancel one order and put the held money back.
  *
  * Allowed right up until the food is on its way; after that it is a dispute
  * rather than a cancellation, and this module does not pretend to settle
  * those — `splitEscrow` does, from the panel.
+ *
+ * A cash order has no hold to return, and that used to read as "already
+ * settled" — so no cash order could ever be cancelled by anyone, and a
+ * customer who changed their mind a minute after ordering had a rider at
+ * the door. Nothing financial happens for cash: the row closes, both sides
+ * are told, and no ledger entry is written because none was ever posted.
  */
 export async function cancelOrder(args: {
   orderId: string;
@@ -344,14 +367,19 @@ export async function cancelOrder(args: {
     const order = await findOrder(args.orderId, session);
     if (!order) return fail(ERR.NO_ORDER);
     if (isFinished(order.status)) return fail(ERR.ALREADY_SETTLED);
-    if (order.status === 'delivering' || order.status === 'delivered') {
-      return fail(ERR.WRONG_STATE);
+    if (PAST_CANCELLING.has(order.status)) return fail(ERR.WRONG_STATE, { status: order.status });
+    if (by === 'customer' && !CUSTOMER_MAY_CANCEL.has(order.status)) {
+      return fail(ERR.WRONG_STATE, { status: order.status });
     }
-    if (order.payment !== 'held') return fail(ERR.ALREADY_SETTLED);
+
+    const cash = order.payment === 'cod';
+    if (!cash && order.payment !== 'held') return fail(ERR.ALREADY_SETTLED);
 
     const orderId = idOf(order);
 
-    const back = await refundEscrow(session, orderId, { note: reason });
+    const back = cash
+      ? ok({ refunded: 0 })
+      : await refundEscrow(session, orderId, { note: reason });
     if (!back.ok) return back;
 
     await Order.updateOne(
@@ -369,12 +397,16 @@ export async function cancelOrder(args: {
        closes when every meal on it has, which is what this decides. */
     if (order.bookingId) await syncBookingStatus(session, order.bookingId);
 
+    const moneyLine = cash
+      ? 'No money had changed hands.'
+      : `${taka(back.result.refunded)} was refunded.`;
+
     await notify(session, {
       audience: tell,
       kind: 'order-cancelled',
       key: `${tell}:order-cancelled:${orderId}`,
       title: 'Order cancelled',
-      body: `${order.title} was cancelled. ${taka(back.result.refunded)} was refunded.`,
+      body: `${order.title} was cancelled. ${moneyLine}`,
       customerKey: tell === 'customer' ? order.customerKey : null,
       kitchenId: tell === 'cook' ? order.kitchenId : null,
       mealId: order.mealId,
@@ -392,7 +424,9 @@ export async function cancelOrder(args: {
         kind: 'order-cancelled',
         key: `${actor}:order-cancelled:${orderId}`,
         title: 'You cancelled this order',
-        body: `${order.title} was cancelled. ৳${order.amount} was refunded to the customer.`,
+        body: cash
+          ? `${order.title} was cancelled. No money had changed hands.`
+          : `${order.title} was cancelled. ৳${order.amount} was refunded to the customer.`,
         customerKey: actor === 'customer' ? order.customerKey : null,
         kitchenId: actor === 'cook' ? order.kitchenId : null,
         mealId: order.mealId,
@@ -402,6 +436,76 @@ export async function cancelOrder(args: {
 
     return ok({ refunded: back.result.refunded });
   });
+}
+
+/**
+ * Release everything that has sat past the auto-release window.
+ *
+ * The rule the settings describe — "days after delivery that held money
+ * releases without the customer" — and the one place it is applied. The
+ * panel's sweep button and the internal cron route both come here, so an
+ * order a cron released and an order an operator released are released by
+ * the same code with the same note.
+ *
+ * One transaction per order rather than one big one: a single bad row must
+ * not roll back forty good releases. A refusal is counted and the sweep
+ * carries on — a disputed order refuses with `dispute-open` and stays held,
+ * which is the point of the dispute.
+ */
+export async function sweepEscrow(opts: { note?: string } = {}): Promise<{
+  considered: number;
+  released: number;
+  total: number;
+  failures: { orderId: string; error: string }[];
+}> {
+  const settings = await getSettings();
+  const cutoff = new Date(Date.now() - settings.escrowAutoReleaseDays * 86_400_000);
+
+  const due = await Order.find({
+    payment: 'held',
+    status: { $in: ['delivered', 'completed'] },
+    deliveredAt: { $lt: cutoff },
+  })
+    .select('code kitchenId title mealId')
+    .lean();
+
+  let released = 0;
+  let total = 0;
+  const failures: { orderId: string; error: string }[] = [];
+
+  for (const order of due) {
+    const id = String(order._id);
+    const out = await tx(async (session) => {
+      const result = await releaseEscrow(session, id, {
+        note: opts.note ?? `Auto-released after ${settings.escrowAutoReleaseDays} days`,
+      });
+      if (!result.ok) return result;
+
+      await Order.updateOne({ _id: id }, { status: 'completed' }, { session });
+
+      await notify(session, {
+        audience: 'cook',
+        kind: 'payment-released',
+        key: `cook:payment-released:${id}`,
+        title: 'Payment released',
+        body: `${taka(result.result.cook)} for ${order.title ?? 'your order'} is in your wallet.`,
+        kitchenId: order.kitchenId,
+        mealId: order.mealId ?? undefined,
+        orderId: id,
+      });
+
+      return result;
+    }).catch((error: unknown) => fail(error instanceof Error ? error.message : 'server-error'));
+
+    if (out.ok) {
+      released += 1;
+      total += out.result.cook + out.result.platform;
+    } else {
+      failures.push({ orderId: id, error: out.error });
+    }
+  }
+
+  return { considered: due.length, released, total, failures };
 }
 
 /**

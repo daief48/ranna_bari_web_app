@@ -942,6 +942,16 @@ const orderSchema = new Schema(
   {
     /** The app's own code, `RB-XXXXXX`. Its natural idempotency key. */
     code: { type: String, required: true, unique: true },
+    /**
+     * The checkout this order came out of, for the store rail.
+     *
+     * A basket splits into several orders — one per shop, and again for
+     * pre-orders — but the app retries the *checkout*, with one key. Every
+     * order it produced carries that key, so a replay can find all of them
+     * rather than charging the basket again. Null on every other rail, where
+     * `code` is the key.
+     */
+    checkoutCode: { type: String, default: null, index: true },
     /** 'cod' | 'wallet' | 'meal' | 'store' | 'request' */
     kind: { type: String, required: true, index: true },
 
@@ -1030,6 +1040,35 @@ const orderSchema = new Schema(
 orderSchema.index({ payment: 1, status: 1, deliveredAt: 1 });
 orderSchema.index({ kitchenId: 1, createdAt: -1 });
 orderSchema.index({ customerKey: 1, createdAt: -1 });
+
+/**
+ * One plate per customer per sitting.
+ *
+ * `bookMeals` already asks "is this slot taken" before it writes, but two
+ * bookings racing each read a calendar that does not yet know about the
+ * other. This is the database's copy of the rule, and the one that cannot
+ * lose a race: a second live meal order for the same customer, kitchen, day
+ * and slot collides here whatever the reads said.
+ *
+ * Partial on the kind and on the statuses that still mean "eating": a
+ * cancelled Tuesday leaves the index so the customer can book Tuesday again.
+ * `$in` inside a partial filter needs MongoDB 6.0 or later, which every Atlas
+ * tier and the test replica set are.
+ */
+orderSchema.index(
+  { customerKey: 1, kitchenId: 1, serveDate: 1, slot: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      kind: 'meal',
+      /* Only rows that name a sitting. The old board's meal orders carry no
+         serveDate, and two nulls would collide on this index. */
+      serveDate: { $type: 'string' },
+      slot: { $type: 'string' },
+      status: { $in: ['confirmed', 'preparing', 'ready', 'delivering', 'delivered', 'completed'] },
+    },
+  },
+);
 
 export const Order = model('Order', orderSchema);
 export type OrderDoc = InferSchemaType<typeof orderSchema>;
@@ -1193,6 +1232,11 @@ const notificationSchema = new Schema(
 
 notificationSchema.index({ audience: 1, read: 1 });
 notificationSchema.index({ key: 1, read: 1 });
+/* The inbox reads — one person's rows, newest first, and the unread count
+   over the same prefix. Without these the inbox query walked `audience`
+   alone and sorted the whole audience in memory. */
+notificationSchema.index({ audience: 1, customerKey: 1, at: -1 });
+notificationSchema.index({ audience: 1, kitchenId: 1, at: -1 });
 
 export const Notification = model('Notification', notificationSchema);
 
@@ -1412,8 +1456,14 @@ const messageSchema = new Schema(
      * The sender's own id, generated on the device before the message left
      * it. An offline outbox replays on reconnect, and this is what stops the
      * replay posting twice.
+     *
+     * Unique *within a thread* (the compound index below), not globally. A
+     * global index let any caller who guessed another thread's clientId be
+     * handed that message back as "their" duplicate; scoped, a replay can
+     * only ever collide with the sender's own thread. Existing deployments
+     * carry the old `clientId_1` index and should drop it.
      */
-    clientId: { type: String, required: true, unique: true },
+    clientId: { type: String, required: true },
 
     sentAt: { type: Date, default: () => new Date() },
 
@@ -1430,5 +1480,35 @@ const messageSchema = new Schema(
 );
 
 messageSchema.index({ threadId: 1, sentAt: 1 });
+messageSchema.index({ threadId: 1, clientId: 1 }, { unique: true });
 
 export const ChatMessage = model('ChatMessage', messageSchema);
+
+/* ------------------------------------------------------------------ *
+ * wallet serialisation
+ * ------------------------------------------------------------------ */
+
+/**
+ * One row per customer, touched by every transaction that spends from their
+ * wallet.
+ *
+ * The balance is folded from the ledger and never stored, which is right —
+ * but it means a spend is a read ("enough?") followed by an insert ("hold"),
+ * and two spends in flight at once each read a balance that does not yet
+ * include the other. Nothing they write collides: two holds are two rows.
+ *
+ * This row is the collision. Each spend `$inc`s its customer's version inside
+ * its own transaction, so two transactions on one wallet conflict on this
+ * document, Mongo aborts the second, `withTransaction` replays it, and the
+ * replay reads a balance that includes the first. The counter's value means
+ * nothing; the write is the point. See `reserveWallet` in `logic/ledger.ts`.
+ */
+const walletLockSchema = new Schema(
+  {
+    customerKey: { type: String, required: true, unique: true },
+    v: { type: Number, default: 0 },
+  },
+  { versionKey: false, collection: 'wallet_locks' },
+);
+
+export const WalletLock = model('WalletLock', walletLockSchema);

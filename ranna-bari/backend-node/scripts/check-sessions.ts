@@ -23,7 +23,7 @@ const MODELS =
   'Product|Cart|TaxonomyCategory|MealCategory|MealPlan|MealDish|MealService|MealBooking|' +
   'Request|Offer|Order|LedgerEntry|PayoutRun|PayoutItem|' +
   'TopUp|Dispute|Review|Notification|Zone|Setting|FeatureFlag|AdminUser|AuditLog|' +
-  'ChatThread|ChatMessage';
+  'ChatThread|ChatMessage|WalletLock';
 
 /** Reads and writes. Aggregations take `.session()` instead, handled below. */
 const OPS =

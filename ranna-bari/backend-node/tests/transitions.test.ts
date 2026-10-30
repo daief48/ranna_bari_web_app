@@ -40,9 +40,11 @@ beforeEach(async () => {
     Object.entries(DEFAULT_SETTINGS).map(([key, value]) => ({ _id: key, value })),
   );
 
+  /* Approved, because a shop under a pending kitchen is closed to shoppers
+     and the store cases below are about stock and money, not the gate. */
   const [a, b] = await Kitchen.create([
-    { legacyId: 1, name: "Fatema's Kitchen", ownerName: 'Fatema B.', area: 'Dhanmondi', lat: 23.74, lng: 90.37, isOpen: true },
-    { legacyId: 2, name: "Rohima's Kitchen", ownerName: 'Rohima A.', area: 'Dhanmondi', lat: 23.75, lng: 90.38, isOpen: true },
+    { legacyId: 1, name: "Fatema's Kitchen", ownerName: 'Fatema B.', area: 'Dhanmondi', lat: 23.74, lng: 90.37, isOpen: true, kycStatus: 'approved' },
+    { legacyId: 2, name: "Rohima's Kitchen", ownerName: 'Rohima A.', area: 'Dhanmondi', lat: 23.75, lng: 90.38, isOpen: true, kycStatus: 'approved' },
   ]);
   kitchenA = String(a._id);
   kitchenB = String(b._id);

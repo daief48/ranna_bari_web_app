@@ -50,6 +50,16 @@ export function dayKey(date: Date | string | number = new Date()): string {
 
 export const todayKey = () => dayKey();
 
+/** The hour of the day in Dhaka, 0–23. For "has lunch already been served". */
+export function hourKey(date: Date | string | number = new Date()): number {
+  const d = new Date(date);
+  const hour = Number(
+    d.toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', hour12: false }),
+  );
+  // en-GB renders midnight as "24" in some ICU builds; the day's first hour is 0.
+  return Number.isFinite(hour) ? hour % 24 : 0;
+}
+
 export function addDays(n: number, from: Date = new Date()): Date {
   const d = new Date(from);
   d.setDate(d.getDate() + n);

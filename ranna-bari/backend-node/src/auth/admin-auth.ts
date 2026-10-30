@@ -70,16 +70,60 @@ export async function createSession(user: AdminSession): Promise<string> {
     .sign(secret());
 }
 
+/**
+ * The operator as the database has them *now*, not as the token remembered
+ * them.
+ *
+ * A session lives eight hours and a role change or a deactivation has to land
+ * before it expires — an operator switched off at nine must not keep moving
+ * money until five. So every admin request pays one indexed lookup: by `_id`
+ * when the claim carries one, by the unique email when it does not (the panel
+ * forwards whatever its cookie held, and a script may assert an email alone).
+ *
+ * A row that is there and inactive is refused outright. A row that is not
+ * there is the caller's problem to decide: a token the backend itself issued
+ * always has one, so `required` refuses; a panel-asserted actor is believed
+ * only because the service token was valid, and a test or a script asserting
+ * an email with no account behind it has always been let through on that
+ * basis — `required: false` keeps that, and still takes the role from the
+ * row whenever one exists.
+ */
+export async function resolveActor(
+  claim: AdminSession,
+  opts: { required: boolean },
+): Promise<AdminSession | null> {
+  const select = { email: 1, name: 1, role: 1, active: 1 } as const;
+  const row = /^[a-f\d]{24}$/i.test(claim.sub)
+    ? await AdminUser.findById(claim.sub).select(select).lean()
+    : await AdminUser.findOne({ email: claim.email.trim().toLowerCase() }).select(select).lean();
+
+  if (!row) return opts.required ? null : claim;
+  if (row.active === false) return null;
+
+  return {
+    sub: String(row._id),
+    email: row.email,
+    name: row.name,
+    role: row.role as Role,
+  };
+}
+
 export async function readSession(token: string | undefined): Promise<AdminSession | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
-    return {
-      sub: String(payload.sub),
-      email: String(payload.email),
-      name: String(payload.name),
-      role: payload.role as Role,
-    };
+    /* The signature proves who signed in; the row says whether they still
+       may. Role comes from the row for the same reason — the token is a
+       snapshot, and a demotion that waits for expiry is not a demotion. */
+    return resolveActor(
+      {
+        sub: String(payload.sub),
+        email: String(payload.email),
+        name: String(payload.name),
+        role: payload.role as Role,
+      },
+      { required: true },
+    );
   } catch {
     return null;
   }

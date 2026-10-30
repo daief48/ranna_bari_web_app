@@ -1,7 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
-import { isService, readSession, type AdminSession } from '../../../auth/admin-auth.js';
+import {
+  isService,
+  readSession,
+  resolveActor,
+  type AdminSession,
+} from '../../../auth/admin-auth.js';
 import { isDuplicateKey, tx } from '../../../config/db.js';
 import { ERR, can, errText, type Role } from '../../../lib/domain.js';
 import { daysSince, makeCode, taka } from '../../../lib/format.js';
@@ -19,7 +24,6 @@ import {
   Dispute,
   Kitchen,
   LedgerEntry,
-  Notification,
   Order,
   PayoutItem,
   PayoutRun,
@@ -60,12 +64,17 @@ async function actorOf(request: FastifyRequest): Promise<AdminSession | null> {
       try {
         const actor = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
         if (actor?.email && actor?.role) {
-          return {
-            sub: String(actor.sub ?? ''),
-            email: String(actor.email),
-            name: String(actor.name ?? actor.email),
-            role: actor.role as Role,
-          };
+          /* The row, not the cookie: a deactivated operator is refused and a
+             changed role is the row's. See `resolveActor`. */
+          return resolveActor(
+            {
+              sub: String(actor.sub ?? ''),
+              email: String(actor.email),
+              name: String(actor.name ?? actor.email),
+              role: actor.role as Role,
+            },
+            { required: false },
+          );
         }
       } catch {
         /* A malformed actor header is no actor, not an error. */
@@ -236,6 +245,19 @@ export async function moneyRoutes(app: FastifyInstance) {
       .safeParse(request.body ?? {});
     if (!body.success) return fail(reply as never, ERR.NAME_REQUIRED);
 
+    /* One draft at a time. Two drafts cut from the same balances both say the
+       cook is owed the full amount, and paying both pays it twice — the
+       ledger's idempotency key is per run, so it would not notice. The
+       existing run's id travels in the refusal so the operator can open it. */
+    const open = await PayoutRun.findOne({ status: 'draft' }).select({ code: 1 }).lean();
+    if (open) {
+      return reply.status(409).send({
+        error: ERR.DUPLICATE,
+        message: `${open.code} is still a draft. Pay or cancel it before drafting another.`,
+        detail: { runId: String(open._id), code: open.code },
+      });
+    }
+
     const settings = await getSettings();
     const owed = (await cookBalances()).filter((row) => row.amount >= settings.payoutMinimum);
     if (!owed.length) return fail(reply as never, ERR.NOTHING_TO_PAY);
@@ -276,7 +298,10 @@ export async function moneyRoutes(app: FastifyInstance) {
           kitchenName: nameOf.get(row.kitchenId) ?? row.kitchenId,
           amount: row.amount,
         })),
-        { session },
+        /* `ordered` is not optional here: Mongoose refuses a multi-document
+           create on a session without it, so a run with two or more cooks —
+           every real run — threw a 500 before anything was written. */
+        { session, ordered: true },
       );
 
       await audit(
@@ -304,6 +329,15 @@ export async function moneyRoutes(app: FastifyInstance) {
    * an idempotency key built from the run and the kitchen, so a double-clicked
    * "Mark paid" pays once — the second post is refused by the unique index
    * rather than by anything this route remembers.
+   *
+   * The amounts were frozen onto the items at draft time, and a balance can
+   * fall between then and now — a refund posted against a released order, an
+   * adjustment, a second draft that somebody paid first. So every item is
+   * checked against the cook's balance *inside the transaction*, and one
+   * that no longer has cover is skipped rather than posted: a payout that
+   * overdraws a cook's account is money the platform invented. A run with a
+   * skip in it lands on `partial`, never `paid`, so the carried cooks are not
+   * reported as settled.
    */
   app.post('/payouts/:id/pay', async (request, reply) => {
     const actor = await require(request, reply as never, 'payout.write');
@@ -320,10 +354,34 @@ export async function moneyRoutes(app: FastifyInstance) {
       if (!run) return { ok: false as const, error: ERR.RUN_CLOSED, status: 404 };
       if (run.status !== 'draft') return { ok: false as const, error: ERR.RUN_CLOSED, status: 400 };
 
-      const items = await PayoutItem.find({ payoutRunId: id }).session(session).lean();
+      const [items, balances] = await Promise.all([
+        PayoutItem.find({ payoutRunId: id }).session(session).lean(),
+        /* One fold for every cook rather than one per item, read on the same
+           session so it sees exactly the ledger this transaction will append
+           to. */
+        cookBalances(session),
+      ]);
+      const owedTo = new Map(balances.map((row) => [row.kitchenId, row.amount]));
 
       let paid = 0;
+      let paidTotal = 0;
+      /* Entries that were already there — a retry of a run whose first attempt
+         committed. Not paid *by this call*, and not a skip either. */
+      let duplicate = 0;
+      const skipped: { kitchenId: string; kitchenName: string; amount: number; owed: number }[] = [];
+
       for (const item of items) {
+        const owed = owedTo.get(item.kitchenId) ?? 0;
+        if (owed < item.amount) {
+          skipped.push({
+            kitchenId: item.kitchenId,
+            kitchenName: item.kitchenName,
+            amount: item.amount,
+            owed,
+          });
+          continue;
+        }
+
         const entry = await post(session, {
           kind: 'payout',
           amount: item.amount,
@@ -334,27 +392,31 @@ export async function moneyRoutes(app: FastifyInstance) {
           note: `Payout ${run.code} via ${run.method}`,
           idemKey: `payout:${id}:${item.kitchenId}`,
         });
-        if (entry.posted) paid++;
+        if (!entry.posted) {
+          duplicate++;
+          continue;
+        }
+        paid++;
+        paidTotal += item.amount;
 
-        await Notification.create(
-          [
-            {
-              key: `cook:payout:${id}:${item.kitchenId}`,
-              audience: 'cook',
-              kind: 'payout',
-              kitchenId: item.kitchenId,
-              title: 'You have been paid',
-              body: `${taka(item.amount)} sent via ${run.method}.`,
-              broadcastBy: actor.email,
-            },
-          ],
-          { session },
-        );
+        /* Told once per run: `notify` files nothing while the same key is
+           still unread, which is the dedupe a bare create here lacked. */
+        await notify(session, {
+          audience: 'cook',
+          kind: 'payout',
+          key: `cook:payout:${id}:${item.kitchenId}`,
+          kitchenId: item.kitchenId,
+          title: 'You have been paid',
+          body: `${taka(item.amount)} sent via ${run.method}.`,
+          broadcastBy: actor.email,
+        });
       }
+
+      const status = skipped.length ? 'partial' : 'paid';
 
       await PayoutRun.updateOne(
         { _id: id },
-        { status: 'paid', paidAt: new Date(), paidBy: actor.email },
+        { status, paidAt: new Date(), paidBy: actor.email },
         { session },
       );
 
@@ -364,18 +426,39 @@ export async function moneyRoutes(app: FastifyInstance) {
           action: 'payout.paid',
           targetType: 'PayoutRun',
           targetId: id,
-          summary: `${run.code} — ${taka(run.total)} to ${run.cookCount} cooks`,
+          summary: `${run.code} — ${taka(paidTotal)} to ${paid} of ${items.length} cooks${
+            skipped.length ? `, ${skipped.length} skipped for lack of cover` : ''
+          }`,
           before: { status: 'draft' },
-          after: { status: 'paid', total: run.total, posted: paid },
+          after: { status, total: run.total, paidTotal, posted: paid, duplicate, skipped },
         },
         session as never,
       );
 
-      return { ok: true as const, code: run.code, total: run.total, cooks: items.length, paid };
+      return {
+        ok: true as const,
+        code: run.code,
+        status,
+        total: run.total,
+        paidTotal,
+        cooks: items.length,
+        paid,
+        duplicate,
+        skipped,
+      };
     });
 
     if (!out.ok) return fail(reply as never, out.error, out.status);
-    return { code: out.code, total: out.total, cooks: out.cooks, paid: out.paid };
+    return {
+      code: out.code,
+      status: out.status,
+      total: out.total,
+      paidTotal: out.paidTotal,
+      cooks: out.cooks,
+      paid: out.paid,
+      duplicate: out.duplicate,
+      skipped: out.skipped,
+    };
   });
 
   /** Drop a draft. Nothing was posted, so there is nothing to reverse. */
@@ -484,20 +567,31 @@ export async function moneyRoutes(app: FastifyInstance) {
     const settings = await getSettings();
     const cutoff = new Date(Date.now() - settings.escrowAutoReleaseDays * 86_400_000);
 
-    const due = await Order.find({
-      payment: 'held',
-      status: { $in: ['delivered', 'completed'] },
-      deliveredAt: { $lt: cutoff },
-    })
-      /* `kitchenId` and `title` are here for the notification below, not for
-         the sweep itself — a cook has to be told their money landed, and this
-         is one of the two places that can tell them. */
-      .select('code kitchenId title mealId')
-      .lean();
+    const [aged, contested] = await Promise.all([
+      Order.find({
+        payment: 'held',
+        status: { $in: ['delivered', 'completed'] },
+        deliveredAt: { $lt: cutoff },
+      })
+        /* `kitchenId` and `title` are here for the notification below, not for
+           the sweep itself — a cook has to be told their money landed, and this
+           is one of the two places that can tell them. */
+        .select('code kitchenId title mealId')
+        .lean(),
+      /* Money under an open case belongs to the case. The sweep must not
+         decide it in the cook's favour because the calendar said so; those
+         orders are left where they are, and counted so the operator can see
+         what the sweep declined to touch. */
+      Dispute.find({ status: { $in: ['open', 'investigating'] } })
+        .select({ orderId: 1 })
+        .lean(),
+    ]);
+    const disputed = new Set(contested.map((row) => row.orderId));
+    const due = aged.filter((order) => !disputed.has(String(order._id)));
 
     let released = 0;
     let total = 0;
-    const failures: { orderId: string; error: string }[] = [];
+    const failures: { orderId: string; code: string; error: string }[] = [];
 
     for (const order of due) {
       const id = String(order._id);
@@ -538,11 +632,21 @@ export async function moneyRoutes(app: FastifyInstance) {
         released++;
         total += out.result.cook + out.result.platform;
       } else {
-        failures.push({ orderId: id, error: out.error });
+        /* The code is for the operator, who reads order codes, not ids; the
+           error is the ledger's own refusal, passed through unchanged so a
+           `dispute-open` raised between the query and the release reads as
+           exactly that on the panel. */
+        failures.push({ orderId: id, code: order.code, error: out.error });
       }
     }
 
-    return { considered: due.length, released, total, failures };
+    return {
+      considered: aged.length,
+      released,
+      total,
+      skippedDisputed: aged.length - due.length,
+      failures,
+    };
   });
 
   /* ---------------- disputes ---------------- */
@@ -836,8 +940,11 @@ export async function moneyRoutes(app: FastifyInstance) {
         await Order.updateOne({ _id: dispute.orderId }, { status: 'cancelled' }, { session });
         moved = `${taka(result.result.refunded)} refunded`;
       } else if (resolution === 'release') {
+        /* This resolution *is* the dispute deciding, so it names itself —
+           otherwise the open-dispute guard would refuse it. */
         const result = await releaseEscrow(session, dispute.orderId, {
           note: `Dispute ${dispute.code} — ${note}`,
+          disputeId: String(dispute._id),
         });
         if (!result.ok) return { ok: false as const, error: result.error, status: 400 };
         await Order.updateOne({ _id: dispute.orderId }, { status: 'completed' }, { session });

@@ -6,6 +6,7 @@ import {
   hashPassword,
   isService,
   readSession,
+  resolveActor,
   signIn,
   type AdminSession,
 } from '../../../auth/admin-auth.js';
@@ -19,7 +20,14 @@ import {
   refundEscrow,
   releaseEscrow,
 } from '../../../logic/ledger.js';
-import { getFlags, getSettings, saveSetting, SETTING_META } from '../../../logic/settings.js';
+import {
+  DEFAULT_FLAGS,
+  getFlags,
+  getSettings,
+  saveSetting,
+  SETTING_META,
+  type PlatformSettings,
+} from '../../../logic/settings.js';
 import { advanceOrder } from '../../../logic/orders.js';
 import { pendingPreorders } from '../../../logic/stores.js';
 import {
@@ -45,9 +53,10 @@ import {
   ChatThread,
   Dish,
   Dispute,
+  FeatureFlag,
   Kitchen,
+  KitchenDocument,
   LedgerEntry,
-  Notification,
   Order,
   PayoutRun,
   Product,
@@ -64,12 +73,26 @@ import {
  * non-money writes, then money — so each step is verifiable on its own.
  */
 
+/*
+ * The ledger's refusal for money under an open case. `releaseEscrow` answers
+ * with it; this file only has to pass it on. Read through the map rather than
+ * as `ERR.DISPUTE_OPEN` so the route compiles whether or not the vocabulary
+ * has caught up — the string is the wire format either way.
+ */
+const DISPUTE_OPEN = (ERR as Record<string, string>).DISPUTE_OPEN ?? 'dispute-open';
+
 /** What a refusal from the logic layer is over HTTP. */
 const STATUS_FOR: Record<string, number> = {
   [ERR.NO_ORDER]: 404,
   [ERR.FORBIDDEN]: 403,
   [ERR.WRONG_STATE]: 409,
+  [ERR.DUPLICATE]: 409,
+  [DISPUTE_OPEN]: 409,
 };
+
+/** An order with a case still open against it. Nothing releases that money. */
+const underDispute = (orderId: string) =>
+  Dispute.exists({ orderId, status: { $in: ['open', 'investigating'] } }).then((row) => !!row);
 
 const fail = (reply: never, code: string, status = 400) =>
   (reply as unknown as { status: (n: number) => { send: (b: unknown) => unknown } })
@@ -92,12 +115,18 @@ async function actorOf(request: FastifyRequest): Promise<AdminSession | null> {
       try {
         const actor = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
         if (actor?.email && actor?.role) {
-          return {
-            sub: String(actor.sub ?? ''),
-            email: String(actor.email),
-            name: String(actor.name ?? actor.email),
-            role: actor.role as Role,
-          };
+          /* The panel's cookie is a snapshot taken at sign-in. The row is
+             what is true now: an operator deactivated an hour ago is refused
+             here, and a role changed since sign-in is the row's role. */
+          return resolveActor(
+            {
+              sub: String(actor.sub ?? ''),
+              email: String(actor.email),
+              name: String(actor.name ?? actor.email),
+              role: actor.role as Role,
+            },
+            { required: false },
+          );
         }
       } catch {
         /* A malformed actor header is no actor, not an error. */
@@ -1187,6 +1216,25 @@ export async function adminRoutes(app: FastifyInstance) {
       return fail(reply as never, 'name-required');
     }
 
+    /* A decision that changes nothing is a double click or a second operator
+       — either way, it must not stamp a fresh `decidedAt`/`decidedBy` over
+       the one the record already carries. */
+    if (kitchen.kycStatus === body.data.decision) {
+      return fail(reply as never, ERR.DUPLICATE, 409);
+    }
+
+    /* An approval is a statement that the evidence was looked at. With no
+       evidence on file there is nothing it could have been based on, so the
+       kitchen cannot be approved — only rejected, with a note saying what to
+       send. The two NID faces are the minimum the cook flow collects. */
+    if (body.data.decision === 'approved') {
+      const kinds = await KitchenDocument.distinct('kind', {
+        kitchenId: id,
+        kind: { $in: ['nid-front', 'nid-back'] },
+      });
+      if (kinds.length < 2) return fail(reply as never, ERR.DOC_MISSING, 409);
+    }
+
     await tx(async (session) => {
       await Kitchen.updateOne(
         { _id: id },
@@ -1202,26 +1250,25 @@ export async function adminRoutes(app: FastifyInstance) {
         { session },
       );
 
-      await Notification.create(
-        [
-          {
-            key: `cook:kyc-${body.data.decision}:${id}`,
-            audience: 'cook',
-            kind: `kyc-${body.data.decision}`,
-            kitchenId: id,
-            title:
-              body.data.decision === 'approved'
-                ? 'Your kitchen is verified'
-                : 'Verification needs more',
-            body:
-              body.data.decision === 'approved'
-                ? 'The verified badge is now on your kitchen.'
-                : body.data.note.trim(),
-            broadcastBy: actor.email,
-          },
-        ],
-        { session },
-      );
+      /* Through `notify`, which files nothing while the same key is still
+         sitting unread. The collection has no unique index on `key`, so a
+         bare create here would hand a cook two "verified" badges on a
+         rejected-then-approved-then-approved history. */
+      await notify(session, {
+        audience: 'cook',
+        kind: `kyc-${body.data.decision}`,
+        key: `cook:kyc-${body.data.decision}:${id}`,
+        kitchenId: id,
+        title:
+          body.data.decision === 'approved'
+            ? 'Your kitchen is verified'
+            : 'Verification needs more',
+        body:
+          body.data.decision === 'approved'
+            ? 'The verified badge is now on your kitchen.'
+            : body.data.note.trim(),
+        broadcastBy: actor.email,
+      });
 
       await audit(
         actor,
@@ -1621,6 +1668,11 @@ export async function adminRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const note = (request.body as { note?: string })?.note ?? '';
 
+    /* Money under an open case is the case's to settle, through
+       `/disputes/:id/resolve`. The ledger refuses this too; checking here
+       first answers with the right status rather than a bare 400. */
+    if (await underDispute(id)) return fail(reply as never, DISPUTE_OPEN, STATUS_FOR[DISPUTE_OPEN]);
+
     const out = await tx(async (session) => {
       const before = await Order.findById(id).session(session).lean();
       const result = await releaseEscrow(session, id, {
@@ -1660,7 +1712,7 @@ export async function adminRoutes(app: FastifyInstance) {
       return result;
     });
 
-    if (!out.ok) return fail(reply as never, out.error);
+    if (!out.ok) return fail(reply as never, out.error, STATUS_FOR[out.error] ?? 400);
     return out.result;
   });
 
@@ -1682,9 +1734,14 @@ export async function adminRoutes(app: FastifyInstance) {
       });
       if (!result.ok) return result;
 
+      /* A partial refund releases the remainder to the cook, so the order was
+         still fulfilled in part: it closes as completed, not cancelled. */
       await Order.updateOne(
         { _id: id },
-        { status: 'cancelled', cancelReason: body.data.reason },
+        {
+          status: result.result.released ? 'completed' : 'cancelled',
+          cancelReason: body.data.reason,
+        },
         { session },
       );
       await audit(
@@ -1714,32 +1771,112 @@ export async function adminRoutes(app: FastifyInstance) {
     return { settings: await getSettings(), meta: SETTING_META, flags: await getFlags() };
   });
 
+  /**
+   * What each setting may be set to.
+   *
+   * The key list is `SETTING_META`'s, so a key that is not a setting is
+   * refused rather than written as a stray row the reader would skip anyway.
+   * The ranges are the ones that keep the money arithmetic sane: a commission
+   * above half would make the cook the junior partner in their own kitchen,
+   * a fee or a minimum is whole taka, and an escrow window of a hundred days
+   * is a customer's money held for a season.
+   */
+  const SETTING_RULES: Record<keyof PlatformSettings, { min: number; max: number; integer: boolean }> = {
+    deliveryFee: { min: 0, max: 1000, integer: true },
+    platformFee: { min: 0, max: 1000, integer: true },
+    commissionCod: { min: 0, max: 0.5, integer: false },
+    commissionMeal: { min: 0, max: 0.5, integer: false },
+    commissionStore: { min: 0, max: 0.5, integer: false },
+    commissionRequest: { min: 0, max: 0.5, integer: false },
+    escrowAutoReleaseDays: { min: 0, max: 30, integer: true },
+    stockAlarmDays: { min: 0, max: 365, integer: true },
+    requestExpiryDays: { min: 0, max: 30, integer: true },
+    payoutMinimum: { min: 0, max: Number.MAX_SAFE_INTEGER, integer: true },
+  };
+
   app.patch('/settings', async (request, reply) => {
     const actor = await require(request, reply as never, 'config.write');
     if (!actor) return;
 
-    const body = z.object({ key: z.string(), value: z.number() }).safeParse(request.body);
+    const body = z
+      .object({ key: z.string(), value: z.number().finite() })
+      .safeParse(request.body);
     if (!body.success) return fail(reply as never, 'name-required');
 
-    // A commission over 100% would pay the cook a negative amount.
-    if (body.data.key.startsWith('commission') && body.data.value > 1) {
-      return fail(reply as never, 'amount-invalid');
+    const key = body.data.key as keyof PlatformSettings;
+    const rule = key in SETTING_META ? SETTING_RULES[key] : null;
+    if (!rule) return fail(reply as never, ERR.BAD_REQUEST);
+
+    const { value } = body.data;
+    if (value < rule.min || value > rule.max || (rule.integer && !Number.isInteger(value))) {
+      return fail(reply as never, ERR.BAD_AMOUNT);
     }
 
     const settings = await getSettings();
-    const before = settings[body.data.key as keyof typeof settings];
+    const before = settings[key];
 
-    await saveSetting(body.data.key as never, body.data.value, actor.email);
+    await saveSetting(key, value, actor.email);
     await audit(actor, {
       action: 'config.setting',
       targetType: 'Setting',
-      targetId: body.data.key,
-      summary: `${body.data.key}: ${before} → ${body.data.value}`,
+      targetId: key,
+      summary: `${key}: ${before} → ${value}`,
       before: { value: before },
-      after: { value: body.data.value },
+      after: { value },
     });
 
     return { ok: true };
+  });
+
+  /**
+   * Flip a feature flag, or set it.
+   *
+   * The panel's switch used to write to its own SQLite while the app read
+   * these rows from Mongo — a switch that never moved anything. The flag is
+   * one document keyed on its name; `enabled` absent from the body means
+   * toggle, present means set, so a double-clicked switch and a deliberate
+   * "off" are both expressible and neither is a read-then-write race the
+   * caller has to lose.
+   */
+  app.patch('/flags', async (request, reply) => {
+    const actor = await require(request, reply as never, 'config.write');
+    if (!actor) return;
+
+    const body = z
+      .object({ key: z.string().trim().min(1).max(64), enabled: z.boolean().optional() })
+      .safeParse(request.body ?? {});
+    if (!body.success) return fail(reply as never, 'name-required');
+
+    const { key } = body.data;
+    const known = DEFAULT_FLAGS.find((flag) => flag.key === key);
+    const existing = await FeatureFlag.findById(key).lean();
+    /* An unknown flag with no row is nothing the app has ever branched on,
+       and writing it would only invent a switch wired to nothing. */
+    if (!known && !existing) return fail(reply as never, ERR.BAD_REQUEST, 404);
+
+    const before = existing?.enabled ?? known?.enabled ?? true;
+    const enabled = body.data.enabled ?? !before;
+
+    await FeatureFlag.updateOne(
+      { _id: key },
+      {
+        enabled,
+        updatedBy: actor.email,
+        ...(existing ? {} : { description: known?.description ?? '' }),
+      },
+      { upsert: true },
+    );
+
+    await audit(actor, {
+      action: 'config.flag',
+      targetType: 'FeatureFlag',
+      targetId: key,
+      summary: `${key} ${enabled ? 'enabled' : 'disabled'}`,
+      before: { enabled: before },
+      after: { enabled },
+    });
+
+    return { key, enabled };
   });
 
   /* ---------------- audit ---------------- */

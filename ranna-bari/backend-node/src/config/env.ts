@@ -105,6 +105,20 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     );
   }
 
+  /* A placeholder is not a secret. The example file's old `change-me-…`
+     values were long enough to pass the length check, which is how one of
+     them ended up committed in a deploy config and treated as leaked. In
+     production any value that still reads as a placeholder stops the boot;
+     a developer's machine may keep whatever it likes. */
+  if (parsed.data.NODE_ENV === 'production') {
+    const placeholder = /change-me|<generate|example|placeholder/i;
+    for (const key of ['ADMIN_AUTH_SECRET', 'APP_AUTH_SECRET', 'BACKEND_SERVICE_TOKEN'] as const) {
+      if (placeholder.test(parsed.data[key])) {
+        throw new Error(`${key} is a placeholder — generate a real secret (openssl rand -hex 32).`);
+      }
+    }
+  }
+
   cached = parsed.data;
   return cached;
 }

@@ -551,6 +551,8 @@ export async function mealRoutes(app: FastifyInstance) {
       month: body.data.month,
       selections: body.data.selections,
       note: body.data.note,
+      /* A cook cannot book their own calendar; the token says whose it is. */
+      callerKitchenId: caller.kitchenId,
     });
     if (!out.ok) return refuse(reply, out);
 

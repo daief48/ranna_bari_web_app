@@ -3,18 +3,20 @@ import { Types, type ClientSession } from 'mongoose';
 import {
   Account,
   Cart,
+  Kitchen,
   Notification,
   Order,
   Product,
   Store,
   StoreCategory,
 } from '../models/index.js';
-import { tx } from '../config/db.js';
-import { ERR, fail, ok, type Result } from '../lib/domain.js';
+import { isDuplicateKey, tx } from '../config/db.js';
+import { ERR, fail, mayTrade, ok, type Result } from '../lib/domain.js';
 import { makeCode, taka } from '../lib/format.js';
 import { DIVISIONS, divisionOfDistrict, normaliseServiceAreas, type ServiceArea } from '../lib/bd-areas.js';
 import { SLIM_PICTURES } from '../lib/order-image.js';
-import { balanceFor, post, refundEscrow } from './ledger.js';
+import { post, refundEscrow, reserveWallet } from './ledger.js';
+import { featureOn } from './settings.js';
 
 /**
  * Cook stores: a shop per kitchen, with its own categories, products and
@@ -260,6 +262,9 @@ function storeFields(patch: StorePatch): Record<string, unknown> {
     const wanted = String(patch.homeDivision ?? '').trim();
     out.homeDivision = DIVISIONS.some((d) => d.name === wanted) ? wanted : '';
   }
+  /* Whole, non-negative taka. A negative delivery fee is a discount nobody
+     agreed to fund and would ride into every order total the shop places;
+     the route's schema refuses it first, and this is the layer's own copy. */
   for (const key of [
     'deliveryFee',
     'deliveryFeeInsideDhaka',
@@ -267,7 +272,7 @@ function storeFields(patch: StorePatch): Record<string, unknown> {
     'freeDeliveryOver',
   ] as const) {
     if (patch[key] !== undefined) {
-      out[key] = patch[key] === null ? null : Math.round(Number(patch[key]));
+      out[key] = patch[key] === null ? null : Math.max(0, Math.round(Number(patch[key])) || 0);
     }
   }
   if (patch.isOpen !== undefined) out.isOpen = !!patch.isOpen;
@@ -661,9 +666,11 @@ function normaliseOptions(options: ProductOptions | null | undefined): ProductOp
   const choices = options.choices
     .filter((choice) => choice && String(choice.label ?? '').trim())
     .map((choice) => ({
-      label: String(choice.label).trim(),
-      // A delta can be negative — the small size is cheaper, not free.
-      priceDelta: Math.round(Number(choice.priceDelta ?? 0)) || 0,
+      label: String(choice.label).trim().slice(0, 60),
+      /* A delta can be negative — the small size is cheaper, not free — but
+         it is whole taka and bounded; a choice cannot price a jar at a lakh
+         or below nothing. */
+      priceDelta: Math.max(-100_000, Math.min(100_000, Math.round(Number(choice.priceDelta ?? 0)) || 0)),
     }));
 
   return choices.length ? { label: String(options.label ?? '').trim(), choices } : null;
@@ -722,7 +729,7 @@ export async function saveProduct({
   if (patch?.name != null && !String(patch.name).trim()) return fail(ERR.NAME_REQUIRED);
 
   const price = clean.price as number | undefined;
-  if (price !== undefined && (!Number.isFinite(price) || price <= 0)) {
+  if (price !== undefined && (!Number.isFinite(price) || price <= 0 || price > 100_000)) {
     return fail(ERR.BAD_AMOUNT);
   }
   const stock = clean.stock as number | undefined;
@@ -1043,6 +1050,22 @@ export async function priceCart(customerKey: string, session?: ClientSession) {
     : [];
   const byStore = new Map(stores.map((store) => [String(store._id), store]));
 
+  /* The kitchens behind the shops, for the one question the shop itself
+     cannot answer: may this cook trade? A shop's shutter is the cook's
+     switch; approval and suspension are the operator's, and a shop whose
+     kitchen has lost either is closed to a shopper whatever its switch says.
+     Read in the same session for the same reason the stores are. */
+  const kitchenIds = [...new Set(stores.map((store) => String(store.kitchenId)))].filter(
+    (id) => Types.ObjectId.isValid(id),
+  );
+  const kitchens = kitchenIds.length
+    ? await Kitchen.find({ _id: { $in: kitchenIds } })
+        .select({ kycStatus: 1, suspended: 1 })
+        .session(session ?? null)
+        .lean()
+    : [];
+  const byKitchen = new Map(kitchens.map((kitchen) => [String(kitchen._id), kitchen]));
+
   const lines = raw.map((line) => {
     const product = byProduct.get(String(line.productId)) ?? null;
     const store = product ? (byStore.get(String(product.storeId)) ?? null) : null;
@@ -1055,6 +1078,7 @@ export async function priceCart(customerKey: string, session?: ClientSession) {
     if (!product) problem = ERR.NO_PRODUCT;
     else if (!store) problem = ERR.NO_STORE;
     else if (!store.isOpen) problem = ERR.STORE_CLOSED;
+    else if (!mayTrade(byKitchen.get(String(store.kitchenId)))) problem = ERR.STORE_CLOSED;
     else if (!product.active) problem = ERR.PRODUCT_OFF;
     else if (avail === 'out') problem = ERR.NO_STOCK;
     else if (avail === 'in-stock' && line.qty > (product.stock ?? 0)) problem = ERR.SHORT_STOCK;
@@ -1130,9 +1154,32 @@ const titleFor = (lines: { name: string }[]) =>
  * order the cook has already committed to and a request they have not yet
  * agreed to cannot share a status.
  */
+/** The shape of a code the app draws — `makeCode()`'s, with its prefix. */
+const CHECKOUT_CODE = /^RB-[A-Z0-9]{4,8}$/;
+
+/**
+ * The orders a checkout already produced, if this is a retry of it.
+ *
+ * Idempotent on the app's own code, the way `recordOrder` is: a retry after
+ * a dropped reply finds what the first attempt made rather than holding the
+ * basket twice. A code somebody else's checkout drew is not a replay — it is
+ * refused, because the alternative hands a stranger a list of orders.
+ */
+async function checkoutReplay(
+  code: string,
+  customerKey: string,
+): Promise<Result<Record<string, unknown>[]> | null> {
+  const rows = await Order.find({ checkoutCode: code }).sort({ createdAt: 1 }).lean();
+  if (!rows.length) return null;
+  if (rows.some((row) => row.customerKey !== customerKey)) return fail(ERR.FORBIDDEN);
+  return ok(rows as Record<string, unknown>[]);
+}
+
 export async function checkout({
   customerKey,
   customer,
+  buyerKitchenId,
+  code,
 }: {
   customerKey: string;
   customer: {
@@ -1141,7 +1188,52 @@ export async function checkout({
     address?: unknown;
     note?: string;
   };
-}): Promise<Result<Record<string, unknown>[]>> {
+  /** The buyer's own kitchen, if they cook — a shop they own is not for sale to them. */
+  buyerKitchenId?: string | null;
+  /** The app's idempotency key for this checkout. Optional for older builds. */
+  code?: string | null;
+}): Promise<Result<{ orders: Record<string, unknown>[]; created: boolean }>> {
+  if (!(await featureOn('system.stores'))) {
+    return fail(ERR.FEATURE_OFF, { feature: 'system.stores' });
+  }
+
+  const checkoutCode = String(code ?? '').trim().toUpperCase() || null;
+  if (checkoutCode && !CHECKOUT_CODE.test(checkoutCode)) {
+    return fail(ERR.BAD_REQUEST, { field: 'code' });
+  }
+
+  if (checkoutCode) {
+    const replay = await checkoutReplay(checkoutCode, customerKey);
+    if (replay) return replay.ok ? ok({ orders: replay.result, created: false }) : replay;
+  }
+
+  const first = await (async () => {
+    try {
+      return await checkoutOnce({ customerKey, customer, buyerKitchenId, checkoutCode });
+    } catch (error) {
+      /* Two identical retries racing: the loser's first order collided with
+         the winner's on `code`. What the winner made is the answer. */
+      if (checkoutCode && isDuplicateKey(error)) {
+        const replay = await checkoutReplay(checkoutCode, customerKey);
+        if (replay) return replay.ok ? ok({ orders: replay.result, created: false }) : replay;
+      }
+      throw error;
+    }
+  })();
+  return first;
+}
+
+async function checkoutOnce({
+  customerKey,
+  customer,
+  buyerKitchenId,
+  checkoutCode,
+}: {
+  customerKey: string;
+  customer: { name?: string; phone?: string; address?: unknown; note?: string };
+  buyerKitchenId?: string | null;
+  checkoutCode: string | null;
+}): Promise<Result<{ orders: Record<string, unknown>[]; created: boolean }>> {
   return tx(async (session) => {
     const priced = await priceCart(customerKey, session);
     if (!priced.lines.length) return fail(ERR.EMPTY_CART);
@@ -1153,20 +1245,25 @@ export async function checkout({
       });
     }
 
-    const balance = await balanceFor('customer', customerKey, session);
-    if (balance < priced.total) {
-      return fail(ERR.LOW_BALANCE, {
-        short: priced.total - balance,
-        balance,
-        total: priced.total,
-      });
-    }
-
     /* `problems` being empty already guarantees both of these; this is the
        type system's copy of the check, not a second one. */
     const ready = priced.lines.flatMap((line) =>
       line.product && line.store ? [{ ...line, product: line.product, store: line.store }] : [],
     );
+
+    /* A cook buying from their own shop is moving money in a circle and
+       taking a commission off themselves on the way round — the same refusal
+       a dish order from one's own kitchen gets. */
+    if (buyerKitchenId && ready.some((line) => String(line.store.kitchenId) === String(buyerKitchenId))) {
+      return fail(ERR.BAD_REQUEST, { field: 'store' });
+    }
+
+    /* The balance is checked by the one helper that makes two checkouts on
+       one wallet conflict rather than both pass — see `reserveWallet`. */
+    const funds = await reserveWallet(session, customerKey, priced.total);
+    if (!funds.ok) {
+      return fail(ERR.LOW_BALANCE, { ...(funds.detail ?? {}), total: priced.total });
+    }
 
     /* ---- group ---- */
     const groups = new Map<
@@ -1224,7 +1321,7 @@ export async function checkout({
     const buyer = customer.name?.trim() || 'A customer';
     const created: Record<string, unknown>[] = [];
 
-    for (const entry of plan) {
+    for (const [i, entry] of plan.entries()) {
       const status = entry.preorder ? 'pending' : 'confirmed';
 
       const lines = entry.lines.map((line) => ({
@@ -1240,7 +1337,11 @@ export async function checkout({
       const [order] = await Order.create(
         [
           {
-            code: makeCode(),
+            /* The basket's first order wears the app's code, so a one-shop
+               checkout reads back under the code the customer was shown;
+               the rest draw their own. All of them carry the checkout key. */
+            code: i === 0 && checkoutCode ? checkoutCode : makeCode(),
+            checkoutCode,
             kind: 'store',
             storeId: entry.storeId,
             kitchenId: entry.store.kitchenId,
@@ -1347,7 +1448,7 @@ export async function checkout({
 
     await Cart.updateOne({ customerKey }, { lines: [] }, { session });
 
-    return ok(created);
+    return ok({ orders: created, created: true });
   });
 }
 
