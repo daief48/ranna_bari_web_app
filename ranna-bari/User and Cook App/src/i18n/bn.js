@@ -4042,4 +4042,6 @@ export const bn = {
   'No messages yet. Say hello.': 'এখনো কোনো মেসেজ নেই। হ্যালো বলুন।',
   'Not sent': 'পাঠানো হয়নি',
   'Write a message': 'মেসেজ লিখুন',
+  'FOOD': 'খাবারের',
+  'See all {n} dishes': 'সব {n}টি খাবার দেখুন',
 };

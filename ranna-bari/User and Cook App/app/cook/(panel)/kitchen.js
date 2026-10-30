@@ -77,6 +77,8 @@ function KitchenForm({ kitchen }) {
   const [confirmOut, setConfirmOut] = useState(false);
   const photos = kitchen.photos ?? [];
   const MAX_PHOTOS = 5;
+  const dishes = kitchen.dishes ?? [];
+  const MENU_PREVIEW = 4;
 
   const delivered = ordersForKitchen(kitchen.id).filter(
     (o) => o.status === 'delivered',
@@ -576,6 +578,106 @@ function KitchenForm({ kitchen }) {
                 >
                   {t('No photos yet. Add a few — customers and the verification queue both read this gallery.')}
                 </Text>
+              ) : null}
+            </View>
+          </Reveal>
+
+          {/* ---- Food menu ----
+              Adding a dish used to live only under Listings, a screen away
+              from the page a cook opens to see their kitchen. A kitchen with
+              nothing listed cannot take an order, so the way to add the first
+              dish is here, beside the photos, and the last few dishes are
+              shown so the section reads as the menu rather than a lone button.
+              The full list, with the sold-out switches, is the Menu screen. */}
+          <Reveal delay={2}>
+            <View style={{ marginTop: 28 }}>
+              <SectionHeader
+                lead={t('FOOD')}
+                accent={t('MENU')}
+                subtitle={
+                  dishes.length
+                    ? t('{live} of {total} available to order right now.', {
+                        live: n(liveDishes.length),
+                        total: n(dishes.length),
+                      })
+                    : t('Nothing listed yet. Add your first dish.')
+                }
+              />
+
+              <View style={{ marginTop: 14 }}>
+                <Button
+                  label={t('Add a dish')}
+                  icon="plus"
+                  iconPosition="left"
+                  block
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    router.push('/cook/dish/new');
+                  }}
+                />
+              </View>
+
+              {dishes.length ? (
+                <View style={{ gap: 10, marginTop: 14 }}>
+                  {dishes.slice(0, MENU_PREVIEW).map((dish) => (
+                    <Pressable
+                      key={dish.id}
+                      accessibilityRole="link"
+                      accessibilityLabel={`${t('Edit dish')}: ${dish.name}, ৳${n(dish.price)}`}
+                      onPress={() => router.push(`/cook/dish/${dish.id}`)}
+                      style={({ pressed }) => ({
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: 10,
+                        borderRadius: radius.lg,
+                        backgroundColor: pressed ? colors.sunken : colors.surfaceSolid,
+                        borderWidth: 1,
+                        borderColor: colors.line,
+                        opacity: dish.available ? 1 : 0.62,
+                      })}
+                    >
+                      <Image
+                        source={{ uri: dish.image }}
+                        contentFit="cover"
+                        transition={150}
+                        style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: colors.sunken }}
+                      />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text
+                          numberOfLines={1}
+                          style={{ fontFamily: font.displayBold, fontSize: 15, color: colors.text }}
+                        >
+                          {dish.name}
+                        </Text>
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            marginTop: 1,
+                            fontFamily: font.uiSemi,
+                            fontSize: type.xs,
+                            color: dish.available ? colors.sage : colors.textMuted,
+                          }}
+                        >
+                          ৳{n(dish.price)} · {dish.available ? t('Available today') : t('Sold out')}
+                        </Text>
+                      </View>
+                      <Icon name="chevronRight" size={16} color={colors.textLight} strokeWidth={2} />
+                    </Pressable>
+                  ))}
+
+                  {dishes.length > MENU_PREVIEW ? (
+                    <Pressable
+                      accessibilityRole="link"
+                      onPress={() => router.push('/cook/menu')}
+                      style={({ pressed }) => ({ alignSelf: 'center', padding: 8, opacity: pressed ? 0.6 : 1 })}
+                    >
+                      <Text style={{ fontFamily: font.uiSemi, fontSize: type.sm, color: colors.sage }}>
+                        {t('See all {n} dishes', { n: n(dishes.length) })}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               ) : null}
             </View>
           </Reveal>
