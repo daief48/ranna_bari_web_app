@@ -1,9 +1,6 @@
 import 'server-only';
 
 import { BackendError, get } from './backend';
-import { db } from './db';
-import { getSettings } from './settings';
-import { dayKey } from './format';
 import type { FoldedAccount } from './domain';
 
 /**
@@ -13,14 +10,12 @@ import type { FoldedAccount } from './domain';
  * different columns — "what is waiting on a person" — and keeping them in one
  * file makes it obvious when two screens disagree about what "waiting" means.
  *
- * The counters and the reconciliation state come from `backend-node`. The
- * money aggregates below it do not: nothing on the admin API folds a GMV
- * series or a per-system split, and `/orders` pages rows rather than
- * aggregating them, so those three helpers still read the panel's own
- * database. Each says so at its head.
+ * Everything here comes from `backend-node`. The money aggregates — GMV,
+ * the per-system split, the daily series, the live counts — used to be read
+ * from the panel's own SQLite, which held a different set of orders under
+ * different ids and so drew a chart of a database nobody was ordering from.
+ * `GET /dashboard` folds them in Mongo now, over the orders the app writes.
  */
-
-const DAY = 86_400_000;
 
 /* ------------------------------------------------------------------ *
  * shapes the backend answers with
@@ -153,125 +148,47 @@ export async function deadBroadcasts(take = 6) {
 }
 
 /* ------------------------------------------------------------------ *
- * money aggregates — still on the panel's database
+ * money aggregates — `GET /dashboard`
  * ------------------------------------------------------------------ */
 
-/**
- * Revenue is the platform's cut, not GMV. GMV is what customers paid.
- *
- * Still local: the admin API has no aggregate over orders. `/overview` folds
- * balances, not turnover, and `/orders` pages at 100 rows, so thirty days of
- * GMV cannot be assembled from it honestly. Wanted: a `GET /reports/money`
- * carrying gmv, order count, posted commission and the per-kind split for a
- * window.
- */
-export async function moneyOverview(days = 30) {
-  const since = new Date(Date.now() - days * DAY);
-  const settings = await getSettings();
+export type DashboardMoney = {
+  /** What customers paid, over orders that were not cancelled. */
+  gmv: number;
+  orders: number;
+  /** Commission the ledger actually posted. */
+  commission: number;
+  /** What cash-on-delivery implies but has not posted — the rider has the cash. */
+  codCommission: number;
+  revenue: number;
+  byKind: { kind: string; amount: number; count: number }[];
+};
 
-  try {
-    const [gmvRow, commissionRow, byKind, codRow] = await Promise.all([
-      db.order.aggregate({
-        where: { createdAt: { gte: since }, status: { notIn: ['cancelled', 'rejected'] } },
-        _sum: { amount: true },
-        _count: true,
-      }),
-      db.ledgerEntry.aggregate({
-        where: { kind: 'commission', at: { gte: since } },
-        _sum: { amount: true },
-      }),
-      db.order.groupBy({
-        by: ['kind'],
-        where: { createdAt: { gte: since }, status: { notIn: ['cancelled', 'rejected'] } },
-        _sum: { amount: true },
-        _count: true,
-      }),
-      db.order.aggregate({
-        where: { kind: 'cod', status: 'delivered', createdAt: { gte: since } },
-        _sum: { subtotal: true },
-      }),
-    ]);
+export type DashboardSeries = { day: string; gmv: number; orders: number }[];
 
-    const codCommission = Math.round((codRow._sum.subtotal ?? 0) * settings.commissionCod);
-
-    return {
-      gmv: gmvRow._sum.amount ?? 0,
-      orders: gmvRow._count,
-      commission: commissionRow._sum.amount ?? 0,
-      codCommission,
-      revenue: (commissionRow._sum.amount ?? 0) + codCommission,
-      byKind: byKind.map((row) => ({
-        kind: row.kind,
-        amount: row._sum.amount ?? 0,
-        count: row._count,
-      })),
-    };
-  } catch {
-    return { gmv: 0, orders: 0, commission: 0, codCommission: 0, revenue: 0, byKind: [] };
-  }
-}
+export type DashboardLive = {
+  inFlight: number;
+  kitchensOpen: number;
+  storesOpen: number;
+  openRequests: number;
+};
 
 /**
- * GMV per day for the last `days`, oldest first, gaps filled with zero.
+ * Revenue is the platform's cut, not GMV; GMV is what customers paid; the
+ * series is one bucket per Dhaka day with the empty days present; `live` is
+ * what is happening right now.
  *
- * Still local, for the same reason as `moneyOverview` — and this one needs
- * every order in the window, which is thirty pages of `/orders` at best.
- * Wanted: a `GET /reports/gmv?days=` returning the bucketed series.
+ * One request for all three because they are one window asked three ways,
+ * and the backend groups them in Mongo — a busy month is tens of thousands of
+ * orders and the chart wants thirty numbers.
  */
-export async function dailySeries(days = 30) {
-  const since = new Date(Date.now() - days * DAY);
-  const buckets = new Map<string, { day: string; gmv: number; orders: number }>();
-  for (let i = days - 1; i >= 0; i--) {
-    const key = dayKey(new Date(Date.now() - i * DAY));
-    buckets.set(key, { day: key, gmv: 0, orders: 0 });
-  }
-
-  try {
-    const orders = await db.order.findMany({
-      where: { createdAt: { gte: since }, status: { notIn: ['cancelled', 'rejected'] } },
-      select: { createdAt: true, amount: true, kind: true },
-    });
-
-    for (const order of orders) {
-      const key = dayKey(order.createdAt);
-      const bucket = buckets.get(key);
-      if (!bucket) continue;
-      bucket.gmv += order.amount;
-      bucket.orders += 1;
-    }
-  } catch {
-    // DB unavailable — return empty series
-  }
-
-  return Array.from(buckets.values());
-}
-
-/**
- * What is happening right now.
- *
- * Still local. Only one of the four is answerable over HTTP —
- * `/requests?status=open` carries a total — and `/kitchens` has no `isOpen`
- * filter, `/stores` has none either, and `/orders` takes a single status
- * where this needs eight. Splitting one coherent question across two stores
- * to migrate a quarter of it would make the card harder to trust, not
- * easier. Wanted: a `live` block on `/overview`.
- */
-export async function liveCounts() {
-  try {
-    const [inFlight, kitchensOpen, storesOpen, openRequests] = await Promise.all([
-      db.order.count({
-        where: {
-          status: { in: ['confirmed', 'preparing', 'ready', 'delivering', 'accepted', 'cooking', 'on_the_way', 'placed'] },
-        },
-      }),
-      db.kitchen.count({ where: { isOpen: true, suspended: false } }),
-      db.store.count({ where: { isOpen: true } }),
-      db.request.count({ where: { status: 'open' } }),
-    ]);
-    return { inFlight, kitchensOpen, storesOpen, openRequests };
-  } catch {
-    return { inFlight: 0, kitchensOpen: 0, storesOpen: 0, openRequests: 0 };
-  }
+export async function dashboard(days = 30): Promise<{
+  money: DashboardMoney;
+  series: DashboardSeries;
+  live: DashboardLive;
+}> {
+  return get<{ money: DashboardMoney; series: DashboardSeries; live: DashboardLive }>(
+    `/dashboard?days=${days}`,
+  );
 }
 
 /* ------------------------------------------------------------------ *

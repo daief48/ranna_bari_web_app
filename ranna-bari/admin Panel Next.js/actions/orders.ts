@@ -4,10 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import { BackendError, post } from '@/lib/backend';
 import { requireCapability } from '@/lib/auth';
-import { audit } from '@/lib/audit';
-import { ERR, nextStatus } from '@/lib/domain';
 import { taka } from '@/lib/format';
-import { pushHistory } from '@/lib/mappers';
 import { good, bad, guard, type ActionResult } from './shared';
 
 /**
@@ -76,10 +73,15 @@ export async function forceAdvance(orderId: string): Promise<ActionResult> {
  * the order lands on `cancelled` with the reason attached. That also means it
  * only covers an order still holding money — a COD order, which never held
  * any, is refused rather than cancelled.
+ *
+ * A cancellation that refunds is a money movement, so it is finance's:
+ * `payout.write`, the same capability the backend gates `/orders/:id/refund`
+ * on. It was `order.write` here, which let operations press a button the
+ * backend then refused — a control that only looked like one.
  */
 export async function forceCancel(orderId: string, reason: string): Promise<ActionResult> {
   return guard(async () => {
-    await requireCapability('order.write');
+    await requireCapability('payout.write');
     if (!reason.trim()) return bad('A cancellation needs a reason.');
 
     const out = await call(() =>
@@ -174,52 +176,7 @@ export async function resolveDispute(
   });
 }
 
-/* ------------------------------------------------------------------ *
- * meals
- * ------------------------------------------------------------------ */
-
-/** Stop a meal taking orders. The orders already placed are untouched. */
-export async function closeMeal(mealId: string): Promise<ActionResult> {
-  return guard(async () => {
-    await requireCapability('meal.write');
-
-    const out = await call(() => post<{ mealId: string }>(`/meals/${mealId}/close`));
-    if (!out.ok) return out.refusal;
-
-    revalidatePath('/meals');
-    return good('Closed to new orders.');
-  });
-}
-
-/**
- * Cancel a meal and refund every order on it.
- *
- * The refunds run one transaction each: forty customers should not go
- * unrefunded because the forty-first row is broken. `failed` is the list of
- * orders somebody still has to chase, which is why the count is reported
- * rather than the total alone.
- */
-export async function cancelMeal(mealId: string, reason: string): Promise<ActionResult> {
-  return guard(async () => {
-    await requireCapability('meal.write');
-    if (!reason.trim()) return bad('A cancellation needs a reason — the customers are told it.');
-
-    const out = await call(() =>
-      post<{ refunded: number; orders: number; failed: string[] }>(`/meals/${mealId}/cancel`, {
-        reason: reason.trim(),
-      }),
-    );
-    if (!out.ok) return out.refusal;
-
-    const { refunded, orders, failed } = out.value;
-    const attempted = orders + failed.length;
-
-    revalidatePath('/meals');
-    revalidatePath('/ledger');
-    return good(
-      attempted
-        ? `Cancelled. ${orders} of ${attempted} orders refunded — ${taka(refunded)}.`
-        : 'Cancelled. Nothing was held against it.',
-    );
-  });
-}
+/* `closeMeal` and `cancelMeal` stood here, calling `/meals/:id/close` and
+   `/meals/:id/cancel` — routes the meal-plan rewrite deleted along with the
+   Meal collection. Nothing imported them; two actions aimed at a dead board
+   are gone rather than left to answer 404 to the first screen that tries. */

@@ -49,7 +49,10 @@ export default async function AdminsPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requirePage('kitchen.read');
+  /* The backend gates `/admins` on `admin.manage`, which only superadmin
+     holds; checking a looser capability here let ops reach a page that then
+     failed on its first fetch. */
+  await requirePage('admin.manage');
   const params = await searchParams;
   const user = await currentUser();
   const isSuper = can(user?.role ?? '', '*');

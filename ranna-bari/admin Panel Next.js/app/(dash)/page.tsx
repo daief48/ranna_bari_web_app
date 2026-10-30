@@ -3,13 +3,7 @@ import Link from 'next/link';
 import { BackendError } from '@/lib/backend';
 import { getSettings } from '@/lib/settings';
 import { taka, fmtDate, timeAgo, daysSince } from '@/lib/format';
-import {
-  dailySeries,
-  deadBroadcasts,
-  liveCounts,
-  moneyOverview,
-  overview,
-} from '@/lib/queries';
+import { dashboard, deadBroadcasts, overview } from '@/lib/queries';
 import {
   AttentionBoard,
   Card,
@@ -37,8 +31,12 @@ export const dynamic = 'force-dynamic';
  */
 async function fromBackend() {
   try {
-    const [board, dead] = await Promise.all([overview(), deadBroadcasts()]);
-    return { board, dead };
+    const [board, dead, figures] = await Promise.all([
+      overview(),
+      deadBroadcasts(),
+      dashboard(30),
+    ]);
+    return { board, dead, ...figures };
   } catch (error) {
     if (error instanceof BackendError && error.status === 0) return null;
     throw error;
@@ -55,25 +53,17 @@ export default async function Dashboard({
      a silent redirect that reads as a broken link. */
   const { denied } = await searchParams;
 
+  /* The admin users page is superadmin-only, so pointing everybody else at
+     it would bounce them straight back here with a second `?denied=`. */
   const deniedNote = denied ? (
     <div className="mb-5 rounded-[10px] border border-primary-100 bg-primary-50 px-3.5 py-2.5 text-[13px] text-ink2">
       <strong className="text-primary">That page is not open to your role.</strong>{' '}
-      It needs the <code>{denied}</code> capability. Roles and what each one may
-      do are listed on the{' '}
-      <Link href="/admins" className="font-semibold text-primary hover:underline">
-        admin users page
-      </Link>
-      .
+      It needs the <code>{denied}</code> capability. Ask a super admin if your role
+      should have it.
     </div>
   ) : null;
 
-  const [remote, money, series, live, settings] = await Promise.all([
-    fromBackend(),
-    moneyOverview(30),
-    dailySeries(30),
-    liveCounts(),
-    getSettings(),
-  ]);
+  const [remote, settings] = await Promise.all([fromBackend(), getSettings()]);
 
   if (!remote) {
     return (
@@ -90,23 +80,14 @@ export default async function Dashboard({
     );
   }
 
-  const { board, dead } = remote;
+  const { board, dead, money, series, live } = remote;
   const { balances: bal, books, attention, escrow } = board;
 
   /* Escrow, bucketed by how long it has been sitting. Held money is the worst
      state in the system — the customer has paid, the cook has cooked, and
      neither has what they are owed — so it gets its own panel rather than a
-     line in a table.
-
-     The one read on this page still on the panel's database, and the seam
-     shows: `/escrow/aged` answers only for orders past the release window,
-     while these buckets are about everything held — including the money still
-     inside it. `/orders?payment=held` pages at 100, which would silently
-     understate the chart the moment a hundred-and-first order is held, and a
-     chart that quietly stops counting is worse than one that says where its
-     numbers come from. The row count beside `bal.held` in the stat above is
-     folded from the same read, so the two stay consistent with each other
-     rather than one of them half-migrating. */
+     line in a table. Bucketed by the database over every held order, because
+     a paged read would quietly stop counting at a hundred. */
   const window = settings.escrowAutoReleaseDays;
   const buckets = escrow.aging;
 

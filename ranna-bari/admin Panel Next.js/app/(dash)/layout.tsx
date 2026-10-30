@@ -72,6 +72,11 @@ export default async function DashLayout({ children }: { children: React.ReactNo
   const unread =
     (notes?.facets.unreadCustomer ?? 0) + (notes?.facets.unreadCook ?? 0);
 
+  /* A badge that is missing because the backend did not answer looks exactly
+     like a badge that is missing because nothing is waiting — and the second
+     reading is the dangerous one. Say which it is. */
+  const countsDown = !board || !chatStats;
+
   async function signOut() {
     'use server';
     await clearSessionCookie();
@@ -106,6 +111,16 @@ export default async function DashLayout({ children }: { children: React.ReactNo
               <span>sidebar</span>
             </span>
           </div>
+
+          {countsDown ? (
+            <span
+              role="status"
+              title="The backend did not answer, so the sidebar badges may be missing work that is waiting."
+              className="inline-flex shrink-0 items-center rounded-full border border-saffron-100 bg-saffron-50 px-2 py-0.5 text-[10.5px] font-semibold tracking-[0.05em] whitespace-nowrap text-ink2 uppercase"
+            >
+              Counts could not load
+            </span>
+          ) : null}
 
           <span className="hidden h-6 w-px shrink-0 bg-line sm:block" aria-hidden />
 

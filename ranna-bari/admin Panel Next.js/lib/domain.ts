@@ -306,8 +306,9 @@ export const LEDGER_KINDS = [
 ] as const;
 export type LedgerKind = (typeof LEDGER_KINDS)[number];
 
-/** The cook's cut on the legacy COD path — src/store/OrdersContext.js. */
-export const COOK_PAYOUT_RATE = 0.85;
+/* `COOK_PAYOUT_RATE = 0.85` stood here. The rate is `commissionCod` on the
+   backend's settings now, read through `lib/settings.ts`; a constant beside
+   it was a second answer nothing imported. */
 
 /* ------------------------------------------------------------------ *
  * admin roles
@@ -319,6 +320,12 @@ export type Role = (typeof ROLES)[number];
 /**
  * What each role may do. `superadmin` is every capability; the rest are
  * deliberately narrow — a support agent must not be able to move money.
+ *
+ * This table is a copy of `backend-node/src/lib/domain.ts` and must stay
+ * identical to it: the backend is the one that refuses, and a capability
+ * granted here alone is a button that opens onto a 403. `admin.manage` is
+ * deliberately on no role's list — only `*` carries it — so operators are
+ * managed by super admins alone, on both sides.
  */
 export const CAPABILITIES = {
   superadmin: ['*'],

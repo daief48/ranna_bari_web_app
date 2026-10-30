@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import { requireCapability } from '@/lib/auth';
 import { BackendError, post } from '@/lib/backend';
-import { ERR } from '@/lib/domain';
+import { ERR, errText } from '@/lib/domain';
 import { taka } from '@/lib/format';
 import { good, bad, guard, type ActionResult } from './shared';
 
@@ -127,7 +127,9 @@ export async function sweepEscrow(): Promise<ActionResult> {
         considered: number;
         released: number;
         total: number;
-        failures: { orderId: string; error: string }[];
+        /** Aged orders left alone because a dispute is open on them. */
+        skippedDisputed: number;
+        failures: { orderId: string; code: string; error: string }[];
       }>('/escrow/sweep');
 
       if (!out.considered) return good('Nothing is past the release window.');
@@ -135,9 +137,24 @@ export async function sweepEscrow(): Promise<ActionResult> {
       revalidatePath('/ledger');
       revalidatePath('/orders');
       revalidatePath('/');
-      return good(
-        `Released ${out.released} of ${out.considered} — ${taka(out.total)} moved out of escrow.`,
-      );
+
+      /* What did not move is the part an operator has to act on, so it is
+         named — count and the first few order codes — rather than folded
+         into "released 38 of 40" and left for them to find. */
+      const notes: string[] = [];
+      if (out.skippedDisputed > 0) {
+        notes.push(`${out.skippedDisputed} under an open dispute, left for the case`);
+      }
+      if (out.failures.length) {
+        const codes = out.failures.slice(0, 4).map((f) => `${f.code} (${errText(f.error)})`);
+        const more = out.failures.length > 4 ? ` and ${out.failures.length - 4} more` : '';
+        notes.push(`${out.failures.length} could not be released: ${codes.join(', ')}${more}`);
+      }
+
+      const headline = `Released ${out.released} of ${out.considered} — ${taka(out.total)} moved out of escrow.`;
+      return out.failures.length
+        ? bad(`${headline} ${notes.join('. ')}.`)
+        : good(notes.length ? `${headline} ${notes.join('. ')}.` : headline);
     } catch (error) {
       return refused(error);
     }
@@ -185,13 +202,32 @@ export async function payPayoutRun(runId: string): Promise<ActionResult> {
     await requireCapability('payout.write');
 
     try {
-      const out = await post<{ code: string; total: number; cooks: number; paid: number }>(
-        `/payouts/${runId}/pay`,
-      );
+      const out = await post<{
+        code: string;
+        status: 'paid' | 'partial';
+        total: number;
+        paidTotal: number;
+        cooks: number;
+        paid: number;
+        duplicate: number;
+        skipped: { kitchenName: string; amount: number; owed: number }[];
+      }>(`/payouts/${runId}/pay`);
 
       revalidatePath('/payouts');
       revalidatePath('/ledger');
-      return good(`${out.code} paid — ${taka(out.total)} left the platform.`);
+
+      /* The backend re-checks every cook's balance before posting and skips
+         anyone whose cover fell since the draft. Those cooks were not paid,
+         and the sentence has to say so by name — "paid" on a partial run is
+         how a carried balance gets forgotten. */
+      if (out.status === 'partial') {
+        const names = out.skipped.slice(0, 3).map((s) => `${s.kitchenName} (${taka(s.amount)} drafted, ${taka(s.owed)} owed)`);
+        const more = out.skipped.length > 3 ? ` and ${out.skipped.length - 3} more` : '';
+        return bad(
+          `${out.code} partially paid — ${taka(out.paidTotal)} to ${out.paid} of ${out.cooks} cooks. Skipped for lack of cover: ${names.join(', ')}${more}. They carry to the next run.`,
+        );
+      }
+      return good(`${out.code} paid — ${taka(out.paidTotal)} left the platform.`);
     } catch (error) {
       return refused(error, 'That payout run no longer exists.');
     }

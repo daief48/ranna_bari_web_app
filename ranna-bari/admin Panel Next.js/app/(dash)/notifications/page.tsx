@@ -57,7 +57,10 @@ export default async function NotificationsPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requirePage('order.read');
+  /* The backend answers `/notifications` only to `notification.broadcast`,
+     so that is the gate here too — `order.read` let support open a page
+     whose every fetch was a 403. */
+  await requirePage('notification.broadcast');
   const params = await searchParams;
   const { page, skip, take } = paging(params);
   const user = await currentUser();

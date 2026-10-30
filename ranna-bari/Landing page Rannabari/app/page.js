@@ -1,47 +1,88 @@
 import styles from './page.module.css';
 
+/*
+ * Where the buttons go.
+ *
+ * Every call to action on this page was a <button> with no handler — it
+ * looked clickable and did nothing. They are links now, and the targets live
+ * here so a store listing or a domain change is one edit.
+ *
+ * TODO: replace the placeholders below with the real store listings and the
+ * production web app URL before launch. Until then they point at the stores'
+ * search pages and the backend host, which at least go somewhere honest.
+ */
+const APP_STORE_URL = 'https://apps.apple.com/search?term=rannabari'; // TODO: real App Store listing
+const PLAY_STORE_URL = 'https://play.google.com/store/search?q=rannabari&c=apps'; // TODO: real Play listing
+const WEB_APP_URL = 'https://ranna-bari-backend.netlify.app'; // TODO: the web app, once it has a domain
+const CONTACT_EMAIL = 'hello@rannabari.app'; // TODO: confirm the mailbox exists
+
+/* Pages that do not exist yet. Each goes to the mailbox with a subject so a
+   click is still answered by a person rather than a 404. */
+const mailto = (subject) => `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`;
+const TERMS_URL = mailto('Terms of service'); // TODO: /terms once written
+const PRICING_URL = mailto('Pricing and fees for cooks'); // TODO: /cooks/pricing once written
+const GUIDELINES_URL = mailto('Menu guidelines'); // TODO: /cooks/guidelines once written
+const DISPUTES_URL = mailto('Dispute with an order'); // TODO: /help/disputes once written
+
 export default function Home() {
   return (
     <main className={styles.main}>
       {/* Background glow effects */}
-      <div className={styles.glowBlob} style={{ top: '-10%', left: '-10%' }} />
-      <div className={styles.glowBlob} style={{ bottom: '20%', right: '-5%', animationDelay: '2s' }} />
+      <div className={styles.glowBlob} style={{ top: '-10%', left: '-10%' }} aria-hidden="true" />
+      <div className={styles.glowBlob} style={{ bottom: '20%', right: '-5%', animationDelay: '2s' }} aria-hidden="true" />
 
       {/* Navigation */}
       <header className={styles.header}>
         <div className={`container ${styles.nav}`}>
-          <div className={styles.logo}>
+          <a href="#top" className={styles.logo} aria-label="RannaBari — back to top">
             RannaBari<span className={styles.logoDot}>.</span>
-          </div>
-          <div className={styles.navLinks}>
-            <a href="#system" className={styles.navLink}>System</a>
+          </a>
+          <nav className={styles.navLinks} aria-label="Sections">
+            <a href="#system" className={styles.navLink}>How it works</a>
             <a href="#features" className={styles.navLink}>Features</a>
             <a href="#security" className={styles.navLink}>Security</a>
-          </div>
-          <button className={`btn btn-primary ${styles.animateFadeUp}`}>Get the App</button>
+          </nav>
+          <a href={PLAY_STORE_URL} className={`btn btn-primary ${styles.animateFadeUp}`}>
+            Get the App
+          </a>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className={styles.hero}>
+      <section id="top" className={styles.hero}>
         <div className={`container ${styles.heroContent}`}>
-          <div className={`${styles.badge} animate-fade-up`}>Version 2.0 Live</div>
+          <div className={`${styles.badge} animate-fade-up`}>Now in Dhaka</div>
           <h1 className={`${styles.heroTitle} animate-fade-up delay-100 text-gradient`}>
-            Next-Gen Home Kitchen<br />Marketplace Ecosystem.
+            Home-cooked meals,<br />from kitchens near you.
           </h1>
           <p className={`${styles.heroSubtitle} animate-fade-up delay-200`}>
-            Not just another food delivery app. RannaBari is a highly engineered ecosystem 
-            empowering home cooks with powerful culinary tools, and giving food lovers 
-            unprecedented flexibility and financial security.
+            RannaBari connects home cooks in Bangladesh with people who want a proper
+            meal. Order a plate for today, pre-book a month of lunches, or buy from a
+            cook&apos;s pantry — every cook is identity-checked, and your money is held
+            until the food arrives.
           </p>
           <div className={`${styles.heroActions} animate-fade-up delay-300`}>
-            <button className="btn btn-primary">
+            <a href={WEB_APP_URL} className="btn btn-primary">
               Find Local Kitchens
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-            </button>
-            <button className="btn btn-secondary">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </a>
+            <a href={`${WEB_APP_URL}/become-cook`} className="btn btn-secondary">
               Open Your Kitchen
-            </button>
+            </a>
           </div>
         </div>
       </section>
@@ -50,47 +91,51 @@ export default function Home() {
       <section id="system" className={styles.bentoSection}>
         <div className="container">
           <div className={styles.sectionHeader}>
-            <h2 className={`${styles.sectionTitle} text-gradient`}>Engineered for Trust & Flexibility</h2>
-            <p className={styles.sectionSubtitle}>Dive into the core mechanics that make RannaBari the most advanced peer-to-peer food platform.</p>
+            <h2 className={`${styles.sectionTitle} text-gradient`}>Built so both sides can trust it</h2>
+            <p className={styles.sectionSubtitle}>
+              The parts of RannaBari that make ordering from a stranger&apos;s kitchen feel safe.
+            </p>
           </div>
 
-          <div className={styles.bentoGrid}>
-            
+          <div id="features" className={styles.bentoGrid}>
+
             {/* 1. Escrow System (Large) */}
-            <div className={`glass-card ${styles.bentoLarge}`}>
-              <div className={styles.bentoIcon}>🔒</div>
-              <h3 className={styles.bentoTitle}>Double-Entry Escrow Ledger</h3>
+            <div id="security" className={`glass-card ${styles.bentoLarge}`}>
+              <div className={styles.bentoIcon} aria-hidden="true">🔒</div>
+              <h3 className={styles.bentoTitle}>Your money waits for your food</h3>
               <p className={styles.bentoText}>
-                No more payment anxiety. When you confirm an order, your money is securely transferred from your Wallet into our System Hold. It is only released to the cook's wallet once you physically tap <b>"Meal Received"</b>.
+                When you confirm an order, the amount moves from your wallet into a hold.
+                It reaches the cook only after you tap <b>&ldquo;Meal Received&rdquo;</b> — or, if
+                something went wrong, our team can refund it. Every movement is a line in a
+                ledger that nobody can edit afterwards.
               </p>
-              
+
               <div className={styles.escrowVisual}>
                 <div className={styles.escrowStep}>
-                  <span>User Wallet</span>
+                  <span>Your wallet</span>
                   <span>- ৳1,500</span>
                 </div>
                 <div className={styles.escrowStep}>
-                  <span style={{color: 'var(--text-muted)'}}>↳ System Hold (Escrow)</span>
-                  <span className={`${styles.statusPill} ${styles.pillPending}`}>Awaiting Delivery</span>
+                  <span style={{color: 'var(--text-muted)'}}>↳ Held by RannaBari</span>
+                  <span className={`${styles.statusPill} ${styles.pillPending}`}>Awaiting delivery</span>
                 </div>
                 <hr style={{borderColor: 'var(--glass-border)', margin: '0.5rem 0'}} />
                 <div className={styles.escrowStep}>
-                  <span>Cook Wallet</span>
-                  <span className={`${styles.statusPill} ${styles.pillSuccess}`}>Released post-delivery</span>
+                  <span>Cook&apos;s wallet</span>
+                  <span className={`${styles.statusPill} ${styles.pillSuccess}`}>Released after delivery</span>
                 </div>
               </div>
             </div>
 
             {/* 2. Flexible Meal Calendar (Tall) */}
-            <div className={`glass-card ${styles.bentoTall}`}>
-              <div className={styles.bentoIcon}>📅</div>
-              <h3 className={styles.bentoTitle}>Flexible Meal Selection</h3>
+            <div id="meals" className={`glass-card ${styles.bentoTall}`}>
+              <div className={styles.bentoIcon} aria-hidden="true">📅</div>
+              <h3 className={styles.bentoTitle}>Pick the days you want</h3>
               <p className={styles.bentoText}>
-                Forget rigid monthly subscriptions. Our Date + Meal Type selection algorithm lets you pick exactly what you want. 
-                <br/><br/>
-                Want Breakfast on the 1st, and Dinner on the 5th? You got it. Just meet the cook's minimum meal requirement and check out.
+                No rigid monthly subscription. Choose the dates and the meals — breakfast
+                on the 1st, dinner on the 5th — meet the cook&apos;s minimum, and check out.
               </p>
-              
+
               <div className={styles.codeSnippet}>
                 <div><span className="code-str">Sept 1</span> <span className="code-key">Breakfast</span> <span className="code-val">✅</span></div>
                 <div><span className="code-str">Sept 1</span> <span className="code-key">Lunch</span> <span className="code-val">❌</span></div>
@@ -100,29 +145,33 @@ export default function Home() {
             </div>
 
             {/* 3. KYC (Small) */}
-            <div className={`glass-card ${styles.bentoSmall}`}>
-              <div className={styles.bentoIcon}>🛡️</div>
-              <h3 className={styles.bentoTitle}>Strict KYC</h3>
+            <div id="kyc" className={`glass-card ${styles.bentoSmall}`}>
+              <div className={styles.bentoIcon} aria-hidden="true">🛡️</div>
+              <h3 className={styles.bentoTitle}>Identity-checked cooks</h3>
               <p className={styles.bentoText}>
-                Every single cook undergoes strict identity document verification before their kitchen goes live on the map.
+                Every cook submits their National ID and photos of their kitchen, and a
+                person reviews them before the kitchen can take an order.
               </p>
             </div>
 
-            {/* 4. Real-time Marketplace (Small) */}
-            <div className={`glass-card ${styles.bentoSmall}`}>
-              <div className={styles.bentoIcon}>⚡</div>
-              <h3 className={styles.bentoTitle}>Live WebSocket Chat</h3>
+            {/* 4. Chat (Small) */}
+            <div id="chat" className={`glass-card ${styles.bentoSmall}`}>
+              <div className={styles.bentoIcon} aria-hidden="true">💬</div>
+              <h3 className={styles.bentoTitle}>Talk to the cook</h3>
               <p className={styles.bentoText}>
-                Negotiate prices, request custom dishes, and track your order in real-time with zero-latency chat.
+                Ask about a dish, request something custom, agree a price, and follow
+                your order — in a chat with the person actually cooking it.
               </p>
             </div>
 
             {/* 5. Cook Autonomy (Wide) */}
-            <div className={`glass-card ${styles.bentoWide}`}>
-              <div className={styles.bentoIcon}>👨‍🍳</div>
-              <h3 className={styles.bentoTitle}>Total Kitchen Autonomy</h3>
+            <div id="cooks" className={`glass-card ${styles.bentoWide}`}>
+              <div className={styles.bentoIcon} aria-hidden="true">👨‍🍳</div>
+              <h3 className={styles.bentoTitle}>Cooks run their own kitchen</h3>
               <p className={styles.bentoText}>
-                Cooks are in complete control. Override system meal plans, set custom pricing, define specific delivery radius zones, set plate caps per service, and even run a virtual shelf for packaged goods with a pre-order queue.
+                Set your own menu and prices, choose how far you deliver, cap how many
+                plates you cook per service, publish a monthly meal calendar, and run a
+                small shop for jars, frozen goods and sweets alongside it.
               </p>
             </div>
 
@@ -134,13 +183,19 @@ export default function Home() {
       <section className={styles.cta}>
         <div className="container">
           <div className={styles.ctaCard}>
-            <h2 className={styles.ctaTitle}>Experience the Future of Home Food</h2>
+            <h2 className={styles.ctaTitle}>Eat better. Cook for your neighbours.</h2>
             <p className={styles.ctaText}>
-              Join the ecosystem that is reshaping how communities share, sell, and enjoy home-cooked meals across Bangladesh.
+              RannaBari is starting in Dhaka. Get the app to order from kitchens near you,
+              or to open your own.
             </p>
-            <button className={`btn ${styles.btnWhite}`}>
-              Download for iOS & Android
-            </button>
+            <div className={styles.heroActions}>
+              <a href={APP_STORE_URL} className={`btn ${styles.btnWhite}`}>
+                Download for iOS
+              </a>
+              <a href={PLAY_STORE_URL} className={`btn ${styles.btnWhite}`}>
+                Download for Android
+              </a>
+            </div>
           </div>
         </div>
       </section>
@@ -153,31 +208,32 @@ export default function Home() {
               RannaBari<span className={styles.logoDot}>.</span>
             </div>
             <p className={styles.footerText}>
-              The next-generation home-kitchen marketplace connecting communities through technology and food.
+              A marketplace for home-cooked food in Bangladesh. Questions?{' '}
+              <a href={`mailto:${CONTACT_EMAIL}`} className={styles.footerLink}>{CONTACT_EMAIL}</a>
             </p>
           </div>
           <div>
             <h4 className={styles.footerTitle}>Platform</h4>
             <ul className={styles.footerLinks}>
-              <li><a href="#" className={styles.footerLink}>The Escrow System</a></li>
-              <li><a href="#" className={styles.footerLink}>Meal Algorithms</a></li>
-              <li><a href="#" className={styles.footerLink}>Live Marketplace</a></li>
+              <li><a href="#security" className={styles.footerLink}>How payments are held</a></li>
+              <li><a href="#meals" className={styles.footerLink}>Monthly meals</a></li>
+              <li><a href="#chat" className={styles.footerLink}>Chat with cooks</a></li>
             </ul>
           </div>
           <div>
-            <h4 className={styles.footerTitle}>Trust & Safety</h4>
+            <h4 className={styles.footerTitle}>Trust &amp; Safety</h4>
             <ul className={styles.footerLinks}>
-              <li><a href="#" className={styles.footerLink}>KYC Verification</a></li>
-              <li><a href="#" className={styles.footerLink}>Dispute Resolution</a></li>
-              <li><a href="#" className={styles.footerLink}>Terms of Service</a></li>
+              <li><a href="#kyc" className={styles.footerLink}>Cook verification</a></li>
+              <li><a href={DISPUTES_URL} className={styles.footerLink}>Dispute an order</a></li>
+              <li><a href={TERMS_URL} className={styles.footerLink}>Terms of Service</a></li>
             </ul>
           </div>
           <div>
             <h4 className={styles.footerTitle}>Cooks</h4>
             <ul className={styles.footerLinks}>
-              <li><a href="#" className={styles.footerLink}>Kitchen Dashboard</a></li>
-              <li><a href="#" className={styles.footerLink}>Pricing & Fees</a></li>
-              <li><a href="#" className={styles.footerLink}>Menu Guidelines</a></li>
+              <li><a href={`${WEB_APP_URL}/become-cook`} className={styles.footerLink}>Open your kitchen</a></li>
+              <li><a href={PRICING_URL} className={styles.footerLink}>Pricing &amp; Fees</a></li>
+              <li><a href={GUIDELINES_URL} className={styles.footerLink}>Menu Guidelines</a></li>
             </ul>
           </div>
         </div>

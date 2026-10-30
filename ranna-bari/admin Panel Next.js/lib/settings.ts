@@ -1,15 +1,21 @@
 import 'server-only';
 
-import { db } from './db';
+import { BackendError, get } from './backend';
 
 /**
- * Platform configuration.
+ * Platform configuration — read from `backend-node`.
  *
  * Everything here was a hardcoded constant in the app: `DELIVERY_FEE = 40`
  * and `PLATFORM_FEE = 10` in CartContext, the 37-name `KNOWN_AREAS` array,
  * the 0.85 cook rate, the slot cutoffs. A constant in a mobile bundle can
  * only be changed by shipping a new build to the app stores, which is not a
- * pricing lever — it is a release. These are rows now.
+ * pricing lever — it is a release. These are rows now, and the rows live in
+ * Mongo behind the backend, which is the only place the app reads them from.
+ *
+ * This module used to read the panel's own SQLite. That was a second copy of
+ * the configuration that the money transitions never saw: an operator could
+ * change the commission here and watch the ledger keep posting the old one.
+ * Nothing in the panel opens a database for configuration any more.
  */
 
 export type PlatformSettings = {
@@ -40,12 +46,30 @@ export type PlatformSettings = {
   payoutMinimum: number;
 };
 
+export type FeatureFlag = { key: string; description: string; enabled: boolean };
+
+export type SettingMeta = { label: string; help: string; kind: 'money' | 'rate' | 'days' };
+
+/** What `GET /settings` answers with. */
+export type SettingsResponse = {
+  settings: PlatformSettings;
+  meta: Record<keyof PlatformSettings, SettingMeta>;
+  flags: FeatureFlag[];
+};
+
+/**
+ * DISPLAY-ONLY FALLBACK. Not the configuration.
+ *
+ * The values the backend ships with (`backend-node/src/logic/settings.ts`),
+ * used only to draw a page when the backend is unreachable or this role may
+ * not read `/settings` — the dashboard's "past N days" caption, for example.
+ * No money decision in the panel reads these: every transition is made on
+ * the backend, against the real rows. If the two drift apart the backend is
+ * right and this is a stale caption.
+ */
 export const DEFAULT_SETTINGS: PlatformSettings = {
   deliveryFee: 40,
   platformFee: 10,
-  // 0.15 matches the app's COOK_PAYOUT_RATE = 0.85 on the COD path. The
-  // escrow systems took nothing at all, so they start at the same number
-  // rather than at zero — the point of the gap was that it was unset.
   commissionCod: 0.15,
   commissionMeal: 0.15,
   commissionStore: 0.12,
@@ -56,128 +80,55 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   payoutMinimum: 100,
 };
 
-export const SETTING_META: Record<
-  keyof PlatformSettings,
-  { label: string; help: string; kind: 'money' | 'rate' | 'days' }
-> = {
-  deliveryFee: {
-    label: 'Delivery fee',
-    help: 'Charged once per basket, not once per kitchen. Was hardcoded in the app.',
-    kind: 'money',
-  },
-  platformFee: {
-    label: 'Platform fee',
-    help: 'Charged once per basket alongside delivery.',
-    kind: 'money',
-  },
-  commissionCod: {
-    label: 'Commission — cash on delivery',
-    help: 'The app already took this: the cook keeps 85% of subtotal.',
-    kind: 'rate',
-  },
-  commissionMeal: {
-    label: 'Commission — pre-booked meals',
-    help: 'The app took nothing here. Escrow released 100% to the cook.',
-    kind: 'rate',
-  },
-  commissionStore: {
-    label: 'Commission — cook stores',
-    help: 'Taken off the food value at release, never off the delivery fee.',
-    kind: 'rate',
-  },
-  commissionRequest: {
-    label: 'Commission — food requests',
-    help: 'The cook named this price themselves, so the cut is lighter.',
-    kind: 'rate',
-  },
-  escrowAutoReleaseDays: {
-    label: 'Escrow auto-release',
-    help: 'Days after delivery that held money releases without the customer confirming.',
-    kind: 'days',
-  },
-  stockAlarmDays: {
-    label: 'Stock alarm',
-    help: 'Flag an active product that has sat at zero stock this long.',
-    kind: 'days',
-  },
-  requestExpiryDays: {
-    label: 'Request expiry',
-    help: 'Days past the wanted-for date before an unpaid request expires.',
-    kind: 'days',
-  },
-  payoutMinimum: {
-    label: 'Payout minimum',
-    help: 'A cook owed less than this is carried to the next run.',
-    kind: 'money',
-  },
-};
-
 const CACHE_KEY = '__rb_settings__';
-type CacheHolder = { [CACHE_KEY]?: { at: number; value: PlatformSettings } };
+type CacheHolder = { [CACHE_KEY]?: { at: number; value: SettingsResponse } };
 
 /**
- * Settings, cached for a few seconds.
+ * One read of `/settings`, cached for a few seconds.
  *
- * Read on nearly every page and on every money transition, and changed a
- * handful of times a year. A short TTL keeps a saved change visible almost
- * immediately without hitting the row on every render.
+ * Read on nearly every page and changed a handful of times a year. The TTL is
+ * short enough that a saved change is visible on the next navigation and long
+ * enough that a page drawing three of these numbers makes one request.
+ *
+ * `/settings` needs `config.read`. A role without it — support — gets a 403,
+ * which is not an error worth taking the dashboard down for; it is simply a
+ * page that has to make do with the display-only defaults above. A dead
+ * backend is the same. Anything else is a real fault and throws.
  */
-export async function getSettings(): Promise<PlatformSettings> {
+async function readConfig(): Promise<SettingsResponse | null> {
   const holder = globalThis as unknown as CacheHolder;
   const cached = holder[CACHE_KEY];
   if (cached && Date.now() - cached.at < 5_000) return cached.value;
 
   try {
-    const rows = await db.setting.findMany();
-    const value = { ...DEFAULT_SETTINGS };
-    for (const row of rows) {
-      if (!(row.key in value)) continue;
-      const parsed = Number(JSON.parse(row.value));
-      if (Number.isFinite(parsed)) {
-        (value as unknown as Record<string, number>)[row.key] = parsed;
-      }
-    }
+    const value = await get<SettingsResponse>('/settings');
     holder[CACHE_KEY] = { at: Date.now(), value };
     return value;
-  } catch {
-    // Database unavailable (e.g. Netlify cold start before DB is accessible)
-    return { ...DEFAULT_SETTINGS };
+  } catch (error) {
+    if (error instanceof BackendError && (error.status === 0 || error.status === 403)) {
+      return null;
+    }
+    throw error;
   }
+}
+
+/** The platform settings, or the display-only defaults when they cannot be read. */
+export async function getSettings(): Promise<PlatformSettings> {
+  const config = await readConfig();
+  return config ? { ...DEFAULT_SETTINGS, ...config.settings } : { ...DEFAULT_SETTINGS };
+}
+
+/**
+ * The feature flags, from the same rows the app branches on.
+ *
+ * Empty rather than a default list when the backend cannot be read: a switch
+ * drawn from a guess is a switch an operator will flip and believe.
+ */
+export async function getFlags(): Promise<FeatureFlag[]> {
+  const config = await readConfig();
+  return config?.flags ?? [];
 }
 
 export function invalidateSettings() {
   delete (globalThis as unknown as CacheHolder)[CACHE_KEY];
 }
-
-export async function saveSetting(key: keyof PlatformSettings, value: number, by: string) {
-  await db.setting.upsert({
-    where: { key },
-    create: { key, value: JSON.stringify(value), updatedBy: by },
-    update: { value: JSON.stringify(value), updatedBy: by },
-  });
-  invalidateSettings();
-}
-
-/* ------------------------------------------------------------------ *
- * feature flags
- * ------------------------------------------------------------------ */
-
-export const DEFAULT_FLAGS = [
-  { key: 'system.cod', description: 'Cash-on-delivery ordering', enabled: true },
-  { key: 'system.meals', description: 'Pre-booked meals', enabled: true },
-  { key: 'system.stores', description: 'Cook stores', enabled: true },
-  { key: 'system.requests', description: 'Food requests and bidding', enabled: true },
-  { key: 'system.topup', description: 'Wallet top-ups', enabled: true },
-  { key: 'signup.cook', description: 'New cook signups', enabled: true },
-];
-
-export async function getFlags() {
-  try {
-    const rows = await db.featureFlag.findMany({ orderBy: { key: 'asc' } });
-    if (rows.length) return rows;
-  } catch {
-    // Database unavailable — return defaults
-  }
-  return DEFAULT_FLAGS.map((f) => ({ ...f, updatedAt: new Date(), updatedBy: null }));
-}
-

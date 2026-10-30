@@ -175,6 +175,37 @@ const FLAGS = [
  * ------------------------------------------------------------------ */
 
 async function main() {
+  /*
+   * Idempotent, and never a password reset.
+   *
+   * This runs on every Netlify deploy (netlify.toml) and used to wipe every
+   * table and write the operators back with whatever `SEED_ADMIN_PASSWORD`
+   * said — defaulting to a string anybody can read in this file. An existing
+   * operator is proof the database has been set up; the seed stops here, and
+   * the only way a password changes is somebody changing it.
+   */
+  const operators = await db.adminUser.count();
+  if (operators > 0) {
+    console.log(`· ${operators} operators already exist — nothing to seed, passwords untouched.`);
+    return;
+  }
+
+  const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@rannabari.app';
+  const production = process.env.NODE_ENV === 'production' || process.env.NETLIFY === 'true';
+  let adminPassword = process.env.SEED_ADMIN_PASSWORD;
+  if (!adminPassword) {
+    /* A known default is fine against a laptop and a published credential
+       anywhere else. Production gets no operators rather than guessable
+       ones; the deploy says so and carries on. */
+    if (production) {
+      console.warn(
+        '· SEED_ADMIN_PASSWORD is not set and this is a production build — no operators seeded. Set it in the Netlify UI and redeploy.',
+      );
+      return;
+    }
+    adminPassword = 'rannabari';
+  }
+
   console.log('· clearing');
   // Order matters: children before parents, and the append-only triggers are
   // installed after the wipe so they do not block it.
@@ -209,9 +240,6 @@ async function main() {
 
   /* ---------------- operators ---------------- */
 
-  const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@rannabari.app';
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'rannabari';
-
   await db.adminUser.createMany({
     data: [
       { email: adminEmail, name: 'Platform Owner', role: 'superadmin', passwordHash: hashPassword(adminPassword) },
@@ -220,7 +248,7 @@ async function main() {
       { email: 'support@rannabari.app', name: 'Sadia Noor', role: 'support', passwordHash: hashPassword(adminPassword) },
     ],
   });
-  console.log(`· 4 operators (sign in as ${adminEmail} / ${adminPassword})`);
+  console.log(`· 4 operators (sign in as ${adminEmail})`);
 
   /* ---------------- configuration ---------------- */
 
@@ -1239,8 +1267,7 @@ async function main() {
   );
 
   console.log('\n  Seed complete.');
-  console.log(`  Sign in at http://localhost:3100/login`);
-  console.log(`  ${adminEmail} / ${adminPassword}\n`);
+  console.log(`  Sign in at http://localhost:3100/login as ${adminEmail}\n`);
 }
 
 main()

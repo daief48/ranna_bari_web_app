@@ -37,7 +37,8 @@ const ROLE_NOTE: Record<string, string> = {
 };
 
 export default async function AdminDetail({ params }: { params: Promise<{ id: string }> }) {
-  await requirePage('kitchen.read');
+  /* Same gate as the backend's `/admins/:id`. */
+  await requirePage('admin.manage');
   const { id } = await params;
 
   /* The operator, and what they have actually done. The endpoint drops

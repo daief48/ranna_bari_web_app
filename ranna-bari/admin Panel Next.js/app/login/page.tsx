@@ -7,7 +7,27 @@ import { OperatorPicker, type Operator } from './operator-picker';
 export const metadata = { title: 'Sign in · RannaBari Admin' };
 
 const DOMAIN = 'rannabari.app';
-const DEMO_PASSWORD = 'rannabari';
+
+/*
+ * The seeded demo accounts and their shared password, on the door.
+ *
+ * Only in development. The demo's point is that authorisation is real, which
+ * takes two sign-ins to see — but a production door that prints a password
+ * and pre-fills the form with it is a door with the key taped to it, whether
+ * or not that password still works.
+ */
+const DEMO = process.env.NODE_ENV !== 'production';
+const DEMO_PASSWORD = DEMO ? 'rannabari' : '';
+
+/**
+ * Only a path on this panel.
+ *
+ * A crafted `?next=` must not bounce someone off the panel after a successful
+ * sign-in: no scheme (`https://…`), no protocol-relative `//host`, and no
+ * backslash anywhere, because browsers read `/\evil.com` as `//evil.com`.
+ * One leading slash followed by something that is neither.
+ */
+const safeNext = (value: string) => (/^\/(?![/\\])[^\\]*$/.test(value) ? value : '/');
 
 /**
  * The ground.
@@ -85,7 +105,7 @@ export default async function LoginPage({
     const email = String(formData.get('email') ?? '');
     const password = String(formData.get('password') ?? '');
     const totp = String(formData.get('totp') ?? '');
-    const next = String(formData.get('next') ?? '') || '/';
+    const next = safeNext(String(formData.get('next') ?? ''));
 
     const out = await signIn(email, password, totp || undefined);
 
@@ -100,9 +120,7 @@ export default async function LoginPage({
        two sides back out of step — and this cookie is also what the socket
        relay presents upstream. */
     await setSessionCookie(out.token);
-    // Only same-origin paths, so a crafted ?next= cannot bounce someone off
-    // the panel to an attacker's page after a successful sign-in.
-    redirect(next.startsWith('/') && !next.startsWith('//') ? next : '/');
+    redirect(next);
   }
 
   return (
@@ -188,7 +206,7 @@ export default async function LoginPage({
           <div className="rounded-[19px] bg-gradient-to-br from-[color-mix(in_oklab,var(--ink)_16%,transparent)] via-line to-transparent p-px shadow-[var(--shadow-lg)]">
             <div className="rounded-[18px] bg-[color-mix(in_oklab,var(--raised)_86%,transparent)] p-6 backdrop-blur-2xl">
               <form action={submit}>
-                <input type="hidden" name="next" value={params.next ?? '/'} />
+                <input type="hidden" name="next" value={safeNext(params.next ?? '/')} />
 
                 <div className="mb-6">
                   <h2 className="font-display text-[19px] leading-none font-bold text-ink">
@@ -211,7 +229,7 @@ export default async function LoginPage({
                       required
                       autoFocus
                       autoComplete="username"
-                      defaultValue={`admin@${DOMAIN}`}
+                      defaultValue={DEMO ? `admin@${DOMAIN}` : undefined}
                       className={INPUT}
                     />
                   </div>
@@ -226,7 +244,7 @@ export default async function LoginPage({
                       type="password"
                       required
                       autoComplete="current-password"
-                      defaultValue={DEMO_PASSWORD}
+                      defaultValue={DEMO ? DEMO_PASSWORD : undefined}
                       className={INPUT}
                     />
                   </div>
@@ -271,7 +289,9 @@ export default async function LoginPage({
 
           {/* The demo's whole point is that authorisation is real, which needs
               two sign-ins to see. So the four accounts are on the door — and
-              clickable, because retyping them is the reason nobody checks. */}
+              clickable, because retyping them is the reason nobody checks.
+              Development only; see DEMO above. */}
+          {DEMO ? (
           <div className="mt-4 rounded-[16px] border border-line bg-[color-mix(in_oklab,var(--sunken)_78%,transparent)] px-3 py-3 backdrop-blur-xl">
             <div className="flex items-baseline justify-between px-2">
               <span className="label">Seeded operators</span>
@@ -293,6 +313,7 @@ export default async function LoginPage({
               screens without the operations ones.
             </p>
           </div>
+          ) : null}
         </div>
       </div>
     </main>

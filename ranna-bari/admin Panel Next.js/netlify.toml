@@ -2,15 +2,24 @@
   command = "prisma generate && prisma db push --accept-data-loss && tsx prisma/seed.ts && next build"
   publish = ".next"
 
+# Secrets are NOT set here. A committed toml is readable by everyone with the
+# repository, which makes any value in it public — and these four are the
+# keys to the operator realm. Set them in the Netlify UI (Site configuration
+# → Environment variables), and nowhere else:
+#
+#   ADMIN_AUTH_SECRET       shared with backend-node; signs operator sessions
+#   BACKEND_SERVICE_TOKEN   shared with backend-node; proves this is the panel
+#   APP_AUTH_SECRET         only if this deployment relays app tokens
+#   SEED_ADMIN_PASSWORD     first-boot operator password (prisma/seed.ts)
+#
+# The panel refuses to start in production without the first two
+# (lib/auth-shared.ts, lib/backend.ts), so a missing value fails the deploy
+# rather than quietly accepting tokens anybody can sign.
 [build.environment]
   NODE_VERSION = "20"
   NPM_FLAGS = "--include=dev"
   DATABASE_URL = "file:./dev.db"
   BACKEND_URL = "https://ranna-bari-backend.netlify.app"
-  ADMIN_AUTH_SECRET = "change-me-admin-secret-at-least-32-characters-long"
-  AUTH_SECRET = "rannabari-admin-dev-secret-change-me-in-production-0000"
-  APP_AUTH_SECRET = "rannabari-app-dev-secret-change-me-in-production-000"
-  BACKEND_SERVICE_TOKEN = "rb-dev-service-token-143e8ae9ea9a9f58e75c2fb19dff2eaf"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

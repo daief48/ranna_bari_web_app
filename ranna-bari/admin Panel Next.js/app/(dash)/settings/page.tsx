@@ -1,7 +1,7 @@
 import { currentUser } from '@/lib/auth';
 import { can } from '@/lib/domain';
 import { BACKEND_URL, BackendError, get } from '@/lib/backend';
-import { getFlags, type PlatformSettings } from '@/lib/settings';
+import type { FeatureFlag, PlatformSettings, SettingMeta } from '@/lib/settings';
 import { Card, GapNote, PageHeader, Badge } from '@/components/ui';
 import { type LibraryIcon } from '@/components/ui/icon-picker';
 
@@ -11,11 +11,12 @@ import { requirePage } from '@/lib/guard';
 export const metadata = { title: 'Configuration · RannaBari Admin' };
 export const dynamic = 'force-dynamic';
 
-type SettingMeta = { label: string; help: string; kind: 'money' | 'rate' | 'days' };
-
 type Config = {
   settings: PlatformSettings;
   meta: Record<keyof PlatformSettings, SettingMeta>;
+  /* The same rows the app branches on. The switch writes them back through
+     `PATCH /flags`, so what this list shows is what the next order sees. */
+  flags: FeatureFlag[];
 };
 
 type Zone = { id: string; name: string; deliveryFee: number | null; active: boolean };
@@ -47,20 +48,13 @@ export default async function SettingsPage() {
   let config: Config;
   let zones: Zone[];
   let taxonomy: Category[];
-  /* Flags are the one read left on Prisma, and only because `toggleFlag` is:
-     the backend serves them but has no route that writes one, and a list read
-     from Mongo with a switch that writes to SQLite is a switch that never
-     moves. Read and write stay on the same side of the wire until there is an
-     endpoint for the write. */
-  let flags: Awaited<ReturnType<typeof getFlags>>;
   let icons: LibraryIcon[] = [];
 
   try {
-    const [remote, zoneList, categories, flagRows, library] = await Promise.all([
+    const [remote, zoneList, categories, library] = await Promise.all([
       get<Config>('/settings'),
       get<{ zones: Zone[] }>('/zones'),
       get<{ taxonomy: Category[] }>('/taxonomy'),
-      getFlags(),
       /* The picture library, so the category editor can offer it rather than
          asking somebody to remember which emoji the platform already uses. */
       get<{ icons: LibraryIcon[] }>('/icons'),
@@ -68,7 +62,6 @@ export default async function SettingsPage() {
     config = remote;
     zones = zoneList.zones;
     taxonomy = categories.taxonomy;
-    flags = flagRows;
     icons = library.icons;
   } catch (error) {
     if (error instanceof BackendError && error.status === 0) {
@@ -85,7 +78,7 @@ export default async function SettingsPage() {
     throw error;
   }
 
-  const { settings } = config;
+  const { settings, flags } = config;
 
   const moneyKeys: (keyof PlatformSettings)[] = ['deliveryFee', 'platformFee', 'payoutMinimum'];
   const rateKeys: (keyof PlatformSettings)[] = [

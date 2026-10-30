@@ -124,27 +124,6 @@ export function OrderControls({
           >
             {nextStep ? `Advance to ${nextStep.replace(/_/g, ' ')}` : 'Nothing to advance'}
           </ActionButton>
-
-          <div className="mt-3 border-t border-line pt-3">
-            <input
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="Cancellation reason"
-              className={`${input} mb-2`}
-            />
-            <ActionButton
-              action={() => forceCancel(orderId, cancelReason)}
-              variant="danger"
-              disabled={settled || !cancelReason.trim()}
-              confirm={
-                held
-                  ? `Cancel ${code} and refund ${taka(amount)} to the customer?`
-                  : `Cancel ${code}?`
-              }
-            >
-              Cancel {held ? '& refund' : 'order'}
-            </ActionButton>
-          </div>
         </div>
       ) : null}
 
@@ -190,6 +169,30 @@ export function OrderControls({
               {payment === 'refunded' ? 'Already refunded' : 'Refund'}
             </ActionButton>
           </div>
+
+          {/* Cancelling refunds the whole hold, so it is a money action and
+              sits with the money — the backend settles it through the same
+              refund route and gates it on the same `payout.write`. It lived
+              in the operations column, where it offered ops a button the
+              backend then refused. */}
+          <div className="mt-3 border-t border-line pt-3">
+            <input
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Cancellation reason"
+              className={`${input} mb-2`}
+              disabled={!held}
+            />
+            <ActionButton
+              action={() => forceCancel(orderId, cancelReason)}
+              variant="danger"
+              disabled={settled || !held || !cancelReason.trim()}
+              title={held ? undefined : 'Only an order still holding money can be cancelled here'}
+              confirm={`Cancel ${code} and refund ${taka(amount)} to the customer?`}
+            >
+              Cancel &amp; refund
+            </ActionButton>
+          </div>
         </div>
       ) : null}
 
@@ -203,8 +206,8 @@ export function OrderControls({
           <div className="label mb-1.5">Move the money</div>
           <p className="text-[11.5px] leading-relaxed text-ink3">
             {taka(amount)} is held against this order and your role cannot release
-            it. Releasing and refunding belong to <strong>finance</strong> — sign in
-            as a finance or super-admin operator to do it here.
+            it. Releasing, refunding and cancelling belong to <strong>finance</strong> —
+            sign in as a finance or super-admin operator to do it here.
           </p>
         </div>
       ) : null}

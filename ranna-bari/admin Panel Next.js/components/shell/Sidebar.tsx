@@ -68,8 +68,10 @@ export const NAV: {
     items: [
       { href: '/settings', label: 'Configuration', cap: 'config.read' },
       { href: '/icons', label: 'Emoji & icons', cap: 'config.read' },
-      { href: '/notifications', label: 'Notifications', cap: 'order.read' },
-      { href: '/admins', label: 'Admin users', cap: 'kitchen.read' },
+      /* Each gate is the backend's gate for the board behind the link, so a
+         link never opens onto a page that then answers 403. */
+      { href: '/notifications', label: 'Notifications', cap: 'notification.broadcast' },
+      { href: '/admins', label: 'Admin users', cap: 'admin.manage' },
       { href: '/audit', label: 'Audit log', cap: 'order.read' },
     ],
   },

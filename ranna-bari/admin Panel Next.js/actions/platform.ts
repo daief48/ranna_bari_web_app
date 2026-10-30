@@ -2,13 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { db } from '@/lib/db';
 import { requireCapability } from '@/lib/auth';
-import { audit } from '@/lib/audit';
-import { hashPassword } from '@/lib/auth';
 import { BackendError, patch, post } from '@/lib/backend';
 import { ERR, ROLES } from '@/lib/domain';
-import type { PlatformSettings } from '@/lib/settings';
+import { invalidateSettings, type PlatformSettings } from '@/lib/settings';
 import { good, bad, guard, type ActionResult } from './shared';
 
 /**
@@ -60,6 +57,9 @@ export async function updateSetting(
       }
 
       await patch('/settings', { key, value });
+      /* The panel caches `/settings` for a few seconds; a save must not be
+         followed by a page that still shows the old number. */
+      invalidateSettings();
 
       revalidatePath('/settings');
       revalidatePath('/');
@@ -71,37 +71,23 @@ export async function updateSetting(
 /**
  * Turn a whole system off without a deploy.
  *
- * Left on Prisma. The backend hands the flags out on `GET /settings` but has
- * no route that writes one, so a panel that read them over HTTP and wrote them
- * here would show an operator a switch that never moves. The settings page
- * reads `getFlags()` from the same database for exactly that reason, and the
- * audit row stays local because no backend saw the change.
+ * The flip happens on the backend, in the same document the app reads, and
+ * the backend writes the audit row. This used to toggle a row in the panel's
+ * own SQLite while the settings page listed the backend's — a switch that
+ * moved on screen and nowhere else.
  */
 export async function toggleFlag(key: string): Promise<ActionResult> {
-  return guard(async () => {
-    const user = await requireCapability('config.write');
+  return guard(() =>
+    attempt(async () => {
+      await requireCapability('config.write');
 
-    const existing = await db.featureFlag.findUnique({ where: { key } });
-    const next = !(existing?.enabled ?? true);
+      const out = await patch<{ key: string; enabled: boolean }>('/flags', { key });
+      invalidateSettings();
 
-    await db.featureFlag.upsert({
-      where: { key },
-      create: { key, enabled: next, description: '', updatedBy: user.email },
-      update: { enabled: next, updatedBy: user.email },
-    });
-
-    await audit(user, {
-      action: 'config.flag',
-      targetType: 'FeatureFlag',
-      targetId: key,
-      summary: `${key} ${next ? 'enabled' : 'disabled'}`,
-      before: { enabled: existing?.enabled ?? true },
-      after: { enabled: next },
-    });
-
-    revalidatePath('/settings');
-    return good(next ? 'Enabled.' : 'Disabled — the app will stop offering it.');
-  });
+      revalidatePath('/settings');
+      return good(out.enabled ? 'Enabled.' : 'Disabled — the app will stop offering it.');
+    }),
+  );
 }
 
 /* ------------------------------------------------------------------ *
