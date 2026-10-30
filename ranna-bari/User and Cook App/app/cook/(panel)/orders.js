@@ -25,7 +25,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import CookScreen from '../../../src/components/CookScreen';
@@ -64,6 +64,9 @@ import { LoadMoreFooter } from '../../../src/lib/useInfinite';
 import { useLingering } from '../../../src/lib/useLingering';
 import MovedNote from '../../../src/components/MovedNote';
 import MealSitting from '../../../src/components/MealSitting';
+import CookRequestsBoard from '../../../src/components/CookRequestsBoard';
+import { useCookRequestRows } from '../../../src/features/requests/useCookRequestRows';
+import { useCookRequestActions } from '../../../src/features/requests/useCookRequestActions';
 import DayStrip from '../../../src/components/DayStrip';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
@@ -122,6 +125,9 @@ const KINDS = [
   { key: 'menu', label: 'Menu', icon: 'receipt' },
   { key: 'shop', label: 'Shop', icon: 'box' },
   { key: 'meals', label: 'Meals', icon: 'pot' },
+  /* Bids still being agreed -- NOT request orders. Once the customer picks the
+     cook and pays, the request becomes an ordinary order in the Menu lanes. */
+  { key: 'requests', label: 'Requests', icon: 'chat' },
 ];
 
 /* How far along each kind is, as dots on a line. The maps collapse the
@@ -145,7 +151,10 @@ export default function CookOrders() {
   const kitchenId = kitchen?.id ?? identity?.kitchenId ?? null;
   const alert = useAlert();
   const [lane, setLane] = useState(null);
-  const [kind, setKind] = useState(null);
+  /* `?tab=requests` (Profile row, Dashboard tile) lands on that kind. */
+  const { tab: tabParam } = useLocalSearchParams();
+  const tabKind = KINDS.some((k) => k.key === tabParam) ? tabParam : null;
+  const [kind, setKind] = useState(tabKind);
   const [shopFilter, setShopFilter] = useState('all');
   const [mealDate, setMealDate] = useState(todayKey());
   const [meals, setMeals] = useState(null);
@@ -163,6 +172,13 @@ export default function CookOrders() {
      compares against this. Declared beside the state it accompanies; the
      effect that reads it lives after `mine` is computed. */
   const seenRef = useRef(null);
+  /* A deep link while the board is already mounted: take the cook there once,
+     then clear the param so a later tap on another tab is not undone. */
+  useEffect(() => {
+    if (!tabKind) return;
+    setKind(tabKind);
+    router.setParams({ tab: undefined });
+  }, [tabKind, router]);
   const [newCount, setNewCount] = useState(0);
 
   /* ---- menu ----
@@ -214,6 +230,14 @@ export default function CookOrders() {
     };
   }, [mine, payoutRates]);
   const counts = lanes.counts;
+
+  /* ---- requests ----
+     Grouped by the one shared hook; the optimistic marks are this board's, so
+     the tab's badge and rows move on the tap and snap back on a refusal. */
+  const reqActions = useCookRequestActions();
+  const reqRows = useCookRequestRows(reqActions.overrides);
+  const reqNeeds = reqRows.counts.needsYou;
+  const openRequest = useCallback((request) => router.push(`/cook/requests/${request.id}`), [router]);
 
   /* Every order by id, for "where did that card go" — see `useLingering`. */
   const mineById = useMemo(() => new Map(mine.map((o) => [String(o.id), o])), [mine]);
@@ -522,20 +546,33 @@ export default function CookOrders() {
         ? 'shop'
         : mealOpen > 0
           ? 'meals'
-          : 'menu';
+          : reqNeeds > 0
+            ? 'requests'
+            : 'menu';
   const shownKind = kind ?? autoKind;
 
   const kindItems = useMemo(
     () =>
       KINDS.map((k) => ({
         ...k,
-        count: k.key === 'menu' ? counts.new : k.key === 'shop' ? shopNeeds : mealOpen,
+        count:
+          k.key === 'menu'
+            ? counts.new
+            : k.key === 'shop'
+              ? shopNeeds
+              : k.key === 'requests'
+                ? reqNeeds
+                : mealOpen,
       })),
-    [counts, shopNeeds, mealOpen],
+    [counts, shopNeeds, mealOpen, reqNeeds],
   );
 
   const subtitle =
-    shownKind === 'menu'
+    shownKind === 'requests'
+      ? reqNeeds
+        ? t('{n} requests need your answer.', { n: n(reqNeeds) })
+        : t('Nothing is waiting on you.')
+      : shownKind === 'menu'
       ? counts.new
         ? t(
             counts.new === 1
@@ -571,7 +608,7 @@ export default function CookOrders() {
      kinds needs the cook right now. History lanes don't count — settled
      work is not work. */
   const boardQuiet =
-    !counts.new && !counts.cooking && !counts.delivering && !shopNeeds && !mealOpen;
+    !counts.new && !counts.cooking && !counts.delivering && !shopNeeds && !mealOpen && !reqNeeds;
 
   return (
     <CookScreen
@@ -808,6 +845,46 @@ export default function CookOrders() {
               body={shopOrders.length ? t('Try another filter.') : t('When somebody buys from your shop it lands here.')}
             />
           )
+        ) : null}
+
+        {/* ---- requests ----
+            Bids still being agreed. Answered here; the haggling itself stays
+            on the request's own screen. */}
+        {shownKind === 'requests' ? (
+          <View style={{ gap: 4 }}>
+            <Text
+              style={{
+                fontFamily: font.ui,
+                fontSize: type.xs,
+                lineHeight: type.xs * 1.6,
+                color: colors.textMuted,
+              }}
+            >
+              {t('Once the customer picks you and pays, it moves to your Menu orders.')}
+            </Text>
+            {!reqRows.ready ? (
+              <EmptyState icon="clock" title={t('Loading requests…')} body="" />
+            ) : reqRows.failed && !(reqRows.open.length + reqRows.mine.length + reqRows.done.length) ? (
+              <View style={{ gap: 12, marginTop: 12 }}>
+                <EmptyState
+                  icon="alertCircle"
+                  title={t('Could not load requests')}
+                  body={t('Check your connection and try again.')}
+                />
+                <Button label={t('Try again')} icon="arrowRight" block onPress={reqRows.retry} />
+              </View>
+            ) : reqRows.open.length + reqRows.mine.length + reqRows.done.length ? (
+              <CookRequestsBoard rows={reqRows} onOpen={openRequest} actions={reqActions} />
+            ) : (
+              <EmptyState
+                icon="sparkles"
+                title={t('Nothing asked for yet')}
+                body={t(
+                  'When somebody near you wants something they cannot find, it lands here and you can name your price.',
+                )}
+              />
+            )}
+          </View>
         ) : null}
 
         {/* ---- meals ---- */}

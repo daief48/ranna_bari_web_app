@@ -67,6 +67,7 @@ import {
   spreadMonth,
   todayKey,
 } from '../../../src/features/meal-plan/format';
+import { useCookRequestRows } from '../../../src/features/requests/useCookRequestRows';
 import { useLang } from '../../../src/i18n/LanguageContext';
 
 /**
@@ -208,13 +209,11 @@ export default function CookDashboard() {
     0,
   );
 
-  /* Requests this kitchen could bid on and has not answered yet. */
-  const openRequests = kitchen
-    ? meals
-        .requestsForCook(kitchen.id)
-        .filter((r) => r.status === 'open' && !meals.offerForCook(r.id, kitchen.id))
-        .length
-    : 0;
+  /* Requests this kitchen could bid on and has not answered yet, and how many
+     want an answer from the cook at all (unanswered + the customer's replies).
+     One shared grouping with the Orders tab and the Profile row. */
+  const requestCounts = useCookRequestRows().counts;
+  const openRequests = requestCounts.open;
 
   /* Every order on this kitchen, memoised on the list itself. `ordersForKitchen`
      builds a fresh array per call, so reading it bare made every `useMemo`
@@ -1590,7 +1589,7 @@ export default function CookDashboard() {
               tone: 'sage',
               title: t('{n} people are asking for food', { n: n(openRequests) }),
               sub: t('Nobody has offered to cook it yet'),
-              onPress: () => router.push('/cook/requests'),
+              onPress: () => router.push('/cook/orders?tab=requests'),
             },
           ]}
         />
@@ -2762,6 +2761,23 @@ export default function CookDashboard() {
               />
             </View>
 
+            {/* Food requests: customers asking for what nobody has listed. The
+                badge is what wants an answer from the cook. */}
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+              <QuickTile
+                icon="chat"
+                tone="sage"
+                label={t('Food requests')}
+                sub={
+                  requestCounts.needsYou
+                    ? t('{n} need your answer', { n: n(requestCounts.needsYou) })
+                    : t('Nothing waiting on you')
+                }
+                count={requestCounts.needsYou}
+                onPress={() => router.push('/cook/orders?tab=requests')}
+              />
+            </View>
+
             {/* Messages keep a row rather than a tile: the unread count is
                 the state, and the door to it is one tap from wherever it is
                 true. */}
@@ -2791,8 +2807,9 @@ export default function CookDashboard() {
  * one value that makes it now (the balance, the KYC state) rather than a
  * description of what pressing it would do.
  */
-function QuickTile({ icon, tone = 'sage', label, sub, onPress }) {
+function QuickTile({ icon, tone = 'sage', label, sub, count = 0, onPress }) {
   const { colors, shadow } = useTheme();
+  const { n } = useLang();
 
   const tint = {
     sage: { bg: colors.sage50, fg: colors.sage, edge: colors.sage100 },
@@ -2833,6 +2850,23 @@ function QuickTile({ icon, tone = 'sage', label, sub, onPress }) {
       >
         <Icon name={icon} size={18} color={tint.fg} />
       </View>
+      {count > 0 ? (
+        <View
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            minWidth: 22,
+            paddingHorizontal: 6,
+            paddingVertical: 2,
+            borderRadius: radius.pill,
+            alignItems: 'center',
+            backgroundColor: colors.primary,
+          }}
+        >
+          <Text style={{ fontFamily: font.uiBold, fontSize: 11, color: '#FFFFFF' }}>{n(count)}</Text>
+        </View>
+      ) : null}
       <Text
         numberOfLines={1}
         style={{

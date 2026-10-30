@@ -363,6 +363,9 @@ export function CommerceProvider({ children }) {
      after it, so a board reading `loading` alone said "All done." for the
      half-second between mounting and asking. */
   const [privateSettled, setPrivateSettled] = useState(false);
+  /* The last read of the request board was refused. Lets a board say "could
+     not load" instead of "nothing asked for yet". */
+  const [requestsFailed, setRequestsFailed] = useState(false);
   const [offline, setOffline] = useState(false);
 
   /* The authoritative copy. Writes read it to merge a server response into
@@ -536,6 +539,7 @@ export function CommerceProvider({ children }) {
        air: their answers belong to an account that is no longer here. */
     if (tokenNow.current !== token) return false;
 
+    setRequestsFailed(!requests.ok);
     if (Object.keys(fields).length) patch(fields);
 
     return orders.ok || wallet.ok;
@@ -1140,6 +1144,7 @@ export function CommerceProvider({ children }) {
     const fields = {};
     if (requests.ok) fields.requests = requests.result.requests ?? [];
     if (offers?.ok) fields.offers = offers.result.offers ?? [];
+    setRequestsFailed(!requests.ok);
     if (Object.keys(fields).length) patch(fields);
   }, [token, kitchenId, patch]);
 
@@ -1227,6 +1232,7 @@ export function CommerceProvider({ children }) {
           ten orders waiting. */
       ordersReady: privateSettled || (sessionHydrated && !isVerified),
       refresh,
+      requestsFailed,
       state,
 
       wallet: state.wallet,
@@ -1801,6 +1807,7 @@ export function CommerceProvider({ children }) {
     loading,
     offline,
     privateSettled,
+    requestsFailed,
     isVerified,
     sessionHydrated,
     kitchenId,

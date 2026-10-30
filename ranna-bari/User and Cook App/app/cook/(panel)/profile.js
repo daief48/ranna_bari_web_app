@@ -35,6 +35,7 @@ import { useCookPayouts } from '../../../src/data/cook';
 import { formatOrderDate, useOrders } from '../../../src/store/OrdersContext';
 import { fetchMealOrders, fetchMyPlan, fetchMyService } from '../../../src/features/meal-plan/api';
 import { countMeals, spreadMonth, todayKey } from '../../../src/features/meal-plan/format';
+import { useCookRequestRows } from '../../../src/features/requests/useCookRequestRows';
 import { useLang } from '../../../src/i18n/LanguageContext';
 import { digitsOnly } from '../../../src/lib/format';
 
@@ -44,6 +45,8 @@ export default function CookProfile() {
   const router = useRouter();
   const { kitchen, updateKitchen } = useKitchen();
   const meals = useCommerce();
+  /* Same grouping the Orders tab and the dashboard badge read. */
+  const requestCounts = useCookRequestRows().counts;
   const { account, setViewMode, signOut } = useAuth();
   const { signOutServer, token } = useSession();
   const { payouts } = useCookPayouts();
@@ -984,6 +987,17 @@ export default function CookProfile() {
                   : t('Nobody has rated your kitchen yet')
               }
               onPress={() => router.push('/cook/reviews')}
+            />
+            <ActionRow
+              icon="chat"
+              style={{ marginTop: 12 }}
+              title={t('Food requests')}
+              sub={
+                requestCounts.open
+                  ? t('{n} waiting for your price', { n: n(requestCounts.open) })
+                  : t('Customers asking for things nobody has listed')
+              }
+              onPress={() => router.push('/cook/orders?tab=requests')}
             />
           </View>
         </Reveal>

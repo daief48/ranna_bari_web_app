@@ -4044,4 +4044,25 @@ export const bn = {
   'Write a message': 'মেসেজ লিখুন',
   'FOOD': 'খাবারের',
   'See all {n} dishes': 'সব {n}টি খাবার দেখুন',
+  '{n} need your answer': '{n}টিতে আপনার উত্তর দরকার',
+  'Nothing waiting on you': 'আপনার জন্য কিছু অপেক্ষায় নেই',
+  '{n} requests need your answer.': '{n}টি অনুরোধে আপনার উত্তর দরকার।',
+  'Nothing is waiting on you.': 'আপনার জন্য কিছু অপেক্ষায় নেই।',
+  'Once the customer picks you and pays, it moves to your Menu orders.':
+    'ক্রেতা আপনাকে বেছে নিয়ে টাকা দিলে এটি আপনার মেনু অর্ডারে চলে যাবে।',
+  'Loading requests…': 'অনুরোধ আসছে…',
+  'Could not load requests': 'অনুরোধগুলো আনা যায়নি',
+  'Check your connection and try again.': 'আপনার সংযোগ দেখে আবার চেষ্টা করুন।',
+  '{title} moved to {where}': '{title} সরে গেছে: {where}',
+  'Send price': 'দাম পাঠান',
+  'Not for me': 'আমার জন্য নয়',
+  'Enter a whole price from ৳1 to ৳{max}.': '৳১ থেকে ৳{max}-এর মধ্যে পূর্ণ সংখ্যায় দাম লিখুন।',
+  'Not for you?': 'আপনার জন্য নয়?',
+  'This request leaves your board. The customer is not told unless they asked you directly.':
+    'অনুরোধটি আপনার বোর্ড থেকে সরে যাবে। ক্রেতা সরাসরি আপনাকে না চাইলে তাঁকে জানানো হবে না।',
+  'Yes, not for me': 'হ্যাঁ, আমার জন্য নয়',
+  'Withdraw your offer?': 'আপনার অফার তুলে নেবেন?',
+  'The customer will no longer see your price on this request.':
+    'এই অনুরোধে ক্রেতা আর আপনার দাম দেখতে পাবেন না।',
+  'Yes, withdraw': 'হ্যাঁ, তুলে নিন',
 };
